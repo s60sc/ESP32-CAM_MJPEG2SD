@@ -116,6 +116,7 @@ const char* index_ov2640_html = R"~(
             }
 
             .input-group {
+                position: relative;
                 display: flex;
                 flex-wrap: nowrap;
                 line-height: 22px;
@@ -336,6 +337,26 @@ const char* index_ov2640_html = R"~(
             .hidden {
                 display: none
             }
+            output {
+              position: absolute;
+              top: -32px;
+              display: none;
+              width: 50px;
+              height: 24px;
+              border: 1px solid #e2e2e2;
+              background-color: #FFE4C4;
+              border-radius: 3px;
+              color: #777;
+              font-size: .8em;
+              font-weight: bold;
+              line-height: 24px;
+              text-align: center;
+            }
+
+            input[type=range]:active + output {
+              display: block;
+              -webkit-transform: translateX(180px);
+            }
         </style>
     </head>
     <body>
@@ -361,28 +382,60 @@ const char* index_ov2640_html = R"~(
                                 <option value="0">QQVGA(160x120)</option>
                             </select>
                         </div>
+                        <div class="input-group" id="fps-group">
+                            <label for="fps">FPS</label>
+                            <div class="range-min">0</div>
+                            <input type="range" id="fps" min="0" max="30" value="10" class="default-action">
+                            <output name="rangeVal">15</output>
+                            <div class="range-max">30</div>
+                        </div>
+                        <div class="input-group" id="minf-group">
+                            <label for="minf">Min Frames</label>
+                            <div class="range-min">0</div>
+                            <input type="range" id="minf" min="0" max="100" value="10" class="default-action">
+                            <output name="rangeVal">10</output>
+                            <div class="range-max">100</div>
+                        </div>
+                        <div class="input-group" id="dbg-group">
+                            <label for="dbg">Verbose</label>
+                            <div class="switch">
+                                <input id="dbg" type="checkbox" class="default-action">
+                                <label class="slider" for="dbg"></label>
+                            </div>
+                        </div>
+                        <div class="input-group" id="sfiles-group">
+                          <label for="sfiles">Select folder / file</label>
+                          <select id="sfile">
+                            <option value="None" selected="selected">-- Select --</option>
+                            <option value="/">Get Folders</option>
+                          </select>
+                        </div>
                         <div class="input-group" id="quality-group">
                             <label for="quality">Quality</label>
                             <div class="range-min">10</div>
                             <input type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                            <output name="rangeVal">10</output>
                             <div class="range-max">63</div>
                         </div>
                         <div class="input-group" id="brightness-group">
                             <label for="brightness">Brightness</label>
                             <div class="range-min">-2</div>
                             <input type="range" id="brightness" min="-2" max="2" value="0" class="default-action">
+                            <output name="rangeVal">0</output>
                             <div class="range-max">2</div>
                         </div>
                         <div class="input-group" id="contrast-group">
                             <label for="contrast">Contrast</label>
                             <div class="range-min">-2</div>
                             <input type="range" id="contrast" min="-2" max="2" value="0" class="default-action">
+                            <output name="rangeVal">0</output>
                             <div class="range-max">2</div>
                         </div>
                         <div class="input-group" id="saturation-group">
                             <label for="saturation">Saturation</label>
                             <div class="range-min">-2</div>
                             <input type="range" id="saturation" min="-2" max="2" value="0" class="default-action">
+                            <output name="rangeVal">0</output>
                             <div class="range-max">2</div>
                         </div>
                         <div class="input-group" id="special_effect-group">
@@ -439,12 +492,14 @@ const char* index_ov2640_html = R"~(
                             <label for="ae_level">AE Level</label>
                             <div class="range-min">-2</div>
                             <input type="range" id="ae_level" min="-2" max="2" value="0" class="default-action">
+                            <output name="rangeVal">0</output>
                             <div class="range-max">2</div>
                         </div>
                         <div class="input-group" id="aec_value-group">
                             <label for="aec_value">Exposure</label>
                             <div class="range-min">0</div>
                             <input type="range" id="aec_value" min="0" max="1200" value="204" class="default-action">
+                            <output name="rangeVal">204</output>
                             <div class="range-max">1200</div>
                         </div>
                         <div class="input-group" id="agc-group">
@@ -458,12 +513,14 @@ const char* index_ov2640_html = R"~(
                             <label for="agc_gain">Gain</label>
                             <div class="range-min">1x</div>
                             <input type="range" id="agc_gain" min="0" max="30" value="5" class="default-action">
+                            <output name="rangeVal">5</output>
                             <div class="range-max">31x</div>
                         </div>
                         <div class="input-group" id="gainceiling-group">
                             <label for="gainceiling">Gain Ceiling</label>
                             <div class="range-min">2x</div>
                             <input type="range" id="gainceiling" min="0" max="6" value="0" class="default-action">
+                            <output name="rangeVal">0</output>
                             <div class="range-max">128x</div>
                         </div>
                         <div class="input-group" id="bpc-group">
@@ -522,24 +579,9 @@ const char* index_ov2640_html = R"~(
                                 <label class="slider" for="colorbar"></label>
                             </div>
                         </div>
-                        <div class="input-group" id="face_detect-group">
-                            <label for="face_detect">Face Detection</label>
-                            <div class="switch">
-                                <input id="face_detect" type="checkbox" class="default-action">
-                                <label class="slider" for="face_detect"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="face_recognize-group">
-                            <label for="face_recognize">Face Recognition</label>
-                            <div class="switch">
-                                <input id="face_recognize" type="checkbox" class="default-action">
-                                <label class="slider" for="face_recognize"></label>
-                            </div>
-                        </div>
                         <section id="buttons">
                             <button id="get-still">Get Still</button>
                             <button id="toggle-stream">Start Stream</button>
-                            <button id="face_enroll" class="disabled" disabled="disabled">Enroll Face</button>
                         </section>
                     </nav>
                 </div>
@@ -551,7 +593,24 @@ const char* index_ov2640_html = R"~(
                 </figure>
             </div>
         </section>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
         <script>
+$('input[type="range"]').on('input', function () {
+
+  var control = $(this),
+  controlMin = control.attr('min'),
+  controlMax = control.attr('max'),
+  controlVal = control.val();
+
+  var range = controlMax - controlMin;
+  var position = (controlVal - controlMin) / range * 30;
+  
+  var output = control.next('output');
+  output.
+  css('left', 'calc(' + position + '%)').text(controlVal);
+
+});
+
 document.addEventListener('DOMContentLoaded', function (event) {
   var baseHost = document.location.origin
   var streamUrl = baseHost + ':81'
@@ -600,8 +659,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
         }
       } else if(el.id === "awb_gain"){
         value ? show(wb) : hide(wb)
-      } else if(el.id === "face_recognize"){
-        value ? enable(enrollButton) : disable(enrollButton)
       }
     }
   }
@@ -623,13 +680,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
       default:
         return
     }
-
+    
     const query = `${baseHost}/control?var=${el.id}&val=${value}`
 
     fetch(query)
       .then(response => {
         console.log(`request to ${query} finished, status: ${response.status}`)
-      })
+    })
   }
 
   document
@@ -657,12 +714,18 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const viewContainer = document.getElementById('stream-container')
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
-  const enrollButton = document.getElementById('face_enroll')
   const closeButton = document.getElementById('close-stream')
 
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
+    $.ajax({
+      url: "http://"+$(location).attr("host")+"/control",
+      data: {
+        "var": "stopStream",
+        "val": "1"
+      }
+    })
   }
 
   const startStream = () => {
@@ -691,11 +754,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
       startStream()
     }
   }
-
-  enrollButton.onclick = () => {
-    updateConfig(enrollButton)
-  }
-
+  
   // Attach default on change action
   document
     .querySelectorAll('.default-action')
@@ -735,48 +794,55 @@ document.addEventListener('DOMContentLoaded', function (event) {
     awb.checked ? show(wb) : hide(wb)
   }
 
-  // Detection and framesize
-  const detect = document.getElementById('face_detect')
-  const recognize = document.getElementById('face_recognize')
+  // framesize
   const framesize = document.getElementById('framesize')
-
   framesize.onchange = () => {
     updateConfig(framesize)
-    if (framesize.value > 5) {
-      updateValue(detect, false)
-      updateValue(recognize, false)
-    }
+    updateFPS()
   }
 
-  detect.onchange = () => {
-    if (framesize.value > 5) {
-      alert("Please select CIF or lower resolution before enabling this feature!");
-      updateValue(detect, false)
-      return;
-    }
-    updateConfig(detect)
-    if (!detect.checked) {
-      disable(enrollButton)
-      updateValue(recognize, false)
-    }
+  function updateFPS() {
+    // update default FPS to match selected framesize 
+    $.ajax({
+      url: "http://"+$(location).attr("host")+"/control",
+      data: {
+        "var": "updateFPS",
+        "val": $('#framesize').val()
+      }, 
+      success: function(response) {
+        // update FPS
+        $.each(response, function(key, value){
+           $('#'+key).val(value); // fps
+        });
+      }
+    }); 
   }
 
-  recognize.onchange = () => {
-    if (framesize.value > 5) {
-      alert("Please select CIF or lower resolution before enabling this feature!");
-      updateValue(recognize, false)
-      return;
-    }
-    updateConfig(recognize)
-    if (recognize.checked) {
-      enable(enrollButton)
-      updateValue(detect, true)
-    } else {
-      disable(enrollButton)
-    }
+  // folder / file option list
+  const sfile = document.getElementById('sfile')
+  sfile.onchange = () => {
+    // build option list from json
+    var sid = $('#sfile');
+    var selection = sid.val();
+    sid.find('option:not(:first)').remove(); // remove all except first option
+    var listItems = '';
+    $.ajax({
+      url: "http://"+$(location).attr("host")+"/control",
+      data: {
+        "var": "sfile",
+        "val": selection
+      },   
+      success: function(response) {
+        // create new option list from json
+        $.each(response, function(key, value){
+          listItems += '<option value="' + key + '">' + value + '</option>';
+console.log(listItems);
+        });
+        sid.append(listItems);
+      }
+    }); 
   }
-})
-
+});
         </script>
     </body>
 </html>

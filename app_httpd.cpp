@@ -31,13 +31,18 @@ httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 
 // additions for mjpeg2sd.cpp
+extern uint8_t FPS;
+extern uint8_t minFrames;
+extern bool doDebug;
+extern uint8_t saveFPS;
 extern uint8_t* SDbuffer;
-void setParams(uint8_t _FPS, uint8_t _minFrames, bool _doDebug);
-bool listDir(const char* dirname, bool wantDirs, char* htmlBuff);
-void openSDfile(const char* thisFile);
-size_t getSDcluster();
-static bool streamFromSD = false;
+extern bool isStreaming;
+extern bool stopPlayback;
+void listDir(const char* fname, char* htmlBuff);
+void getNewFPS(uint8_t frameSize, char* htmlBuff);
+size_t* getNextFrame();
 static char htmlBuff[5000]; 
+
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -68,9 +73,9 @@ static esp_err_t capture_handler(httpd_req_t *req){
     return res;
 }
 
-static esp_err_t stream_handler(httpd_req_t *req){
-    camera_fb_t * fb = NULL;
+static esp_err_t stream_handler(httpd_req_t *req) {
     esp_err_t res = ESP_OK;
+    camera_fb_t * fb = NULL;
     size_t _jpg_buf_len = 0;
     uint8_t * _jpg_buf = NULL;
     char * part_buf[64];
@@ -89,16 +94,14 @@ static esp_err_t stream_handler(httpd_req_t *req){
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
     while(true){
+      
       // additions for mjpeg2sd.cpp
-      if (streamFromSD) {
-        // send pre-prepared stream from SD mjpeg in cluster size chunks
-        size_t clusterLen = getSDcluster(); // end when returned zero length
-        if (clusterLen) res = httpd_resp_send_chunk(req, (const char *)SDbuffer, clusterLen);
-        if (!clusterLen || res != ESP_OK) {
-          // end of streaming from SD
-          streamFromSD = false; 
-          break;
-        }
+      if (isStreaming) {
+        // playback mjpeg from SD
+        size_t* imgPtrs = getNextFrame(); 
+        size_t clusterLen = imgPtrs[0];
+        if (clusterLen) res = httpd_resp_send_chunk(req, (const char *)SDbuffer+imgPtrs[1], clusterLen);
+        if (res != ESP_OK) break;
       } else { // end additions for mjpeg2sd.cpp
         
         fb = esp_camera_fb_get();
@@ -136,13 +139,12 @@ static esp_err_t stream_handler(httpd_req_t *req){
         last_frame = fr_end;
         frame_time /= 1000;
 
-        Serial.printf("MJPG: %uB %ums (%.1ffps)\n",
+        if (doDebug) Serial.printf("MJPG: %uB %ums (%.1ffps)\n",
             (uint32_t)(_jpg_buf_len),
             (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time
         ); 
       }
     }
-
     last_frame = 0;
     return res;
 }
@@ -151,7 +153,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     char*  buf;
     size_t buf_len;
     char variable[32] = {0,};
-    char value[32] = {0,};
+    char value[100] = {0,};
 
     buf_len = httpd_req_get_url_query_len(req) + 1;
     if (buf_len > 1) {
@@ -186,6 +188,30 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     if(!strcmp(variable, "framesize")) {
         if(s->pixformat == PIXFORMAT_JPEG) res = s->set_framesize(s, (framesize_t)val);
     }
+    // additions for mpjpeg2sd.cpp
+    else if(!strcmp(variable, "sfile")) {
+      listDir(value, htmlBuff); // get folders / files on SD
+      httpd_resp_set_type(req, "application/json");
+      return httpd_resp_send(req, htmlBuff, strlen(htmlBuff));
+    } 
+    else if(!strcmp(variable, "fps")) saveFPS = FPS = val;
+    else if(!strcmp(variable, "minf")) minFrames  = val;
+    else if(!strcmp(variable, "dbg")) {
+      doDebug = (val) ? true : false;
+      Serial.setDebugOutput(doDebug);
+      res = ESP_OK;
+    }
+    else if(!strcmp(variable, "updateFPS")) {
+      getNewFPS(val, htmlBuff);
+      httpd_resp_set_type(req, "application/json");
+      return httpd_resp_send(req, htmlBuff, strlen(htmlBuff));
+    }
+    else if(!strcmp(variable, "stopStream")) {
+      if (isStreaming) stopPlayback = true;
+      res = ESP_OK;
+    }
+    // end of additions for mpjpeg2sd.cpp
+    
     else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, val);
     else if(!strcmp(variable, "brightness")) res = s->set_brightness(s, val);
@@ -225,7 +251,12 @@ static esp_err_t status_handler(httpd_req_t *req){
     sensor_t * s = esp_camera_sensor_get();
     char * p = json_response;
     *p++ = '{';
-
+    // additions for mpjpeg2sd.cpp
+    p+=sprintf(p, "\"fps\":%u,", FPS);
+    p+=sprintf(p, "\"minf\":%u,", minFrames);
+    p+=sprintf(p, "\"dbg\":%u,", doDebug ? 1 : 0);
+    p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
+    // end of additions for mpjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,", s->status.framesize);
     p+=sprintf(p, "\"quality\":%u,", s->status.quality);
     p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
@@ -250,7 +281,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"vflip\":%u,", s->status.vflip);
     p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
     p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
-    p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
+    p+=sprintf(p, "\"colorbar\":%u", s->status.colorbar);
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
@@ -260,68 +291,14 @@ static esp_err_t status_handler(httpd_req_t *req){
 
 // additions for mpjpeg2sd.cpp
 static esp_err_t index_handler(httpd_req_t *req){
-  httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
-}
-
-static esp_err_t sd_handler(httpd_req_t *req){
-  esp_err_t res = ESP_OK;
-  size_t buf_len;
-  char* buf;
-  char value[100];
-  buf_len = httpd_req_get_url_query_len(req) + 1;
-  if (buf_len > 1) {
-    // process query parameters
-    buf = (char*)malloc(buf_len);
-    res = httpd_req_get_url_query_str(req, buf, buf_len);
-    if (res == ESP_OK) res = httpd_query_key_value(buf, "folder", value, sizeof(value));
-    if (res == ESP_OK) {
-      // folder/file query
-      std::string str(value);
-      if (str.find(".mjpeg") != std::string::npos) {
-        // open selected file
-        openSDfile(value);
-        streamFromSD = true;
-        // display index html, so that Start Stream button can be pressed
-        httpd_resp_set_type(req, "text/html");
-        res = httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
-      } else {
-        // send page content with mjpeg file names from day folder
-        if (listDir(value, false, htmlBuff)) {
-          httpd_resp_set_type(req, "text/html");
-          res = httpd_resp_send(req, htmlBuff, strlen(htmlBuff));
-        } else res = ESP_FAIL;
-      }
-    } else {
-      res = httpd_query_key_value(buf, "frameRate", value, sizeof(value));
-      if (res == ESP_OK) {
-        uint8_t FPS = atoi(value);
-        httpd_query_key_value(buf, "minFrames", value, sizeof(value));
-        uint8_t minFrames = atoi(value);
-        res = httpd_query_key_value(buf, "debug", value, sizeof(value));
-        bool doDebug = (atoi(value)) ? true : false;
-        setParams(FPS, minFrames, doDebug);
-        // display index html, for further user selections
-        httpd_resp_set_type(req, "text/html");
-        res = httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
-      }
-    }
-    free(buf);
-  } else {
-    // no params, send page content with day folder names from root folder
-    if (listDir("/", true, htmlBuff)) {
-      httpd_resp_set_type(req, "text/html");  
-      res = httpd_resp_send(req, htmlBuff, strlen(htmlBuff));
-    } else res = ESP_FAIL;
-  }
-  if (res != ESP_OK) httpd_resp_send_404(req);
-  return res;
+    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
 }
 // end of additions for mpjpeg2sd.cpp
 
 void startCameraServer(){
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-
+    
     httpd_uri_t index_uri = {
         .uri       = "/",
         .method    = HTTP_GET,
@@ -350,34 +327,24 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-   httpd_uri_t stream_uri = {
+    httpd_uri_t stream_uri = {
         .uri       = "/stream",
         .method    = HTTP_GET,
         .handler   = stream_handler,
         .user_ctx  = NULL
     };
-    
-    // additions for mjpeg2sd.cpp
-    httpd_uri_t sd_uri = {
-        .uri       = "/sd",
-        .method    = HTTP_GET,
-        .handler   = sd_handler,
-        .user_ctx  = NULL
-    };
-    // end additions for mjpeg2sd.cpp
 
-    Serial.printf("Starting web server on port: '%d'\n", config.server_port);
+    if (doDebug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
-        httpd_register_uri_handler(camera_httpd, &sd_uri); // addition for mjpeg2sd.cpp
     }
 
     config.server_port += 1;
     config.ctrl_port += 1;
-    Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
+    if (doDebug) Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
