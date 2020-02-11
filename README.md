@@ -30,6 +30,7 @@ The ESP32 time is set from an NTP server. Define a different timezone as appropr
 
 ## Installation and Use
 
+Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
 The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. Additional code has been added to the original file `app_httpd.cpp` to handle the extra browser options, and an additional file`mjpeg2sd.cpp` contains the SD handling code. The web page content in `camera_index.h` has been updated to include additional functions. The face detection code has been removed to reduce the sketch size to allow OTA updates.
 
 To set the recording parameters, additional options are provided on the camera index page, where:
@@ -45,7 +46,7 @@ The pin to use is:
 If recording occurs whilst also live streaming to browser, the frame rate will be much slower.
 
 To play back a recording, select the file using `Select folder / file` on the browser to select the day folder then the required MJPEG file.
-After selecting the MJPEG file, press __Start Stream__ button to playback the recording. The recorded playback rate can be overridden using `Frame Rate` after the file has been selected. After playback finished, live streaming will continue until __Stop Stream__ button pressed. If recording started during a playback, playback will be replaced by live streaming.
+After selecting the MJPEG file, press __Start Stream__ button to playback the recording. The recorded playback rate can be overridden using `Frame Rate` after the file has been selected. After playback finished, live streaming will continue until __Stop Stream__ button pressed. If a recording is started during a playback, playback will be replaced by live streaming.
 
 Browser functions only tested on Chrome.
 
