@@ -1,5 +1,5 @@
 # ESP32-CAM_MJPEG2SD
-Enhancement to Arduino CameraWebServer sketch for ESP32-CAM Camera modules to record JPEGs to SD card as frame rate controlled MJPEG movie on external interrupt eg PIR for security camera, and subsequently select movies to playback at recorded frame rate from SD card to browser.
+Enhancement to Arduino CameraWebServer sketch for ESP32-CAM Camera modules to record JPEGs to SD card as frame rate controlled MJPEG video on external interrupt eg PIR for security camera, and subsequently select videos to playback at recorded frame rate from SD card to browser.
 
 ## Purpose
 The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the selected MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
