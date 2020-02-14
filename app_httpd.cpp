@@ -33,16 +33,18 @@ httpd_handle_t camera_httpd = NULL;
 // additions for mjpeg2sd.cpp
 extern uint8_t FPS;
 extern uint8_t minFrames;
-extern bool doDebug;
+extern bool debug;
 extern uint8_t saveFPS;
 extern uint8_t* SDbuffer;
 extern bool isStreaming;
 extern bool stopPlayback;
+extern SemaphoreHandle_t frameMutex;
+int lampVal = 0;
 void listDir(const char* fname, char* htmlBuff);
 void getNewFPS(uint8_t frameSize, char* htmlBuff);
 size_t* getNextFrame();
+void controlLamp(uint8_t lampVal);
 static char htmlBuff[5000]; 
-
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -103,7 +105,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
         if (clusterLen) res = httpd_resp_send_chunk(req, (const char *)SDbuffer+imgPtrs[1], clusterLen);
         if (res != ESP_OK) break;
       } else { // end additions for mjpeg2sd.cpp
-        
+        xSemaphoreTake(frameMutex, portMAX_DELAY);
         fb = esp_camera_fb_get();
         if (!fb) {
             Serial.println("Camera capture failed");
@@ -114,14 +116,14 @@ static esp_err_t stream_handler(httpd_req_t *req) {
             _jpg_buf = fb->buf;
         }
         if(res == ESP_OK){
+            res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
+        }
+          if(res == ESP_OK){
             size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, _jpg_buf_len);
             res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
         }
         if(res == ESP_OK){
             res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
-        }
-        if(res == ESP_OK){
-            res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
         }
         if(fb){
             esp_camera_fb_return(fb);
@@ -131,6 +133,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
             free(_jpg_buf);
             _jpg_buf = NULL;
         }
+        xSemaphoreGive(frameMutex);
         if(res != ESP_OK){
             break;
         }
@@ -139,7 +142,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
         last_frame = fr_end;
         frame_time /= 1000;
 
-        if (doDebug) Serial.printf("MJPG: %uB %ums (%.1ffps)\n",
+        if (debug) Serial.printf("MJPG: %uB %ums (%.1ffps)\n",
             (uint32_t)(_jpg_buf_len),
             (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time
         ); 
@@ -197,8 +200,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "fps")) saveFPS = FPS = val;
     else if(!strcmp(variable, "minf")) minFrames  = val;
     else if(!strcmp(variable, "dbg")) {
-      doDebug = (val) ? true : false;
-      Serial.setDebugOutput(doDebug);
+      debug = (val) ? true : false;
+      Serial.setDebugOutput(debug);
       res = ESP_OK;
     }
     else if(!strcmp(variable, "updateFPS")) {
@@ -208,6 +211,11 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "stopStream")) {
       if (isStreaming) stopPlayback = true;
+      res = ESP_OK;
+    }
+    else if(!strcmp(variable, "lamp")) {
+      lampVal = val;
+      controlLamp(lampVal);
       res = ESP_OK;
     }
     // end of additions for mpjpeg2sd.cpp
@@ -254,8 +262,9 @@ static esp_err_t status_handler(httpd_req_t *req){
     // additions for mpjpeg2sd.cpp
     p+=sprintf(p, "\"fps\":%u,", FPS);
     p+=sprintf(p, "\"minf\":%u,", minFrames);
-    p+=sprintf(p, "\"dbg\":%u,", doDebug ? 1 : 0);
+    p+=sprintf(p, "\"dbg\":%u,", debug ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
+    p+=sprintf(p, "\"lamp\":%i,", lampVal);
     // end of additions for mpjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,", s->status.framesize);
     p+=sprintf(p, "\"quality\":%u,", s->status.quality);
@@ -334,7 +343,7 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    if (doDebug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
+    if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
@@ -344,7 +353,7 @@ void startCameraServer(){
 
     config.server_port += 1;
     config.ctrl_port += 1;
-    if (doDebug) Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
+    if (debug) Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }

@@ -10,21 +10,20 @@
 // user definable environmental setup
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
 #define MAX_FRAMES 20000 // maximum number of frames before auto close
-#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
 #define ONELINE true // MMC 1 line mode
+#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
 
 #include "arduino.h"
 #include <SD_MMC.h>
-#include <sys/time.h> 
-#include <WiFi.h>
-#include "time.h"
 #include <regex>
+#include <sys/time.h> 
+#include "time.h"
 #include "esp_camera.h"
 
 // user parameters
 uint8_t FPS;
 uint8_t minFrames = 10;
-bool doDebug = false;
+bool debug = false;
 
 // stream separator
 extern const char* _STREAM_BOUNDARY; 
@@ -88,19 +87,73 @@ uint8_t saveFPS;
 static SemaphoreHandle_t mjpegSemaphore;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t streamSemaphore;
+SemaphoreHandle_t frameMutex;
 volatile bool isStreaming = false;
 bool stopPlayback = false;
 static volatile uint8_t mjpegStatus = 9; // invalid
 static volatile uint8_t PIRpin;
 
+#define LAMP_PIN 4
+
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
-#define showDebug(format, ...) if (doDebug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
+#define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
+
+/************************** NTP  **************************/
+
+static inline time_t getEpoch() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec;
+}
+
+void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder) {
+  // construct filename from date/time
+  time_t currEpoch = getEpoch();
+  if (isFolder) strftime(inBuff, inBuffLen, "/%Y%m%d", localtime(&currEpoch));
+  else strftime(inBuff, inBuffLen, "/%Y%m%d/%Y%m%d_%H%M%S", localtime(&currEpoch));
+}
+
+void getLocalNTP() {
+  // get current time from NTP server and apply to ESP32
+  const char* ntpServer = "pool.ntp.org";
+  const long gmtOffset_sec = 0;  // offset from GMT
+  const int daylightOffset_sec = 3600; // daylight savings offset in secs
+  int i = 0;
+  do {
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    delay(1000);
+  } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
+  // set TIMEZONE as required
+  setenv("TZ", TIMEZONE, 1);
+  if (getEpoch() > 1000) showInfo("Got current time from NTP");
+  else showError("Unable to sync with NTP");
+}
+
+/*********************** Utility functions ****************************/
+
+void showProgress() {
+  // show progess if not verbose
+  static uint8_t dotCnt = 0;
+  if (!debug) {
+    Serial.print("."); // progress marker
+    if (++dotCnt >= 50) {
+      dotCnt = 0;
+      Serial.println("");
+    }
+  }
+}
 
 void getNewFPS(uint8_t frameSize, char* htmlBuff) {
   saveFPS = FPS = frameSizeData[frameSize].defaultFPS;
   sprintf(htmlBuff, "{\"fps\":\"%u\"}", FPS);
+}
+
+void controlLamp(uint8_t lampVal) {
+  // switch lamp on / off
+  pinMode(LAMP_PIN, OUTPUT);
+  digitalWrite(LAMP_PIN, lampVal);
 }
 
 /**************** timers & ISRs ************************/
@@ -151,11 +204,9 @@ static bool openMjpeg() {
   // derive filename from date & time, store in date folder
   // time to open a new file on SD increases with the number of files already present
   oTime = millis();
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  strftime(partName, sizeof(partName)-1, "/%Y%m%d", localtime(&tv.tv_sec));
+  dateFormat(partName, sizeof(partName), true);
   SD_MMC.mkdir(partName); // make date folder if not present
-  strftime(partName, sizeof(partName)-1, "/%Y%m%d/%Y%m%d_%H%M%S", localtime(&tv.tv_sec));
+  dateFormat(partName, sizeof(partName), false);
   mjpegFile = SD_MMC.open(partName, FILE_WRITE);
 
   // open mjpeg file with temporary name
@@ -166,13 +217,18 @@ static bool openMjpeg() {
   // initialisation of counters
   startMjpeg = millis();
   frameCnt =  fTimeTot = wTimeTot = 0;
-  highPoint = vidSize = 0;
+  memcpy(SDbuffer, " ", 1); // for VLC
+  highPoint = vidSize = 1;
 } 
 
 static void processFrame() {
   // build frame boundary for jpeg then write to SD when cluster size reached
   uint32_t fTime = millis();
+  // add boundary to buffer
+  memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
+  highPoint += streamBoundaryLen;
   // get jpeg from camera 
+  xSemaphoreTake(frameMutex, portMAX_DELAY);
   camera_fb_t * fb = esp_camera_fb_get();
   size_t jpegSize = fb->len; 
   size_t streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize);
@@ -182,9 +238,7 @@ static void processFrame() {
   memcpy(SDbuffer+highPoint, fb->buf, jpegSize);
   highPoint += jpegSize;
   esp_camera_fb_return(fb);
-  // add boundary to buffer
-  memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
-  highPoint += streamBoundaryLen;
+  xSemaphoreGive(frameMutex);
     
   // only write to SD when at least CLUSTERSIZE is available in buffer
   uint32_t wTime = millis();
@@ -215,6 +269,9 @@ static bool closeMjpeg() {
   // closes and renames the file
   if (frameCnt > minFrames) { 
     cTime = millis(); 
+    // add final boundary to buffer
+    memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
+    highPoint += streamBoundaryLen;
     // write remaining frame content to SD
     mjpegFile.write(SDbuffer, highPoint); 
     showDebug("Final SD storage time %u ms", millis() - cTime); 
@@ -258,18 +315,6 @@ static bool closeMjpeg() {
     return false;
   }
 }  
-
-static void showProgress() {
-  // show progess if not verbose
-  static uint8_t dotCnt = 0;
-  if (!doDebug) {
-    Serial.print("."); // progress marker
-    if (++dotCnt >= 50) {
-      dotCnt = 0;
-      Serial.println("");
-    }
-  }
-}
 
 static void mjpegControllerTask(void* parameter) {
   // interrupt driven mjpeg control loop
@@ -328,101 +373,6 @@ static void mjpegControllerTask(void* parameter) {
     }
   }
   vTaskDelete(NULL);
-}
-
-/******************* SD, NTP & init ********************/
-
-static inline time_t getEpochSecs() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return tv.tv_sec;
-}
-
-static void getNTP() {
-  // get current time from NTP server and apply to ESP32
-  const char* ntpServer = "pool.ntp.org";
-  const long gmtOffset_sec = 0;  // offset from GMT
-  const int daylightOffset_sec = 3600; // daylight savings offset in secs
-  int i = 0;
-  do {
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    delay(1000);
-  } while (getEpochSecs() < 1000 && i++ < 5); // try up to 5 times
-  // set TIMEZONE as required
-  setenv("TZ", TIMEZONE, 1);
-  if (getEpochSecs() > 1000) showInfo("Got current time from NTP");
-  else showError("Unable to sync with NTP");
-}
-
-static void infoSD() {
-  uint8_t cardType = SD_MMC.cardType();
-  if (cardType == CARD_NONE) showError("No SD card attached");
-  else {
-    char typeStr[8] = "UNKNOWN";
-    if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
-    else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
-    else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
-
-    uint64_t cardSize, totBytes, useBytes = 0;
-    cardSize = SD_MMC.cardSize() / ONEMEG;
-    totBytes = SD_MMC.totalBytes() / ONEMEG;
-    useBytes = SD_MMC.usedBytes() / ONEMEG;
-    showInfo("SD card type %s, Size: %lluMB, Used space: %lluMB, Total space: %lluMB", 
-      typeStr, cardSize, useBytes, totBytes);
-  } 
-}
-
-static bool prepSDcard(bool oneLine) {
-  /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
-     MMC4  MMC1  ESP32  
-      D2          12      
-      D3    CS    13     
-      CMD   MOSI  15       
-      CLK   SCK   14    
-      D0    MISO  2     
-      D1          4
- */
-  bool res = false; 
-  if (oneLine) {
-    // SD_MMC 1 line mode
-    res = SD_MMC.begin("/sdcard", true);
-    // set lamp fully off as sd_mmc library still initialises pin 4
-    pinMode(4, OUTPUT);
-    digitalWrite(4, LOW);
-  } else res = SD_MMC.begin(); // SD_MMC 4 line mode
-  if (res){ 
-    showInfo("SD ready in %s mode ", oneLine ? "1-line" : "4-line");
-    infoSD();
-    return true;
-  } else {
-    showError("SD mount failed for %s mode", oneLine ? "1-line" : "4-line");
-    return false;
-  }
-}
-
-bool prepMjpeg() {
-  // initialisation & prep for MJPEG capture
-  if (psramFound()) {
-    if (prepSDcard(ONELINE)) { 
-      // get time from NTP
-      getNTP();
-      SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
-      PIRpin = (ONELINE) ? 12 : 33;
-      setupPIRinterrupt(); 
-      mjpegSemaphore = xSemaphoreCreateBinary();
-      readSemaphore = xSemaphoreCreateBinary();
-      streamSemaphore = xSemaphoreCreateBinary();
-      esp_camera_fb_get(); // prime camera
-      sensor_t * s = esp_camera_sensor_get();
-      saveFPS = FPS = frameSizeData[s->status.framesize].defaultFPS; // initial frames per second     
-      xTaskCreate(&mjpegControllerTask, "mjpegControllerTask", 4096*4, NULL, 1, NULL);
-      showDebug("mjpegControllerTask on core %u, Free heap %u bytes", xPortGetCoreID(), xPortGetFreeHeapSize());
-      return true;
-    } else return false;
-  } else {
-    showError("pSRAM must be enabled");
-    return false;
-  }
 }
 
 /********************** streaming ***********************/
@@ -519,6 +469,7 @@ size_t* getNextFrame() {
   static uint32_t tTimeTot;
   static uint32_t hTime;
   static size_t buffLen;
+  static uint16_t skipOver;
   if (firstCall) {
     sTime = millis();
     hTime = millis();
@@ -526,6 +477,7 @@ size_t* getNextFrame() {
     remaining = false;
     frameCnt = boundary = streamOffset = 0;
     wTimeTot = fTimeTot = hTimeTot = tTimeTot = 0;
+    skipOver = 500; // skip over first boundary
     buffLen = readLen;
     controlFrameTimer(true); // start frame timer
   }  
@@ -548,8 +500,9 @@ size_t* getNextFrame() {
       xSemaphoreGive(mjpegSemaphore); // signal for next cluster - sets readLen
     }
     mTime = millis();
-    std::string haystack((char*)SDbuffer+streamOffset, (char*)SDbuffer + buffLen); 
+    std::string haystack((char*)SDbuffer+streamOffset+skipOver, (char*)SDbuffer + buffLen); 
     // return part of buffer if boundary found
+    skipOver = 0;
     boundary = haystack.find(needle);
     showDebug("frame search time %u ms", millis()-mTime);
     fTimeTot += millis()-mTime;
@@ -588,27 +541,102 @@ size_t* getNextFrame() {
     if (stopPlayback) {
      showInfo("Force close playback");
      stopPlayback = false;
+    } else {
+      uint32_t playDuration = (millis()-sTime)/1000;
+      uint32_t totBusy = wTimeTot+fTimeTot+hTimeTot;
+      showInfo("\n******** MJPEG playback stats ********");
+      showInfo("Playback %s", mjpegName);
+      showInfo("Recorded FPS %u, duration %u secs", recFPS, vidDuration);
+      showInfo("Required playback FPS %u", FPS);
+      showInfo("Actual playback FPS %0.1f, duration %u secs", (float)frameCnt/playDuration, playDuration);
+      showInfo("Number of frames: %u", frameCnt);
+      if (frameCnt) {
+        showInfo("Average frame SD read time: %u ms", wTimeTot / frameCnt);
+        showInfo("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
+        showInfo("Average frame processing time: %u ms", fTimeTot / frameCnt);
+        showInfo("Average frame delay time: %u ms", tTimeTot / frameCnt);
+        showInfo("Average http send time: %u ms", hTimeTot / frameCnt);
+        showInfo("Busy: %u%%", std::min(100 * totBusy/(totBusy+tTimeTot),(uint32_t)100));
+      }
+      showInfo("Free heap %u bytes, largest free block %u bytes", xPortGetFreeHeapSize(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+      showInfo("***************************\n");
     }
-    uint32_t playDuration = (millis()-sTime)/1000;
-    uint32_t totBusy = wTimeTot+fTimeTot+hTimeTot;
-    showInfo("\n******** MJPEG playback stats ********");
-    showInfo("Playback %s", mjpegName);
-    showInfo("Recorded FPS %u, duration %u secs", recFPS, vidDuration);
-    showInfo("Required playback FPS %u", FPS);
-    showInfo("Actual playback FPS %0.1f, duration %u secs", (float)frameCnt/playDuration, playDuration);
-    showInfo("Number of frames: %u", frameCnt);
-    if (frameCnt) {
-      showInfo("Average frame SD read time: %u ms", wTimeTot / frameCnt);
-      showInfo("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
-      showInfo("Average frame processing time: %u ms", fTimeTot / frameCnt);
-      showInfo("Average frame delay time: %u ms", tTimeTot / frameCnt);
-      showInfo("Average http send time: %u ms", hTimeTot / frameCnt);
-    }
-    showInfo("Busy: %u%%", std::min(100 * totBusy/(totBusy+tTimeTot),(uint32_t)100));
-    showInfo("Free heap %u bytes, largest free block %u bytes", xPortGetFreeHeapSize(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
-    showInfo("***************************\n");
     FPS = saveFPS; // realign with browser
   }
   hTime = millis();
   return imgPtrs;
+}
+
+
+static void infoSD() {
+  uint8_t cardType = SD_MMC.cardType();
+  if (cardType == CARD_NONE) showError("No SD card attached");
+  else {
+    char typeStr[8] = "UNKNOWN";
+    if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
+    else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
+    else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
+
+    uint64_t cardSize, totBytes, useBytes = 0;
+    cardSize = SD_MMC.cardSize() / ONEMEG;
+    totBytes = SD_MMC.totalBytes() / ONEMEG;
+    useBytes = SD_MMC.usedBytes() / ONEMEG;
+    showInfo("SD card type %s, Size: %lluMB, Used space: %lluMB, Total space: %lluMB", 
+      typeStr, cardSize, useBytes, totBytes);
+  } 
+}
+
+/***************************** SD card ********************************/
+
+bool prepSD_MMC(bool oneLine) {
+  /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
+     MMC4  MMC1  ESP32  
+      D2          12      
+      D3    CS    13     
+      CMD   MOSI  15       
+      CLK   SCK   14    
+      D0    MISO  2     
+      D1          4
+ */
+  bool res = false;
+  if (oneLine) {
+    // SD_MMC 1 line mode
+    res = SD_MMC.begin("/sdcard", true);
+  } else res = SD_MMC.begin(); // SD_MMC 4 line mode
+  if (res){ 
+    showInfo("SD ready in %s mode ", oneLine ? "1-line" : "4-line");
+    infoSD();
+    return true;
+  } else {
+    showError("SD mount failed for %s mode", oneLine ? "1-line" : "4-line");
+    return false;
+  }
+}
+
+/******************* Startup ********************/
+
+bool prepMjpeg() {
+  // initialisation & prep for MJPEG capture
+  if (psramFound()) {
+    if (prepSD_MMC(ONELINE)) { 
+      if (ONELINE) controlLamp(0); // set lamp fully off as sd_mmc library still initialises pin 4
+      getLocalNTP(); // get time from NTP
+      SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
+      PIRpin = (ONELINE) ? 12 : 33;
+      setupPIRinterrupt(); 
+      mjpegSemaphore = xSemaphoreCreateBinary();
+      readSemaphore = xSemaphoreCreateBinary();
+      streamSemaphore = xSemaphoreCreateBinary();
+      frameMutex = xSemaphoreCreateMutex();
+      esp_camera_fb_get(); // prime camera
+      sensor_t * s = esp_camera_sensor_get();
+      saveFPS = FPS = frameSizeData[s->status.framesize].defaultFPS; // initial frames per second     
+      xTaskCreate(&mjpegControllerTask, "mjpegControllerTask", 4096*4, NULL, 5, NULL);
+      showDebug("mjpegControllerTask on core %u, Free heap %u bytes", xPortGetCoreID(), xPortGetFreeHeapSize());
+      return true;
+    } else return false;
+  } else {
+    showError("pSRAM must be enabled");
+    return false;
+  }
 }

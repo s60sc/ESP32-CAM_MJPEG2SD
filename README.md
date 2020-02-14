@@ -1,8 +1,8 @@
 # ESP32-CAM_MJPEG2SD
-Enhancement to Arduino CameraWebServer sketch for ESP32-CAM Camera modules to record JPEGs to SD card as frame rate controlled MJPEG video on external interrupt eg PIR for security camera, and subsequently select videos to playback at recorded frame rate from SD card to browser.
+ESP32 Camera extension to record JPEGs to SD card as MPJEG files and playback to browser 
 
 ## Purpose
-The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the selected MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
+The MPJEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MPJEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
 
 Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The ESP32 SD_MMC library appears to max out at around 300kB/s write. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 using SD_MMC 1 line mode on a AI Thinker OV2640 board, set to maximum JPEG quality and the configuration given in the __To maximise rate__ section below.
 
@@ -33,7 +33,7 @@ The ESP32 time is set from an NTP server. Define a different timezone as appropr
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
 The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. Additional code has been added to the original file `app_httpd.cpp` to handle the extra browser options, and an additional file`mjpeg2sd.cpp` contains the SD handling code. The web page content in `camera_index.h` has been updated to include additional functions. The face detection code has been removed to reduce the sketch size to allow OTA updates.
 
-To set the recording parameters, additional options are provided on the camera index web page, where:
+To set the recording parameters, additional options are provided on the camera index page, where:
 * `Frame Rate` is the required frames per second, or 0 for maximum achievable
 * `Min Frames` is the minimum number of frames to be captured or the file is deleted
 * `Verbose` if checked outputs additional logging to the serial monitor
@@ -43,10 +43,10 @@ The pin to use is:
 * pin 12 when in 1 line mode
 * pin 33 when in 4 line mode
 
-If recording occurs whilst also live streaming to browser, the frame rate will be much slower.
+If recording occurs whilst also live streaming to browser, the frame rate will be slower.
 
 To play back a recording, select the file using `Select folder / file` on the browser to select the day folder then the required MJPEG file.
-After selecting the MJPEG file, press __Start Stream__ button to playback the recording. The recorded playback rate can be overridden using `Frame Rate` after the file has been selected. After playback finished, live streaming will continue until __Stop Stream__ button pressed. If a recording is started during a playback, playback will be replaced by live streaming.
+After selecting the MJPEG file, press __Start Stream__ button to playback the recording. The recorded playback rate can be overridden using `Frame Rate` after the file has been selected. After playback finished, press __Stop Stream__ button. If a recording is started during a playback, playback will stop.
 
 Browser functions only tested on Chrome.
 

@@ -1,6 +1,5 @@
 
 const char* index_ov2640_html = R"~(
-<!doctype html>
 <html>
     <head>
         <meta charset="utf-8">
@@ -357,12 +356,25 @@ const char* index_ov2640_html = R"~(
               display: block;
               -webkit-transform: translateX(180px);
             }
+            
+            #settings-cb {
+              display: none;
+            }
+
+            #settings-cb:not(:checked)+ label + div { 
+              display: none; 
+            }
+
         </style>
     </head>
     <body>
         <section class="main">
             <div id="logo">
-                <label for="nav-toggle-cb" id="nav-toggle">&#9776;&nbsp;&nbsp;Toggle OV2640 settings</label>
+                <section id="buttons">
+                  <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                  <button id="get-still" style="float:right;">Get Still</button>
+                  <button id="toggle-stream" style="float:right;">Start Stream</button>
+                </section>
             </div>
             <div id="content">
                 <div id="sidebar">
@@ -417,172 +429,180 @@ const char* index_ov2640_html = R"~(
                             <output name="rangeVal">10</output>
                             <div class="range-max">63</div>
                         </div>
-                        <div class="input-group" id="brightness-group">
-                            <label for="brightness">Brightness</label>
-                            <div class="range-min">-2</div>
-                            <input type="range" id="brightness" min="-2" max="2" value="0" class="default-action">
-                            <output name="rangeVal">0</output>
-                            <div class="range-max">2</div>
-                        </div>
-                        <div class="input-group" id="contrast-group">
-                            <label for="contrast">Contrast</label>
-                            <div class="range-min">-2</div>
-                            <input type="range" id="contrast" min="-2" max="2" value="0" class="default-action">
-                            <output name="rangeVal">0</output>
-                            <div class="range-max">2</div>
-                        </div>
-                        <div class="input-group" id="saturation-group">
-                            <label for="saturation">Saturation</label>
-                            <div class="range-min">-2</div>
-                            <input type="range" id="saturation" min="-2" max="2" value="0" class="default-action">
-                            <output name="rangeVal">0</output>
-                            <div class="range-max">2</div>
-                        </div>
-                        <div class="input-group" id="special_effect-group">
-                            <label for="special_effect">Special Effect</label>
-                            <select id="special_effect" class="default-action">
-                                <option value="0" selected="selected">No Effect</option>
-                                <option value="1">Negative</option>
-                                <option value="2">Grayscale</option>
-                                <option value="3">Red Tint</option>
-                                <option value="4">Green Tint</option>
-                                <option value="5">Blue Tint</option>
-                                <option value="6">Sepia</option>
-                            </select>
-                        </div>
-                        <div class="input-group" id="awb-group">
-                            <label for="awb">AWB</label>
+                        <div class="input-group" id="lamp-group">
+                            <label for="lamp">Lamp</label>
                             <div class="switch">
-                                <input id="awb" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="awb"></label>
+                                <input id="lamp" type="checkbox" class="default-action">
+                                <label class="slider" for="lamp"></label>
                             </div>
                         </div>
-                        <div class="input-group" id="awb_gain-group">
-                            <label for="awb_gain">AWB Gain</label>
-                            <div class="switch">
-                                <input id="awb_gain" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="awb_gain"></label>
-                            </div>
+                        <br>
+                        <input type='checkbox' id="settings-cb">
+                        <label for="settings-cb" style="float:left;">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
+                        <div>
+                          <div class="input-group" id="brightness-group">
+                              <label for="brightness">Brightness</label>
+                              <div class="range-min">-2</div>
+                              <input type="range" id="brightness" min="-2" max="2" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">2</div>
+                          </div>
+                          <div class="input-group" id="contrast-group">
+                              <label for="contrast">Contrast</label>
+                              <div class="range-min">-2</div>
+                              <input type="range" id="contrast" min="-2" max="2" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">2</div>
+                          </div>
+                          <div class="input-group" id="saturation-group">
+                              <label for="saturation">Saturation</label>
+                              <div class="range-min">-2</div>
+                              <input type="range" id="saturation" min="-2" max="2" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">2</div>
+                          </div>
+                          <div class="input-group" id="special_effect-group">
+                              <label for="special_effect">Special Effect</label>
+                              <select id="special_effect" class="default-action">
+                                  <option value="0" selected="selected">No Effect</option>
+                                  <option value="1">Negative</option>
+                                  <option value="2">Grayscale</option>
+                                  <option value="3">Red Tint</option>
+                                  <option value="4">Green Tint</option>
+                                  <option value="5">Blue Tint</option>
+                                  <option value="6">Sepia</option>
+                              </select>
+                          </div>
+                          <div class="input-group" id="awb-group">
+                              <label for="awb">AWB</label>
+                              <div class="switch">
+                                  <input id="awb" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="awb"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="awb_gain-group">
+                              <label for="awb_gain">AWB Gain</label>
+                              <div class="switch">
+                                  <input id="awb_gain" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="awb_gain"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="wb_mode-group">
+                              <label for="wb_mode">WB Mode</label>
+                              <select id="wb_mode" class="default-action">
+                                  <option value="0" selected="selected">Auto</option>
+                                  <option value="1">Sunny</option>
+                                  <option value="2">Cloudy</option>
+                                  <option value="3">Office</option>
+                                  <option value="4">Home</option>
+                              </select>
+                          </div>
+                          <div class="input-group" id="aec-group">
+                              <label for="aec">AEC SENSOR</label>
+                              <div class="switch">
+                                  <input id="aec" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="aec"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="aec2-group">
+                              <label for="aec2">AEC DSP</label>
+                              <div class="switch">
+                                  <input id="aec2" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="aec2"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="ae_level-group">
+                              <label for="ae_level">AE Level</label>
+                              <div class="range-min">-2</div>
+                              <input type="range" id="ae_level" min="-2" max="2" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">2</div>
+                          </div>
+                          <div class="input-group" id="aec_value-group">
+                              <label for="aec_value">Exposure</label>
+                              <div class="range-min">0</div>
+                              <input type="range" id="aec_value" min="0" max="1200" value="204" class="default-action">
+                              <output name="rangeVal">204</output>
+                              <div class="range-max">1200</div>
+                          </div>
+                          <div class="input-group" id="agc-group">
+                              <label for="agc">AGC</label>
+                              <div class="switch">
+                                  <input id="agc" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="agc"></label>
+                              </div>
+                          </div>
+                          <div class="input-group hidden" id="agc_gain-group">
+                              <label for="agc_gain">Gain</label>
+                              <div class="range-min">1x</div>
+                              <input type="range" id="agc_gain" min="0" max="30" value="5" class="default-action">
+                              <output name="rangeVal">5</output>
+                              <div class="range-max">31x</div>
+                          </div>
+                          <div class="input-group" id="gainceiling-group">
+                              <label for="gainceiling">Gain Ceiling</label>
+                              <div class="range-min">2x</div>
+                              <input type="range" id="gainceiling" min="0" max="6" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">128x</div>
+                          </div>
+                          <div class="input-group" id="bpc-group">
+                              <label for="bpc">BPC</label>
+                              <div class="switch">
+                                  <input id="bpc" type="checkbox" class="default-action">
+                                  <label class="slider" for="bpc"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="wpc-group">
+                              <label for="wpc">WPC</label>
+                              <div class="switch">
+                                  <input id="wpc" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="wpc"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="raw_gma-group">
+                              <label for="raw_gma">Raw GMA</label>
+                              <div class="switch">
+                                  <input id="raw_gma" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="raw_gma"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="lenc-group">
+                              <label for="lenc">Lens Correction</label>
+                              <div class="switch">
+                                  <input id="lenc" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="lenc"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="hmirror-group">
+                              <label for="hmirror">H-Mirror</label>
+                              <div class="switch">
+                                  <input id="hmirror" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="hmirror"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="vflip-group">
+                              <label for="vflip">V-Flip</label>
+                              <div class="switch">
+                                  <input id="vflip" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="vflip"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="dcw-group">
+                              <label for="dcw">DCW (Downsize EN)</label>
+                              <div class="switch">
+                                  <input id="dcw" type="checkbox" class="default-action" checked="checked">
+                                  <label class="slider" for="dcw"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="colorbar-group">
+                              <label for="colorbar">Color Bar</label>
+                              <div class="switch">
+                                  <input id="colorbar" type="checkbox" class="default-action">
+                                  <label class="slider" for="colorbar"></label>
+                              </div>
+                          </div>
                         </div>
-                        <div class="input-group" id="wb_mode-group">
-                            <label for="wb_mode">WB Mode</label>
-                            <select id="wb_mode" class="default-action">
-                                <option value="0" selected="selected">Auto</option>
-                                <option value="1">Sunny</option>
-                                <option value="2">Cloudy</option>
-                                <option value="3">Office</option>
-                                <option value="4">Home</option>
-                            </select>
-                        </div>
-                        <div class="input-group" id="aec-group">
-                            <label for="aec">AEC SENSOR</label>
-                            <div class="switch">
-                                <input id="aec" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="aec"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="aec2-group">
-                            <label for="aec2">AEC DSP</label>
-                            <div class="switch">
-                                <input id="aec2" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="aec2"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="ae_level-group">
-                            <label for="ae_level">AE Level</label>
-                            <div class="range-min">-2</div>
-                            <input type="range" id="ae_level" min="-2" max="2" value="0" class="default-action">
-                            <output name="rangeVal">0</output>
-                            <div class="range-max">2</div>
-                        </div>
-                        <div class="input-group" id="aec_value-group">
-                            <label for="aec_value">Exposure</label>
-                            <div class="range-min">0</div>
-                            <input type="range" id="aec_value" min="0" max="1200" value="204" class="default-action">
-                            <output name="rangeVal">204</output>
-                            <div class="range-max">1200</div>
-                        </div>
-                        <div class="input-group" id="agc-group">
-                            <label for="agc">AGC</label>
-                            <div class="switch">
-                                <input id="agc" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="agc"></label>
-                            </div>
-                        </div>
-                        <div class="input-group hidden" id="agc_gain-group">
-                            <label for="agc_gain">Gain</label>
-                            <div class="range-min">1x</div>
-                            <input type="range" id="agc_gain" min="0" max="30" value="5" class="default-action">
-                            <output name="rangeVal">5</output>
-                            <div class="range-max">31x</div>
-                        </div>
-                        <div class="input-group" id="gainceiling-group">
-                            <label for="gainceiling">Gain Ceiling</label>
-                            <div class="range-min">2x</div>
-                            <input type="range" id="gainceiling" min="0" max="6" value="0" class="default-action">
-                            <output name="rangeVal">0</output>
-                            <div class="range-max">128x</div>
-                        </div>
-                        <div class="input-group" id="bpc-group">
-                            <label for="bpc">BPC</label>
-                            <div class="switch">
-                                <input id="bpc" type="checkbox" class="default-action">
-                                <label class="slider" for="bpc"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="wpc-group">
-                            <label for="wpc">WPC</label>
-                            <div class="switch">
-                                <input id="wpc" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="wpc"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="raw_gma-group">
-                            <label for="raw_gma">Raw GMA</label>
-                            <div class="switch">
-                                <input id="raw_gma" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="raw_gma"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="lenc-group">
-                            <label for="lenc">Lens Correction</label>
-                            <div class="switch">
-                                <input id="lenc" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="lenc"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="hmirror-group">
-                            <label for="hmirror">H-Mirror</label>
-                            <div class="switch">
-                                <input id="hmirror" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="hmirror"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="vflip-group">
-                            <label for="vflip">V-Flip</label>
-                            <div class="switch">
-                                <input id="vflip" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="vflip"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="dcw-group">
-                            <label for="dcw">DCW (Downsize EN)</label>
-                            <div class="switch">
-                                <input id="dcw" type="checkbox" class="default-action" checked="checked">
-                                <label class="slider" for="dcw"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="colorbar-group">
-                            <label for="colorbar">Color Bar</label>
-                            <div class="switch">
-                                <input id="colorbar" type="checkbox" class="default-action">
-                                <label class="slider" for="colorbar"></label>
-                            </div>
-                        </div>
-                        <section id="buttons">
-                            <button id="get-still">Get Still</button>
-                            <button id="toggle-stream">Start Stream</button>
-                        </section>
                     </nav>
                 </div>
                 <figure>
@@ -836,7 +856,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
         // create new option list from json
         $.each(response, function(key, value){
           listItems += '<option value="' + key + '">' + value + '</option>';
-console.log(listItems);
         });
         sid.append(listItems);
       }
