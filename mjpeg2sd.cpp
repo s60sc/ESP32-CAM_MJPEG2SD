@@ -78,7 +78,7 @@ static File streamFile;
 static char partName[90];
 static char optionHtml[200]; // used to build SD page html buffer
 static size_t readLen;
-static std::string needle(_STREAM_BOUNDARY, streamBoundaryLen);
+static const char* needle = _STREAM_BOUNDARY;
 static uint8_t recFPS;
 static bool firstCall = true;
 uint8_t saveFPS;
@@ -459,6 +459,26 @@ void listDir(const char* fname, char* htmlBuff) {
   else htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
 }
 
+size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize) { 
+  // find a subarray (needle) in another array (haystack)
+  size_t h = 0, n = 0; // Two pointers to traverse the arrays 
+  // Traverse both arrays simultaneously 
+  while (h < hSize && n < nSize) { 
+    // If element matches, increment both pointers 
+    if (haystack[h] == needle[n]) { 
+      h++; 
+      n++; 
+      // If needle is completely traversed 
+      if (n == nSize) return h; 
+    } else { 
+      // if not, increment h and reset n 
+      h = h - n + 1; 
+      n = 0; 
+    } 
+  } 
+  return 0; 
+} 
+
 size_t* getNextFrame() {
   // get next cluster on demand when ready for opened mjpeg
   static bool remaining;
@@ -477,7 +497,7 @@ size_t* getNextFrame() {
     remaining = false;
     frameCnt = boundary = streamOffset = 0;
     wTimeTot = fTimeTot = hTimeTot = tTimeTot = 0;
-    skipOver = 500; // skip over first boundary
+    skipOver = 200; // skip over first boundary
     buffLen = readLen;
     controlFrameTimer(true); // start frame timer
   }  
@@ -485,7 +505,7 @@ size_t* getNextFrame() {
   showDebug("http send time %u ms", millis() - hTime);
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
-  if (buffLen) {
+  if (buffLen && !stopPlayback) {
     if (!remaining) {
       mTime = millis(); 
       xSemaphoreTake(readSemaphore, portMAX_DELAY);
@@ -500,32 +520,36 @@ size_t* getNextFrame() {
       xSemaphoreGive(mjpegSemaphore); // signal for next cluster - sets readLen
     }
     mTime = millis();
-    std::string haystack((char*)SDbuffer+streamOffset+skipOver, (char*)SDbuffer + buffLen); 
-    // return part of buffer if boundary found
-    skipOver = 0;
-    boundary = haystack.find(needle);
-    showDebug("frame search time %u ms", millis()-mTime);
-    fTimeTot += millis()-mTime;
-    if (boundary != std::string::npos) {
-      // found boundary
-      mTime = millis();
-      size_t imageLen = boundary + streamBoundaryLen;
-      // delay on streamSemaphore for rate control
-      xSemaphoreTake(streamSemaphore, portMAX_DELAY);
-      showDebug("frame timer wait %u ms", millis()-mTime);
-      tTimeTot += millis()-mTime;
-      frameCnt++;
-      showProgress();
-      imgPtrs[0] = imageLen;
-      imgPtrs[1] = streamOffset;
-      streamOffset += imageLen;
-      if (streamOffset >= buffLen) remaining = false;     
+    if (streamOffset+skipOver > buffLen) {
+      showError("streamOffset %u + skipOver %u > buffLen %u", streamOffset, skipOver, buffLen);
+      stopPlayback = true;
+    
     } else {
-      // no (more) complete images in buffer
-      imgPtrs[0] = buffLen - streamOffset; // remainder of buffer
-      imgPtrs[1] = streamOffset;
-      remaining = false;
-    } 
+      // search for next boundary in buffer
+      boundary = isSubArray(SDbuffer+streamOffset+skipOver, (uint8_t*)needle, buffLen-streamOffset-skipOver, streamBoundaryLen);
+      skipOver = 0;
+      showDebug("frame search time %u ms", millis()-mTime);
+      fTimeTot += millis()-mTime;
+      if (boundary) {
+        // found image boundary
+        mTime = millis();
+        // delay on streamSemaphore for rate control
+        xSemaphoreTake(streamSemaphore, portMAX_DELAY);
+        showDebug("frame timer wait %u ms", millis()-mTime);
+        tTimeTot += millis()-mTime;
+        frameCnt++;
+        showProgress();
+        imgPtrs[0] = boundary; // amount to send
+        imgPtrs[1] = streamOffset; // from here
+        streamOffset += boundary;
+        if (streamOffset >= buffLen) remaining = false;     
+      } else {
+        // no (more) complete images in buffer
+        imgPtrs[0] = buffLen - streamOffset; // remainder of buffer
+        imgPtrs[1] = streamOffset;
+        remaining = false;
+      } 
+    }
     if (!remaining) {
       // load next cluster from SD in parallel
       streamOffset = 0;
@@ -568,6 +592,8 @@ size_t* getNextFrame() {
 }
 
 
+/***************************** SD card ********************************/
+
 static void infoSD() {
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) showError("No SD card attached");
@@ -585,8 +611,6 @@ static void infoSD() {
       typeStr, cardSize, useBytes, totBytes);
   } 
 }
-
-/***************************** SD card ********************************/
 
 bool prepSD_MMC(bool oneLine) {
   /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
