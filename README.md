@@ -43,6 +43,8 @@ The pin to use is:
 * pin 12 when in 1 line mode
 * pin 33 when in 4 line mode
 
+Pin 12 is used during bootup which may fail if the PIR pulls high. This can be fixed by on the AI Thinker board by burning an efuse - https://github.com/espressif/esptool/wiki/espefuse
+
 If recording occurs whilst also live streaming to browser, the frame rate will be slower.
 
 To play back a recording, select the file using `Select folder / file` on the browser to select the day folder then the required MJPEG file.
