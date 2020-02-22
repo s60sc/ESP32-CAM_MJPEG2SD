@@ -43,7 +43,7 @@ The pin to use is:
 * pin 12 when in 1 line mode
 * pin 33 when in 4 line mode
 
-Pin 12 is used during bootup which may fail if the PIR pulls high. This can be fixed by on the AI Thinker board by burning an efuse to 3.3V - https://github.com/espressif/esptool/wiki/espefuse
+Pin 12 is used during bootup which may fail if the PIR pulls high. This can be fixed on the AI Thinker board by burning an efuse to 3.3V - https://github.com/espressif/esptool/wiki/espefuse
 
 If recording occurs whilst also live streaming to browser, the frame rate will be slower.
 
