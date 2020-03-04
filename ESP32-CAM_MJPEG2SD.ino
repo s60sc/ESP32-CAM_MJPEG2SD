@@ -15,11 +15,13 @@
 
 #include "camera_pins.h"
 
-const char* ssid = "******";
-const char* password = "******";
+const char* ssid = "********";
+const char* password = "********";
 
 void startCameraServer();
 bool prepMjpeg();
+
+float ambientTemp;
 
 void setup() {
   Serial.begin(115200);
@@ -48,7 +50,7 @@ void setup() {
   config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
   //init with high specs to pre-allocate larger buffers
-  if(psramFound()){
+  if (psramFound()){
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
     config.fb_count = 8;
@@ -64,11 +66,20 @@ void setup() {
 #endif
 
   // camera init
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("Camera init failed with error 0x%x", err);
-    return;
-  }
+  esp_err_t err = ESP_FAIL;
+  uint8_t retries = 2;
+  while (retries && err != ESP_OK) {
+    err = esp_camera_init(&config);
+    if (err != ESP_OK) {
+      Serial.printf("Camera init failed with error 0x%x", err);
+      digitalWrite(PWDN_GPIO_NUM, 1);
+      delay(100);
+      digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
+      retries--;
+    }
+  } 
+  if (err != ESP_OK) ESP.restart();
+  else Serial.println("Camera init OK");
 
   sensor_t * s = esp_camera_sensor_get();
   //initial sensors are flipped vertically and colors are a bit saturated
@@ -78,7 +89,7 @@ void setup() {
     s->set_saturation(s, -2);//lower the saturation
   }
   //drop down frame size for higher initial frame rate
-  s->set_framesize(s, FRAMESIZE_VGA);
+  s->set_framesize(s, FRAMESIZE_SVGA);
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE)
   s->set_vflip(s, 1);
@@ -94,16 +105,24 @@ void setup() {
   Serial.println("");
   Serial.println("WiFi connected");
  
-  if (!prepMjpeg()) Serial.println("SD storage not available");
+  if (!prepMjpeg()) {
+    Serial.println("Unable to continue, restart after 10 secs");
+    delay(10000);
+    ESP.restart();
+  }
  
   startCameraServer();
   
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
+  
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(10000);
+  delay(100000);
 }
+
+void deleteDayFolder() {}
+void doUploadNAS() {}

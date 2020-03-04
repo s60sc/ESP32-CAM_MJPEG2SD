@@ -1,19 +1,20 @@
 /*
 * Extension to capture ESP32 Cam JPEG images into a MJPEG file and store on SD
-* Writing to the SD card is the bottleneck so this library
 * minimises the file writes and matches them to the SD card cluster size.
 * MJPEG files stored on the SD card can also be selected and streamed to a browser.
 *
 * s60sc 2020
 */
 
-// user definable environmental setup
+// user defined environmental setup
+#define USE_PIR true // whether to use PIR for motion detection
+#define USE_MOTION false // whether to use camera for motion detection (with motionDetect.cpp)
+#define POST_MOTION_TIME 2 // number of secs after motion stopped to complete recording, in case movement restarts
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
-#define MAX_FRAMES 20000 // maximum number of frames before auto close
+#define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
 #define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
 
-#include "arduino.h"
 #include <SD_MMC.h>
 #include <regex>
 #include <sys/time.h> 
@@ -21,9 +22,17 @@
 #include "esp_camera.h"
 
 // user parameters
-uint8_t FPS;
-uint8_t minFrames = 10;
 bool debug = false;
+bool doRecording = true; // whether to capture to SD or not
+uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
+uint8_t nightSwitch = 20; // initial white level % for night/day switching
+uint8_t motionVal = 10; // initial motion sensitivity setting 
+
+// status & control fields
+static uint8_t FPS;
+bool lampOn = false;     
+bool nightTime = false;
+uint8_t lightLevel; // Current ambient light level              
 
 // stream separator
 extern const char* _STREAM_BOUNDARY; 
@@ -35,65 +44,78 @@ static char* part_buf[64];
 static uint32_t vidSize; // total video size
 static uint16_t frameCnt;
 static uint32_t startMjpeg; // total overall time
-static uint32_t fTimeTot; // total frame processing time
+static uint32_t dTimeTot; // total frame decode/monitor time
+static uint32_t fTimeTot; // total frame buffering time
 static uint32_t wTimeTot; // total SD write time
 static uint32_t oTime; // file opening time
 static uint32_t cTime; // file closing time 
 static uint32_t sTime; // file streaming time
 static uint32_t vidDuration; // duration in secs of recorded file
 
-struct frameSizeStruct {
+struct frameStruct {
   const char* frameSizeStr;
   const uint16_t frameWidth;
   const uint16_t frameHeight;
   const uint16_t defaultFPS;
+  const uint8_t scaleFactor; // (0..3)
+  const uint8_t sampleRate;  // (1..N)
 };
 // indexed by frame size - needs to be consistent with sensor.h enum
-static const frameSizeStruct frameSizeData[] = {
-  {"QQVGA", 160, 120, 25},
-  {"n/a", 0, 0, 0}, 
-  {"n/a", 0, 0, 0}, 
-  {"HQVGA", 240, 176, 25}, 
-  {"QVGA", 320, 240, 25}, 
-  {"CIF", 400, 296, 25},
-  {"VGA", 640, 480, 15}, 
-  {"SVGA", 800, 600, 10}, 
-  {"XGA", 1024, 768, 5}, 
-  {"SXGA", 1280, 1024, 3}, 
-  {"UXGA", 1600, 1200, 2}  
+extern const frameStruct frameData[] = {
+  {"QQVGA", 160, 120, 25, 2, 1},
+  {"n/a", 0, 0, 0, 0, 1}, 
+  {"n/a", 0, 0, 0, 0, 1}, 
+  {"HQVGA", 240, 176, 25, 3, 1}, 
+  {"QVGA", 320, 240, 25, 3, 1}, 
+  {"CIF", 400, 296, 25, 3, 1},
+  {"VGA", 640, 480, 15, 3, 2}, 
+  {"SVGA", 800, 600, 10, 3, 2}, 
+  {"XGA", 1024, 768, 5, 3, 3}, 
+  {"SXGA", 1280, 1024, 3, 3, 4}, 
+  {"UXGA", 1600, 1200, 2, 3, 5}  
 };
-static uint8_t fsizePtr; // index to frameSizeData[]
+uint8_t fsizePtr; // index to frameData[]
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
 #define ONEMEG (1024*1024)
 #define MAX_JPEG ONEMEG/2 // UXGA jpeg frame buffer at highest quality 375kB rounded up
 uint8_t* SDbuffer; // has to be dynamically allocated due to size
+char* htmlBuff;
+static size_t htmlBuffLen = 20000; // set big enough to hold all file names in a folder
 static size_t highPoint;
 static File mjpegFile;
 static char mjpegName[100];
+char dayFolder[50];
 
-// SD streaming
-static File streamFile;
+// SD playback
+static File playbackFile;
 static char partName[90];
 static char optionHtml[200]; // used to build SD page html buffer
 static size_t readLen;
 static const char* needle = _STREAM_BOUNDARY;
+static bool firstCallPlay = true;
 static uint8_t recFPS;
-static bool firstCall = true;
-uint8_t saveFPS;
+static uint8_t saveFPS = 99;
+bool doPlayback = false;
 
 // task control
-static SemaphoreHandle_t mjpegSemaphore;
+static TaskHandle_t captureHandle = NULL;
+static TaskHandle_t playbackHandle = NULL;
 static SemaphoreHandle_t readSemaphore;
-static SemaphoreHandle_t streamSemaphore;
+static SemaphoreHandle_t playbackSemaphore;
 SemaphoreHandle_t frameMutex;
-volatile bool isStreaming = false;
-bool stopPlayback = false;
-static volatile uint8_t mjpegStatus = 9; // invalid
-static volatile uint8_t PIRpin;
+static volatile bool capturePIR = false;
+static volatile bool isPlaying = false;
+volatile uint8_t PIRpin;
+bool stopPlayback = false; 
+static camera_fb_t* fb;
 
 #define LAMP_PIN 4
+
+bool isNight(uint8_t nightSwitch);
+bool checkMotion(camera_fb_t* fb, bool captureStatus);
+void stopPlaying();
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -144,14 +166,10 @@ void showProgress() {
     }
   }
 }
-
-void getNewFPS(uint8_t frameSize, char* htmlBuff) {
-  saveFPS = FPS = frameSizeData[frameSize].defaultFPS;
-  sprintf(htmlBuff, "{\"fps\":\"%u\"}", FPS);
-}
-
-void controlLamp(uint8_t lampVal) {
+  
+void controlLamp(bool lampVal) {
   // switch lamp on / off
+  lampOn = lampVal;
   pinMode(LAMP_PIN, OUTPUT);
   digitalWrite(LAMP_PIN, lampVal);
 }
@@ -159,46 +177,41 @@ void controlLamp(uint8_t lampVal) {
 /**************** timers & ISRs ************************/
 
 static void IRAM_ATTR frameISR() {
-  // time to get frame
-  if (isStreaming) xSemaphoreGive(streamSemaphore);
-  else xSemaphoreGive(mjpegSemaphore);
+  // interrupt at current frame rate
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  vTaskNotifyGiveFromISR(captureHandle, &xHigherPriorityTaskWoken); // wake capture task to process frame
+  if (isPlaying) xSemaphoreGiveFromISR (playbackSemaphore, &xHigherPriorityTaskWoken ); // notify playback to send frame
+  if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
 }
 
 static void IRAM_ATTR PIR_ISR(void* arg) {
-  // PIR activated - normally high (using internal pullup)
-  // indicates motion by pulling to gnd
-  mjpegStatus = !digitalRead(PIRpin);
-  xSemaphoreGive(mjpegSemaphore);
+  // PIR change - high is active
+  capturePIR = digitalRead(PIRpin);
 }
 
 static void setupPIRinterrupt() {
   // do this way due to camera use of interrupts
-  pinMode(PIRpin, INPUT_PULLUP); // pulled high for inactive
-  showInfo("To record new MJPEG, attach PIR to pin %u or simulate by grounding pin %u", PIRpin, PIRpin);
+  pinMode(PIRpin, INPUT_PULLDOWN); // pulled high for active
   esp_err_t err = gpio_isr_handler_add((gpio_num_t)PIRpin, &PIR_ISR, NULL);
   if (err != ESP_OK) showError("gpio_isr_handler_add failed (%x)", err);
   gpio_set_intr_type((gpio_num_t)PIRpin, GPIO_INTR_ANYEDGE);
 }
 
-static void controlFrameTimer(bool timerOn) {
-  // frame timer control, timer3 so dont conflict wih cam
+void controlFrameTimer() {
+  // frame timer control, timer3 so dont conflict with cam
   static hw_timer_t* timer3 = NULL;
-  if (timerOn) {
-    // start timer 3 interrupt per required framerate
-    timer3 = timerBegin(3, 8000, true); // 0.1ms tick
-    frameInterval = (FPS) ? 10000 / FPS : 200; // in units of 0.1ms 
-    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
-    timerAlarmWrite(timer3, frameInterval, true); // 
-    timerAlarmEnable(timer3);
-    timerAttachInterrupt(timer3, &frameISR, true);
-  } else {
-    // off
-    if (timer3) timerEnd(timer3);
-    timer3 = NULL;
-  }
+  // stop current timer
+  if (timer3) timerEnd(timer3);
+  // (re)start timer 3 interrupt per required framerate
+  timer3 = timerBegin(3, 8000, true); // 0.1ms tick
+  frameInterval = 10000 / FPS; // in units of 0.1ms 
+  showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
+  timerAlarmWrite(timer3, frameInterval, true); // 
+  timerAlarmEnable(timer3);
+  timerAttachInterrupt(timer3, &frameISR, true);
 }
 
-/**************** MJPEG processing ************************/
+/**************** capture MJPEG  ************************/
 
 static bool openMjpeg() {
   // derive filename from date & time, store in date folder
@@ -211,35 +224,47 @@ static bool openMjpeg() {
 
   // open mjpeg file with temporary name
   showInfo("Record %s mjpeg, width: %u, height: %u, @ %u fps", 
-    frameSizeData[fsizePtr].frameSizeStr, frameSizeData[fsizePtr].frameWidth, frameSizeData[fsizePtr].frameHeight, FPS);
+    frameData[fsizePtr].frameSizeStr, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight, FPS);
   oTime = millis() - oTime;
   showDebug("File opening time: %ums", oTime);
   // initialisation of counters
   startMjpeg = millis();
-  frameCnt =  fTimeTot = wTimeTot = 0;
+  frameCnt =  fTimeTot = wTimeTot = dTimeTot = 0;
   memcpy(SDbuffer, " ", 1); // for VLC
   highPoint = vidSize = 1;
 } 
 
-static void processFrame() {
-  // build frame boundary for jpeg then write to SD when cluster size reached
+static inline bool doMonitor(bool capturing) {
+  // monitor incoming frames for motion 
+  static uint8_t motionCnt = 0;
+  // ratio for monitoring stop during capture / movement prior to capture
+  uint8_t checkRate = (capturing) ? 10 : 2;
+  if (++motionCnt/checkRate) motionCnt = 0; // time to check for motion
+  return !(bool)motionCnt;
+}  
+
+static inline void freeFrame() {
+  // free frame buffer and give semaphore to allow camera and any streaming to continue
+  if (fb) esp_camera_fb_return(fb);
+  fb = NULL;
+  xSemaphoreGive(frameMutex);
+}
+
+static void saveFrame() {
+  // build frame boundary for jpeg 
   uint32_t fTime = millis();
   // add boundary to buffer
   memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
   highPoint += streamBoundaryLen;
-  // get jpeg from camera 
-  xSemaphoreTake(frameMutex, portMAX_DELAY);
-  camera_fb_t * fb = esp_camera_fb_get();
-  size_t jpegSize = fb->len; 
-  size_t streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize);
+  size_t streamPartLen = 0;
+  size_t jpegSize = 0; 
+  jpegSize = fb->len; 
+  streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize);
   memcpy(SDbuffer+highPoint, part_buf, streamPartLen); // marker at start of each mjpeg frame
   highPoint += streamPartLen;
-  // add jpeg to buffer
   memcpy(SDbuffer+highPoint, fb->buf, jpegSize);
   highPoint += jpegSize;
-  esp_camera_fb_return(fb);
-  xSemaphoreGive(frameMutex);
-    
+  freeFrame(); 
   // only write to SD when at least CLUSTERSIZE is available in buffer
   uint32_t wTime = millis();
   if (highPoint/CLUSTERSIZE) {
@@ -251,15 +276,9 @@ static void processFrame() {
   }
   wTime = millis() - wTime;
   wTimeTot += wTime;
-  showDebug("SD storage time %u ms", wTime);
-  
-  frameCnt++;
   vidSize += streamPartLen+jpegSize+streamBoundaryLen;
-  mjpegStatus = (digitalRead(PIRpin)) ? 0 : 2; // in case PIR off missed
-  if (frameCnt >= MAX_FRAMES) {
-    showInfo("Auto closed recording after %u frames", MAX_FRAMES);
-    mjpegStatus = 0; // auto close on limit
-  }
+  showDebug("SD storage time %u ms", wTime);
+  frameCnt++;
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
   showDebug("Frame processing time %u ms", fTime);
@@ -267,7 +286,8 @@ static void processFrame() {
 
 static bool closeMjpeg() {
   // closes and renames the file
-  if (frameCnt > minFrames) { 
+  uint32_t captureTime = frameCnt/FPS;
+  if (captureTime > minSeconds) { 
     cTime = millis(); 
     // add final boundary to buffer
     memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
@@ -283,7 +303,7 @@ static bool closeMjpeg() {
     mjpegFile.close();
     // rename file to include actual FPS and duration, plus file extension
     snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%u_%u.mjpeg", 
-      partName, frameSizeData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000));
+      partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000));
     SD_MMC.rename(partName, mjpegName);
     showDebug("MJPEG close/rename time %u ms", millis() - hTime); 
     cTime = millis() - cTime;
@@ -298,12 +318,13 @@ static bool closeMjpeg() {
     showInfo("File size: %0.2f MB", (float)vidSize / ONEMEG);
     if (frameCnt) {
       showInfo("Average frame length: %u bytes", vidSize / frameCnt);
-      showInfo("Average frame process time: %u ms", fTimeTot / frameCnt);
+      showInfo("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
+      showInfo("Average frame buffering time: %u ms", fTimeTot / frameCnt);
       showInfo("Average frame storage time: %u ms", wTimeTot / frameCnt);
     }
     showInfo("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
     showInfo("File open / completion times: %u ms / %u ms", oTime, cTime);
-    showInfo("Busy: %u%%", std::min(100 * (wTimeTot+fTimeTot+oTime+cTime) / vidDuration, (uint32_t)100));
+    showInfo("Busy: %u%%", std::min(100 * (wTimeTot+fTimeTot+dTimeTot+oTime+cTime) / vidDuration, (uint32_t)100));
     showInfo("Free heap %u bytes, largest free block %u bytes", xPortGetFreeHeapSize(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
     showInfo("***************************\n");
     return true;
@@ -311,74 +332,109 @@ static bool closeMjpeg() {
     // delete too small file
     mjpegFile.close();
     SD_MMC.remove(partName);
-    showError("Insufficient frames captured: %u", frameCnt);
+    showInfo("Insufficient capture duration: %u secs", captureTime);
     return false;
   }
-}  
+}
 
-static void mjpegControllerTask(void* parameter) {
-  // interrupt driven mjpeg control loop
+static boolean processFrame() {
+  // get camera frame
   static bool isCapturing = false;
-  while (true) {
-    // wait on semaphore
-    xSemaphoreTake(mjpegSemaphore, portMAX_DELAY);
-    // semaphore given
-    switch(mjpegStatus) {
-      case 0:
-        // stop capture and finalise mjpeg
-        if (isCapturing) {
-          // only close if capturing
-          controlFrameTimer(false); // stop frame timer
-          closeMjpeg();
-          delay(1000); // debounce
-          isCapturing = false;
-        } 
-      break;
-      case 1:  
-        // record new mjpeg if not already doing so
-        if (!isCapturing) {
-          if (isStreaming) {
-            stopPlayback = true;
-            while (stopPlayback) delay(10); // wait for playback to stop
-          }
-          isCapturing = true;
-          // determine frame interval from selected frame size
-          sensor_t * s = esp_camera_sensor_get();
-          fsizePtr = s->status.framesize;
-          openMjpeg();  
-          processFrame(); // get first frame 
-          controlFrameTimer(true); // start frame timer
-        } 
-      break;
-      case 2:
-        // write next frame to SD, if capturing
-        if (isCapturing) {
-          processFrame();
-          showProgress();
+  static bool wasCapturing = false;
+  static bool coolDown = false;
+  bool captureMotion;
+  bool res = true;
+  uint32_t dTime = millis();
+  xSemaphoreTake(frameMutex, portMAX_DELAY);
+  fb = esp_camera_fb_get();
+  if (fb) {
+    // determine if time to monitor, then get motion capture status
+    if (USE_MOTION) {
+      if (doMonitor(isCapturing|coolDown)) captureMotion = checkMotion(fb, isCapturing);
+      nightTime = isNight(nightSwitch);  
+    }   
+    if (USE_PIR) capturePIR = digitalRead(PIRpin); 
+    // either active PIR or Motion will start capture, neither active will stop capture  
+    isCapturing = captureMotion | capturePIR;
+    if (doRecording) {
+      if (isCapturing) coolDown = false; // cancel cooldown if fresh movement
+      if (coolDown) isCapturing = true; // maintain capture during cooldown
+      if (isCapturing && !wasCapturing) {
+        // movement has occurred, start recording, and switch on lamp if night time
+        // unless still in cooldown
+        if (USE_MOTION) controlLamp(nightTime); 
+        stopPlaying(); // terminate any playback
+        stopPlayback = true; // prevent new playback
+        showDebug("Capture started by %s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "");
+        openMjpeg();  
+        wasCapturing = true;
+      }
+      if (isCapturing && wasCapturing) {
+        // capture is ongoing
+        dTimeTot += millis()-dTime; 
+        saveFrame();
+        showProgress();
+        if (frameCnt >= MAX_FRAMES) {
+          showInfo("Auto closed recording after %u frames", MAX_FRAMES);
+          isCapturing = false; // auto close on limit
         }
-      break;
-      case 3:
-        // read next cluster from SD, if streaming
-        if (isStreaming) { 
-          uint32_t rTime = millis();      
-          readLen = streamFile.read(SDbuffer+CLUSTERSIZE*2, CLUSTERSIZE);
-          showDebug("SD read time %u ms", millis() - rTime);
-          wTimeTot += millis() - rTime;
-          xSemaphoreGive(readSemaphore); // signal that ready
-        }
-      break;
-      default:
-        showError("Invalid mjpeg control status %u", mjpegStatus);
-      break;
+      }
+      freeFrame();
+      if (!isCapturing && wasCapturing) {
+        // movement stopped 
+        coolDown = isCapturing = true;
+        cTime = millis();
+      }
+      wasCapturing = isCapturing;
+      
+      if (coolDown && millis()-cTime >= POST_MOTION_TIME*1000) {
+        // finish recording after cooldown period
+        closeMjpeg();
+        controlLamp(false);
+        coolDown = isCapturing = wasCapturing = stopPlayback = false; // allow for playbacks
+      }
     }
+    showDebug("============================");
+  } else {
+    showError("Failed to get frame");
+    res = false;
+  }
+  freeFrame();
+  return res;
+}
+
+static void captureTask(void* parameter) {
+  // woken by frame timer when time to capture frame
+  uint32_t ulNotifiedValue;
+  while (true) {
+    ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
+    while(ulNotifiedValue-- > 0) processFrame();
   }
   vTaskDelete(NULL);
 }
 
-/********************** streaming ***********************/
+uint8_t setFPS(uint8_t val) {
+  // change or retrieve FPS value
+  if (val) {
+    FPS = val;
+    // change frame timer which drives the task
+    controlFrameTimer(); 
+    saveFPS = FPS; // used to reset FPS after playback
+  }
+  return FPS;
+}
 
-static void extractFPS(const char* fname) {
-  // extract FPS and duration from filename with assumed format 
+uint8_t setFPSlookup(uint8_t val) {
+  // set FPS from framesize lookup
+  fsizePtr = val;
+  return setFPS(frameData[fsizePtr].defaultFPS);
+}
+
+/********************** plackback MJPEG ***********************/
+
+static void playbackFPS(const char* fname) {
+  // extract FPS and duration from filename with assumed format and set frametimer
   int i = 0;
   char* fdup = strdup(fname);
   char* token = strtok (fdup, "_.");
@@ -389,25 +445,26 @@ static void extractFPS(const char* fname) {
     token = strtok (NULL, "_.");
   }
   free(fdup);
+  // temp change framerate to recorded framerate
   FPS = recFPS;
+  controlFrameTimer();
 }
 
 static void openSDfile() {
-  // open selected file on SD for streaming
-  if (isStreaming) {
-    // in case this file opened during another playback
-    stopPlayback = true; 
-    while (stopPlayback) delay(10);
+  // open selected file on SD for streaming 
+  if (stopPlayback) showError("Playback refused - capture in progress");
+  else {
+    stopPlaying(); // in case already running
+    showInfo("Playing %s", mjpegName);
+    playbackFile = SD_MMC.open(mjpegName, FILE_READ);
+    vidSize = playbackFile.size();
+    playbackFPS(mjpegName);  
+    // load first cluster ready for first request
+    firstCallPlay = true;
+    isPlaying = true; // task control
+    doPlayback = true; // browser control
+    xTaskNotifyGive(playbackHandle);
   }
-  showInfo("Streaming %s", mjpegName);
-  streamFile = SD_MMC.open(mjpegName, FILE_READ);
-  vidSize = streamFile.size();
-  extractFPS(mjpegName);  
-  // load first cluster ready for first request
-  mjpegStatus = 3; 
-  firstCall = true;
-  isStreaming = true;
-  xSemaphoreGive(mjpegSemaphore);
 }
 
 void listDir(const char* fname, char* htmlBuff) {
@@ -421,7 +478,7 @@ void listDir(const char* fname, char* htmlBuff) {
     strcpy(mjpegName, decodedName.c_str());
     openSDfile();
     decodedName = "/"; // enable day folders to be returned 
-  }
+  } else strcpy(dayFolder, decodedName.c_str());
   bool returnDirs = (decodedName.compare("/")) ? false : true;
 
   // open relevant folder to list contents
@@ -440,7 +497,11 @@ void listDir(const char* fname, char* htmlBuff) {
       std::string str(file.name());
       if (str.find("/System") == std::string::npos) { // ignore Sys Vol Info
         sprintf(optionHtml, "\"%s\":\"%s\",", file.name(), file.name());
-        strcat(htmlBuff, optionHtml);
+        if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
+        else {
+          showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+          break;
+        }
         noEntries = false;
       }
     }
@@ -449,7 +510,11 @@ void listDir(const char* fname, char* htmlBuff) {
       std::string str(file.name());
       if (str.find(".mjpeg") != std::string::npos) {
         sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size()/ONEMEG);
-        strcat(htmlBuff, optionHtml);
+        if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
+        else {
+          showError("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+          break;
+        }
         noEntries = false;
       }
     }
@@ -479,6 +544,15 @@ size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize
   return 0; 
 } 
 
+void readSD() {
+  // read next cluster from SD for playback
+  uint32_t rTime = millis();
+  readLen = (stopPlayback) ? 0 : playbackFile.read(SDbuffer+CLUSTERSIZE*2, CLUSTERSIZE);
+  showDebug("SD read time %u ms", millis() - rTime);
+  wTimeTot += millis() - rTime;
+  xSemaphoreGive(readSemaphore); // signal that ready
+}
+
 size_t* getNextFrame() {
   // get next cluster on demand when ready for opened mjpeg
   static bool remaining;
@@ -490,16 +564,15 @@ size_t* getNextFrame() {
   static uint32_t hTime;
   static size_t buffLen;
   static uint16_t skipOver;
-  if (firstCall) {
+  if (firstCallPlay) {
     sTime = millis();
     hTime = millis();
-    firstCall = false;
+    firstCallPlay = false;
     remaining = false;
     frameCnt = boundary = streamOffset = 0;
     wTimeTot = fTimeTot = hTimeTot = tTimeTot = 0;
     skipOver = 200; // skip over first boundary
     buffLen = readLen;
-    controlFrameTimer(true); // start frame timer
   }  
   
   showDebug("http send time %u ms", millis() - hTime);
@@ -508,7 +581,7 @@ size_t* getNextFrame() {
   if (buffLen && !stopPlayback) {
     if (!remaining) {
       mTime = millis(); 
-      xSemaphoreTake(readSemaphore, portMAX_DELAY);
+      xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
       showDebug("SD wait time %u ms", millis()-mTime);
       wTimeTot += millis()-mTime;
       mTime = millis();                                 
@@ -517,7 +590,7 @@ size_t* getNextFrame() {
       buffLen = readLen;
       fTimeTot += millis()-mTime;                                 
       remaining = true; 
-      xSemaphoreGive(mjpegSemaphore); // signal for next cluster - sets readLen
+      xTaskNotifyGive(playbackHandle); // wake up task to get next cluster - sets readLen
     }
     mTime = millis();
     if (streamOffset+skipOver > buffLen) {
@@ -533,8 +606,8 @@ size_t* getNextFrame() {
       if (boundary) {
         // found image boundary
         mTime = millis();
-        // delay on streamSemaphore for rate control
-        xSemaphoreTake(streamSemaphore, portMAX_DELAY);
+        // wait on playbackSemaphore for rate control
+        xSemaphoreTake(playbackSemaphore, portMAX_DELAY);
         showDebug("frame timer wait %u ms", millis()-mTime);
         tTimeTot += millis()-mTime;
         frameCnt++;
@@ -550,22 +623,16 @@ size_t* getNextFrame() {
         remaining = false;
       } 
     }
-    if (!remaining) {
-      // load next cluster from SD in parallel
-      streamOffset = 0;
-    }
+    if (!remaining) streamOffset = 0; // load next cluster from SD in parallel
   } 
+  
   if ((!buffLen && !remaining) || stopPlayback) {     
-    // finished, close SD file used for streaming   
-    streamFile.close(); 
-    controlFrameTimer(false); // stop frame timer
-    isStreaming = false;
+    // finished, close SD file used for streaming  
+    playbackFile.close(); 
     imgPtrs[0] = 0; 
     imgPtrs[1] = 0;
-    if (stopPlayback) {
-     showInfo("Force close playback");
-     stopPlayback = false;
-    } else {
+    if (stopPlayback) showInfo("Force close playback");
+    else {
       uint32_t playDuration = (millis()-sTime)/1000;
       uint32_t totBusy = wTimeTot+fTimeTot+hTimeTot;
       showInfo("\n******** MJPEG playback stats ********");
@@ -574,9 +641,9 @@ size_t* getNextFrame() {
       showInfo("Required playback FPS %u", FPS);
       showInfo("Actual playback FPS %0.1f, duration %u secs", (float)frameCnt/playDuration, playDuration);
       showInfo("Number of frames: %u", frameCnt);
+      showInfo("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       if (frameCnt) {
         showInfo("Average frame SD read time: %u ms", wTimeTot / frameCnt);
-        showInfo("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
         showInfo("Average frame processing time: %u ms", fTimeTot / frameCnt);
         showInfo("Average frame delay time: %u ms", tTimeTot / frameCnt);
         showInfo("Average http send time: %u ms", hTimeTot / frameCnt);
@@ -585,12 +652,41 @@ size_t* getNextFrame() {
       showInfo("Free heap %u bytes, largest free block %u bytes", xPortGetFreeHeapSize(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
       showInfo("***************************\n");
     }
-    FPS = saveFPS; // realign with browser
+    setFPS(saveFPS); // realign with browser
+    stopPlayback = false;
+    isPlaying = false;
   }
   hTime = millis();
   return imgPtrs;
 }
 
+void stopPlaying() {
+  if (isPlaying) {
+    // force stop any currently running playback
+    stopPlayback = true;
+    // wait till stopped cleanly, but prevent infinite loop
+    uint32_t timeOut = millis();
+    while (isPlaying && millis()-timeOut < 2000) delay(10); 
+    if (isPlaying) {
+      showError("\nFailed to cleanly close playback");
+      doPlayback = false;
+      setFPS(saveFPS);
+      xSemaphoreGive(playbackSemaphore);
+      xSemaphoreGive(readSemaphore);
+      delay(200);
+    }
+    stopPlayback = false;
+    isPlaying = false;
+  } 
+}
+
+static void playbackTask(void* parameter) {
+  while (true) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    readSD();
+  }
+  vTaskDelete(NULL);
+}
 
 /***************************** SD card ********************************/
 
@@ -643,22 +739,34 @@ bool prepMjpeg() {
   // initialisation & prep for MJPEG capture
   if (psramFound()) {
     if (prepSD_MMC(ONELINE)) { 
-      if (ONELINE) controlLamp(0); // set lamp fully off as sd_mmc library still initialises pin 4
+      if (ONELINE) controlLamp(false); // set lamp fully off as sd_mmc library still initialises pin 4
       getLocalNTP(); // get time from NTP
       SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
-      PIRpin = (ONELINE) ? 12 : 33;
-      setupPIRinterrupt(); 
-      mjpegSemaphore = xSemaphoreCreateBinary();
+      htmlBuff = (char*)ps_malloc(htmlBuffLen); 
+      if (USE_PIR) {
+        PIRpin = (ONELINE) ? 12 : 33;
+        pinMode(PIRpin, INPUT_PULLDOWN); // pulled high for active
+        // setupPIRinterrupt(); // not required
+      }
       readSemaphore = xSemaphoreCreateBinary();
-      streamSemaphore = xSemaphoreCreateBinary();
+      playbackSemaphore = xSemaphoreCreateBinary();
       frameMutex = xSemaphoreCreateMutex();
-      esp_camera_fb_get(); // prime camera
+      if (!esp_camera_fb_get()) return false; // test & prime camera
       sensor_t * s = esp_camera_sensor_get();
-      saveFPS = FPS = frameSizeData[s->status.framesize].defaultFPS; // initial frames per second     
-      xTaskCreate(&mjpegControllerTask, "mjpegControllerTask", 4096*4, NULL, 5, NULL);
-      showDebug("mjpegControllerTask on core %u, Free heap %u bytes", xPortGetCoreID(), xPortGetFreeHeapSize());
+      fsizePtr = s->status.framesize;
+      setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
+      xTaskCreate(&captureTask, "captureTask", 4096*8, NULL, 5, &captureHandle);
+      xTaskCreate(&playbackTask, "playbackTask", 4096*8, NULL, 4, &playbackHandle);   
+      showDebug("Free heap %u bytes", xPortGetFreeHeapSize());
+      showInfo("\nTo record new MJPEG, do one of:");
+      if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
+      if (USE_PIR) showInfo("- ground pin %u", PIRpin);
+      if (USE_MOTION) showInfo("- move in front of camera");
       return true;
-    } else return false;
+    } else {
+      showError("SD storage not available");
+      return false;
+    }
   } else {
     showError("pSRAM must be enabled");
     return false;

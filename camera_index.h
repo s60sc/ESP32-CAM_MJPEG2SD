@@ -1,5 +1,6 @@
 
 const char* index_ov2640_html = R"~(
+<!doctype html>                             
 <html>
     <head>
         <meta charset="utf-8">
@@ -352,6 +353,10 @@ const char* index_ov2640_html = R"~(
               text-align: center;
             }
 
+            .extras {
+                display: none;
+            }
+
             input[type=range]:active + output {
               display: block;
               -webkit-transform: translateX(180px);
@@ -396,17 +401,17 @@ const char* index_ov2640_html = R"~(
                         </div>
                         <div class="input-group" id="fps-group">
                             <label for="fps">FPS</label>
-                            <div class="range-min">0</div>
-                            <input type="range" id="fps" min="0" max="30" value="10" class="default-action">
+                            <div class="range-min">1</div>
+                            <input type="range" id="fps" min="1" max="30" value="10" class="default-action">
                             <output name="rangeVal">15</output>
                             <div class="range-max">30</div>
                         </div>
                         <div class="input-group" id="minf-group">
-                            <label for="minf">Min Frames</label>
+                            <label for="minf">Min Seconds</label>
                             <div class="range-min">0</div>
-                            <input type="range" id="minf" min="0" max="100" value="10" class="default-action">
-                            <output name="rangeVal">10</output>
-                            <div class="range-max">100</div>
+                            <input type="range" id="minf" min="0" max="20" value="2" class="default-action">
+                            <output name="rangeVal">2</output>
+                            <div class="range-max">20</div>
                         </div>
                         <div class="input-group" id="dbg-group">
                             <label for="dbg">Verbose</label>
@@ -422,6 +427,10 @@ const char* index_ov2640_html = R"~(
                             <option value="/">Get Folders</option>
                           </select>
                         </div>
+                        <div class="extras"><br>
+                          <button id="delete" style="float:right;" value="1">Delete Folder</button>
+                          <button id="upload" style="float:right;" value="1">Upload Folder</button>
+                        </div><br>                                                                                                                                 
                         <div class="input-group" id="quality-group">
                             <label for="quality">Quality</label>
                             <div class="range-min">10</div>
@@ -429,13 +438,46 @@ const char* index_ov2640_html = R"~(
                             <output name="rangeVal">10</output>
                             <div class="range-max">63</div>
                         </div>
+                        <div class="input-group" id="record-group">
+                            <label for="record">Save Capture</label>
+                            <div class="switch">
+                                <input id="record" type="checkbox" class="default-action">
+                                <label class="slider" for="record"></label>
+                            </div>
+                        </div> 
+                        <div class="input-group" id="motion-group">
+                            <label for="motion">Motion Sensitivity</label>
+                            <div class="range-min">1</div>
+                            <input type="range" id="motion" min="1" max="100" value="5" class="default-action">
+                            <output name="rangeVal">5</output>
+                            <div class="range-max">100</div>
+                        </div>                                                                
                         <div class="input-group" id="lamp-group">
                             <label for="lamp">Lamp</label>
                             <div class="switch">
                                 <input id="lamp" type="checkbox" class="default-action">
                                 <label class="slider" for="lamp"></label>
                             </div>
+                         </div>
+                        <div class="input-group" id="lswitch-group">
+                            <label for="lswitch">Night Switch</label>
+                            <div class="range-min">0</div>
+                            <input type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                            <output name="rangeVal">10</output>
+                            <div class="range-max">100</div>
                         </div>
+                        <div class="input-group" id="llevel-group">
+                            <label for="llevel">Ambient Light</label>
+                            &nbsp;<div id="llevel" class="default-action displayonly">&nbsp;</div>
+                        </div>
+                        <div class="input-group" id="night-group">
+                            <label for="night">Night Time</label>
+                            &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
+                        </div>                             
+                        <div class="input-group extras" id="atemp-group">
+                            <label for="atemp">Ambient Temp</label>
+                            &nbsp;<div id="atemp" class="default-action displayonly">&nbsp;</div>
+                        </div>                                                               
                         <br>
                         <input type='checkbox' id="settings-cb">
                         <label for="settings-cb" style="float:left;">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
@@ -660,8 +702,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
       value = !!value
       el.checked = value
     } else {
-      initialValue = el.value
-      el.value = value
+      if (el.classList.contains('displayonly')) {
+        el.innerHTML = value       
+      } else {
+        initialValue = el.value
+        el.value = value
+      }
     }
 
     if (updateRemote && initialValue !== value) {
@@ -735,12 +781,22 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')
+  const uploadButton = document.getElementById('upload')  
+  const deleteButton = document.getElementById('delete') 
+  
+  uploadButton.onclick = () => {
+    updateConfig(uploadButton);
+  }
+  
+  deleteButton.onclick = () => {
+    updateConfig(deleteButton);
+  }
 
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
     $.ajax({
-      url: "http://"+$(location).attr("host")+"/control",
+      url: baseHost + '/control',
       data: {
         "var": "stopStream",
         "val": "1"
@@ -824,7 +880,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   function updateFPS() {
     // update default FPS to match selected framesize 
     $.ajax({
-      url: "http://"+$(location).attr("host")+"/control",
+      url: baseHost + '/control',
       data: {
         "var": "updateFPS",
         "val": $('#framesize').val()
@@ -847,7 +903,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     sid.find('option:not(:first)').remove(); // remove all except first option
     var listItems = '';
     $.ajax({
-      url: "http://"+$(location).attr("host")+"/control",
+      url: baseHost + '/control',
       data: {
         "var": "sfile",
         "val": selection
