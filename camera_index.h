@@ -448,9 +448,9 @@ const char* index_ov2640_html = R"~(
                         <div class="input-group" id="motion-group">
                             <label for="motion">Motion Sensitivity</label>
                             <div class="range-min">1</div>
-                            <input type="range" id="motion" min="1" max="100" value="5" class="default-action">
-                            <output name="rangeVal">5</output>
-                            <div class="range-max">100</div>
+                            <input type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                            <output name="rangeVal">7</output>
+                            <div class="range-max">10</div>
                         </div>                                                                
                         <div class="input-group" id="lamp-group">
                             <label for="lamp">Lamp</label>
