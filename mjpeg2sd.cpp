@@ -26,7 +26,7 @@ bool debug = false;
 bool doRecording = true; // whether to capture to SD or not
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
-uint8_t motionVal = 10; // initial motion sensitivity setting 
+uint8_t motionVal = 7; // initial motion sensitivity setting 
 
 // status & control fields
 static uint8_t FPS;
