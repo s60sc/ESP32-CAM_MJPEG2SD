@@ -760,7 +760,7 @@ bool prepMjpeg() {
       showDebug("Free heap %u bytes", xPortGetFreeHeapSize());
       showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
-      if (USE_PIR) showInfo("- ground pin %u", PIRpin);
+      if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
       if (USE_MOTION) showInfo("- move in front of camera");
       return true;
     } else {
