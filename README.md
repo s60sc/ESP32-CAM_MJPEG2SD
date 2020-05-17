@@ -1,8 +1,8 @@
 # ESP32-CAM_MJPEG2SD
-ESP32 Camera extension to record JPEGs to SD card as MPJEG files and playback to browser 
+ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser 
 
 ## Purpose
-The MPJEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MPJEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
+The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
 
 Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 using SD_MMC 1 line mode on a AI Thinker OV2640 board, set to maximum JPEG quality and the configuration given in the __To maximise rate__ section below.
 
