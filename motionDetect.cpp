@@ -1,4 +1,3 @@
-
 /* 
  Extension to detect movement in sequential images using centre of mass shift.
  This technique reduces spurious motion changes:
