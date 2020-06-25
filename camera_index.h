@@ -1,4 +1,3 @@
-
 const char* index_ov2640_html = R"~(
 <!doctype html>                             
 <html>
