@@ -427,8 +427,8 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <div class="extras"><br>
-                          <button id="delete" style="float:right;" value="">Delete</button>
-                          <!-- <button id="upload" style="float:right;" value="1">Upload Folder</button> -->
+                          <button id="delete" style="float:right; " value="">Delete</button>
+                          <button id="upload" style="float:right; display:none;" value="1">Upload Folder</button> 
                         </div><br>                                                                                                                                 
                         <div class="input-group" id="quality-group">
                             <label for="quality">Quality</label>
@@ -741,7 +741,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
       case 'button':
       case 'submit':        
         if(el.value!="1"){ //Delete folder or file
-          console.log(el.value);
           value = el.value
         }else{
           value = '1'
@@ -794,6 +793,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
   
   deleteButton.onclick = () => {
     updateConfig(deleteButton);
+    var sid = $('#sfile');
+    sid.find('option:not(:first)').remove(); // remove all except first option
   }
 
   const stopStream = () => {
