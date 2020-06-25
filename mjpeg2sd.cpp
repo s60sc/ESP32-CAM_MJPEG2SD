@@ -7,14 +7,15 @@
 */
 
 // user defined environmental setup
-#define USE_PIR true // whether to use PIR for motion detection
-#define USE_MOTION false // whether to use camera for motion detection (with motionDetect.cpp)
+#define USE_PIR false // whether to use PIR for motion detection
+#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define POST_MOTION_TIME 2 // number of secs after motion stopped to complete recording, in case movement restarts
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
-#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
-
+//#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
+#define TIMEZONE "EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00"
+                 
 #include <SD_MMC.h>
 #include <regex>
 #include <sys/time.h> 
@@ -23,7 +24,7 @@
 
 // user parameters
 bool debug = false;
-bool doRecording = true; // whether to capture to SD or not
+bool doRecording = false; // whether to capture to SD or not
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 uint8_t motionVal = 7; // initial motion sensitivity setting 
@@ -149,7 +150,14 @@ void getLocalNTP() {
   } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
   // set TIMEZONE as required
   setenv("TZ", TIMEZONE, 1);
-  if (getEpoch() > 1000) showInfo("Got current time from NTP");
+  if (getEpoch() > 1000){
+    
+    showInfo("Got current time from NTP");
+    time_t currEpoch = getEpoch();  
+    strftime(partName, sizeof(partName), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
+    Serial.println(partName);
+  
+  }
   else showError("Unable to sync with NTP");
 }
 
@@ -211,6 +219,51 @@ void controlFrameTimer() {
   timerAttachInterrupt(timer3, &frameISR, true);
 }
 
+void deleteFolderOrFile(const char * val) {
+  showInfo("Deleting : %s", val);
+  File f = SD_MMC.open(val);  
+  if (!f){
+    showError("Failed to open %s", val);    
+    return;
+  }
+  //Empty directory first
+  if (f.isDirectory()){
+    showInfo("Directory %s contents", val);
+    File file = f.openNextFile();
+    while(file){
+        if(file.isDirectory()){
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+        } else {
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("  SIZE: ");
+            Serial.print(file.size());
+            if(SD_MMC.remove(file.name())){
+              Serial.println(" deleted.");
+            }else{
+              Serial.println(" FAILED.");
+            }
+        }
+        file = f.openNextFile();
+    }
+    f.close();
+    //Remove the dir
+    if(SD_MMC.rmdir(val)){
+       showInfo("Dir %s removed", val);
+    } else {
+       Serial.println("Remove dir failed");
+    }  
+    
+  }else{  
+    //Remove the file
+    if(SD_MMC.remove(val)){
+       showInfo("File %s deleted", val);
+    } else {
+       Serial.println("Delete failed");
+    }  
+  }
+}
 /**************** capture MJPEG  ************************/
 
 static bool openMjpeg() {

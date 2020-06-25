@@ -354,7 +354,7 @@ const char* index_ov2640_html = R"~(
             }
 
             .extras {
-                display: none;
+                display: block;
             }
 
             input[type=range]:active + output {
@@ -428,8 +428,8 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <div class="extras"><br>
-                          <button id="delete" style="float:right;" value="1">Delete Folder</button>
-                          <button id="upload" style="float:right;" value="1">Upload Folder</button>
+                          <button id="delete" style="float:right;" value="">Delete</button>
+                          <!-- <button id="upload" style="float:right;" value="1">Upload Folder</button> -->
                         </div><br>                                                                                                                                 
                         <div class="input-group" id="quality-group">
                             <label for="quality">Quality</label>
@@ -740,8 +740,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
         value = el.value
         break
       case 'button':
-      case 'submit':
-        value = '1'
+      case 'submit':        
+        if(el.value!="1"){ //Delete folder or file
+          console.log(el.value);
+          value = el.value
+        }else{
+          value = '1'
+        }
         break
       default:
         return
@@ -895,11 +900,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
 
   // folder / file option list
-  const sfile = document.getElementById('sfile')
+  const sfile = document.getElementById('sfile');
   sfile.onchange = () => {
     // build option list from json
     var sid = $('#sfile');
     var selection = sid.val();
+    document.getElementById('delete').value = selection; //Store file path for delete
     sid.find('option:not(:first)').remove(); // remove all except first option
     var listItems = '';
     $.ajax({

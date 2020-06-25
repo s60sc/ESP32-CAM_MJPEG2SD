@@ -124,5 +124,5 @@ void loop() {
   delay(100000);
 }
 
-void deleteDayFolder() {}
+
 void doUploadNAS() {}

@@ -44,7 +44,7 @@ size_t* getNextFrame();
 void stopPlaying();
 void controlLamp(bool lampVal);
 void doUploadNAS();
-void deleteDayFolder();                     
+void deleteFolderOrFile(const char* val);                     
 // status & control fields 
 extern float ambientTemp;
 extern bool lampOn;
@@ -203,7 +203,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "upload")) doUploadNAS();
-    else if(!strcmp(variable, "delete")) deleteDayFolder(); 
+    else if(!strcmp(variable, "delete")) deleteFolderOrFile(value); 
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) ESP.restart();   
