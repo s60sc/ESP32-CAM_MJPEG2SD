@@ -29,29 +29,32 @@ httpd_handle_t camera_httpd = NULL;
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
 extern bool debug;
+extern bool debugMotion;
 extern bool doRecording;
+extern bool isCapturing;
 extern uint8_t* SDbuffer;
 extern char* htmlBuff; 
 extern bool doPlayback;
 extern bool stopPlayback;
 extern SemaphoreHandle_t frameMutex;
+extern SemaphoreHandle_t motionMutex;
 bool lampVal = false;
-void controlFrameTimer();
 void listDir(const char* fname, char* htmlBuff);
 uint8_t setFPSlookup(uint8_t val);
 uint8_t setFPS(uint8_t val);
 size_t* getNextFrame();
+bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
 void doUploadNAS();
-void deleteDayFolder();                     
+void deleteFolderOrFile(const char* val);                   
 // status & control fields 
-extern float ambientTemp;
+extern float moduleTemp;
 extern bool lampOn;
-extern uint8_t motionVal;
+extern float motionVal;
 extern bool nightTime;
-extern uint8_t lightLevel;
-extern uint8_t nightSwitch;                                    
+extern uint8_t lightLevel;   
+extern uint8_t nightSwitch;                                  
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -83,11 +86,12 @@ static esp_err_t capture_handler(httpd_req_t *req){
 }
 
 static esp_err_t stream_handler(httpd_req_t *req) {
-  esp_err_t res = ESP_OK;
   camera_fb_t * fb = NULL;
+  esp_err_t res = ESP_OK;
+  size_t jpg_len = 0;
+  uint8_t * jpg_buf = NULL;
   char * part_buf[64];
   int64_t fr_start = 0;
-  size_t jpg_len;
 
   static int64_t last_frame = 0;
   if (!last_frame) last_frame = esp_timer_get_time();
@@ -106,27 +110,39 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       if (clusterLen) res = httpd_resp_send_chunk(req, (const char*)SDbuffer+imgPtrs[1], clusterLen);
       else doPlayback = false;
       if (res != ESP_OK) break;
-    } else {  
-      xSemaphoreTake(frameMutex, portMAX_DELAY);  
+    } else {   
+
+      if (debugMotion) {
+        // wait for new move mapping image
+        delay(100);
+        xSemaphoreTake(motionMutex, portMAX_DELAY);
+        fetchMoveMap(&jpg_buf, &jpg_len);
+        if (!jpg_len) res = ESP_FAIL;
+      } else {
+        xSemaphoreTake(frameMutex, portMAX_DELAY); 
+        fb = esp_camera_fb_get();
+        if (!fb) {
+          Serial.println("Camera capture failed");
+          res = ESP_FAIL;
+        } else {
+          jpg_len = fb->len;
+          jpg_buf = fb->buf;
+        }
+      }
       // end of additions for mjpeg2sd.cpp
-          
-      fb = esp_camera_fb_get();
-      if (!fb) {
-        Serial.println("Camera capture failed");
-        res = ESP_FAIL;
-      } else fr_start = esp_timer_get_time();
+      fr_start = esp_timer_get_time();
       if (res == ESP_OK) {
-        res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-        jpg_len = fb->len;
+        res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));    
         size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, jpg_len);
         if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen); 
-        if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)fb->buf, jpg_len);
+        if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpg_buf, jpg_len);
       }
       if (fb){
         esp_camera_fb_return(fb);
         fb = NULL;
       } 
       xSemaphoreGive(frameMutex);
+      xSemaphoreGive(motionMutex);
 
       if (res != ESP_OK) break;
       int64_t fr_end = esp_timer_get_time();
@@ -136,8 +152,8 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
       if (debug) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
          (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time);
-      }
     }
+  }
   last_frame = 0;
   return res;
 }
@@ -203,8 +219,12 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "upload")) doUploadNAS();
-    else if(!strcmp(variable, "delete")) deleteDayFolder(); 
+    else if(!strcmp(variable, "delete")) deleteFolderOrFile(value); 
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
+    else if(!strcmp(variable, "dbgMotion")) {
+      debugMotion = (val) ? true : false;   
+      doRecording = !debugMotion;
+    }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) ESP.restart();   
     // end of additions for mpjpeg2sd.cpp
@@ -250,14 +270,16 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
     p+=sprintf(p, "\"minf\":%u,", minSeconds);
     p+=sprintf(p, "\"dbg\":%u,", debug ? 1 : 0);
+    p+=sprintf(p, "\"dbgMotion\":%u,", debugMotion ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
-    p+=sprintf(p, "\"motion\":%u,", motionVal);
+    p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
-    p+=sprintf(p, "\"atemp\":\"%0.1f\",", ambientTemp);
-    p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);                                                                 
+    p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
+    p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
+    p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mpjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
     p+=sprintf(p, "\"quality\":%u,", s->status.quality);

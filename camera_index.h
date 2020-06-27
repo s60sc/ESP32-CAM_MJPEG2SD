@@ -5,7 +5,7 @@ const char* index_ov2640_html = R"~(
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>ESP32 OV2460</title>
+        <title>ESP32-CAM_MJPEG2SD</title>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -409,8 +409,8 @@ const char* index_ov2640_html = R"~(
                         <div class="input-group" id="minf-group">
                             <label for="minf">Min Seconds</label>
                             <div class="range-min">0</div>
-                            <input type="range" id="minf" min="0" max="20" value="2" class="default-action">
-                            <output name="rangeVal">2</output>
+                            <input type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                            <output name="rangeVal">5</output>
                             <div class="range-max">20</div>
                         </div>
                         <div class="input-group" id="dbg-group">
@@ -427,10 +427,10 @@ const char* index_ov2640_html = R"~(
                             <option value="/">Get Folders</option>
                           </select>
                         </div>
-                        <div class="extras"><br>
-                          <button id="delete" style="float:right;" value="1">Delete Folder</button>
-                          <button id="upload" style="float:right;" value="1">Upload Folder</button>
-                        </div><br>                                                                                                                                 
+                        <section id="buttons"><br>
+                          <button class="extras" id="upload" style="float:left; " value="1">Upload Folder</button> 
+                          <button id="delete" style="float:right; " value="">Delete</button>
+                        </section><br>
                         <div class="input-group" id="quality-group">
                             <label for="quality">Quality</label>
                             <div class="range-min">10</div>
@@ -445,6 +445,10 @@ const char* index_ov2640_html = R"~(
                                 <label class="slider" for="record"></label>
                             </div>
                         </div> 
+                        <div class="input-group" id="isrecord">
+                            <label for="isrecord">Recording? </label>
+                            &nbsp;<div id="isrecord" class="default-action displayonly">&nbsp;</div>
+                        </div>
                         <div class="input-group" id="motion-group">
                             <label for="motion">Motion Sensitivity</label>
                             <div class="range-min">1</div>
@@ -475,9 +479,16 @@ const char* index_ov2640_html = R"~(
                             &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
                         </div>                             
                         <div class="input-group extras" id="atemp-group">
-                            <label for="atemp">Ambient Temp</label>
-                            &nbsp;<div id="atemp" class="default-action displayonly">&nbsp;</div>
-                        </div>                                                               
+                            <label for="atemp">Camera Temp</label>
+                            &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                        </div>  
+                        <div class="input-group" id="dbgMotion-group">
+                            <label for="dbgMotion">Show Motion</label>
+                            <div class="switch">
+                                <input id="dbgMotion" type="checkbox" class="default-action">
+                                <label class="slider" for="dbgMotion"></label>
+                            </div>
+                        </div>                                                             
                         <br>
                         <input type='checkbox' id="settings-cb">
                         <label for="settings-cb" style="float:left;">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
@@ -741,7 +752,11 @@ document.addEventListener('DOMContentLoaded', function (event) {
         break
       case 'button':
       case 'submit':
-        value = '1'
+        if(el.value!="1"){ //Delete folder or file
+          value = el.value
+        }else{
+          value = '1'
+        }
         break
       default:
         return
@@ -790,6 +805,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   
   deleteButton.onclick = () => {
     updateConfig(deleteButton);
+    var sid = $('#sfile');
+    sid.find('option:not(:first)').remove(); // remove all except first option
+    sid.append('<option value="/">Get Folders</option>');    
   }
 
   const stopStream = () => {
@@ -895,11 +913,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
 
   // folder / file option list
-  const sfile = document.getElementById('sfile')
+  const sfile = document.getElementById('sfile');
   sfile.onchange = () => {
     // build option list from json
     var sid = $('#sfile');
     var selection = sid.val();
+    document.getElementById('delete').value = selection; //Store file path for delete
     sid.find('option:not(:first)').remove(); // remove all except first option
     var listItems = '';
     $.ajax({

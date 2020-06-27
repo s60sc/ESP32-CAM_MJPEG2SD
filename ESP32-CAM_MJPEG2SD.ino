@@ -20,8 +20,9 @@ const char* password = "********";
 
 void startCameraServer();
 bool prepMjpeg();
+void startSDtasks();
 
-float ambientTemp;
+float moduleTemp;
 
 void setup() {
   Serial.begin(115200);
@@ -112,6 +113,7 @@ void setup() {
   }
  
   startCameraServer();
+  startSDtasks();
   
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
@@ -124,5 +126,4 @@ void loop() {
   delay(100000);
 }
 
-void deleteDayFolder() {}
 void doUploadNAS() {}
