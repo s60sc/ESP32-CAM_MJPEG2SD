@@ -1,16 +1,16 @@
+
 /* 
- Extension to detect movement in sequential images using centre of mass shift.
- This technique reduces spurious motion changes:
- - camera noise, particularly in low light
- - micro movements, eg leaves rustling, rain
- - transient movements, eg bird flying past
- - changes in illumination levels, eg passing cloud
+ Extension to detect movement in sequential images using background subtraction.
+ 
+ Very small bitmaps are used both to provide image smoothing to reduce spurious motion changes 
+ and to enable rapid processing
 
  The amount of change between images will depend on the frame rate.
  A faster frame rate will need a higher sensitivity
 
  When frame size is changed the OV2640 outputs a few glitched frames whilst it 
  makes the transition. These could be interpreted as spurious motion.
+
  
  s60sc 2020
  
@@ -19,15 +19,20 @@
 #include "esp_camera.h"
 #include "esp_jpg_decode.h"
 #include <SD_MMC.h>
+#include <bits/stdc++.h> 
+using namespace std;
 
 // user configuration parameters for calibrating motion detection
 #define MOTION_SEQUENCE 5 // min sequence of changed frames to confirm motion 
 #define NIGHT_SEQUENCE 10 // frames of sequential darkness to avoid spurious day / night switching
-#define WANT_BMP false // for debugging, true to add BMP header, false for none
+// define region of interest, ie exclude top and bottom of image from movement detection if required
+// divide image into NUM_BANDS horizontal bands, define start and end bands of interest, 1 = top
+#define START_BAND 3
+#define END_BAND 8 // inclusive
+#define NUM_BANDS 10
+#define CHANGE_THRESHOLD 15 // min difference in pixel comparison to indicate a change
 
-// constants
 #define RGB888_BYTES 3 // number of bytes per pixel
-#define BMP_HEADER 54 // size of BMP header bytes
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -36,9 +41,13 @@
 
 /********* the following must be declared and initialised elsewhere **********/
 extern bool debug;
+extern bool debugMotion;
 extern uint8_t fsizePtr;
 extern uint8_t lightLevel; // Current ambient light level 
-extern uint8_t motionVal; // motion sensitivity setting
+extern SemaphoreHandle_t motionMutex;
+extern SemaphoreHandle_t frameMutex;
+extern float motionVal; // motion sensitivity setting - min percentage of changed pixels that constitute a movement
+extern uint16_t insufficient;
 
 struct frameStruct {
   const char* frameSizeStr;
@@ -50,127 +59,128 @@ struct frameStruct {
 };
 extern const frameStruct frameData[];
 
+static uint8_t* jpgImg = NULL;
+static size_t jpgImgSize = 0;
+
 /**********************************************************************************/
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, size_t * out_len, uint8_t scale, uint8_t bmpOffset);
+static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, size_t * out_len, uint8_t scale);
 
-bool checkMotion(camera_fb_t* fb, bool motionStatus) {
-  // get current frame and calculate centre of mass, then compare with previous
-  uint32_t mTime = millis();
-  // convert jpeg to downsized bitmap
-  uint8_t* bmpBuf = NULL;
-  size_t buf_len = 0;
-  uint8_t bmpOffset = WANT_BMP ? BMP_HEADER : 0; // size of BMP header if wanted
-  bool converted = jpg2rgb((uint8_t*)fb->buf, fb->len, &bmpBuf, &buf_len, frameData[fsizePtr].scaleFactor, bmpOffset);
-  if (debug && bmpOffset) { 
-    // for debug purposes, store on SD as BMP to check that bitmap is properly formed
-    File bmpFile = SD_MMC.open("/test.bmp", FILE_WRITE);
-    bmpFile.write(bmpBuf, buf_len); 
-    bmpFile.close(); 
-    showDebug("wrote BMP to SD");
+bool checkMotion(camera_fb_t * fb, bool motionStatus) {
+  // check difference between current and previous image (subtract background)
+  // convert image from JPEG to downscaled RGB888 bitmap to 8 bit grayscale
+  uint32_t dTime = millis();
+  uint32_t lux = 0;
+  static uint32_t motionCnt = 0;
+  uint8_t* rgb_buf = NULL;
+  size_t rgb_len = 0;
+  uint8_t* jpg_buf = NULL;
+  size_t jpg_len = 0;
+
+  // calculate parameters for sample size
+  int scaling = frameData[fsizePtr].scaleFactor; 
+  uint16_t reducer = frameData[fsizePtr].sampleRate;
+  uint8_t downsize = pow(2, scaling) * reducer;
+  int sampleWidth = frameData[fsizePtr].frameWidth / downsize;
+  int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
+  int num_pixels = sampleWidth * sampleHeight;
+
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, &rgb_len, scaling))
+    showError("motionDetect: fmt2rgb() failed");
+
+/*
+  if (reducer > 1) 
+    // further reduce size of bitmap 
+    for (int r=0; r<sampleHeight; r++) 
+      for (int c=0; c<sampleWidth; c++)      
+        rgb_buf[c+(r*sampleWidth)] = rgb_buf[(c+(r*sampleWidth))*reducer]; 
+*/
+  showDebug("JPEG to greyscale conversion %u bytes in %ums", rgb_len, millis() - dTime);
+  dTime = millis();
+
+  // allocate buffer space on heap
+  int maxSize = 32*1024; // max size downscaled UXGA 30k
+  static uint8_t* changeMap = (uint8_t*)ps_malloc(maxSize);
+  static uint8_t* prev_buf = (uint8_t*)ps_malloc(maxSize);
+  static uint8_t* _jpgImg = (uint8_t*)ps_malloc(maxSize);
+  jpgImg = _jpgImg;
+
+  // compare each pixel in current frame with previous frame 
+  int changeCount = 0;
+  // set horizontal region of interest in image 
+  uint16_t startPixel = num_pixels*(START_BAND-1)/NUM_BANDS;
+  uint16_t endPixel = num_pixels*(END_BAND)/NUM_BANDS;
+  int moveThreshold = (endPixel-startPixel) * (11-motionVal)/100; // number of changed pixels that constitute a movement
+  for (int i=0; i<num_pixels; i++) {
+    if (abs(rgb_buf[i] - prev_buf[i]) > CHANGE_THRESHOLD) {
+      if (i > startPixel && i < endPixel) changeCount++; // number of changed pixels
+      if (debugMotion) changeMap[i] = 64; // populate changeMap image as black with changed pixels in gray
+    } else if (debugMotion) changeMap[i] =  0; // set black 
+    lux += rgb_buf[i]; // for calculating light level
   }
-  
-  if (converted) {       
-    showDebug("Jpeg to bitmap conversion time %ums", millis()-mTime); 
-    uint32_t cTime = millis(); 
-    static uint16_t motionCnt = 0;
-    uint32_t lux = 0;
-
-    // calculate parameters for sample size
-    uint8_t downsize = pow(2, frameData[fsizePtr].scaleFactor) * frameData[fsizePtr].sampleRate;
-    uint8_t numCols = frameData[fsizePtr].frameWidth / downsize;
-    uint8_t numRows = frameData[fsizePtr].frameHeight / downsize;
-    uint16_t pixelSpan = frameData[fsizePtr].sampleRate * RGB888_BYTES;
-    uint16_t bitmapWidth = numCols * frameData[fsizePtr].sampleRate;
-    uint32_t col[numCols][RGB888_BYTES] = {0}; // total pixel values per color per column 
-    uint32_t row[numRows][RGB888_BYTES] = {0}; // total pixel values per color per row
-    uint32_t numSamples = numCols * numRows;
-    showDebug("%u samples for %s", numSamples, frameData[fsizePtr].frameSizeStr);
- 
-    // get mass (pixel value) of each sampled pixel color and accumulate in row and column
-    for (int r=0; r<numRows; r++) {
-      for (int c=0; c<numCols; c++) {
-        uint32_t pixelPos = bmpOffset+((c+(r*bitmapWidth))*pixelSpan); // within bitmap buffer
-        for (uint32_t rgb=0; rgb<RGB888_BYTES; rgb++) {
-          // each pixel has RGB values
-          row[r][rgb] += bmpBuf[pixelPos+rgb]; 
-          col[c][rgb] += bmpBuf[pixelPos+rgb];
-          lux += bmpBuf[pixelPos+rgb];
-        }
-      }  
-    }
-
-    // calculate image centre of mass
-    uint32_t cSum[RGB888_BYTES] = {0}; // total column sum per color
-    float cMass[RGB888_BYTES] = {0};  //  total weighted column sum (mass) per color
-    float cCOM[RGB888_BYTES] = {0}; // x axis centre of mass
-    float cCOMdiff[RGB888_BYTES] = {0}; // difference between current and previous x axis
-    static float cCOMprev[RGB888_BYTES] = {0}; // previous x axis centre of mass
-    uint32_t rSum[RGB888_BYTES] = {0}; // as above for rows / y axis
-    float rMass[RGB888_BYTES] = {0};
-    float rCOM[RGB888_BYTES] = {0};
-    float rCOMdiff[RGB888_BYTES] = {0};
-    static float rCOMprev[RGB888_BYTES] = {0};
-    
-    for (int rgb=0; rgb<RGB888_BYTES; rgb++) {
-      for (int r=0; r<numRows; r++) { 
-        // calculate total row sum and total row relative mass per color
-        rSum[rgb] += row[r][rgb];
-        rMass[rgb] += (row[r][rgb] * (r+1));
-      }
-      for (int c=0; c<numCols; c++) {
-        // calculate total col sum and total col relative mass per color
-        cSum[rgb] += col[c][rgb];
-        cMass[rgb] += (col[c][rgb] * (c+1));
-      }   
-      // calculate x and y centre of mass per color and difference to previous
-      cCOM[rgb] = cMass[rgb] / cSum[rgb];
-      cCOMdiff[rgb] = cCOM[rgb] - cCOMprev[rgb];
-      cCOMprev[rgb] = cCOM[rgb];
-      rCOM[rgb] = rMass[rgb] / rSum[rgb];
-      rCOMdiff[rgb] = rCOM[rgb] - rCOMprev[rgb];
-      rCOMprev[rgb] = rCOM[rgb];    
-    }
-    // get single x & y differences and percent change
-    float COMtot = 0;
-    float COMtotDiff = 0;
-    for (int rgb=0; rgb<RGB888_BYTES; rgb++) {
-      COMtot += (abs(cCOM[rgb])+abs(rCOM[rgb]));
-      COMtotDiff += (abs(cCOMdiff[rgb])+abs(rCOMdiff[rgb]));
-    }
-    float diffPcnt = (COMtotDiff*100)/COMtot; // total % difference between frames  
-    
-    lightLevel = (lux*100)/(numSamples*RGB888_BYTES*255); // light value as a %
-    showDebug("diffPcnt %0.2f%%, lux %u%%, %ums", diffPcnt, lightLevel, millis()-cTime);
-
-    // determine if movement has occurred
-    if (diffPcnt > (float)0.01*pow(2, 10-motionVal)) { //  min % shift to indicate movement
-      // sufficient centre of mass shift
-      if (!motionStatus) motionCnt += 1;
-      showDebug("### Change detected");
-      // need minimum sequence of changes to signal valid movement
-      if (!motionStatus && motionCnt >= MOTION_SEQUENCE) {
-        showDebug("***** Motion - START");
-        motionStatus = true; // motion started
-      } 
-    } else {
-      // insufficient change
-      if (motionStatus) {
-        motionCnt = 0;
-        showDebug("***** Motion - STOP");
-        motionStatus = false; // motion stopped
-      }
-    }
-    if (motionStatus) showDebug("*** Motion - ongoing");
-    showDebug("Total motion processing for frame %ums", millis()-mTime);
-  } else showError("Image conversion failed");
-
+  lightLevel = (lux*100)/(num_pixels*255); // light value as a %
+  memcpy(prev_buf, rgb_buf, num_pixels); // save image for next comparison 
   // esp32-cam issue #126
-  if (bmpBuf == NULL) showError("Memory leak, heap now: %u", xPortGetFreeHeapSize());
-  free(bmpBuf);
-  bmpBuf = NULL;
+  if (rgb_buf == NULL) showError("Memory leak, heap now: %u", xPortGetFreeHeapSize());
+  free(rgb_buf); 
+  rgb_buf = NULL;
+  showDebug("Detected %u changes, threshold %u, light level %u, in %ums", changeCount, moveThreshold, lightLevel, millis() - dTime);
+  dTime = millis();
+
+  if (changeCount > moveThreshold) {
+    showDebug("### Change detected");
+    motionCnt++; // number of consecutive changes
+    // need minimum sequence of changes to signal valid movement
+    if (!motionStatus && motionCnt >= MOTION_SEQUENCE) {
+      showDebug("***** Motion - START");
+      motionStatus = true; // motion started
+    } 
+    if (debugMotion)
+      // to highlight movement detected in changeMap image, set all gray in region of interest to white
+      for (int i=0; i<num_pixels; i++) 
+         if (i > startPixel && i < endPixel && changeMap[i] > 0) changeMap[i] = 255;
+  } else {
+    // insufficient change
+    if (motionStatus) {
+      showDebug("***** Motion - STOP after %u frames", motionCnt);
+      motionCnt = 0;
+      motionStatus = false; // motion stopped
+    }
+  }
+  if (motionStatus) showDebug("*** Motion - ongoing %u frames", motionCnt);
+
+  if (debugMotion) { 
+    // build jpeg of changeMap for debug streaming
+    dTime = millis();
+    if (!fmt2jpg(changeMap, num_pixels, sampleWidth, sampleHeight, PIXFORMAT_GRAYSCALE, 80, &jpg_buf, &jpg_len))
+      showError("motionDetect: fmt2jpg() failed");
+    // prevent streaming from accessing jpeg while it is being updated
+    xSemaphoreTake(motionMutex, portMAX_DELAY); 
+    memcpy(jpgImg, jpg_buf, jpg_len);
+    jpgImgSize = jpg_len; 
+    xSemaphoreGive(motionMutex);
+    free(jpg_buf);
+    jpg_buf = NULL;
+    showDebug("Created changeMap JPEG %u bytes in %ums", jpg_len, millis() - dTime);
+  }
+
+  showDebug("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+  // motionStatus indicates whether motion previously ongoing or not
   return motionStatus;
 }
+
+bool fetchMoveMap(uint8_t **out, size_t *out_len) {
+  // return change map jpeg for streaming
+  *out = jpgImg;
+  *out_len = jpgImgSize;
+  static size_t lastImgLen = 0;
+  if (lastImgLen != jpgImgSize) {
+    // image changed
+    lastImgLen = jpgImgSize;
+    return true;
+  } else return false;
+}
+
 
 bool isNight(uint8_t nightSwitch) {
   // check if night time for switching on lamp during recording
@@ -206,6 +216,7 @@ typedef struct {
 } rgb_jpg_decoder;
 
 static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t *data) {
+  // mpjpeg2sd: mofified to generate 8 bit grayscale
   rgb_jpg_decoder * jpeg = (rgb_jpg_decoder *)arg;
   if (!data){
     if (x == 0 && y == 0) {
@@ -214,7 +225,7 @@ static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t 
       jpeg->height = h;
       // if output is null, this is BMP
       if (!jpeg->output) {
-        jpeg->output = (uint8_t*)ps_malloc((w*h*3)+jpeg->data_offset);
+        jpeg->output = (uint8_t*)ps_malloc((w*h)+jpeg->data_offset);
         if (!jpeg->output) return false;
       }
     } 
@@ -231,11 +242,10 @@ static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t 
   w = w * 3;
 
   for (iy=t; iy<b; iy+=jw) {
-    o = out+iy+l;
+    o = out+(iy+l)/3;
     for (ix=0; ix<w; ix+=3) {
-      o[ix] = data[ix+2];
-      o[ix+1] = data[ix+1];
-      o[ix+2] = data[ix];
+      uint16_t grayscale = (data[ix+2]+data[ix+1]+data[ix])/3;
+      o[ix/3] = (uint8_t)grayscale;
     }
     data+=w;
   }
@@ -248,58 +258,21 @@ static uint32_t _jpg_read(void * arg, size_t index, uint8_t *buf, size_t len) {
   return len;
 }
 
-typedef struct {
-  uint32_t filesize;
-  uint32_t reserved;
-  uint32_t fileoffset_to_pixelarray;
-  uint32_t dibheadersize;
-  int32_t width;
-  int32_t height;
-  uint16_t planes;
-  uint16_t bitsperpixel;
-  uint32_t compression;
-  uint32_t imagesize;
-  uint32_t ypixelpermeter;
-  uint32_t xpixelpermeter;
-  uint32_t numcolorspallette;
-  uint32_t mostimpcolor;
-} bmp_header_t;
-
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, size_t * out_len, uint8_t scale, uint8_t bmpOffset) {
+static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, size_t * out_len, uint8_t scale) {
   rgb_jpg_decoder jpeg;
   jpeg.width = 0;
   jpeg.height = 0;
   jpeg.input = src;
   jpeg.output = NULL; 
-  jpeg.data_offset = bmpOffset;
+  jpeg.data_offset = 0;
   if (esp_jpg_decode(src_len, jpg_scale_t(scale), _jpg_read, _rgb_write, (void*)&jpeg) != ESP_OK) {
     *out = jpeg.output;
     return false;
   }
 
-  size_t output_size = jpeg.width*jpeg.height*3;
-
-  if (WANT_BMP) {
-    jpeg.output[0] = 'B';
-    jpeg.output[1] = 'M';
-    bmp_header_t * bitmap = (bmp_header_t*)&jpeg.output[2];
-    bitmap->reserved = 0;
-    bitmap->filesize = output_size+bmpOffset;
-    bitmap->fileoffset_to_pixelarray = bmpOffset;
-    bitmap->dibheadersize = 40;
-    bitmap->width = jpeg.width;
-    bitmap->height = -jpeg.height; //set negative for top to bottom
-    bitmap->planes = 1;
-    bitmap->bitsperpixel = 24;
-    bitmap->compression = 0;
-    bitmap->imagesize = output_size;
-    bitmap->ypixelpermeter = 0x0B13 ; //2835 , 72 DPI
-    bitmap->xpixelpermeter = 0x0B13 ; //2835 , 72 DPI
-    bitmap->numcolorspallette = 0;
-    bitmap->mostimpcolor = 0;
-  }
+  size_t output_size = jpeg.width*jpeg.height;
   *out = jpeg.output;
-  *out_len = output_size+bmpOffset;
+  *out_len = output_size;
 
   return true;
 }
