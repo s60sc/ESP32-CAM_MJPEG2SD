@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "esp_http_server.h"
+#include <SD_MMC.h>
+#include "WiFi.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
 #include "camera_index.h"
@@ -306,6 +308,24 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
     p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
     p+=sprintf(p, "\"colorbar\":%u", s->status.colorbar);
+    //Extend info
+    uint8_t cardType = SD_MMC.cardType();
+    if (cardType == CARD_NONE) p+=sprintf(p, "\"card\":%s", "NO card");
+    else{    
+      if (cardType == CARD_MMC) p+=sprintf(p, "\"card\":%s", "MMC"); 
+      else if (cardType == CARD_SD) p+=sprintf(p, "\"card\":%s", "SDSC");
+      else if (cardType == CARD_SDHC) p+=sprintf(p, "\"card\":%s", "SDHC"); 
+      uint64_t cardSize, totBytes, useBytes = 0;
+      cardSize = SD_MMC.cardSize() / 1048576;
+      totBytes = SD_MMC.totalBytes() / 1048576;
+      useBytes = SD_MMC.usedBytes() / 1048576;
+      p+=sprintf(p, "\"card_size\":\"%llu MB\",", cardSize);
+      p+=sprintf(p, "\"used_bytes\":\"%llu MB\",", useBytes);
+      p+=sprintf(p, "\"total_bytes\":\"%llu MB\"", totBytes);
+    }
+    p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
+    p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\"", WiFi.RSSI() );  
+    
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
