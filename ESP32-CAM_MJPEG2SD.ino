@@ -20,7 +20,6 @@
 #include "myConfig.h"
 #endif
 
-
 #ifndef MY_CONFIG
 const char* ssid = "********";
 const char* password = "********";
