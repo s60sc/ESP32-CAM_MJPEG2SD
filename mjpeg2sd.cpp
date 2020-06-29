@@ -7,15 +7,20 @@
 */
 
 // user defined environmental setup
-#define USE_PIR false // whether to use PIR for motion detection
-#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
-#define POST_MOTION_TIME 2 // number of secs after motion stopped to complete recording, in case movement restarts
+//Custom config file exists!
+#ifndef MY_CONFIG
+#define USE_PIR true  // whether to use PIR for motion detection
+#define USE_MOTION false  // whether to use camera for motion detection (with motionDetect.cpp)
+#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
+#endif
+
+#define MOVE_START_CHECKS 5 // checks per second for start
+#define MOVE_STOP_SECS 1 // secs between each check for stop
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
-//#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
-#define TIMEZONE "EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00"
-                 
+
+
 #include <SD_MMC.h>
 #include <regex>
 #include <sys/time.h> 
@@ -24,16 +29,18 @@
 
 // user parameters
 bool debug = false;
+bool debugMotion = false;
 bool doRecording = false; // whether to capture to SD or not
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
-uint8_t motionVal = 7; // initial motion sensitivity setting 
+float motionVal = 8.0; // initial motion sensitivity setting 
 
 // status & control fields
 static uint8_t FPS;
 bool lampOn = false;     
 bool nightTime = false;
-uint8_t lightLevel; // Current ambient light level              
+uint8_t lightLevel; // Current ambient light level     
+uint16_t insufficient = 0;         
 
 // stream separator
 extern const char* _STREAM_BOUNDARY; 
@@ -63,17 +70,17 @@ struct frameStruct {
 };
 // indexed by frame size - needs to be consistent with sensor.h enum
 extern const frameStruct frameData[] = {
-  {"QQVGA", 160, 120, 25, 2, 1},
+  {"QQVGA", 160, 120, 25, 1, 1},
   {"n/a", 0, 0, 0, 0, 1}, 
   {"n/a", 0, 0, 0, 0, 1}, 
-  {"HQVGA", 240, 176, 25, 3, 1}, 
-  {"QVGA", 320, 240, 25, 3, 1}, 
-  {"CIF", 400, 296, 25, 3, 1},
-  {"VGA", 640, 480, 15, 3, 2}, 
-  {"SVGA", 800, 600, 10, 3, 2}, 
-  {"XGA", 1024, 768, 5, 3, 3}, 
-  {"SXGA", 1280, 1024, 3, 3, 4}, 
-  {"UXGA", 1600, 1200, 2, 3, 5}  
+  {"HQVGA", 240, 176, 25, 2, 1}, 
+  {"QVGA", 320, 240, 25, 2, 1}, 
+  {"CIF", 400, 296, 25, 2, 1},
+  {"VGA", 640, 480, 15, 3, 1}, 
+  {"SVGA", 800, 600, 10, 3, 1}, 
+  {"XGA", 1024, 768, 5, 3, 1}, 
+  {"SXGA", 1280, 1024, 3, 3, 1}, 
+  {"UXGA", 1600, 1200, 2, 3, 1}  
 };
 uint8_t fsizePtr; // index to frameData[]
 static uint16_t frameInterval; // units of 0.1ms between frames
@@ -106,13 +113,13 @@ static TaskHandle_t playbackHandle = NULL;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
 SemaphoreHandle_t frameMutex;
-static volatile bool capturePIR = false;
+SemaphoreHandle_t motionMutex;
 static volatile bool isPlaying = false;
-volatile uint8_t PIRpin;
+bool isCapturing = false;
+uint8_t PIRpin;
+const uint8_t LAMPpin = 4;
 bool stopPlayback = false; 
 static camera_fb_t* fb;
-
-#define LAMP_PIN 4
 
 bool isNight(uint8_t nightSwitch);
 bool checkMotion(camera_fb_t* fb, bool captureStatus);
@@ -150,14 +157,12 @@ void getLocalNTP() {
   } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
   // set TIMEZONE as required
   setenv("TZ", TIMEZONE, 1);
-  if (getEpoch() > 1000){
-    
+  if (getEpoch() > 1000) {
     showInfo("Got current time from NTP");
     time_t currEpoch = getEpoch();  
     strftime(partName, sizeof(partName), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
     Serial.println(partName);
-  
-  }
+  }  
   else showError("Unable to sync with NTP");
 }
 
@@ -178,8 +183,7 @@ void showProgress() {
 void controlLamp(bool lampVal) {
   // switch lamp on / off
   lampOn = lampVal;
-  pinMode(LAMP_PIN, OUTPUT);
-  digitalWrite(LAMP_PIN, lampVal);
+  digitalWrite(LAMPpin, lampVal);
 }
 
 /**************** timers & ISRs ************************/
@@ -192,78 +196,22 @@ static void IRAM_ATTR frameISR() {
   if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
 }
 
-static void IRAM_ATTR PIR_ISR(void* arg) {
-  // PIR change - high is active
-  capturePIR = digitalRead(PIRpin);
-}
-
-static void setupPIRinterrupt() {
-  // do this way due to camera use of interrupts
-  pinMode(PIRpin, INPUT_PULLDOWN); // pulled high for active
-  esp_err_t err = gpio_isr_handler_add((gpio_num_t)PIRpin, &PIR_ISR, NULL);
-  if (err != ESP_OK) showError("gpio_isr_handler_add failed (%x)", err);
-  gpio_set_intr_type((gpio_num_t)PIRpin, GPIO_INTR_ANYEDGE);
-}
-
-void controlFrameTimer() {
+void controlFrameTimer(bool restartTimer) {
   // frame timer control, timer3 so dont conflict with cam
   static hw_timer_t* timer3 = NULL;
   // stop current timer
   if (timer3) timerEnd(timer3);
-  // (re)start timer 3 interrupt per required framerate
-  timer3 = timerBegin(3, 8000, true); // 0.1ms tick
-  frameInterval = 10000 / FPS; // in units of 0.1ms 
-  showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
-  timerAlarmWrite(timer3, frameInterval, true); // 
-  timerAlarmEnable(timer3);
-  timerAttachInterrupt(timer3, &frameISR, true);
+  if (restartTimer) {
+    // (re)start timer 3 interrupt per required framerate
+    timer3 = timerBegin(3, 8000, true); // 0.1ms tick
+    frameInterval = 10000 / FPS; // in units of 0.1ms 
+    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
+    timerAlarmWrite(timer3, frameInterval, true); // 
+    timerAlarmEnable(timer3);
+    timerAttachInterrupt(timer3, &frameISR, true);
+  }
 }
 
-void deleteFolderOrFile(const char * val) {
-  showInfo("Deleting : %s", val);
-  File f = SD_MMC.open(val);  
-  if (!f){
-    showError("Failed to open %s", val);    
-    return;
-  }
-  //Empty directory first
-  if (f.isDirectory()){
-    showInfo("Directory %s contents", val);
-    File file = f.openNextFile();
-    while(file){
-        if(file.isDirectory()){
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
-        } else {
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("  SIZE: ");
-            Serial.print(file.size());
-            if(SD_MMC.remove(file.name())){
-              Serial.println(" deleted.");
-            }else{
-              Serial.println(" FAILED.");
-            }
-        }
-        file = f.openNextFile();
-    }
-    f.close();
-    //Remove the dir
-    if(SD_MMC.rmdir(val)){
-       showInfo("Dir %s removed", val);
-    } else {
-       Serial.println("Remove dir failed");
-    }  
-    
-  }else{  
-    //Remove the file
-    if(SD_MMC.remove(val)){
-       showInfo("File %s deleted", val);
-    } else {
-       Serial.println("Delete failed");
-    }  
-  }
-}
 /**************** capture MJPEG  ************************/
 
 static bool openMjpeg() {
@@ -276,8 +224,6 @@ static bool openMjpeg() {
   mjpegFile = SD_MMC.open(partName, FILE_WRITE);
 
   // open mjpeg file with temporary name
-  showInfo("Record %s mjpeg, width: %u, height: %u, @ %u fps", 
-    frameData[fsizePtr].frameSizeStr, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight, FPS);
   oTime = millis() - oTime;
   showDebug("File opening time: %ums", oTime);
   // initialisation of counters
@@ -291,7 +237,8 @@ static inline bool doMonitor(bool capturing) {
   // monitor incoming frames for motion 
   static uint8_t motionCnt = 0;
   // ratio for monitoring stop during capture / movement prior to capture
-  uint8_t checkRate = (capturing) ? 10 : 2;
+  uint8_t checkRate = (capturing) ? FPS*MOVE_STOP_SECS : FPS/MOVE_START_CHECKS;
+  if (!checkRate) checkRate = 1;
   if (++motionCnt/checkRate) motionCnt = 0; // time to check for motion
   return !(bool)motionCnt;
 }  
@@ -301,6 +248,7 @@ static inline void freeFrame() {
   if (fb) esp_camera_fb_return(fb);
   fb = NULL;
   xSemaphoreGive(frameMutex);
+  delay(1);
 }
 
 static void saveFrame() {
@@ -360,6 +308,7 @@ static bool closeMjpeg() {
     SD_MMC.rename(partName, mjpegName);
     showDebug("MJPEG close/rename time %u ms", millis() - hTime); 
     cTime = millis() - cTime;
+    insufficient = 0;
 
     // MJPEG stats
     showInfo("\n******** MJPEG recording stats ********");
@@ -378,46 +327,49 @@ static bool closeMjpeg() {
     showInfo("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
     showInfo("File open / completion times: %u ms / %u ms", oTime, cTime);
     showInfo("Busy: %u%%", std::min(100 * (wTimeTot+fTimeTot+dTimeTot+oTime+cTime) / vidDuration, (uint32_t)100));
-    showInfo("Free heap %u bytes, largest free block %u bytes", xPortGetFreeHeapSize(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+    showInfo("Free heap %u bytes", xPortGetFreeHeapSize());
     showInfo("***************************\n");
     return true;
   } else {
     // delete too small file
     mjpegFile.close();
     SD_MMC.remove(partName);
-    showInfo("Insufficient capture duration: %u secs", captureTime);
+    showDebug("Insufficient capture duration: %u secs", captureTime);
+    insufficient++;
     return false;
   }
 }
 
 static boolean processFrame() {
   // get camera frame
-  static bool isCapturing = false;
   static bool wasCapturing = false;
-  static bool coolDown = false;
-  bool captureMotion;
+  static bool captureMotion = false;
+  bool capturePIR = false;
   bool res = true;
   uint32_t dTime = millis();
-  xSemaphoreTake(frameMutex, portMAX_DELAY);
+  bool finishRecording = false;
+  
+  xSemaphoreTake(frameMutex,portMAX_DELAY);
   fb = esp_camera_fb_get();
   if (fb) {
     // determine if time to monitor, then get motion capture status
     if (USE_MOTION) {
-      if (doMonitor(isCapturing|coolDown)) captureMotion = checkMotion(fb, isCapturing);
-      nightTime = isNight(nightSwitch);  
+      if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); 
+      nightTime = isNight(nightSwitch); 
+      if (nightTime) {
+        // dont record if night time as image shift is spurious
+        captureMotion = false;
+        if (isCapturing) finishRecording = true;
+      }
     }   
     if (USE_PIR) capturePIR = digitalRead(PIRpin); 
     // either active PIR or Motion will start capture, neither active will stop capture  
     isCapturing = captureMotion | capturePIR;
     if (doRecording) {
-      if (isCapturing) coolDown = false; // cancel cooldown if fresh movement
-      if (coolDown) isCapturing = true; // maintain capture during cooldown
       if (isCapturing && !wasCapturing) {
-        // movement has occurred, start recording, and switch on lamp if night time
-        // unless still in cooldown
-        if (USE_MOTION) controlLamp(nightTime); 
+        // movement has occurred, start recording, and switch on lamp if night time 
         stopPlaying(); // terminate any playback
-        stopPlayback = true; // prevent new playback
+        stopPlayback  = true; // stop any subsequent playback
         showDebug("Capture started by %s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "");
         openMjpeg();  
         wasCapturing = true;
@@ -429,30 +381,31 @@ static boolean processFrame() {
         showProgress();
         if (frameCnt >= MAX_FRAMES) {
           showInfo("Auto closed recording after %u frames", MAX_FRAMES);
-          isCapturing = false; // auto close on limit
+          finishRecording = true;
         }
       }
       freeFrame();
       if (!isCapturing && wasCapturing) {
         // movement stopped 
-        coolDown = isCapturing = true;
-        cTime = millis();
+        finishRecording = true;
       }
       wasCapturing = isCapturing;
       
-      if (coolDown && millis()-cTime >= POST_MOTION_TIME*1000) {
-        // finish recording after cooldown period
-        closeMjpeg();
-        controlLamp(false);
-        coolDown = isCapturing = wasCapturing = stopPlayback = false; // allow for playbacks
-      }
-    }
+    } else finishRecording = true; // in case Save Capture switched off
     showDebug("============================");
   } else {
     showError("Failed to get frame");
     res = false;
   }
   freeFrame();
+  if (finishRecording) {
+    // cleanly finish recording (normal or forced) 
+    if (stopPlayback) {
+      closeMjpeg();
+      controlLamp(false);
+    }
+    finishRecording = isCapturing = wasCapturing = stopPlayback = false; // allow for playbacks
+  }
   return res;
 }
 
@@ -472,7 +425,7 @@ uint8_t setFPS(uint8_t val) {
   if (val) {
     FPS = val;
     // change frame timer which drives the task
-    controlFrameTimer(); 
+    controlFrameTimer(true); 
     saveFPS = FPS; // used to reset FPS after playback
   }
   return FPS;
@@ -500,7 +453,7 @@ static void playbackFPS(const char* fname) {
   free(fdup);
   // temp change framerate to recorded framerate
   FPS = recFPS;
-  controlFrameTimer();
+  controlFrameTimer(true);
 }
 
 static void openSDfile() {
@@ -604,6 +557,7 @@ void readSD() {
   showDebug("SD read time %u ms", millis() - rTime);
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready
+  delay(20);                             
 }
 
 size_t* getNextFrame() {
@@ -702,7 +656,7 @@ size_t* getNextFrame() {
         showInfo("Average http send time: %u ms", hTimeTot / frameCnt);
         showInfo("Busy: %u%%", std::min(100 * totBusy/(totBusy+tTimeTot),(uint32_t)100));
       }
-      showInfo("Free heap %u bytes, largest free block %u bytes", xPortGetFreeHeapSize(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+      showInfo("Free heap %u bytes", xPortGetFreeHeapSize());
       showInfo("***************************\n");
     }
     setFPS(saveFPS); // realign with browser
@@ -761,7 +715,7 @@ static void infoSD() {
   } 
 }
 
-bool prepSD_MMC(bool oneLine) {
+bool prepSD_MMC() {
   /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
      MMC4  MMC1  ESP32  
       D2          12      
@@ -772,17 +726,66 @@ bool prepSD_MMC(bool oneLine) {
       D1          4
  */
   bool res = false;
-  if (oneLine) {
+  if (ONELINE) {
     // SD_MMC 1 line mode
     res = SD_MMC.begin("/sdcard", true);
   } else res = SD_MMC.begin(); // SD_MMC 4 line mode
   if (res){ 
-    showInfo("SD ready in %s mode ", oneLine ? "1-line" : "4-line");
+    showInfo("SD ready in %s mode ", ONELINE ? "1-line" : "4-line");
     infoSD();
     return true;
   } else {
-    showError("SD mount failed for %s mode", oneLine ? "1-line" : "4-line");
+    showError("SD mount failed for %s mode", ONELINE ? "1-line" : "4-line");
     return false;
+  }
+}
+
+
+void deleteFolderOrFile(const char * val) {
+  // Function provided by user @gemi254
+  showInfo("Deleting : %s", val);
+  File f = SD_MMC.open(val);  
+  if (!f){
+    showError("Failed to open %s", val);    
+    return;
+  }
+  stopPlayback = true;
+  //Empty directory first
+  if (f.isDirectory()){
+    showInfo("Directory %s contents", val);
+    File file = f.openNextFile();
+    while(file){
+        if(file.isDirectory()){
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+        } else {
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("  SIZE: ");
+            Serial.print(file.size());
+            if(SD_MMC.remove(file.name())){
+              Serial.println(" deleted.");
+            }else{
+              Serial.println(" FAILED.");
+            }
+        }
+        file = f.openNextFile();
+    }
+    f.close();
+    //Remove the dir
+    if(SD_MMC.rmdir(val)){
+       showInfo("Dir %s removed", val);
+    } else {
+       Serial.println("Remove dir failed");
+    }  
+    
+  }else{  
+    //Remove the file
+    if(SD_MMC.remove(val)){
+       showInfo("File %s deleted", val);
+    } else {
+       Serial.println("Delete failed");
+    }  
   }
 }
 
@@ -791,7 +794,7 @@ bool prepSD_MMC(bool oneLine) {
 bool prepMjpeg() {
   // initialisation & prep for MJPEG capture
   if (psramFound()) {
-    if (prepSD_MMC(ONELINE)) { 
+    if (prepSD_MMC()) { 
       if (ONELINE) controlLamp(false); // set lamp fully off as sd_mmc library still initialises pin 4
       getLocalNTP(); // get time from NTP
       SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
@@ -799,22 +802,18 @@ bool prepMjpeg() {
       if (USE_PIR) {
         PIRpin = (ONELINE) ? 12 : 33;
         pinMode(PIRpin, INPUT_PULLDOWN); // pulled high for active
-        // setupPIRinterrupt(); // not required
       }
+      pinMode(LAMPpin, OUTPUT);
       readSemaphore = xSemaphoreCreateBinary();
       playbackSemaphore = xSemaphoreCreateBinary();
       frameMutex = xSemaphoreCreateMutex();
+      motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
-      sensor_t * s = esp_camera_sensor_get();
-      fsizePtr = s->status.framesize;
-      setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
-      xTaskCreate(&captureTask, "captureTask", 4096*8, NULL, 5, &captureHandle);
-      xTaskCreate(&playbackTask, "playbackTask", 4096*8, NULL, 4, &playbackHandle);   
-      showDebug("Free heap %u bytes", xPortGetFreeHeapSize());
       showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
-      if (USE_MOTION) showInfo("- move in front of camera");
+      if (USE_MOTION) showInfo("- move in front of camera"); 
+      showInfo(" ");
       return true;
     } else {
       showError("SD storage not available");
@@ -825,3 +824,26 @@ bool prepMjpeg() {
     return false;
   }
 }
+
+void startSDtasks() {
+  // tasks to manage SD card operation
+  xTaskCreate(&captureTask, "captureTask", 4096*2, NULL, 5, &captureHandle);
+  if (xTaskCreate(&playbackTask, "playbackTask", 4096*4, NULL, 4, &playbackHandle) != pdPASS)
+    showError("Insufficient memory to create playbackTask");
+  sensor_t * s = esp_camera_sensor_get();
+  fsizePtr = s->status.framesize;
+  setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
+}
+
+void endTasks() {
+  vTaskDelete(captureHandle);
+  vTaskDelete(playbackHandle);
+}
+
+# ifndef USE_MOTION
+bool fetchMoveMap(uint8_t **out, size_t *out_len) {
+  // dummy if motionDetect.cpp not used
+  *out_len = 0;
+  xSemaphoreGive(motionMutex);
+}
+#endif
