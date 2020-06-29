@@ -1,4 +1,11 @@
-This ia a modified to remove file or folder from sd card and add software motion detection to enable recording
+
+This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+Added functionality 
+
+* remove file or folder from sd card 
+* add software motion detection to enable recording
+* Added a reboot button
+* Create a file myConfig.h and add you custom config values
 
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser 
