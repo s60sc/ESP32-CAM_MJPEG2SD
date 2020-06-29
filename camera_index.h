@@ -1,10 +1,11 @@
+
 const char* index_ov2640_html = R"~(
 <!doctype html>                             
 <html>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>ESP32 OV2460</title>
+        <title>ESP32-CAM_MJPEG2SD</title>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -353,7 +354,7 @@ const char* index_ov2640_html = R"~(
             }
 
             .extras {
-                display: block;
+                display: none;
             }
 
             input[type=range]:active + output {
@@ -376,6 +377,7 @@ const char* index_ov2640_html = R"~(
             <div id="logo">
                 <section id="buttons">
                   <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                  <button id="reboot" style="float:right;">Reboot</button>
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
                 </section>
@@ -408,8 +410,8 @@ const char* index_ov2640_html = R"~(
                         <div class="input-group" id="minf-group">
                             <label for="minf">Min Seconds</label>
                             <div class="range-min">0</div>
-                            <input type="range" id="minf" min="0" max="20" value="2" class="default-action">
-                            <output name="rangeVal">2</output>
+                            <input type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                            <output name="rangeVal">5</output>
                             <div class="range-max">20</div>
                         </div>
                         <div class="input-group" id="dbg-group">
@@ -426,10 +428,10 @@ const char* index_ov2640_html = R"~(
                             <option value="/">Get Folders</option>
                           </select>
                         </div>
-                        <div class="extras"><br>
+                        <section id="buttons"><br>
+                          <button class="extras" id="upload" style="float:left; " value="1">Upload Folder</button> 
                           <button id="delete" style="float:right; " value="">Delete</button>
-                          <button id="upload" style="float:right; display:none;" value="1">Upload Folder</button> 
-                        </div><br>                                                                                                                                 
+                        </section><br>
                         <div class="input-group" id="quality-group">
                             <label for="quality">Quality</label>
                             <div class="range-min">10</div>
@@ -444,6 +446,10 @@ const char* index_ov2640_html = R"~(
                                 <label class="slider" for="record"></label>
                             </div>
                         </div> 
+                        <div class="input-group" id="isrecord">
+                            <label for="isrecord">Recording? </label>
+                            &nbsp;<div id="isrecord" class="default-action displayonly">&nbsp;</div>
+                        </div>
                         <div class="input-group" id="motion-group">
                             <label for="motion">Motion Sensitivity</label>
                             <div class="range-min">1</div>
@@ -474,9 +480,16 @@ const char* index_ov2640_html = R"~(
                             &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
                         </div>                             
                         <div class="input-group extras" id="atemp-group">
-                            <label for="atemp">Ambient Temp</label>
-                            &nbsp;<div id="atemp" class="default-action displayonly">&nbsp;</div>
-                        </div>                                                               
+                            <label for="atemp">Camera Temp</label>
+                            &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                        </div>  
+                        <div class="input-group" id="dbgMotion-group">
+                            <label for="dbgMotion">Show Motion</label>
+                            <div class="switch">
+                                <input id="dbgMotion" type="checkbox" class="default-action">
+                                <label class="slider" for="dbgMotion"></label>
+                            </div>
+                        </div>                                                             
                         <br>
                         <input type='checkbox' id="settings-cb">
                         <label for="settings-cb" style="float:left;">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
@@ -739,7 +752,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         value = el.value
         break
       case 'button':
-      case 'submit':        
+      case 'submit':
         if(el.value!="1"){ //Delete folder or file
           value = el.value
         }else{
@@ -781,11 +794,24 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   const view = document.getElementById('stream')
   const viewContainer = document.getElementById('stream-container')
+  const rebootButton = document.getElementById('reboot')
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
-  const closeButton = document.getElementById('close-stream')
+  const closeButton = document.getElementById('close-stream')  
   const uploadButton = document.getElementById('upload')  
   const deleteButton = document.getElementById('delete') 
+  
+  rebootButton.onclick = () => {
+    stopStream();
+    //window.stop();
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "reset",
+        "val": "1"
+      }
+    })
+  }
   
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
