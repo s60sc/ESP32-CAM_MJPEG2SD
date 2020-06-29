@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+=======
+This is a modified version tha adds 
+* the ability to remove file or folder from sd card
+* Enabled software motion detection to enable recording
+
+>>>>>>> 02af86ef4dda0e849123bc1ff5fc090bd969b1e9
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser 
 
