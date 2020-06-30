@@ -429,7 +429,7 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <section id="buttons"><br>
-                          <button class="extras" id="upload" style="float:left; " value="1">Upload Folder</button> 
+                          <button id="upload" style="float:left; " value="1">Ftp Upload</button> 
                           <button id="delete" style="float:right; " value="">Delete</button>
                         </section><br>
                         <div class="input-group" id="quality-group">
@@ -753,7 +753,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         break
       case 'button':
       case 'submit':
-        if(el.value!="1"){ //Delete folder or file
+        if(el.value!="1"){ //Delete folder or file, or ftp upload
           value = el.value
         }else{
           value = '1'
@@ -798,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')  
-  const uploadButton = document.getElementById('upload')  
+  const uploadButton = document.getElementById('upload')    
   const deleteButton = document.getElementById('delete') 
   
   rebootButton.onclick = () => {
@@ -933,6 +933,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     var sid = $('#sfile');
     var selection = sid.val();
     document.getElementById('delete').value = selection; //Store file path for delete
+    document.getElementById('upload').value = selection; //Store file path for ftp upload
     sid.find('option:not(:first)').remove(); // remove all except first option
     var listItems = '';
     $.ajax({
