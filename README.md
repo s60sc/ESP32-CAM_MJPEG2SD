@@ -2,6 +2,8 @@
 This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 Added functionality 
 
+* Upload a folder or file to an ftp server creating necessarily dirs
+* Added reboot button
 * remove file or folder from sd card 
 * add software motion detection to enable recording
 * Added a reboot button
