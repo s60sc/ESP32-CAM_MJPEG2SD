@@ -14,19 +14,7 @@
 #define CAMERA_MODEL_AI_THINKER
 
 #include "camera_pins.h"
-
-//Custom config file
-#if(__has_include("myConfig.h"))
 #include "myConfig.h"
-#endif
-
-#ifndef MY_CONFIG
-const char* ssid = "********";
-const char* password = "********";
-#else if
-extern const char* ssid;
-extern const char* password;
-#endif
 
 void startCameraServer();
 bool prepMjpeg();
@@ -135,5 +123,3 @@ void loop() {
   // put your main code here, to run repeatedly:
   delay(100000);
 }
-
-void doUploadNAS() {}
