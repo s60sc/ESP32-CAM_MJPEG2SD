@@ -36,7 +36,7 @@ const char* index_ov2640_html = R"~(
                 margin-top: -10px;
                 margin-right: 10px;
             }
-
+     
             #content {
                 display: flex;
                 flex-wrap: wrap;
@@ -96,7 +96,7 @@ const char* index_ov2640_html = R"~(
             section#buttons {
                 display: flex;
                 flex-wrap: nowrap;
-                justify-content: space-between
+                /*justify-content: space-between*/
             }
 
             #nav-toggle {
@@ -429,7 +429,8 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <section id="buttons"><br>
-                          <button id="upload" style="float:left; " value="1">Ftp Upload</button> 
+                          <button id="upload" style="float:left; " value="1">Ftp Upload</button>
+                          <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
                           <button id="delete" style="float:right; " value="">Delete</button>
                         </section><br>
                         <div class="input-group" id="quality-group">
