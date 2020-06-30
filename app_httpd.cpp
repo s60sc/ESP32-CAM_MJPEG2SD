@@ -48,8 +48,9 @@ size_t* getNextFrame();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
-void doUploadNAS();
-void deleteFolderOrFile(const char* val);                   
+
+void deleteFolderOrFile(const char* val);
+void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels);
 // status & control fields 
 extern float moduleTemp;
 extern bool lampOn;
@@ -220,8 +221,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
-    else if(!strcmp(variable, "upload")) doUploadNAS();
-    else if(!strcmp(variable, "delete")) deleteFolderOrFile(value); 
+    else if(!strcmp(variable, "upload")) uploadFolderOrFileFtp(value,false,0); 
+    else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     else if(!strcmp(variable, "dbgMotion")) {
       debugMotion = (val) ? true : false;   
