@@ -4,8 +4,8 @@ Added functionality
 
 * Upload a folder or file to an ftp server creating necessarily dirs
 * Added reboot button
-* remove file or folder from sd card 
-* add software motion detection to enable recording
+* Remove file or folder from sd card 
+* Add software motion detection to enable recording
 * Added a reboot button
 * Create a file myConfig.h and add you custom config values
 
