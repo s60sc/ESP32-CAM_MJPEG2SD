@@ -6,7 +6,6 @@ Added functionality
 * Added reboot button
 * Remove file or folder from sd card 
 * Add software motion detection to enable recording
-* Added a reboot button
 * Create a file myConfig.h and add you custom config values
 
 # ESP32-CAM_MJPEG2SD
