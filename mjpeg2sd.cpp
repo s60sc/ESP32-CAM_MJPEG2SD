@@ -5,14 +5,9 @@
 *
 * s60sc 2020
 */
-
-// user defined environmental setup
-//Custom config file exists!
-#ifndef MY_CONFIG
-#define USE_PIR true  // whether to use PIR for motion detection
-#define USE_MOTION false  // whether to use camera for motion detection (with motionDetect.cpp)
-#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
-#endif
+#define USE_PIR false // whether to use PIR for motion detection
+#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
+extern const char* TIMEZONE; //Defined in myConfig.h
 
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
