@@ -308,7 +308,7 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
   //Disconnect from ftp
   ftpDisconnect();  
 }
-void taskUpload( void * parameter){
+static void taskUpload(void * parameter){
     Serial.printf("Entering upload task with %s\n",parameter);
     String fname = (char *)parameter;
     uploadFolderOrFileFtp(fname,false,0);
@@ -319,9 +319,9 @@ void taskUpload( void * parameter){
 void createUploadTask(const char* val){
     Serial.printf("Starting upload task with %s\n",val);
     xTaskCreate(
-        taskUpload,       /* Task function. */
+        &taskUpload,       /* Task function. */
         "taskUpload",     /* String with name of task. */
-        10000,            /* Stack size in bytes. */
+        4096*2,           /* Stack size in bytes. */
         (void *)val,      /* Parameter passed as input of the task */
         1,                /* Priority of the task. */
         NULL);            /* Task handle. */
