@@ -50,6 +50,7 @@ void stopPlaying();
 void controlLamp(bool lampVal);
 
 void deleteFolderOrFile(const char* val);
+void createUploadTask(const char* val);
 void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels);
 // status & control fields 
 extern float moduleTemp;
@@ -221,7 +222,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
-    else if(!strcmp(variable, "upload")) uploadFolderOrFileFtp(value,false,0); 
+    else if(!strcmp(variable, "upload")) createUploadTask(value); //uploadFolderOrFileFtp(value,false,0); 
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     else if(!strcmp(variable, "dbgMotion")) {
