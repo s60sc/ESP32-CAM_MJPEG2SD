@@ -35,7 +35,7 @@ void efail(){
     Serial.write(thisByte);
   }
   client.stop();
-  if(dbg) Serial.println(F("Ftp command disconnected"));
+  if(dbg) Serial.println("Ftp command disconnected");
 }
 
 byte eRcv(bool bFail=true){
@@ -120,10 +120,6 @@ bool ftpConnect(){
 }
 
 byte ftpDisconnect(){
-  dclient.stop();
-  if(dbg) Serial.println(F("Ftp data disconnected"));
-  client.println();
-  if (!eRcv()) return 0;
 
   client.println("QUIT");
   if (!eRcv()) return 0;
@@ -227,6 +223,10 @@ bool ftpStoreFile(String file, File &fh){
 //Upload a single file or whole dir ftp ftp
 void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels){
   if(dbg) Serial.printf("Ftp upload name: %s\n", sdName.c_str());
+  if(sdName=="/"){
+      Serial.printf("Root is not allowed %s\n",sdName.c_str());  
+      return;  
+  }
   String ftpName = "";
   
   //Ftp connect
@@ -236,7 +236,7 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
 
   File root = SD_MMC.open(sdName);
   if (!root) {
-      Serial.printf("Failed to open: %s\n", sdName);
+      Serial.printf("Failed to open: %s\n", sdName.c_str());
       ftpDisconnect();
       return;
   }  
@@ -304,8 +304,8 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
   ftpDisconnect();  
 }
 static void taskUpload(void * parameter){
-    Serial.printf("Entering upload task with %s\n",parameter);
     String fname = (char *)parameter;
+    Serial.printf("Entering upload task with %s\n",fname.c_str());    
     uploadFolderOrFileFtp(fname,false,0);
     Serial.println("Ending uploadTask");
     vTaskDelete( NULL );
