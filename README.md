@@ -1,13 +1,3 @@
-
-This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
-Added functionality 
-
-* Upload a folder or file to an ftp server creating necessarily dirs
-* Added Utils section with reboot button
-* Remove file or folder from sd card 
-* Add software motion detection to enable recording
-* Create a file myConfig.h and add you custom config values
-
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser 
 
@@ -65,7 +55,9 @@ The recorded playback rate can be changed during replay by changing the __FPS__ 
 After playback finished, press __Stop Stream__ button. 
 If a recording is started during a playback, playback will stop.
 
-Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button. Function provided by [@gemi254](https://github.com/gemi254)
+Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming. Function provided by [@gemi254](https://github.com/gemi254)
+
+Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button. The FTP parameters are defined in file `myConfig.h`. Function provided by [@gemi254](https://github.com/gemi254)
 
 Browser functions only tested on Chrome.
 
