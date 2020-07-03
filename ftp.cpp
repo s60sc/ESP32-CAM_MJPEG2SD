@@ -119,6 +119,7 @@ bool ftpConnect(){
   return 1;
 }
 
+//Properly disconnect from ftp
 byte ftpDisconnect(){
 
   client.println("QUIT");
@@ -129,6 +130,7 @@ byte ftpDisconnect(){
 
   return 1;
 }
+
 //Check if it is to create remote directory and change to this dir
 bool ftpCheckDirPath(String filePath, String &fileName){
   int lv=0;
@@ -220,7 +222,7 @@ bool ftpStoreFile(String file, File &fh){
   return 1; 
 }
 
-//Upload a single file or whole dir ftp ftp
+//Upload a single file or whole directory to ftp 
 void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels){
   if(dbg) Serial.printf("Ftp upload name: %s\n", sdName.c_str());
   if(sdName=="/"){
@@ -303,6 +305,7 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
   //Disconnect from ftp
   ftpDisconnect();  
 }
+
 static void taskUpload(void * parameter){
     String fname = (char *)parameter;
     Serial.printf("Entering upload task with %s\n",fname.c_str());    
@@ -311,6 +314,7 @@ static void taskUpload(void * parameter){
     vTaskDelete( NULL );
   
 }
+
 void createUploadTask(const char* val){
     Serial.printf("Starting upload task with %s\n",val);
     xTaskCreate(
