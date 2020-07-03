@@ -9,6 +9,9 @@
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 extern const char* TIMEZONE; //Defined in myConfig.h
 
+// user defined environmental setup
+#define USE_PIR true // whether to use PIR for motion detection
+#define USE_MOTION false // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
@@ -25,7 +28,7 @@ extern const char* TIMEZONE; //Defined in myConfig.h
 // user parameters
 bool debug = false;
 bool debugMotion = false;
-bool doRecording = false; // whether to capture to SD or not
+bool doRecording = true; // whether to capture to SD or not
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting 

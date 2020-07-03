@@ -826,7 +826,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
       return false;
       
     updateConfig(deleteButton);
-    
+
     var sid = $('#sfile');
     sid.find('option:not(:first)').remove(); // remove all except first option
     sid.append('<option value="/">Get Folders</option>');    
