@@ -435,7 +435,7 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <section id="buttons"><br>
-                          <button id="upload" style="float:left; " value="1">Ftp Upload</button>
+                          <button id="upload" style="float:left; " value="1">FTP Upload</button>
                           <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
                           <button id="delete" style="float:right; " value="">Delete</button>
                         </section><br>
