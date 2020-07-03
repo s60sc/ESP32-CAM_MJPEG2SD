@@ -5,8 +5,7 @@
 *
 * s60sc 2020
 */
-#define USE_PIR false // whether to use PIR for motion detection
-#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
+
 extern const char* TIMEZONE; //Defined in myConfig.h
 
 // user defined environmental setup
