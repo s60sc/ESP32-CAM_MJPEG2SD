@@ -5,6 +5,9 @@
 *
 * s60sc 2020
 */
+#define USE_PIR false // whether to use PIR for motion detection
+#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
+extern const char* TIMEZONE; //Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR true // whether to use PIR for motion detection
@@ -14,7 +17,7 @@
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
-#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02" // set to local timezone 
+
 
 #include <SD_MMC.h>
 #include <regex>

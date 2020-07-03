@@ -36,7 +36,7 @@ const char* index_ov2640_html = R"~(
                 margin-top: -10px;
                 margin-right: 10px;
             }
-
+     
             #content {
                 display: flex;
                 flex-wrap: wrap;
@@ -96,7 +96,7 @@ const char* index_ov2640_html = R"~(
             section#buttons {
                 display: flex;
                 flex-wrap: nowrap;
-                justify-content: space-between
+                justify-content: space-between;
             }
 
             #nav-toggle {
@@ -369,14 +369,21 @@ const char* index_ov2640_html = R"~(
             #settings-cb:not(:checked)+ label + div { 
               display: none; 
             }
-
+            
+            #utils-cb {
+              display: none;
+            }
+            
+            #utils-cb:not(:checked)+ label + div { 
+              display: none; 
+            }
         </style>
     </head>
     <body>
         <section class="main">
             <div id="logo">
                 <section id="buttons">
-                  <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                  <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>                  
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
                 </section>
@@ -428,7 +435,8 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <section id="buttons"><br>
-                          <button class="extras" id="upload" style="float:left; " value="1">Upload Folder</button> 
+                          <button id="upload" style="float:left; " value="1">FTP Upload</button>
+                          <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
                           <button id="delete" style="float:right; " value="">Delete</button>
                         </section><br>
                         <div class="input-group" id="quality-group">
@@ -654,8 +662,16 @@ const char* index_ov2640_html = R"~(
                                   <input id="colorbar" type="checkbox" class="default-action">
                                   <label class="slider" for="colorbar"></label>
                               </div>
-                          </div>
+                          </div>                                                
                         </div>
+                        <br>
+                        <input type="checkbox" id="utils-cb">
+                        <label for="utils-cb" style="float:left;">&#9776;&nbsp;&nbsp;Utils&nbsp;&nbsp;</label>
+                        <div>
+                          <section id="buttons">
+                            <button id="reboot" style="float:right;">Reboot</button>
+                          </section>
+                        </div>    
                     </nav>
                 </div>
                 <figure>
@@ -752,7 +768,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         break
       case 'button':
       case 'submit':
-        if(el.value!="1"){ //Delete folder or file
+        if(el.value!="1"){ //Delete folder or file, or ftp upload
           value = el.value
         }else{
           value = '1'
@@ -795,21 +811,39 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const viewContainer = document.getElementById('stream-container')
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
-  const closeButton = document.getElementById('close-stream')
-  const uploadButton = document.getElementById('upload')  
+  const closeButton = document.getElementById('close-stream')  
+  const uploadButton = document.getElementById('upload')    
   const deleteButton = document.getElementById('delete') 
+  const rebootButton = document.getElementById('reboot')
   
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
   }
   
   deleteButton.onclick = () => {
+    var deleteBt = $('#delete');
+    if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
+      return false;
+      
     updateConfig(deleteButton);
+
     var sid = $('#sfile');
     sid.find('option:not(:first)').remove(); // remove all except first option
     sid.append('<option value="/">Get Folders</option>');    
   }
 
+  rebootButton.onclick = () => {
+    stopStream();
+    window.stop();
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "reset",
+        "val": "1"
+      }
+    })
+  }
+  
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
@@ -919,6 +953,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     var sid = $('#sfile');
     var selection = sid.val();
     document.getElementById('delete').value = selection; //Store file path for delete
+    document.getElementById('upload').value = selection; //Store file path for ftp upload
     sid.find('option:not(:first)').remove(); // remove all except first option
     var listItems = '';
     $.ajax({
