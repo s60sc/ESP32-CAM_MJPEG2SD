@@ -51,7 +51,7 @@ void controlLamp(bool lampVal);
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val);
-void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels);
+
 // status & control fields 
 extern float moduleTemp;
 extern bool lampOn;
