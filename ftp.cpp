@@ -121,7 +121,6 @@ bool ftpConnect(){
 
 //Properly disconnect from ftp
 byte ftpDisconnect(){
-
   client.println("QUIT");
   if (!eRcv()) return 0;
 
