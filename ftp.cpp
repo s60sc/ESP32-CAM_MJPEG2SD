@@ -21,8 +21,7 @@ unsigned int hiPort; //Data connection port
 //FTP buffers
 char outBuf[128];
 char outCount;
-
-#define BUFF_SIZE 16 * 1024 // Upload data buffer size
+#define BUFF_SIZE 32 * 1024 // Upload data buffer size
 //WiFi Clients
 WiFiClient client;
 WiFiClient dclient;
@@ -203,25 +202,21 @@ bool ftpStoreFile(String file, File &fh){
     dclient.stop();
     return 0;
   }
-  unsigned int clientCount = 0;
+  
   unsigned int buffCount=0;
   unsigned long uploadStart = millis();
+  size_t readLen,writeLen = 0;
   while (fh.available()){
-    clientBuf[clientCount] = fh.read();
-    clientCount++;
-    if (clientCount >= BUFF_SIZE){
-      unsigned int bWrite = dclient.write((const uint8_t *)clientBuf, BUFF_SIZE);
-      if(bWrite==0){
-          Serial.println(F("Write buffer failed .."));
-          dclient.stop();
-          return 0;
-      }
-      clientCount = 0;      
-      if(dbg && (++buffCount)%80==0) Serial.println("."); else Serial.print(F("."));
-      //Serial.printf("Wifi client write %u\n", bWrite);
-    }    
+    readLen = fh.read(clientBuf, BUFF_SIZE);
+    if(readLen)  writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
+    if(readLen>0 && writeLen==0){
+        Serial.println(F("Write buffer failed .."));
+        dclient.stop();
+        return 0;
+    }
+    if(dbg && (++buffCount)%80==0) Serial.println("."); else Serial.print(F("."));
+    //Serial.printf("Wifi client write %u Kb\n", (writeLen / 1024));
   }
-  if (clientCount > 0) dclient.write((const uint8_t *)clientBuf, clientCount);
   float uploadDur =  (millis() - uploadStart)/1024;  
   free(clientBuf);
   Serial.printf("\nDone Uploaded in %3.1f sec\n",uploadDur); 
