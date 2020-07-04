@@ -427,9 +427,9 @@ const char* index_ov2640_html = R"~(
                                 <label class="slider" for="dbg"></label>
                             </div>
                         </div>
-                        <div class="input-group" id="sfiles-group">
-                          <label for="sfiles">Select folder / file</label>
-                          <select id="sfile">
+                        <div class="input-group" id="sfiles-group" style="display: grid;">
+                          <label for="sfiles">Select folder / file</label>                          
+                          <select id="sfile" style="font-size: 11px;">
                             <option value="None" selected="selected">-- Select --</option>
                             <option value="/">Get Folders</option>
                           </select>
