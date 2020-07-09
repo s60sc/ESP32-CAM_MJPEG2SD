@@ -5,6 +5,7 @@
 #include "FS.h"     // SD Card ESP32
 #include "SD_MMC.h"
 #include <vector>  // Dynamic string array
+#include <regex>
 
 //extern bool debug;
 bool dbg=1;
@@ -17,14 +18,22 @@ extern const char* ftp_pass;
 extern const char* ftp_wd;
 
 unsigned int hiPort; //Data connection port
+extern bool doRecording;
+extern bool stopPlayback;
+static bool doRecordingSave = false;
 
 //FTP buffers
 char outBuf[128];
 char outCount;
-#define BUFF_SIZE 32 * 1024 // Upload data buffer size
+#define BUFF_EXT 100
+#define BUFF_SIZE (32 * 1024)+BUFF_EXT // Upload data buffer size
 //WiFi Clients
 WiFiClient client;
 WiFiClient dclient;
+
+bool isAVI(File &fh);
+size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize);
+                       
 
 void efail(){
   byte thisByte = 0;
@@ -175,6 +184,10 @@ bool ftpCheckDirPath(String filePath, String &fileName){
 
 //Store sdfile to current ftp dir
 bool ftpStoreFile(String file, File &fh){
+  // determine if file is suitable for conversion to AVI
+  std::string sfile(file.c_str());
+  if (isAVI(fh)) sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");
+  file = String(sfile.data());
   if(dbg) Serial.printf("Ftp store file: %s\n", file.c_str());
   
   //Connect to data port
@@ -203,9 +216,10 @@ bool ftpStoreFile(String file, File &fh){
   unsigned int buffCount=0;
   unsigned long uploadStart = millis();
   size_t readLen,writeLen = 0;
-  while (fh.available()){
-    readLen = fh.read(clientBuf, BUFF_SIZE);
-    if(readLen)  writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
+  while (fh.available() || readLen>0){
+    readLen = readClientBuf(fh, clientBuf, BUFF_SIZE-BUFF_EXT); // obtain modified data to send    
+    ////readLen = fh.read(clientBuf, BUFF_SIZE);
+    if(readLen) writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
     if(readLen>0 && writeLen==0){
         Serial.println(F("Write buffer failed .."));
         dclient.stop();
@@ -214,7 +228,7 @@ bool ftpStoreFile(String file, File &fh){
     if(dbg && (++buffCount)%80==0) Serial.println("."); else Serial.print(F("."));
     //Serial.printf("Wifi client write %u Kb\n", (writeLen / 1024));
   }
-  float uploadDur =  (millis() - uploadStart)/1024;  
+  float uploadDur =  (millis() - uploadStart)/1000;  
   free(clientBuf);
   Serial.printf("\nDone Uploaded in %3.1f sec\n",uploadDur); 
   dclient.stop();
@@ -286,8 +300,8 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
               }*/
           } else {        
               byte bPos = sdName.lastIndexOf("/");
-              String ftpName = sdName.substring(bPos+1);          
-              if(dbg) Serial.printf("Uploading sub sd file %s to %s\n", sdName.c_str(),ftpName.c_str()); 
+              String ftpName = sdName.substring(bPos+1);      
+              if(dbg) Serial.printf("Uploading sub sd file %s \n", sdName.c_str()); 
               bUploadOK = ftpStoreFile(ftpName, fh);
               if(!bUploadOK){
                 Serial.printf("Store file %s to ftp failed\n", ftpName.c_str());                
@@ -306,21 +320,30 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
 }
 
 static void taskUpload(void * parameter){
-    String fname = (char *)parameter;
-    Serial.printf("Entering upload task with %s\n",fname.c_str());    
+    // prevent SD access by other tasks
+    String fname((char*) parameter);
+    stopPlayback = true; 
+    doRecordingSave = doRecording;
+    doRecording = false;
+    delay(1000); // allow other tasks to finish off
+    
+    Serial.printf("Entering upload task with %s\n",fname.c_str());
     uploadFolderOrFileFtp(fname,false,0);
     Serial.println("Ending uploadTask");
+    doRecording = doRecordingSave; 
     vTaskDelete( NULL );
   
 }
 
 void createUploadTask(const char* val){
+    static char fname[100];
+    strcpy(fname, val); // else wont persist
     Serial.printf("Starting upload task with %s\n",val);
     xTaskCreate(
-        &taskUpload,       /* Task function. */
+        &taskUpload,      /* Task function. */
         "taskUpload",     /* String with name of task. */
         4096*2,           /* Stack size in bytes. */
-        (void *)val,      /* Parameter passed as input of the task */
+        (void *)fname,    /* Parameter passed as input of the task */
         1,                /* Priority of the task. */
         NULL);            /* Task handle. */
 

@@ -22,7 +22,7 @@
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
-const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
+const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n";
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
@@ -58,7 +58,7 @@ extern bool lampOn;
 extern float motionVal;
 extern bool nightTime;
 extern uint8_t lightLevel;   
-extern uint8_t nightSwitch;                                  
+extern uint8_t nightSwitch;     
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -197,7 +197,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         res = s->set_framesize(s, (framesize_t)fsizePtr);
       }
     }
-    // additions for mpjpeg2sd.cpp
+    // additions for mjpeg2sd.cpp
     else if(!strcmp(variable, "sfile")) {
       listDir(value, htmlBuff); // get folders / files on SD
       httpd_resp_set_type(req, "application/json");
@@ -224,14 +224,14 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value); //uploadFolderOrFileFtp(value,false,0); 
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
-    else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
+    else if(!strcmp(variable, "record")) doRecording  = (val) ? true : false;   
     else if(!strcmp(variable, "dbgMotion")) {
       debugMotion = (val) ? true : false;   
       doRecording = !debugMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) ESP.restart();   
-    // end of additions for mpjpeg2sd.cpp
+    // end of additions for mjpeg2sd.cpp
     
     else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, val);
@@ -270,7 +270,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     sensor_t * s = esp_camera_sensor_get();
     char * p = json_response;
     *p++ = '{';
-    // additions for mpjpeg2sd.cpp
+    // additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
     p+=sprintf(p, "\"minf\":%u,", minSeconds);
     p+=sprintf(p, "\"dbg\":%u,", debug ? 1 : 0);
@@ -284,7 +284,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
-    // end of additions for mpjpeg2sd.cpp
+    // end of additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
     p+=sprintf(p, "\"quality\":%u,", s->status.quality);
     p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
@@ -335,12 +335,12 @@ static esp_err_t status_handler(httpd_req_t *req){
     return httpd_resp_send(req, json_response, strlen(json_response));
 }
 
-// additions for mpjpeg2sd.cpp
+// additions for mjpeg2sd.cpp
 static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
 }
-// end of additions for mpjpeg2sd.cpp
+// end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
