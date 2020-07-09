@@ -9,14 +9,13 @@
 extern const char* TIMEZONE; //Defined in myConfig.h
 
 // user defined environmental setup
-#define USE_PIR true // whether to use PIR for motion detection
-#define USE_MOTION false // whether to use camera for motion detection (with motionDetect.cpp)
+#define USE_PIR false // whether to use PIR for motion detection
+#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
-
 
 #include <SD_MMC.h>
 #include <regex>
@@ -79,12 +78,15 @@ extern const frameStruct frameData[] = {
   {"SXGA", 1280, 1024, 3, 3, 1}, 
   {"UXGA", 1600, 1200, 2, 3, 1}  
 };
-uint8_t fsizePtr; // index to frameData[]
+uint8_t fsizePtr; // index to frameData[] for record
+uint8_t ftypePtr; // index to frameData[] for ftp
+uint8_t frameDataRows = 11;                         
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
 #define ONEMEG (1024*1024)
 #define MAX_JPEG ONEMEG/2 // UXGA jpeg frame buffer at highest quality 375kB rounded up
+#define MJPEGEXT "mjpeg"
 uint8_t* SDbuffer; // has to be dynamically allocated due to size
 char* htmlBuff;
 static size_t htmlBuffLen = 20000; // set big enough to hold all file names in a folder
@@ -92,15 +94,17 @@ static size_t highPoint;
 static File mjpegFile;
 static char mjpegName[100];
 char dayFolder[50];
+static const uint8_t zeroBuf[4] = {0x00, 0x00, 0x00, 0x00}; // 0000
 
 // SD playback
 static File playbackFile;
-static char partName[90];
+static char partName[100];
 static char optionHtml[200]; // used to build SD page html buffer
 static size_t readLen;
 static const char* needle = _STREAM_BOUNDARY;
 static bool firstCallPlay = true;
 static uint8_t recFPS;
+static uint32_t recDuration;
 static uint8_t saveFPS = 99;
 bool doPlayback = false;
 
@@ -155,10 +159,10 @@ void getLocalNTP() {
   // set TIMEZONE as required
   setenv("TZ", TIMEZONE, 1);
   if (getEpoch() > 1000) {
-    showInfo("Got current time from NTP");
     time_t currEpoch = getEpoch();  
-    strftime(partName, sizeof(partName), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
-    Serial.println(partName);
+    char timeFormat[20];
+    strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
+    showInfo("Got current time from NTP: %s", timeFormat);
   }  
   else showError("Unable to sync with NTP");
 }
@@ -225,9 +229,7 @@ static bool openMjpeg() {
   showDebug("File opening time: %ums", oTime);
   // initialisation of counters
   startMjpeg = millis();
-  frameCnt =  fTimeTot = wTimeTot = dTimeTot = 0;
-  memcpy(SDbuffer, " ", 1); // for VLC
-  highPoint = vidSize = 1;
+  frameCnt = fTimeTot = wTimeTot = dTimeTot = highPoint = vidSize = 0;
 } 
 
 static inline bool doMonitor(bool capturing) {
@@ -254,14 +256,15 @@ static void saveFrame() {
   // add boundary to buffer
   memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
   highPoint += streamBoundaryLen;
-  size_t streamPartLen = 0;
-  size_t jpegSize = 0; 
-  jpegSize = fb->len; 
-  streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize);
+  size_t jpegSize = fb->len; 
+  uint16_t filler = (4 - (jpegSize & 0x00000003)) & 0x00000003; // align end of jpeg on 4 byte boundary for subsequent AVI
+  size_t streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize+filler);
   memcpy(SDbuffer+highPoint, part_buf, streamPartLen); // marker at start of each mjpeg frame
   highPoint += streamPartLen;
   memcpy(SDbuffer+highPoint, fb->buf, jpegSize);
   highPoint += jpegSize;
+  memcpy(SDbuffer+highPoint, zeroBuf, filler); 
+  highPoint += filler;                                                                  
   freeFrame(); 
   // only write to SD when at least CLUSTERSIZE is available in buffer
   uint32_t wTime = millis();
@@ -274,7 +277,7 @@ static void saveFrame() {
   }
   wTime = millis() - wTime;
   wTimeTot += wTime;
-  vidSize += streamPartLen+jpegSize+streamBoundaryLen;
+  vidSize += streamPartLen+jpegSize+filler+streamBoundaryLen;
   showDebug("SD storage time %u ms", wTime);
   frameCnt++;
   fTime = millis() - fTime - wTime;
@@ -299,9 +302,9 @@ static bool closeMjpeg() {
     vidDuration = millis() - startMjpeg;
     float actualFPS = (1000.0f * (float)frameCnt) / ((float)vidDuration);
     mjpegFile.close();
-    // rename file to include actual FPS and duration, plus file extension
-    snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%u_%u.mjpeg", 
-      partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000));
+    // rename file to include actual FPS, duration, and frame count, plus file extension
+    snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%u_%u_%u.%s", 
+      partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000.0), frameCnt, MJPEGEXT);
     SD_MMC.rename(partName, mjpegName);
     showDebug("MJPEG close/rename time %u ms", millis() - hTime); 
     cTime = millis() - cTime;
@@ -310,7 +313,7 @@ static bool closeMjpeg() {
     // MJPEG stats
     showInfo("\n******** MJPEG recording stats ********");
     showInfo("Recorded %s", mjpegName);
-    showInfo("MJPEG duration: %0.1f secs", (float)vidDuration / 1000); 
+    showInfo("MJPEG duration: %0.1f secs", (float)vidDuration / 1000.0); 
     showInfo("Number of frames: %u", frameCnt);
     showInfo("Required FPS: %u", FPS);    
     showInfo("Actual FPS: %0.1f", actualFPS);
@@ -324,11 +327,11 @@ static bool closeMjpeg() {
     showInfo("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
     showInfo("File open / completion times: %u ms / %u ms", oTime, cTime);
     showInfo("Busy: %u%%", std::min(100 * (wTimeTot+fTimeTot+dTimeTot+oTime+cTime) / vidDuration, (uint32_t)100));
-    showInfo("Free heap %u bytes", xPortGetFreeHeapSize());
-    showInfo("***************************\n");
+    showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+    showInfo("*************************************\n");
     return true;
   } else {
-    // delete too small file
+    // delete too small file if exists
     mjpegFile.close();
     SD_MMC.remove(partName);
     showDebug("Insufficient capture duration: %u secs", captureTime);
@@ -436,21 +439,42 @@ uint8_t setFPSlookup(uint8_t val) {
 
 /********************** plackback MJPEG ***********************/
 
-static void playbackFPS(const char* fname) {
-  // extract FPS and duration from filename with assumed format and set frametimer
-  int i = 0;
+int* extractMeta(const char* fname) {
+  // extract frame type, FPS, duration, and frame count from filename with assumed format 
+  int i = 0, _recFPS = 0, _frameCnt = 0, _recDuration = 0, _ftypePtr = 0;
   char* fdup = strdup(fname);
   char* token = strtok (fdup, "_.");
   while (token != NULL) {
-    if (i==3) recFPS = atoi(token);
-    if (i==4) vidDuration = atoi(token);
+    if (i==2) { // frame type string
+      // search for frame type string in frameData 
+      for (int j=0; j<frameDataRows; j++) {
+        if (strcmp(token, frameData[j].frameSizeStr) == 0) _ftypePtr = j; // set index to relevant frameData row
+      }
+    }
+    if (i==3) _recFPS = atoi(token);
+    if (i==4) _recDuration = atoi(token);
+    if (i==5 && strcmp(token, MJPEGEXT) !=0) _frameCnt = atoi(token);
     i++;
     token = strtok (NULL, "_.");
   }
   free(fdup);
+  
+  static int meta[4];
+  meta[0] = _ftypePtr;
+  meta[1] = _recFPS;
+  meta[2] = _recDuration;
+  meta[3] = _frameCnt;
+  return meta;
+}
+
+static void playbackFPS(const char* fname) {
+  // extract meta data from filename to commence playback
+  int* meta = extractMeta(fname);
+  recFPS = meta[1];
+  recDuration = meta[2];
   // temp change framerate to recorded framerate
   FPS = recFPS;
-  controlFrameTimer(true);
+  controlFrameTimer(true); // set frametimer
 }
 
 static void openSDfile() {
@@ -476,7 +500,7 @@ void listDir(const char* fname, char* htmlBuff) {
   // need to decode encoded slashes
   decodedName = std::regex_replace(decodedName, std::regex("%2F"), "/");
   // check if folder or file
-  if (decodedName.find(".mjpeg") != std::string::npos) {
+  if (decodedName.find(MJPEGEXT) != std::string::npos) {
     // mjpeg file selected
     strcpy(mjpegName, decodedName.c_str());
     openSDfile();
@@ -511,7 +535,7 @@ void listDir(const char* fname, char* htmlBuff) {
     if (!file.isDirectory() && !returnDirs) {
       // update existing html with file details
       std::string str(file.name());
-      if (str.find(".mjpeg") != std::string::npos) {
+      if (str.find(MJPEGEXT) != std::string::npos) {
         sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size()/ONEMEG);
         if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
         else {
@@ -537,14 +561,14 @@ size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize
       h++; 
       n++; 
       // If needle is completely traversed 
-      if (n == nSize) return h; 
+      if (n == nSize) return h; // position of end of needle
     } else { 
       // if not, increment h and reset n 
       h = h - n + 1; 
       n = 0; 
     } 
   } 
-  return 0; 
+  return 0; // not found
 } 
 
 void readSD() {
@@ -641,9 +665,8 @@ size_t* getNextFrame() {
       uint32_t totBusy = wTimeTot+fTimeTot+hTimeTot;
       showInfo("\n******** MJPEG playback stats ********");
       showInfo("Playback %s", mjpegName);
-      showInfo("Recorded FPS %u, duration %u secs", recFPS, vidDuration);
-      showInfo("Required playback FPS %u", FPS);
-      showInfo("Actual playback FPS %0.1f, duration %u secs", (float)frameCnt/playDuration, playDuration);
+      showInfo("Recorded FPS %u, duration %u secs", recFPS, recDuration);
+      showInfo("Playback FPS %0.1f, duration %u secs", (float)frameCnt/playDuration, playDuration);
       showInfo("Number of frames: %u", frameCnt);
       showInfo("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       if (frameCnt) {
@@ -653,8 +676,8 @@ size_t* getNextFrame() {
         showInfo("Average http send time: %u ms", hTimeTot / frameCnt);
         showInfo("Busy: %u%%", std::min(100 * totBusy/(totBusy+tTimeTot),(uint32_t)100));
       }
-      showInfo("Free heap %u bytes", xPortGetFreeHeapSize());
-      showInfo("***************************\n");
+      showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+      showInfo("*************************************\n");
     }
     setFPS(saveFPS); // realign with browser
     stopPlayback = false;
@@ -672,7 +695,8 @@ void stopPlaying() {
     uint32_t timeOut = millis();
     while (isPlaying && millis()-timeOut < 2000) delay(10); 
     if (isPlaying) {
-      showError("\nFailed to cleanly close playback");
+      Serial.println();
+      showError("Failed to cleanly close playback");
       doPlayback = false;
       setFPS(saveFPS);
       xSemaphoreGive(playbackSemaphore);
