@@ -1,6 +1,5 @@
 #include "esp_camera.h"
 #include <WiFi.h>
-
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
@@ -16,9 +15,14 @@
 #include "camera_pins.h"
 #include "myConfig.h"
 
+extern struct app_settings_t settings;
+
 void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
+bool prepSD_MMC();
+
+bool startWifi();
 
 float moduleTemp;
 
@@ -94,7 +98,7 @@ void setup() {
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
-
+/*
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -103,18 +107,31 @@ void setup() {
   }
   Serial.println("");
   Serial.println("WiFi connected");
- 
+ */
+  prepSD_MMC();
+  
+  //Connect wifi and start config AP if fail
+  if(!startWifi()){
+    Serial.println("Failed to start wifi, restart after 10 secs");
+    delay(10000);
+    ESP.restart();
+  }
+  
   if (!prepMjpeg()) {
     Serial.println("Unable to continue, restart after 10 secs");
     delay(10000);
     ESP.restart();
   }
- 
+  //Start httpd
   startCameraServer();
   startSDtasks();
   
   Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
+  if (WiFi.getMode() == WIFI_AP){  
+    Serial.print(WiFi.softAPIP());
+  }else{
+    Serial.print(WiFi.localIP());
+  }
   Serial.println("' to connect");
   
 }
