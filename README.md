@@ -1,7 +1,9 @@
 
 This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 Added functionality 
-
+* On first run start an Access point to save a config file to sd card. Then use this
+  config to setup camera and wifi on next reboot.
+* Updated user interface  
 * Upload a folder or file to an ftp server creating necessarily dirs
 * Added Utils section with reboot button
 * Remove file or folder from sd card 
