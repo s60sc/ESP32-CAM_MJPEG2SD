@@ -10,7 +10,7 @@ Added functionality
 * Add software motion detection to enable recording
 * Create a file myConfig.h and add you custom config values
 
-![image1](extras/screenshop.png)
+![image1](extras/screenshot.png)
 
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser 
