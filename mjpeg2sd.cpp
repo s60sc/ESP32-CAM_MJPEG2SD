@@ -26,10 +26,10 @@ extern const char* TIMEZONE; //Defined in myConfig.h
 // user parameters
 bool debug = false;
 bool debugMotion = false;
-bool doRecording = true; // whether to capture to SD or not
-uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
-uint8_t nightSwitch = 20; // initial white level % for night/day switching
-float motionVal = 8.0; // initial motion sensitivity setting 
+extern bool doRecording;// = true; // whether to capture to SD or not
+extern uint8_t minSeconds; // = 5; // default min video length (includes POST_MOTION_TIME)
+extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
+extern float motionVal;//  = 8.0; // initial motion sensitivity setting 
 
 // status & control fields
 static uint8_t FPS;
@@ -78,7 +78,7 @@ extern const frameStruct frameData[] = {
   {"SXGA", 1280, 1024, 3, 3, 1}, 
   {"UXGA", 1600, 1200, 2, 3, 1}  
 };
-uint8_t fsizePtr; // index to frameData[]
+extern uint8_t fsizePtr; // index to frameData[]
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
@@ -154,10 +154,9 @@ void getLocalNTP() {
   // set TIMEZONE as required
   setenv("TZ", TIMEZONE, 1);
   if (getEpoch() > 1000) {
-    showInfo("Got current time from NTP");
     time_t currEpoch = getEpoch();  
     strftime(partName, sizeof(partName), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
-    Serial.println(partName);
+    showInfo("Got current time from NTP: %s",partName);    
   }  
   else showError("Unable to sync with NTP");
 }
@@ -710,7 +709,7 @@ static void infoSD() {
       typeStr, cardSize, useBytes, totBytes);
   } 
 }
-
+bool sdPrepared = false;
 bool prepSD_MMC() {
   /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
      MMC4  MMC1  ESP32  
@@ -727,10 +726,12 @@ bool prepSD_MMC() {
     res = SD_MMC.begin("/sdcard", true);
   } else res = SD_MMC.begin(); // SD_MMC 4 line mode
   if (res){ 
+    sdPrepared=true;
     showInfo("SD ready in %s mode ", ONELINE ? "1-line" : "4-line");
     infoSD();
     return true;
   } else {
+    sdPrepared=false;
     showError("SD mount failed for %s mode", ONELINE ? "1-line" : "4-line");
     return false;
   }
@@ -786,11 +787,10 @@ void deleteFolderOrFile(const char * val) {
 }
 
 /******************* Startup ********************/
-
 bool prepMjpeg() {
   // initialisation & prep for MJPEG capture
   if (psramFound()) {
-    if (prepSD_MMC()) { 
+    if (sdPrepared) { 
       if (ONELINE) controlLamp(false); // set lamp fully off as sd_mmc library still initialises pin 4
       getLocalNTP(); // get time from NTP
       SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
