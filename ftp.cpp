@@ -10,11 +10,11 @@
 static const char* TAG = "ftp";
 
 //Defined in custom config file myConfig.h
-extern const char* ftp_server;
-extern const char* ftp_user;
-extern const char* ftp_port;
-extern const char* ftp_pass;
-extern const char* ftp_wd;
+extern char* ftp_server;
+extern char* ftp_user;
+extern char* ftp_port;
+extern char* ftp_pass;
+extern char* ftp_wd;
 
 unsigned int hiPort; //Data connection port
 
