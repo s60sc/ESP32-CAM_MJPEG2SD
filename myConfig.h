@@ -43,6 +43,7 @@ void controlLamp(bool lampVal);
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting 
 
+/*  Hanlde config load save and wifi start   */
 char configFileName[] = "/config.json";
 
 bool saveConfig(){    
@@ -124,6 +125,7 @@ bool loadConfig(){
         motionVal = String(json["motion"].asString()).toFloat();
         nightSwitch = String(json["lswitch"].asString()).toInt();            
         lampVal = json["lamp"]=="1" ? true : false;         
+        ESP_LOGI(TAG, "Setting lamp status %i", lampVal);
         controlLamp(lampVal);
         
         strcpy(ftp_server, json["ftp_server"]);
