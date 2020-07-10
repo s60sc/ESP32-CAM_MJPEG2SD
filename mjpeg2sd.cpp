@@ -258,13 +258,12 @@ static void saveFrame() {
   highPoint += streamBoundaryLen;
   size_t jpegSize = fb->len; 
   uint16_t filler = (4 - (jpegSize & 0x00000003)) & 0x00000003; // align end of jpeg on 4 byte boundary for subsequent AVI
-  size_t streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize+filler);
+  jpegSize += filler;
+  size_t streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize);
   memcpy(SDbuffer+highPoint, part_buf, streamPartLen); // marker at start of each mjpeg frame
   highPoint += streamPartLen;
   memcpy(SDbuffer+highPoint, fb->buf, jpegSize);
-  highPoint += jpegSize;
-  memcpy(SDbuffer+highPoint, zeroBuf, filler); 
-  highPoint += filler;                                                                  
+  highPoint += jpegSize;                                                        
   freeFrame(); 
   // only write to SD when at least CLUSTERSIZE is available in buffer
   uint32_t wTime = millis();

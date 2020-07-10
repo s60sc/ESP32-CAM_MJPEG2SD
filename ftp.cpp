@@ -186,8 +186,10 @@ bool ftpCheckDirPath(String filePath, String &fileName){
 bool ftpStoreFile(String file, File &fh){
   // determine if file is suitable for conversion to AVI
   std::string sfile(file.c_str());
-  if (isAVI(fh)) sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");
-  file = String(sfile.data());
+  if (isAVI(fh)) {
+    sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");
+    file = String(sfile.data());
+  }
   if(dbg) Serial.printf("Ftp store file: %s\n", file.c_str());
   
   //Connect to data port
@@ -216,7 +218,7 @@ bool ftpStoreFile(String file, File &fh){
   unsigned int buffCount=0;
   unsigned long uploadStart = millis();
   size_t readLen,writeLen = 0;
-  while (fh.available() || readLen>0){
+  while (readLen>0){
     readLen = readClientBuf(fh, clientBuf, BUFF_SIZE-BUFF_EXT); // obtain modified data to send    
     ////readLen = fh.read(clientBuf, BUFF_SIZE);
     if(readLen) writeLen = dclient.write((const uint8_t *)clientBuf, readLen);

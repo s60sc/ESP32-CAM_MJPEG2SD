@@ -29,6 +29,8 @@ footer:
 #include "Arduino.h"
 #include "FS.h" 
 
+#define NO_AVI false  // set to true if do not want conversion to AVI
+
 // avi header data
 static const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
 static const uint8_t idx1Buf[4] = {0x69, 0x64, 0x78, 0x31}; // idx1
@@ -101,6 +103,7 @@ bool isAVI(File &fh) {
   // extract file metadata and determine if mjpeg or avi upload
   int* meta = extractMeta(fh.name()); 
   frameCnt = (uint16_t)meta[3];
+  if (NO_AVI) frameCnt = 0; // frig to disable AVI conversion if required
   if (frameCnt > 0) { 
     // presence of frame count in file name indicates file suitable for conversion to AVI
     frameType = (uint8_t)meta[0];
@@ -190,7 +193,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
       
     } else {
       // subsequent AVI processing calls
-      readLen = fh.read(clientBuf, buffSize); // load 32k cluster from SD
+      readLen = fh.available() ? fh.read(clientBuf, buffSize) : 0; // load 32k cluster from SD
       if (readLen == 0) {
         // reached end of file, append index data, loop until done
         size_t sendLen = buffSize;
@@ -238,7 +241,16 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
             // extract jpeg size
             memcpy(mjpegHdrStr, clientBuf+jStart, 10); // string containing jpeg size
             mjpegHdrStr[10] = 0; // terminator
-            size_t jpegSize = atoi(mjpegHdrStr);  
+            size_t jpegSize = atoi(mjpegHdrStr); 
+            if (jpegSize == 0) {
+              Serial.println("\nERROR: AVI conversion failed");
+              jStart = 0;
+              jEnd = 0; 
+              iPtr = 0;
+              hdrOffset = 0;
+              readLen = 0;
+              break;
+            }
             jStart += REMAINDER_OFFSET;                                        
             // create AVI header for jpeg
             memcpy(clientBuf+jEnd, dcBuf, 4); 
