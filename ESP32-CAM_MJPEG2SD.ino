@@ -15,8 +15,6 @@
 #include "camera_pins.h"
 #include "myConfig.h"
 
-extern struct app_settings_t settings;
-
 void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
