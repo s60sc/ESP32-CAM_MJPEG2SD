@@ -5,16 +5,17 @@
 #include "FS.h"     // SD Card ESP32
 #include "SD_MMC.h"
 #include <vector>  // Dynamic string array
+#include <regex>
 
 #include "esp_log.h"
 static const char* TAG = "ftp";
 
 //Defined in custom config file myConfig.h
-extern char* ftp_server;
-extern char* ftp_user;
-extern char* ftp_port;
-extern char* ftp_pass;
-extern char* ftp_wd;
+extern char ftp_server[];
+extern char ftp_user[];
+extern char ftp_port[];
+extern char ftp_pass[];
+extern char ftp_wd[];
 
 unsigned int hiPort; //Data connection port
 
@@ -26,6 +27,9 @@ char rspCount;
 //WiFi Clients
 WiFiClient client;
 WiFiClient dclient;
+
+bool isAVI(File &fh);
+size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize);
 
 void efail(){
   byte thisByte = 0;
@@ -74,9 +78,9 @@ byte eRcv(bool bFail=true){
 bool ftpConnect(){
   //Connect
   if (client.connect(ftp_server, String(ftp_port).toInt()) ) {
-    ESP_LOGI(TAG, "Ftp command connected");
+    ESP_LOGI(TAG, "Ftp command connected at %s:%s", ftp_server,ftp_port);
   } else {
-    ESP_LOGE(TAG, "Error opening ftp connection to %s %s\n", ftp_server, ftp_port);
+    ESP_LOGE(TAG, "Error opening ftp connection to %s:%s\n", ftp_server, ftp_port);
     return 0;
   }
   if (!eRcv()) return 0;
@@ -181,8 +185,18 @@ bool ftpCheckDirPath(String filePath, String &fileName){
 
 //Store sdfile to current ftp dir
 bool ftpStoreFile(String file, File &fh){  
-  uint32_t fileSize = fh.size();
-  ESP_LOGI(TAG, "Ftp store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
+   
+   uint32_t fileSize = fh.size();
+  
+  // determine if file is suitable for conversion to AVI
+  std::string sfile(file.c_str());
+  if (isAVI(fh)){
+    sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");  
+    file = String(sfile.data());
+    ESP_LOGI(TAG, "Ftp store renamed file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
+  }else{   
+    ESP_LOGI(TAG, "Ftp store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
+  }
   
   //Connect to data port
   if (dclient.connect(ftp_server, hiPort)) {
@@ -236,12 +250,12 @@ bool ftpStoreFile(String file, File &fh){
 //Upload a single file or whole directory to ftp 
 void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels){
   ESP_LOGI(TAG, "Ftp upload name: %s", sdName.c_str());
-  if(sdName=="/"){
-     ESP_LOGE(TAG, "Root is not allowed %s",sdName.c_str());  
+  if(sdName=="" || sdName=="/"){
+     ESP_LOGE(TAG, "Root or null is not allowed %s",sdName.c_str());  
      return;  
   }
-  String ftpName = "";
   
+  String ftpName = "";
   //Ftp connect
   if(!ftpConnect()){
     return; 
