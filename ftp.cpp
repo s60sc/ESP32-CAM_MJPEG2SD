@@ -22,7 +22,8 @@ unsigned int hiPort; //Data connection port
 //FTP buffers
 char rspBuf[255]; //Ftp response buffer
 char rspCount;
-#define BUFF_SIZE 32 * 1024 // Upload data buffer size
+#define BUFF_EXT 100
+#define BUFF_SIZE (32 * 1024)+BUFF_EXT // Upload data buffer size
 #define RESPONSE_TIMEOUT 10000
 //WiFi Clients
 WiFiClient client;
@@ -226,7 +227,8 @@ bool ftpStoreFile(String file, File &fh){
   unsigned long uploadStart = millis();
   size_t readLen,writeLen = 0;
   while (fh.available()){
-    readLen = fh.read(clientBuf, BUFF_SIZE);
+    readLen = readClientBuf(fh, clientBuf, BUFF_SIZE-BUFF_EXT); // obtain modified data to send    
+    ////readLen = fh.read(clientBuf, BUFF_SIZE);
     if(readLen)  writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
     if(readLen>0 && writeLen==0){
         ESP_LOGE(TAG, "Write buffer failed ..");
