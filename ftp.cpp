@@ -226,7 +226,8 @@ bool ftpStoreFile(String file, File &fh){
   uint32_t writeBytes=0;
   unsigned long uploadStart = millis();
   size_t readLen,writeLen = 0;
-  while (fh.available()){
+  //while (fh.available()){
+  while (readLen>0){
     readLen = readClientBuf(fh, clientBuf, BUFF_SIZE-BUFF_EXT); // obtain modified data to send    
     ////readLen = fh.read(clientBuf, BUFF_SIZE);
     if(readLen)  writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
