@@ -762,7 +762,6 @@ bool prepSD_MMC() {
   }
 }
 
-
 void deleteFolderOrFile(const char * val) {
   // Function provided by user @gemi254
   showInfo("Deleting : %s", val);
@@ -810,7 +809,6 @@ void deleteFolderOrFile(const char * val) {
     }  
   }
 }
-
 /******************* Startup ********************/
 
 bool prepMjpeg() {
