@@ -376,7 +376,9 @@ static esp_err_t status_handler(httpd_req_t *req){
 // additions for mpjpeg2sd.cpp
 static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");
-    return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
+    String html(index_ov2640_html);
+    html.replace("{hostName}", hostName);
+    return httpd_resp_send(req, html.c_str(), html.length());
 }
 // end of additions for mpjpeg2sd.cpp
 
