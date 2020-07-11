@@ -226,9 +226,10 @@ bool startWifi() {
      return setWifiAP();
   }
   int tries=3;
+  uint8_t timeout;
   while(tries>0){
     int ret=0;
-    uint8_t timeout = 40; // 40 * 200 ms = 8 sec time out  
+    timeout = 40; // 40 * 200 ms = 8 sec time out  
     WiFi.begin(ST_SSID, ST_Pass);
     ESP_LOGI(TAG, "ST waiting for connection. Try %i", tries);
     while ( ((ret = WiFi.status()) != WL_CONNECTED) && timeout ){    
@@ -248,7 +249,7 @@ bool startWifi() {
     }
   }
   
-  if(tries<1){
+  if(timeout<=0){
     ESP_LOGE(TAG, "wifi ST timeout on connect. Failed.");
     return setWifiAP();  
   }
