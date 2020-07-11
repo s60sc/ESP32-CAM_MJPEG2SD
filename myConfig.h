@@ -3,24 +3,28 @@
 #include <FS.h>
 #include <SD_MMC.h>
 #include <WiFi.h>
-#include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
+#include <Preferences.h>
+
+Preferences pref;
 
 #include "esp_log.h"
 static const char* TAG = "myConfig";
+#define APP_NAME "ESP32-CAM_MJPED"
 
 //Wifi Station parameters
 //If no default SSID value defined here will start an access point
-char ST_SSID[20]="";  //Router ssid
-char ST_Pass[12]="";  //Router passd
+char hostName[20] ="";  //Host name for ddns
+char ST_SSID[20]  ="";  //Router ssid
+char ST_Pass[12]  ="";  //Router passd
+
 char ST_ip[16]  = ""; //Leave blank for dhcp
 char ST_sn[16]  = ""; 
 char ST_gw[16]  = ""; 
 char ST_ns1[16] = "";
 char ST_ns2[16] = ""; 
 
-char hostName[20];
+//Access point Config Portal SSID and Pass 
 #define ESP_getChipId() ((uint32_t)ESP.getEfuseMac())
-// SSID and Pass for Access point Config Portal
 String AP_SSID = "CAM_" + String(ESP_getChipId(), HEX);
 char   AP_Pass[20]="123456789";
 
@@ -32,139 +36,112 @@ char ftp_pass[32]   = "test";
 char ftp_wd[64]     = "/home/user/";
 
 //mjpeg2sd parameters 
-//Time zone
 const char* TIMEZONE="GMT0BST,M3.5.0/01,M10.5.0/02"; 
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not
-uint8_t setFPS(uint8_t val);
+extern uint8_t FPS;
 bool lampVal = false;
 void controlLamp(bool lampVal);
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting 
 
-/*  Hanlde config load save and wifi start   */
-char configFileName[] = "/config.json";
-
-bool saveConfig(){    
-    ESP_LOGI(TAG, "Saving config file.");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();    
-    json["hostName"] = hostName;
-    json["ST_SSID"] = ST_SSID;
-    json["ST_Pass"] = ST_Pass;
-    json["ST_ip"] = ST_ip;
-    json["ST_gw"] = ST_gw;    
-    json["ST_sn"] = ST_sn;
-    json["ST_ns1"] = ST_ns1;
-    json["ST_ns2"] = ST_ns2;
-
-    json["framesize"] = fsizePtr;
-    json["fps"] = setFPS(0); // get FPS value
-    json["minf"] = minSeconds;
-    json["record"] = doRecording? "1" : "0";
-    json["motion"] = String(motionVal);
-    json["lamp"] = lampVal? "1" : "0";
-    json["lswitch"] = nightSwitch;
-
-    json["ftp_server"] = ftp_server;    
-    json["ftp_port"] = ftp_port;
-    json["ftp_user"] = ftp_user;
-    json["ftp_pass"] = ftp_pass;
-    json["ftp_wd"] = ftp_wd;
- 
-    File configFile = SD_MMC.open("/config.json", "w");
-    if (!configFile) {
-      ESP_LOGE(TAG, "Failed to open config file  /config.json for writing.");
+/*  Hanlde config nvs load & save and wifi start   */
+bool saveConfig(){
+  ESP_LOGI(TAG, "Saving config.");
+  if(!pref.begin(APP_NAME, false)){
+      ESP_LOGE(TAG, "Failed to open config.");
       return false;
-    }
-    json.printTo(Serial);
-    Serial.println();
-    json.printTo(configFile);
-    configFile.close();
-    Serial.println("Saved");
-    return true;
-}
-
-bool loadConfig(){
-  strcpy(hostName,AP_SSID.c_str());  
-  ESP_LOGI(TAG, "Loading /config.json");
-  //SD_MMC.remove("/config.json");
-  if (SD_MMC.exists("/config.json")) {
-    //file exists, reading and loading
-    File configFile = SD_MMC.open("/config.json", "r");
-    if (configFile) {
-      ESP_LOGI(TAG, "Opened config file.");
-      size_t size = configFile.size();
-      // Allocate a buffer to store contents of the file.
-      std::unique_ptr<char[]> buf(new char[size]);
-      configFile.readBytes(buf.get(), size);
-      DynamicJsonBuffer jsonBuffer;
-      JsonObject& json = jsonBuffer.parseObject(buf.get());
-      configFile.close();
-      if (json.success()) {
-        ESP_LOGI(TAG, "Parsed json");
-        json.printTo(Serial);
-        Serial.println("");
-        strcpy(hostName, json["hostName"]);
-        strcpy(ST_SSID, json["ST_SSID"]);
-        strcpy(ST_Pass, json["ST_Pass"]);        
-        strcpy(ST_ip, json["ST_ip"]);
-        strcpy(ST_sn, json["ST_sn"]);
-        strcpy(ST_gw, json["ST_gw"]);
-        strcpy(ST_ns1, json["ST_ns1"]);
-        strcpy(ST_ns2, json["ST_ns2"]);
-        
-        fsizePtr = String(json["framesize"].asString()).toInt();
-        
-        //When called before prepMjpeg creates an exeption
-        //setFPS(  String(json["fps"].asString()).toInt() );
-        
-        minSeconds = String(json["minf"].asString()).toInt();
-        doRecording = json["record"]=="1" ? true : false;
-        motionVal = String(json["motion"].asString()).toFloat();
-        nightSwitch = String(json["lswitch"].asString()).toInt();            
-        lampVal = json["lamp"]=="1" ? true : false;         
-        ESP_LOGI(TAG, "Setting lamp status %i", lampVal);
-        controlLamp(lampVal);
-        
-        strcpy(ftp_server, json["ftp_server"]);
-        strcpy(ftp_port, json["ftp_port"]);
-        strcpy(ftp_user, json["ftp_user"]);
-        strcpy(ftp_pass, json["ftp_pass"]);
-        strcpy(ftp_wd, json["ftp_wd"]);        
-      } else {
-        ESP_LOGE(TAG, "Failed to parse json config");
-        char buff[2048];
-        File configFile = SD_MMC.open("/config.json", "r");
-        size_t readLen = configFile.read((uint8_t *)buff, 2048);
-        Serial.printf("Readed size %i\n",readLen);
-        for(size_t i=0; i<readLen; ++i){
-          Serial.print(buff[i]);
-        }
-        Serial.println();
-        return false;
-      }
-    }
-  }else{
-    ESP_LOGI(TAG, "No config found in SD card.");
-    if(strlen(ST_SSID)>1){
-      ESP_LOGI(TAG, "Using hardcoded values %s", ST_SSID);
-      return true;
-    }
-    return false;
   }
+ 
+  pref.putString("hostName",hostName);
+  pref.putString("ST_SSID",ST_SSID);
+  pref.putString("ST_Pass",ST_Pass);
+  pref.putString("ST_ip",ST_ip);
+  pref.putString("ST_gw",ST_gw);
+  pref.putString("ST_sn",ST_sn);
+  pref.putString("ST_ns1",ST_ns1);
+  pref.putString("ST_ns2",ST_ns2);
+  
+  pref.putUShort("framesize",fsizePtr);
+  pref.putUChar("fps",FPS);
+  pref.putUChar("minf",minSeconds);
+  pref.putBool("doRecording",doRecording);
+  pref.putFloat("motion",motionVal);
+  pref.putBool("lamp",lampVal);
+  pref.putUChar("lswitch",nightSwitch);
+ 
+  pref.putString("ftp_server",ftp_server);
+  pref.putString("ftp_port",ftp_port);
+  pref.putString("ftp_user",ftp_user);
+  pref.putString("ftp_pass",ftp_pass);
+  pref.putString("ftp_wd",ftp_wd);
+  
+  //Sensor settings
+  sensor_t * s = esp_camera_sensor_get();
+  pref.putBytes("camera_sensor", s, sizeof(s));
+  // Close the Preferences
+  pref.end();
   return true;
 }
 
-void resetConfig(){    
-  ESP_LOGI(TAG, "Reseting config..");
-  if (!SD_MMC.remove("/config.json")) {
-      ESP_LOGE(TAG, "Removing /config.json FAILED");
+bool loadConfig(){
+  ESP_LOGI(TAG, "Loading config..");
+  if(!pref.begin(APP_NAME, false)){
+    ESP_LOGE(TAG, "Failed to open config.");
+    return false;
+  }   
+  strcpy(hostName, pref.getString("hostName", String(hostName)).c_str());
+  strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
+  strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
+  strcpy(ST_ip, pref.getString("ST_ip").c_str());
+  strcpy(ST_gw, pref.getString("ST_gw").c_str());
+  strcpy(ST_sn, pref.getString("ST_sn").c_str());
+  strcpy(ST_ns1, pref.getString("ST_ns1").c_str());
+  strcpy(ST_ns2, pref.getString("ST_ns2").c_str());
+  
+  fsizePtr = pref.getUShort("framesize", fsizePtr);
+  FPS = pref.getUShort("fps", FPS);  
+  minSeconds = pref.getUChar("minf",minSeconds );
+  doRecording = pref.getBool("doRecording",doRecording);
+  motionVal = pref.getFloat("motion",motionVal);
+  lampVal = pref.getBool("lamp",lampVal);
+  controlLamp(lampVal);
+  nightSwitch = pref.getUChar("lswitch",nightSwitch);
+  
+  strcpy(ftp_server, pref.getString("ftp_server", String(ftp_server)).c_str());
+  strcpy(ftp_port, pref.getString("ftp_port", String(ftp_port)).c_str());
+  strcpy(ftp_user, pref.getString("ftp_user", String(ftp_user)).c_str());
+  strcpy(ftp_pass, pref.getString("ftp_pass", String(ftp_pass)).c_str());
+  strcpy(ftp_wd, pref.getString("ftp_wd", String(ftp_wd)).c_str());
+  
+  /*size_t schLen = pref.getBytesLength("camera_sensor");
+  char buffer[schLen]; // prepare a buffer for the data  
+  pref.getBytes("camera_sensor", buffer, schLen);  
+  if (schLen % sizeof(sensor_t)) { // simple check that data fits
+    log_e("Data camera_sensor is not correct size!");
+    //return false;
   }
-  ESP.restart();
-  delay(1000);
+  sensor_t * s = (sensor_t *)buffer; // cast the bytes into a struct ptr  
+  //Todo setup camera with loaded settings
+  */
+  // Close the Preferences
+  pref.end();
+  return true;  
 }
+
+bool resetConfig(){
+  ESP_LOGI(TAG, "Reseting config..");
+  if(!pref.begin(APP_NAME, false)){
+    ESP_LOGE(TAG, "Failed to open config.");
+    return false;
+  }
+  // Remove all preferences under the opened namespace
+  pref.clear();
+ // Close the Preferences
+  pref.end();
+}
+
 bool setWifiAP(){
  //Set access point if disabled
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
