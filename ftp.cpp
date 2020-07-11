@@ -17,14 +17,14 @@ extern char ftp_port[];
 extern char ftp_pass[];
 extern char ftp_wd[];
 
-unsigned int hiPort; //Data connection port
-
 //FTP buffers
 char rspBuf[255]; //Ftp response buffer
 char rspCount;
 #define BUFF_EXT 100
 #define BUFF_SIZE (32 * 1024)+BUFF_EXT // Upload data buffer size
 #define RESPONSE_TIMEOUT 10000
+unsigned int hiPort; //Data connection port
+
 //WiFi Clients
 WiFiClient client;
 WiFiClient dclient;
@@ -90,6 +90,7 @@ bool ftpConnect(){
   client.println(ftp_user);
   if (!eRcv()) return 0;
 
+  //ESP_LOGV(TAG, "Ftp pass:%s", ftp_pass);
   client.print("PASS ");
   client.println(ftp_pass);
   if (!eRcv()) return 0;
@@ -336,14 +337,14 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
 
 static void taskUpload(void * parameter){
     String fname = (char *)parameter;
-    ESP_LOGV(TAG, "Entering upload task with %s\n",fname.c_str());    
+    ESP_LOGV(TAG, "Entering upload task with param: %s\n",fname.c_str());    
     uploadFolderOrFileFtp(fname,false,0);
     ESP_LOGV(TAG, "Ending uploadTask");
     vTaskDelete( NULL );  
 }
 
 void createUploadTask(const char* val){
-    ESP_LOGV(TAG, "Starting upload task with %s\n",val);
+    ESP_LOGV(TAG, "Starting upload task with val: %s\n",val);
     xTaskCreate(
         &taskUpload,       /* Task function. */
         "taskUpload",     /* String with name of task. */
