@@ -32,7 +32,7 @@ extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switc
 extern float motionVal;// = 8.0; // initial motion sensitivity setting 
 
 // status & control fields
-static uint8_t FPS;
+uint8_t FPS;
 bool lampOn = false;     
 bool nightTime = false;
 uint8_t lightLevel; // Current ambient light level     
