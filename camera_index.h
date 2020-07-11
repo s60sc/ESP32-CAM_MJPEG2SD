@@ -5,7 +5,7 @@ const char* index_ov2640_html = R"~(
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>ESP32-CAM_MJPEG2SD</title>
+        <title>{hostName}</title>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -688,7 +688,7 @@ const char* index_ov2640_html = R"~(
                           </div>
                           <div class="input-group" id="wifi-group">
                               <label for="ST_Pass">Password</label>
-                              <input id="ST_Pass" name="ST_Pass" length=64 type="password" placeholder="Router password" class="default-action">
+                              <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
                           </div>
                           <br>
                           <div class="input-group" id="wifi-group">
@@ -706,7 +706,7 @@ const char* index_ov2640_html = R"~(
                           </div>
                           <div class="input-group" id="wifi-group">
                               <label for="ftp_pass">Ftp password</label>
-                              <input id="ftp_pass" name="ftp_pass" length=32 type="password" placeholder="Ftp password" class="default-action">
+                              <input id="ftp_pass" name="ftp_pass" length=32 placeholder="Ftp password" class="default-action">
                           </div>
                           <div class="input-group" id="wifi-group">
                               <label for="ftp_wd">Ftp root dir</label>
