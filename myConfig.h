@@ -3,11 +3,10 @@
 #include <FS.h>
 #include <SD_MMC.h>
 #include <WiFi.h>
+#include <DNSServer.h>
 #include <Preferences.h>
-
-Preferences pref;
-
 #include "esp_log.h"
+
 static const char* TAG = "myConfig";
 #define APP_NAME "ESP32-CAM_MJPED"
 
@@ -47,7 +46,10 @@ uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting 
 
 /*  Hanlde config nvs load & save and wifi start   */
-bool saveConfig(){
+DNSServer dnsAPServer;
+Preferences pref;
+
+bool saveConfig(){  
   ESP_LOGI(TAG, "Saving config.");
   if(!pref.begin(APP_NAME, false)){
       ESP_LOGE(TAG, "Failed to open config.");
@@ -57,6 +59,10 @@ bool saveConfig(){
   pref.putString("hostName",hostName);
   pref.putString("ST_SSID",ST_SSID);
   pref.putString("ST_Pass",ST_Pass);
+  
+  /* Not working if field ST_pass type="password"
+  ESP_LOGI(TAG, "Save pass %s",ST_Pass);
+  */
   pref.putString("ST_ip",ST_ip);
   pref.putString("ST_gw",ST_gw);
   pref.putString("ST_sn",ST_sn);
@@ -86,14 +92,20 @@ bool saveConfig(){
 }
 
 bool loadConfig(){
+  AP_SSID.toUpperCase();
   ESP_LOGI(TAG, "Loading config..");
   if(!pref.begin(APP_NAME, false)){
     ESP_LOGE(TAG, "Failed to open config.");
     return false;
   }   
   strcpy(hostName, pref.getString("hostName", String(hostName)).c_str());
+  //Add default hostname
+  if(strlen(hostName)<1){
+    ESP_LOGE(TAG, "Setting default hostname %s",hostName);
+    strcpy(hostName, AP_SSID.c_str());
+  }
   strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
-  strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
+  strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());  
   strcpy(ST_ip, pref.getString("ST_ip").c_str());
   strcpy(ST_gw, pref.getString("ST_gw").c_str());
   strcpy(ST_sn, pref.getString("ST_sn").c_str());
@@ -115,7 +127,8 @@ bool loadConfig(){
   strcpy(ftp_pass, pref.getString("ftp_pass", String(ftp_pass)).c_str());
   strcpy(ftp_wd, pref.getString("ftp_wd", String(ftp_wd)).c_str());
   
-  /*size_t schLen = pref.getBytesLength("camera_sensor");
+  /*
+  size_t schLen = pref.getBytesLength("camera_sensor");
   char buffer[schLen]; // prepare a buffer for the data  
   pref.getBytes("camera_sensor", buffer, schLen);  
   if (schLen % sizeof(sensor_t)) { // simple check that data fits
@@ -138,10 +151,16 @@ bool resetConfig(){
   }
   // Remove all preferences under the opened namespace
   pref.clear();
- // Close the Preferences
+  // Close the Preferences
   pref.end();
 }
 
+String ipToString(IPAddress ip){
+  String s="";
+  for (int i=0; i<4; i++)
+    s += i  ? "." + String(ip[i]) : String(ip[i]);
+  return s;
+}
 bool setWifiAP(){
  //Set access point if disabled
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
@@ -159,29 +178,33 @@ bool setWifiAP(){
     WiFi.softAPConfig(ip, gateway, subnet);   
   } */
   ESP_LOGI(TAG, "Starting Access point with SSID %s", AP_SSID.c_str()); 
-  WiFi.softAP(AP_SSID.c_str(), AP_Pass );     
-  ESP_LOGI(TAG, "Done. Connect to SSID: %s to setup", AP_SSID.c_str()); 
-  //WiFi.localIP().toString not working
-  //ESP_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), WiFi.localIP().toString()); 
+  WiFi.softAP(AP_SSID.c_str(), AP_Pass );       
+  ESP_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), ipToString(WiFi.softAPIP()).c_str());   
+  /*//Start mdns for AP
+  ESP_LOGI(TAG, "Starting ddns on port 53: %s", ipToString(WiFi.softAPIP()).c_str() );
+  dnsAPServer.start(53, "*", WiFi.softAPIP());
+  */
   return true;
 }
 
 bool startWifi() {  
   //No config found. Setup AP to create one
   if(!loadConfig()) return setWifiAP();
-  ESP_LOGV(TAG, "Starting wifi, mode:" + String(WiFi.getMode()) + "\n");   
+  ESP_LOGV(TAG, "Starting wifi, mode:" + String(WiFi.getMode()) + "");   
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
   else if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
-  ESP_LOGV(TAG, "Setup wifi mode:" + String(WiFi.getMode()) + "\n");
-
+  ESP_LOGV(TAG, "Setup wifi mode:" + String(WiFi.getMode()) + "");
+  
   //Disconnect if already connected
   if(WiFi.status() == WL_CONNECTED){
-    ESP_LOGI(TAG, "Disconnecting from ssid: %s\n",String(WiFi.SSID()) );
+    ESP_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
     WiFi.disconnect();
     delay(1000);
-    ESP_LOGV(TAG, "Disconnected from ssid: %s\n" ,String(WiFi.SSID()) );
+    ESP_LOGV(TAG, "Disconnected from ssid: %s", String(WiFi.SSID()) );
   }
-
+  //Set hostname
+  ESP_LOGI(TAG, "Setting wifi hostname: %s", hostName);
+  WiFi.setHostname(hostName);
   //set static ip
   if(strlen(ST_ip)>1){
     IPAddress _ip,_gw,_sn,_ns1,_ns2;
@@ -195,27 +218,39 @@ bool startWifi() {
   } 
   //
   if (strlen(ST_SSID)>0) {
-     ESP_LOGI(TAG, "Got stored router credentials. Connecting to %s", ST_SSID); 
-     WiFi.begin(ST_SSID, ST_Pass);
+     //ESP_LOGI(TAG, "Got stored router credentials. Connecting to %s", ST_SSID); 
+     ESP_LOGI(TAG, "Got stored router credentials. Connecting to: %s with pass: %s", ST_SSID,ST_Pass); 
   } else {
      ESP_LOGI(TAG, "No stored Credentials. Starting Access point.");
      //Start AP config portal
      return setWifiAP();
   }
- 
-  int ret=0;
-  uint8_t timeout = 40; // 40 * 200 ms = 8 sec time out  
-  ESP_LOGI(TAG, "ST waiting for connection..");
-  while ( ((ret = WiFi.status()) != WL_CONNECTED) && timeout ){    
-    Serial.print(".");
-    delay(200);
-    Serial.flush();
-    --timeout;
+  int tries=3;
+  while(tries>0){
+    int ret=0;
+    uint8_t timeout = 40; // 40 * 200 ms = 8 sec time out  
+    WiFi.begin(ST_SSID, ST_Pass);
+    ESP_LOGI(TAG, "ST waiting for connection. Try %i", tries);
+    while ( ((ret = WiFi.status()) != WL_CONNECTED) && timeout ){    
+      Serial.print(".");
+      delay(200);
+      Serial.flush();
+      --timeout;
+    }
+    Serial.println(".");
+    
+    if(timeout>0){
+      tries=0;
+    }else{ 
+      tries--; 
+      WiFi.disconnect();  
+      delay(1000);
+    }
   }
   
-  if(timeout==0){
+  if(tries<1){
     ESP_LOGE(TAG, "wifi ST timeout on connect. Failed.");
-    return false;  
+    return setWifiAP();  
   }
   ESP_LOGI(TAG, "Connected! Navigate to 'http://%s to setup",WiFi.localIP().toString());  
   return true;
