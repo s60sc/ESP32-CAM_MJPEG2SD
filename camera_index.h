@@ -799,6 +799,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
           hide(gainCeiling)
           show(agcGain)
         }
+      } else if(el.id === "hostName"){
+        document.title = value
       } else if(el.id === "awb_gain"){
         value ? show(wb) : hide(wb)
       }
