@@ -92,8 +92,9 @@ bool saveConfig(){
 }
 
 bool loadConfig(){
-  AP_SSID.toUpperCase();
+  bool saveDefPrefs=false;
   ESP_LOGI(TAG, "Loading config..");
+  AP_SSID.toUpperCase();
   if(!pref.begin(APP_NAME, false)){
     ESP_LOGE(TAG, "Failed to open config.");
     return false;
@@ -103,6 +104,8 @@ bool loadConfig(){
   if(strlen(hostName)<1){
     ESP_LOGE(TAG, "Setting default hostname %s",hostName);
     strcpy(hostName, AP_SSID.c_str());
+    //No nvs prefs yet. Save them at end
+    saveDefPrefs = true;
   }
   strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
   strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());  
@@ -138,6 +141,10 @@ bool loadConfig(){
   sensor_t * s = (sensor_t *)buffer; // cast the bytes into a struct ptr  
   //Todo setup camera with loaded settings
   */
+  if(saveDefPrefs){
+    ESP_LOGE(TAG, "Saving default config.");
+    saveConfig();
+  }
   // Close the Preferences
   pref.end();
   return true;  
