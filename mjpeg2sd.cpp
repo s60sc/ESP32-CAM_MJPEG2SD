@@ -695,7 +695,7 @@ void stopPlaying() {
     while (isPlaying && millis()-timeOut < 2000) delay(10); 
     if (isPlaying) {
       Serial.println();
-      showError("Failed to cleanly close playback");
+      showInfo("Failed to cleanly close playback");
       doPlayback = false;
       setFPS(saveFPS);
       xSemaphoreGive(playbackSemaphore);
@@ -867,3 +867,4 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   xSemaphoreGive(motionMutex);
 }
 #endif
+

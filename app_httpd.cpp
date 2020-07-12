@@ -73,6 +73,7 @@ void resetConfig();
 extern float moduleTemp;
 extern bool lampOn;
 extern float motionVal;
+extern bool aviOn;
 extern bool nightTime;
 extern uint8_t lightLevel;   
 extern uint8_t nightSwitch;                                  
@@ -214,7 +215,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         res = s->set_framesize(s, (framesize_t)fsizePtr);
       }
     }
-    // additions for mpjpeg2sd.cpp
+    // additions for mjpeg2sd.cpp
     else if(!strcmp(variable, "sfile")) {
       listDir(value, htmlBuff); // get folders / files on SD
       httpd_resp_set_type(req, "application/json");
@@ -239,6 +240,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
+    else if(!strcmp(variable, "avi")) aviOn = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
@@ -250,7 +252,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "reset")) ESP.restart();   
     else if(!strcmp(variable, "save")) saveConfig();
     else if(!strcmp(variable, "defaults")) resetConfig();
-    // end of additions for mpjpeg2sd.cpp
+    // end of additions for mjpeg2sd.cpp
     //Other settings
     else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
     else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
@@ -298,7 +300,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     sensor_t * s = esp_camera_sensor_get();
     char * p = json_response;
     *p++ = '{';
-    // additions for mpjpeg2sd.cpp
+    // additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
     p+=sprintf(p, "\"minf\":%u,", minSeconds);
     p+=sprintf(p, "\"dbg\":%u,", debug ? 1 : 0);
@@ -307,12 +309,13 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
+    p+=sprintf(p, "\"avi\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
-    // end of additions for mpjpeg2sd.cpp
+    // end of additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
     p+=sprintf(p, "\"quality\":%u,", s->status.quality);
     p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
@@ -373,16 +376,15 @@ static esp_err_t status_handler(httpd_req_t *req){
     return httpd_resp_send(req, json_response, strlen(json_response));
 }
 
-
-// additions for mpjpeg2sd.cpp
-static esp_err_t index_handler(httpd_req_t *req){    
-    httpd_resp_set_type(req, "text/html");
+// additions for mjpeg2sd.cpp
+static esp_err_t index_handler(httpd_req_t *req){
+    httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
 }
-// end of additions for mpjpeg2sd.cpp
+// end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();    
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     
     httpd_uri_t index_uri = {
         .uri       = "/",
@@ -434,3 +436,4 @@ void startCameraServer(){
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
 }
+

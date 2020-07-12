@@ -7,6 +7,7 @@
 #include <vector>  // Dynamic string array
 #include <regex>
 
+
 #include "esp_log.h"
 static const char* TAG = "ftp";
 
@@ -22,9 +23,8 @@ char rspBuf[255]; //Ftp response buffer
 char rspCount;
 #define BUFF_EXT 100
 #define BUFF_SIZE (32 * 1024)+BUFF_EXT // Upload data buffer size
-#define RESPONSE_TIMEOUT 10000
+#define RESPONSE_TIMEOUT 10000                             
 unsigned int hiPort; //Data connection port
-
 //WiFi Clients
 WiFiClient client;
 WiFiClient dclient;
@@ -46,19 +46,17 @@ void efail(){
   client.stop();
   ESP_LOGI(TAG, "Ftp command disconnected");  
 }
-
-
 byte eRcv(bool bFail=true){
   byte respCode;
   byte thisByte;
 
   unsigned long start = millis();
   while (!client.available() && millis() < start + RESPONSE_TIMEOUT) delay(1);
-  
+ 
   respCode = client.peek();
   rspCount = 0;
   while (client.available()) {
-    thisByte = client.read();    
+    thisByte = client.read();
     if (rspCount < sizeof(rspBuf)) {       // if (rspCount < 127)  {
       rspBuf[rspCount] = thisByte;
       rspCount++;
@@ -90,7 +88,7 @@ bool ftpConnect(){
   client.println(ftp_user);
   if (!eRcv()) return 0;
 
-  //ESP_LOGV(TAG, "Ftp pass:%s", ftp_pass);
+  //ESP_LOGV(TAG, "Ftp pass:%s", ftp_pass);                                          
   client.print("PASS ");
   client.println(ftp_pass);
   if (!eRcv()) return 0;
@@ -138,7 +136,6 @@ byte ftpDisconnect(){
 
   client.stop();
   ESP_LOGI(TAG, "Ftp command disconnected");
-
   return 1;
 }
 
@@ -153,7 +150,6 @@ bool ftpCheckDirPath(String filePath, String &fileName){
   
   //Create sub dirs
   for(int i=lv-2; i>=0; --i){
-      
       ESP_LOGI(TAG, "Searching for sub dir[%i]: %s",i,dirPaths[i].c_str() );      
       client.print("CWD ");
       client.println(dirPaths[i].c_str());
@@ -186,18 +182,18 @@ bool ftpCheckDirPath(String filePath, String &fileName){
 }
 
 //Store sdfile to current ftp dir
-bool ftpStoreFile(String file, File &fh){  
+bool ftpStoreFile(String file, File &fh){
    
    uint32_t fileSize = fh.size();
   
   // determine if file is suitable for conversion to AVI
   std::string sfile(file.c_str());
-  if (isAVI(fh)){
-    sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");  
+  if (isAVI(fh)) {
+    sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");
     file = String(sfile.data());
     ESP_LOGI(TAG, "Ftp store renamed file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
   }else{   
-    ESP_LOGI(TAG, "Ftp store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
+    ESP_LOGI(TAG, "Ftp store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));                                                                                                  
   }
   
   //Connect to data port
@@ -205,7 +201,7 @@ bool ftpStoreFile(String file, File &fh){
     ESP_LOGI(TAG, "Ftp data connected");
   } else{
     ESP_LOGE(TAG, "Ftp data connection failed");   
-    return 0;
+   return 0;
   }
   client.print("STOR ");
   client.println(file);
@@ -224,14 +220,12 @@ bool ftpStoreFile(String file, File &fh){
   }
   
   unsigned int buffCount=0;
-  uint32_t writeBytes=0;
+  uint32_t writeBytes=0;                       
   unsigned long uploadStart = millis();
-  size_t readLen,writeLen = 0;
-  //while (fh.available()){
-  while (readLen>0){
-    readLen = readClientBuf(fh, clientBuf, BUFF_SIZE-BUFF_EXT); // obtain modified data to send    
-    ////readLen = fh.read(clientBuf, BUFF_SIZE);
-    if(readLen)  writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
+  size_t readLen, writeLen = 0;
+  do {
+    readLen = readClientBuf(fh, clientBuf, BUFF_SIZE-BUFF_EXT); // obtain modified data to send 
+    if(readLen) writeLen = dclient.write((const uint8_t *)clientBuf, readLen);
     if(readLen>0 && writeLen==0){
         ESP_LOGE(TAG, "Write buffer failed ..");
         dclient.stop();
@@ -242,7 +236,7 @@ bool ftpStoreFile(String file, File &fh){
       ESP_LOGI(TAG, "Uploaded %0.0f%%", ( (double)writeBytes / fileSize)*100.0f );      
     }
     ++buffCount;
-  }
+  } while (readLen);
   if(readLen<BUFF_SIZE) ESP_LOGI(TAG, "Uploaded 100%%");
   float uploadDur =  (millis() - uploadStart)/1024;  
   free(clientBuf);
@@ -256,9 +250,8 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
   ESP_LOGI(TAG, "Ftp upload name: %s", sdName.c_str());
   if(sdName=="" || sdName=="/"){
      ESP_LOGE(TAG, "Root or null is not allowed %s",sdName.c_str());  
-     return;  
+      return;  
   }
-  
   String ftpName = "";
   //Ftp connect
   if(!ftpConnect()){
@@ -293,8 +286,8 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
         SD_MMC.remove(sdName.c_str());
       }    
   }else{  //Upload a whole directory
-      ESP_LOGI(TAG, "Uploading directory: %s", sdName.c_str()); 
-      File fh = root.openNextFile();      
+     ESP_LOGI(TAG, "Uploading directory: %s", sdName.c_str()); 
+     File fh = root.openNextFile();      
       sdName = fh.name();
       
       if(!ftpCheckDirPath(sdName, ftpName)){
@@ -316,7 +309,7 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
               }*/
           } else {        
               byte bPos = sdName.lastIndexOf("/");
-              String ftpName = sdName.substring(bPos+1);          
+              String ftpName = sdName.substring(bPos+1);      
               ESP_LOGI(TAG, "Uploading sub sd file %s to %s", sdName.c_str(),ftpName.c_str()); 
               bUploadOK = ftpStoreFile(ftpName, fh);
               if(!bUploadOK){
@@ -336,20 +329,26 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
 }
 
 static void taskUpload(void * parameter){
-    String fname = (char *)parameter;
+    // prevent SD access by other tasks
+    String fname((char*) parameter);
+    delay(1000); // allow other tasks to finish off
+    
     ESP_LOGV(TAG, "Entering upload task with param: %s\n",fname.c_str());    
     uploadFolderOrFileFtp(fname,false,0);
     ESP_LOGV(TAG, "Ending uploadTask");
-    vTaskDelete( NULL );  
+    vTaskDelete( NULL );
 }
 
 void createUploadTask(const char* val){
+    static char fname[100];
+    strcpy(fname, val); // else wont persist
     ESP_LOGV(TAG, "Starting upload task with val: %s\n",val);
     xTaskCreate(
         &taskUpload,       /* Task function. */
         "taskUpload",     /* String with name of task. */
         4096*2,           /* Stack size in bytes. */
-        (void *)val,      /* Parameter passed as input of the task */
+        (void *)fname,      /* Parameter passed as input of the task */
         1,                /* Priority of the task. */
         NULL);            /* Task handle. */
 }
+
