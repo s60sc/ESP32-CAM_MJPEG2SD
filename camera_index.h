@@ -5,7 +5,7 @@ const char* index_ov2640_html = R"~(
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>ESP32-CAM_MJPEG2SD</title>
+        <title>{hostName}</title>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -21,22 +21,30 @@ const char* index_ov2640_html = R"~(
             section.main {
                 display: flex
             }
-
+            
+            nav#sidetoolbar {
+              display: flex;
+              flex-wrap: nowrap;
+              justify-content: flex-end;
+            }
+            
             #menu,section.main {
                 flex-direction: column
             }
 
-            #menu {
-                display: none;
-                flex-wrap: nowrap;
-                min-width: 340px;
-                background: #363636;
-                padding: 8px;
-                border-radius: 4px;
-                margin-top: -10px;
-                margin-right: 10px;
+            nav.menu {
+              display: grid;
+              flex-direction: column;
+              flex-wrap: nowrap;
+              min-width: 350px;
+              background: #363636;
+              padding: 8px;
+              border-radius: 4px;
+              margin-top: -10px;
+              margin-right: 10px;
+              margin-bottom: 13px;
             }
-     
+            
             #content {
                 display: flex;
                 flex-wrap: wrap;
@@ -370,11 +378,11 @@ const char* index_ov2640_html = R"~(
               display: none; 
             }
             
-            #utils-cb {
+            #other-cb {
               display: none;
             }
             
-            #utils-cb:not(:checked)+ label + div { 
+            #other-cb:not(:checked)+ label + div { 
               display: none; 
             }
         </style>
@@ -383,15 +391,15 @@ const char* index_ov2640_html = R"~(
         <section class="main">
             <div id="logo">
                 <section id="buttons">
-                  <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>                  
-                  <button id="get-still" style="float:right;">Get Still</button>
-                  <button id="toggle-stream" style="float:right;">Start Stream</button>
+                    <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>                  
+                    <button id="get-still" style="float:right;">Get Still</button>
+                    <button id="toggle-stream" style="float:right;">Start Stream</button>
                 </section>
             </div>
             <div id="content">
                 <div id="sidebar">
                     <input type="checkbox" id="nav-toggle-cb" checked="checked">
-                    <nav id="menu">
+                    <nav class="menu">
                         <div class="input-group" id="framesize-group">
                             <label for="framesize">Resolution</label>
                             <select id="framesize" class="default-action">
@@ -427,15 +435,15 @@ const char* index_ov2640_html = R"~(
                                 <label class="slider" for="dbg"></label>
                             </div>
                         </div>
-                        <div class="input-group" id="sfiles-group">
-                          <label for="sfiles">Select folder / file</label>
-                          <select id="sfile">
+                        <div class="input-group" id="sfiles-group" style="display: grid;">
+                          <label for="sfiles">Select folder / file</label>                          
+                          <select id="sfile" style="font-size: 11px;">
                             <option value="None" selected="selected">-- Select --</option>
                             <option value="/">Get Folders</option>
                           </select>
                         </div>
                         <section id="buttons"><br>
-                          <button id="upload" style="float:left; " value="1">FTP Upload</button>
+                          <button id="upload" style="float:left; " value="1">Ftp Upload</button>
                           <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
                           <button id="delete" style="float:right; " value="">Delete</button>
                         </section><br>
@@ -496,8 +504,9 @@ const char* index_ov2640_html = R"~(
                                 <input id="dbgMotion" type="checkbox" class="default-action">
                                 <label class="slider" for="dbgMotion"></label>
                             </div>
-                        </div>                                                             
-                        <br>
+                        </div>
+                     </nav>
+                     <nav class="menu">                                                                
                         <input type='checkbox' id="settings-cb">
                         <label for="settings-cb" style="float:left;">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
                         <div>
@@ -663,16 +672,56 @@ const char* index_ov2640_html = R"~(
                                   <label class="slider" for="colorbar"></label>
                               </div>
                           </div>                                                
-                        </div>
-                        <br>
-                        <input type="checkbox" id="utils-cb">
-                        <label for="utils-cb" style="float:left;">&#9776;&nbsp;&nbsp;Utils&nbsp;&nbsp;</label>
-                        <div>
-                          <section id="buttons">
-                            <button id="reboot" style="float:right;">Reboot</button>
-                          </section>
-                        </div>    
+                        </div>            
                     </nav>
+                    <nav class="menu">
+                        <input type="checkbox" id="other-cb">
+                        <label for="other-cb" style="float:left;">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
+                        <div>
+                          <div class="input-group" id="wifi-group">
+                              <label for "hostName">Host Name</label>
+                              <input id="hostName" name="hostName" length=32 placeholder="Host name" class="default-action">
+                          </div>
+                          <div class="input-group" id="wifi-group">
+                              <label for "ST_SSID">SSID</label>
+                              <input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID" class="default-action">
+                          </div>
+                          <div class="input-group" id="wifi-group">
+                              <label for="ST_Pass">Password</label>
+                              <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
+                          </div>
+                          <br>
+                          <div class="input-group" id="wifi-group">
+                              <label for "ftp_server">Ftp Server</label>
+                              <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name" class="default-action">
+                          </div>
+                          <div class="input-group" id="wifi-group">
+                              <label for "ftp_port">Ftp port</label>
+                              <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port" class="default-action">
+                          </div>
+                          
+                          <div class="input-group" id="wifi-group">
+                              <label for="ftp_user">Ftp user name</label>
+                              <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name" class="default-action">
+                          </div>
+                          <div class="input-group" id="wifi-group">
+                              <label for="ftp_pass">Ftp password</label>
+                              <input id="ftp_pass" name="ftp_pass" length=32 placeholder="Ftp password" class="default-action">
+                          </div>
+                          <div class="input-group" id="wifi-group">
+                              <label for="ftp_wd">Ftp root dir</label>
+                              <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory" class="default-action">
+                          </div>                          
+                          <br>                                                 
+                          <div>
+                            <section id="buttons">
+                              <button id="reboot" style="float:right;">Reboot</button>
+                              <button id="save" style="float:right;">Save</button>
+                              <button id="defaults" style="float:right;">Defaults</button>
+                            </section>
+                          </div>   
+                        </div>
+                   </nav>
                 </div>
                 <figure>
                     <div id="stream-container" class="image-container hidden">
@@ -750,6 +799,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
           hide(gainCeiling)
           show(agcGain)
         }
+      } else if(el.id === "hostName"){
+        document.title = value
       } else if(el.id === "awb_gain"){
         value ? show(wb) : hide(wb)
       }
@@ -773,6 +824,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
         }else{
           value = '1'
         }
+        break
+      case 'text':
+        value = el.value
         break
       default:
         return
@@ -815,6 +869,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const uploadButton = document.getElementById('upload')    
   const deleteButton = document.getElementById('delete') 
   const rebootButton = document.getElementById('reboot')
+  const saveButton = document.getElementById('save')
+  const defaultsButton = document.getElementById('defaults')
   
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
@@ -826,7 +882,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
       return false;
       
     updateConfig(deleteButton);
-
+    
     var sid = $('#sfile');
     sid.find('option:not(:first)').remove(); // remove all except first option
     sid.append('<option value="/">Get Folders</option>');    
@@ -843,7 +899,30 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
+ 
+ saveButton.onclick = () => {
+    stopStream();
+    window.stop();
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "save",
+        "val": "1"
+      }
+    })
+  }
   
+ defaultsButton.onclick = () => {
+    stopStream();
+    window.stop();
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "defaults",
+        "val": "1"
+      }
+    })
+  }
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'

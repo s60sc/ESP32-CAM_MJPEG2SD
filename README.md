@@ -1,7 +1,8 @@
+
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. 
 
-Files uploaded by FTP are converted to AVI format to allow recordings to replay at correct frame rate on media players.
+Files uploaded by FTP are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players.
 
 ## Purpose
 The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
@@ -26,7 +27,7 @@ The ESP32 Cam module has 4MB of pSRAM which is used to buffer the camera frames 
 
 The SD card can be used in either __MMC 1 line__ mode (default) or __MMC 4 line__ mode. The __MMC 1 line__ mode is practically as fast as __MMC 4 line__ and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
-The MJPEG files are named using a date time format __YYYYMMDD_HHMMSS__, with added frame size, recording rate, duration and frame count, eg __20200130_201015_VGA_15_60_900.mjpeg___, and stored in a per day folder __YYYYMMDD__.  
+The MJPEG files are named using a date time format __YYYYMMDD_HHMMSS__, with added frame size, recording rate, duration and frame count, eg __20200130_201015_VGA_15_60_900.mjpeg__, and stored in a per day folder __YYYYMMDD__.  
 The ESP32 time is set from an NTP server. Define a different timezone as appropriate in`mjpeg2sd.cpp`.
 
 
@@ -57,9 +58,13 @@ The recorded playback rate can be changed during replay by changing the __FPS__ 
 After playback finished, press __Stop Stream__ button. 
 If a recording is started during a playback, playback will stop.
 
-Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming. Function provided by [@gemi254](https://github.com/gemi254)
+The following functions are provided by [@gemi254](https://github.com/gemi254).
 
-Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button. The FTP parameters are defined in file `myConfig.h`. Function provided by [@gemi254](https://github.com/gemi254).
+* Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming.
+
+* Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
+
+* The FTP, Wifi, and other parameters ned to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
 
 Browser functions only tested on Chrome.
 

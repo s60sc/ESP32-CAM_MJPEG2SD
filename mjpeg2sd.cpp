@@ -26,13 +26,13 @@ extern const char* TIMEZONE; //Defined in myConfig.h
 // user parameters
 bool debug = false;
 bool debugMotion = false;
-bool doRecording = true; // whether to capture to SD or not
-uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
-uint8_t nightSwitch = 20; // initial white level % for night/day switching
-float motionVal = 8.0; // initial motion sensitivity setting 
+extern bool doRecording;// = true; // whether to capture to SD or not
+extern uint8_t minSeconds;// = 5; // default min video length (includes POST_MOTION_TIME)
+extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
+extern float motionVal;// = 8.0; // initial motion sensitivity setting 
 
 // status & control fields
-static uint8_t FPS;
+uint8_t FPS;
 bool lampOn = false;     
 bool nightTime = false;
 uint8_t lightLevel; // Current ambient light level     
@@ -78,7 +78,7 @@ extern const frameStruct frameData[] = {
   {"SXGA", 1280, 1024, 3, 3, 1}, 
   {"UXGA", 1600, 1200, 2, 3, 1}  
 };
-uint8_t fsizePtr; // index to frameData[] for record
+extern uint8_t fsizePtr; // index to frameData[] for record
 uint8_t ftypePtr; // index to frameData[] for ftp
 uint8_t frameDataRows = 11;                         
 static uint16_t frameInterval; // units of 0.1ms between frames
@@ -695,7 +695,7 @@ void stopPlaying() {
     while (isPlaying && millis()-timeOut < 2000) delay(10); 
     if (isPlaying) {
       Serial.println();
-      showError("Failed to cleanly close playback");
+      showInfo("Failed to cleanly close playback");
       doPlayback = false;
       setFPS(saveFPS);
       xSemaphoreGive(playbackSemaphore);
@@ -734,7 +734,7 @@ static void infoSD() {
       typeStr, cardSize, useBytes, totBytes);
   } 
 }
-
+bool sdPrepared = false;
 bool prepSD_MMC() {
   /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
      MMC4  MMC1  ESP32  
@@ -753,13 +753,14 @@ bool prepSD_MMC() {
   if (res){ 
     showInfo("SD ready in %s mode ", ONELINE ? "1-line" : "4-line");
     infoSD();
+    sdPrepared=true;
     return true;
   } else {
     showError("SD mount failed for %s mode", ONELINE ? "1-line" : "4-line");
+    sdPrepared=false;
     return false;
   }
 }
-
 
 void deleteFolderOrFile(const char * val) {
   // Function provided by user @gemi254
@@ -808,13 +809,12 @@ void deleteFolderOrFile(const char * val) {
     }  
   }
 }
-
 /******************* Startup ********************/
 
 bool prepMjpeg() {
   // initialisation & prep for MJPEG capture
   if (psramFound()) {
-    if (prepSD_MMC()) { 
+    if (sdPrepared) { 
       if (ONELINE) controlLamp(false); // set lamp fully off as sd_mmc library still initialises pin 4
       getLocalNTP(); // get time from NTP
       SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
@@ -867,3 +867,4 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   xSemaphoreGive(motionMutex);
 }
 #endif
+

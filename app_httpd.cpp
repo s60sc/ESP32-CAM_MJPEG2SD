@@ -24,8 +24,19 @@ static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" 
 const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n";
 
+
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
+
+//Defined in custom config file myConfig.h
+extern char hostName[];
+extern char ST_SSID[];
+extern char ST_Pass[];
+extern char ftp_server[];
+extern char ftp_user[];
+extern char ftp_port[];
+extern char ftp_pass[];
+extern char ftp_wd[];
 
 // additions for mjpeg2sd.cpp
 extern uint8_t fsizePtr;
@@ -38,9 +49,11 @@ extern uint8_t* SDbuffer;
 extern char* htmlBuff; 
 extern bool doPlayback;
 extern bool stopPlayback;
+
 extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
-bool lampVal = false;
+extern bool lampVal;
+
 void listDir(const char* fname, char* htmlBuff);
 uint8_t setFPSlookup(uint8_t val);
 uint8_t setFPS(uint8_t val);
@@ -51,14 +64,19 @@ void controlLamp(bool lampVal);
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val);
+//Config file
+bool saveConfig();
+void resetConfig();
+
 
 // status & control fields 
 extern float moduleTemp;
 extern bool lampOn;
 extern float motionVal;
+extern bool aviOn;
 extern bool nightTime;
 extern uint8_t lightLevel;   
-extern uint8_t nightSwitch;     
+extern uint8_t nightSwitch;                                  
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -222,16 +240,28 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
-    else if(!strcmp(variable, "upload")) createUploadTask(value); //uploadFolderOrFileFtp(value,false,0); 
+    else if(!strcmp(variable, "avi")) aviOn = val;
+    else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
-    else if(!strcmp(variable, "record")) doRecording  = (val) ? true : false;   
+    else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     else if(!strcmp(variable, "dbgMotion")) {
       debugMotion = (val) ? true : false;   
       doRecording = !debugMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) ESP.restart();   
+    else if(!strcmp(variable, "save")) saveConfig();
+    else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
+    //Other settings
+    else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
+    else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
+    else if(!strcmp(variable, "ST_Pass")) strcpy(ST_Pass,value);
+    else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server,value);
+    else if(!strcmp(variable, "ftp_port")) strcpy(ftp_port,value);
+    else if(!strcmp(variable, "ftp_user")) strcpy(ftp_user,value);
+    else if(!strcmp(variable, "ftp_pass")) strcpy(ftp_pass,value);
+    else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd,value);
     
     else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, val);
@@ -279,6 +309,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
+    p+=sprintf(p, "\"avi\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
@@ -310,6 +341,16 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
     p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
     p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
+    //Other settings 
+    p+=sprintf(p, "\"hostName\":\"%s\",", hostName);
+    p+=sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
+    p+=sprintf(p, "\"ST_Pass\":\"%s\",", ST_Pass);
+    p+=sprintf(p, "\"ftp_server\":\"%s\",", ftp_server);
+    p+=sprintf(p, "\"ftp_port\":\"%s\",", ftp_port);
+    p+=sprintf(p, "\"ftp_user\":\"%s\",", ftp_user);
+    p+=sprintf(p, "\"ftp_pass\":\"%s\",", ftp_pass);
+    p+=sprintf(p, "\"ftp_wd\":\"%s\",", ftp_wd);
+    
     //Extend info
     uint8_t cardType = SD_MMC.cardType();
     if (cardType == CARD_NONE) p+=sprintf(p, "\"card\":\"%s\",", "NO card");
@@ -337,7 +378,7 @@ static esp_err_t status_handler(httpd_req_t *req){
 
 // additions for mjpeg2sd.cpp
 static esp_err_t index_handler(httpd_req_t *req){
-    httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
 }
 // end of additions for mjpeg2sd.cpp
@@ -395,3 +436,4 @@ void startCameraServer(){
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
 }
+

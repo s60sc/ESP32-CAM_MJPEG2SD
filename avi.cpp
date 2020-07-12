@@ -29,8 +29,6 @@ footer:
 #include "Arduino.h"
 #include "FS.h" 
 
-#define NO_AVI false  // set to true if do not want conversion to AVI
-
 // avi header data
 static const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
 static const uint8_t idx1Buf[4] = {0x69, 0x64, 0x78, 0x31}; // idx1
@@ -95,6 +93,7 @@ static uint32_t idxOffset;
 static uint8_t frameType;
 static uint8_t FPS;
 static size_t fileSize;
+bool aviOn = true;  // set to false if do not want conversion to AVI
 
 int* extractMeta(const char* fname);  
 size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize);  
@@ -103,7 +102,7 @@ bool isAVI(File &fh) {
   // extract file metadata and determine if mjpeg or avi upload
   int* meta = extractMeta(fh.name()); 
   frameCnt = (uint16_t)meta[3];
-  if (NO_AVI) frameCnt = 0; // frig to disable AVI conversion if required
+  if (!aviOn) frameCnt = 0; // frig to disable AVI conversion if required
   if (frameCnt > 0) { 
     // presence of frame count in file name indicates file suitable for conversion to AVI
     frameType = (uint8_t)meta[0];
@@ -243,7 +242,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
             mjpegHdrStr[10] = 0; // terminator
             size_t jpegSize = atoi(mjpegHdrStr); 
             if (jpegSize == 0) {
-              Serial.println("\nERROR: AVI conversion failed");
+              Serial.printf("\nERROR: AVI conversion failed on frame: %u\n", framePtr);
               jStart = 0;
               jEnd = 0; 
               iPtr = 0;
@@ -286,3 +285,4 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
 }
 
  
+
