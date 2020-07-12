@@ -88,7 +88,7 @@ To enable motion detection by camera, in `mjpeg2sd.cpp` set `#define USE_MOTION 
 
 Additional options are provided on the camera index page, where:
 * `Motion Sensitivity` sets a threshold for movement detection, higher is more sensitive.
-* `Show Motion` if enabled and the __Start Stream__ button pressed, shows images of how movement is detected for calibration purposes. Gray pixels show movement, which turn to white if the motion threshold is reached.
+* `Show Motion` if enabled and the __Start Stream__ button pressed, shows images of how movement is detected for calibration purposes. Gray pixels show movement, which turn to black if the motion threshold is reached.
 
 ![image1](extras/motion.png)
 
