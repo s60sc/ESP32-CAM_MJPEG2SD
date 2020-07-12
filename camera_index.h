@@ -1,4 +1,3 @@
-
 const char* index_ov2640_html = R"~(
 <!doctype html>                             
 <html>
@@ -443,7 +442,12 @@ const char* index_ov2640_html = R"~(
                           </select>
                         </div>
                         <section id="buttons"><br>
-                          <button id="upload" style="float:left; " value="1">Ftp Upload</button>
+                          <label for="avi">AVI</label>
+                          <div class="switch">
+                            <input id="avi" type="checkbox" class="default-action">
+                            <label class="slider" for="avi"></label>
+                          </div>
+                          <button id="upload" style="float:left; " value="1">FTP Upload</button>
                           <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
                           <button id="delete" style="float:right; " value="">Delete</button>
                         </section><br>
@@ -800,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
           show(agcGain)
         }
       } else if(el.id === "hostName"){
-        document.title = value
+        document.title = value                                                                 
       } else if(el.id === "awb_gain"){
         value ? show(wb) : hide(wb)
       }
