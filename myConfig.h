@@ -11,7 +11,9 @@ static const char* TAG = "myConfig";
 #define APP_NAME "ESP32-CAM_MJPED"
 
 //Wifi Station parameters
-//If no default SSID value defined here will start an access point
+//If no default SSID value defined here 
+//will start an access point if no saved value found
+
 char hostName[20] ="";  //Host name for ddns
 char ST_SSID[20]  ="";  //Router ssid
 char ST_Pass[12]  ="";  //Router passd
@@ -35,7 +37,7 @@ char ftp_pass[32]   = "test";
 char ftp_wd[64]     = "/home/user/";
 
 //mjpeg2sd parameters 
-const char* TIMEZONE="GMT0BST,M3.5.0/01,M10.5.0/02"; 
+char timezone[64] = "GMT0BST,M3.5.0/01,M10.5.0/02";
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not
@@ -69,6 +71,7 @@ bool saveConfig(){
   pref.putString("ST_ns1",ST_ns1);
   pref.putString("ST_ns2",ST_ns2);
   
+  pref.putString("timezone",timezone);  
   pref.putUShort("framesize",fsizePtr);
   pref.putUChar("fps",FPS);
   pref.putUChar("minf",minSeconds);
@@ -109,6 +112,9 @@ bool loadConfig(){
   }
   strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
   strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());  
+  
+  ESP_LOGI(TAG, "Loaded ssid: %s pass: %s",String(ST_SSID).c_str(),String(ST_Pass).c_str());
+  
   strcpy(ST_ip, pref.getString("ST_ip").c_str());
   strcpy(ST_gw, pref.getString("ST_gw").c_str());
   strcpy(ST_sn, pref.getString("ST_sn").c_str());
@@ -124,6 +130,7 @@ bool loadConfig(){
   controlLamp(lampVal);
   nightSwitch = pref.getUChar("lswitch",nightSwitch);
   
+  strcpy(timezone, pref.getString("timezone", String(timezone)).c_str());
   strcpy(ftp_server, pref.getString("ftp_server", String(ftp_server)).c_str());
   strcpy(ftp_port, pref.getString("ftp_port", String(ftp_port)).c_str());
   strcpy(ftp_user, pref.getString("ftp_user", String(ftp_user)).c_str());
@@ -141,12 +148,13 @@ bool loadConfig(){
   sensor_t * s = (sensor_t *)buffer; // cast the bytes into a struct ptr  
   //Todo setup camera with loaded settings
   */
+  // Close the Preferences
+  pref.end();
+
   if(saveDefPrefs){
     ESP_LOGE(TAG, "Saving default config.");
     saveConfig();
   }
-  // Close the Preferences
-  pref.end();
   return true;  
 }
 
