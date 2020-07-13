@@ -32,6 +32,7 @@ httpd_handle_t camera_httpd = NULL;
 extern char hostName[];
 extern char ST_SSID[];
 extern char ST_Pass[];
+extern char timezone[]; //Defined in myConfig.h
 extern char ftp_server[];
 extern char ftp_user[];
 extern char ftp_port[];
@@ -254,6 +255,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
     //Other settings
+    else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
     else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
     else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
     else if(!strcmp(variable, "ST_Pass")) strcpy(ST_Pass,value);
@@ -342,6 +344,13 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
     p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
     //Other settings 
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    time_t currEpoch = tv.tv_sec;
+    char inBuff[20];
+    strftime(inBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+    p+=sprintf(p, "\"timezone\":\"%s\",", timezone);
+    p+=sprintf(p, "\"clock\":\"%s\",", inBuff);
     p+=sprintf(p, "\"hostName\":\"%s\",", hostName);
     p+=sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
     p+=sprintf(p, "\"ST_Pass\":\"%s\",", ST_Pass);
@@ -436,4 +445,3 @@ void startCameraServer(){
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
 }
-
