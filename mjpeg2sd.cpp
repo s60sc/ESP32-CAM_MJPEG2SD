@@ -6,7 +6,7 @@
 * s60sc 2020
 */
 
-extern const char* TIMEZONE; //Defined in myConfig.h
+extern char timezone[]; //Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
@@ -156,8 +156,8 @@ void getLocalNTP() {
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     delay(1000);
   } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
-  // set TIMEZONE as required
-  setenv("TZ", TIMEZONE, 1);
+  // set timezone as required
+  setenv("TZ", timezone, 1);
   if (getEpoch() > 1000) {
     time_t currEpoch = getEpoch();  
     char timeFormat[20];
@@ -867,4 +867,3 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   xSemaphoreGive(motionMutex);
 }
 #endif
-
