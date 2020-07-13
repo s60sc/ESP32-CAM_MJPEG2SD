@@ -5,7 +5,7 @@ const char* index_ov2640_html = R"~(
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>{hostName}</title>
+        <title>ESP32-CAM</title>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -15,23 +15,33 @@ const char* index_ov2640_html = R"~(
             }
 
             h2 {
-                font-size: 18px
-            }
-
-            section.main {
-                display: flex
+                font-size: 18px;
+                padding-left: 10px;
             }
             
-            nav#sidetoolbar {
+            nav#maintoolbar {
               display: flex;
               flex-wrap: nowrap;
               justify-content: flex-end;
             }
             
-            #menu,section.main {
-                flex-direction: column
+            section#main {
+              display: flex;
+              flex-direction: column;
+              margin-bottom: 7px;
             }
-
+            
+            section#header {
+              min-width: 342px;
+              background-color: #363636;
+              margin-bottom: 6px;
+              padding: 4px 12px;
+              display: flex;
+              flex-wrap: wrap;
+              border-radius: 4px;
+              justify-content: space-between;
+            }
+             
             nav.menu {
               display: grid;
               flex-direction: column;
@@ -43,6 +53,7 @@ const char* index_ov2640_html = R"~(
               margin-top: -10px;
               margin-right: 10px;
               margin-bottom: 13px;
+              cursor: pointer;
             }
             
             #content {
@@ -104,23 +115,7 @@ const char* index_ov2640_html = R"~(
             section#buttons {
                 display: flex;
                 flex-wrap: nowrap;
-                justify-content: space-between;
-            }
-
-            #nav-toggle {
-                cursor: pointer;
-                display: block
-            }
-
-            #nav-toggle-cb {
-                outline: 0;
-                opacity: 0;
-                width: 0;
-                height: 0
-            }
-
-            #nav-toggle-cb:checked+#menu {
-                display: flex
+                justify-content: center;
             }
 
             .input-group {
@@ -370,6 +365,19 @@ const char* index_ov2640_html = R"~(
               -webkit-transform: translateX(180px);
             }
             
+            .nav-toggle {
+                cursor: pointer;
+            }
+            
+            #control-cb, #settings-cb, #other-cb{
+              display: none;
+            }
+
+            #control-cb:not(:checked)+ label + div, #settings-cb:not(:checked)+ label + div, #other-cb:not(:checked)+ label + div 
+            { 
+              display: none; 
+            }
+/*
             #settings-cb {
               display: none;
             }
@@ -384,131 +392,135 @@ const char* index_ov2640_html = R"~(
             
             #other-cb:not(:checked)+ label + div { 
               display: none; 
-            }
+            }*/
         </style>
     </head>
     <body>
-        <section class="main">
-            <div id="logo">
-                <section id="buttons">
-                    <label for="nav-toggle-cb" id="nav-toggle" style="float:left;">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;&nbsp;&nbsp;</label>                  
-                    <button id="get-still" style="float:right;">Get Still</button>
-                    <button id="toggle-stream" style="float:right;">Start Stream</button>
-                </section>
-            </div>
+        <section id="main">
+            <section id="header">
+              <h2 id="page-title">ESP32 Camera</h2>
+              <nav id="maintoolbar">
+                  <button id="get-still" style="float:right;">Get Still</button>
+                  <button id="toggle-stream" style="float:right;">Start Stream</button>
+              </nav>
+            </section>
+         </section>   
             <div id="content">
                 <div id="sidebar">
-                    <input type="checkbox" id="nav-toggle-cb" checked="checked">
-                    <nav class="menu">
-                        <div class="input-group" id="framesize-group">
-                            <label for="framesize">Resolution</label>
-                            <select id="framesize" class="default-action">
-                                <option value="10">UXGA(1600x1200)</option>
-                                <option value="9">SXGA(1280x1024)</option>
-                                <option value="8">XGA(1024x768)</option>
-                                <option value="7">SVGA(800x600)</option>
-                                <option value="6" selected="selected">VGA(640x480)</option>
-                                <option value="5">CIF(400x296)</option>
-                                <option value="4">QVGA(320x240)</option>
-                                <option value="3">HQVGA(240x176)</option>
-                                <option value="0">QQVGA(160x120)</option>
+                    <nav class="menu">                                                                
+                        <input type="checkbox" id="control-cb" checked="checked">
+                        <label for="control-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
+                        <div>                    
+                          <div class="input-group" id="framesize-group">
+                              <label for="framesize">Resolution</label>
+                              <select id="framesize" class="default-action">
+                                  <option value="10">UXGA(1600x1200)</option>
+                                  <option value="9">SXGA(1280x1024)</option>
+                                  <option value="8">XGA(1024x768)</option>
+                                  <option value="7">SVGA(800x600)</option>
+                                  <option value="6" selected="selected">VGA(640x480)</option>
+                                  <option value="5">CIF(400x296)</option>
+                                  <option value="4">QVGA(320x240)</option>
+                                  <option value="3">HQVGA(240x176)</option>
+                                  <option value="0">QQVGA(160x120)</option>
+                              </select>
+                          </div>
+                          <div class="input-group" id="fps-group">
+                              <label for="fps">FPS</label>
+                              <div class="range-min">1</div>
+                              <input type="range" id="fps" min="1" max="30" value="10" class="default-action">
+                              <output name="rangeVal">15</output>
+                              <div class="range-max">30</div>
+                          </div>
+                          <div class="input-group" id="minf-group">
+                              <label for="minf">Min Seconds</label>
+                              <div class="range-min">0</div>
+                              <input type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                              <output name="rangeVal">5</output>
+                              <div class="range-max">20</div>
+                          </div>
+                          <div class="input-group" id="dbg-group">
+                              <label for="dbg">Verbose</label>
+                              <div class="switch">
+                                  <input id="dbg" type="checkbox" class="default-action">
+                                  <label class="slider" for="dbg"></label>
+                              </div>
+                          </div>
+                          <div class="input-group" id="sfiles-group" style="display: grid;">
+                            <label for="sfiles">Select folder / file</label>                          
+                            <select id="sfile" style="font-size: 11px;">
+                              <option value="None" selected="selected">-- Select --</option>
+                              <option value="/">Get Folders</option>
                             </select>
-                        </div>
-                        <div class="input-group" id="fps-group">
-                            <label for="fps">FPS</label>
-                            <div class="range-min">1</div>
-                            <input type="range" id="fps" min="1" max="30" value="10" class="default-action">
-                            <output name="rangeVal">15</output>
-                            <div class="range-max">30</div>
-                        </div>
-                        <div class="input-group" id="minf-group">
-                            <label for="minf">Min Seconds</label>
-                            <div class="range-min">0</div>
-                            <input type="range" id="minf" min="0" max="20" value="5" class="default-action">
-                            <output name="rangeVal">5</output>
-                            <div class="range-max">20</div>
-                        </div>
-                        <div class="input-group" id="dbg-group">
-                            <label for="dbg">Verbose</label>
-                            <div class="switch">
-                                <input id="dbg" type="checkbox" class="default-action">
-                                <label class="slider" for="dbg"></label>
-                            </div>
-                        </div>
-                        <div class="input-group" id="sfiles-group" style="display: grid;">
-                          <label for="sfiles">Select folder / file</label>                          
-                          <select id="sfile" style="font-size: 11px;">
-                            <option value="None" selected="selected">-- Select --</option>
-                            <option value="/">Get Folders</option>
-                          </select>
-                        </div>
-                        <section id="buttons"><br>
-                          <button id="upload" style="float:left; " value="1">Ftp Upload</button>
-                          <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
-                          <button id="delete" style="float:right; " value="">Delete</button>
-                        </section><br>
-                        <div class="input-group" id="quality-group">
-                            <label for="quality">Quality</label>
-                            <div class="range-min">10</div>
-                            <input type="range" id="quality" min="10" max="63" value="10" class="default-action">
-                            <output name="rangeVal">10</output>
-                            <div class="range-max">63</div>
-                        </div>
-                        <div class="input-group" id="record-group">
-                            <label for="record">Save Capture</label>
-                            <div class="switch">
-                                <input id="record" type="checkbox" class="default-action">
-                                <label class="slider" for="record"></label>
-                            </div>
-                        </div> 
-                        <div class="input-group" id="isrecord">
-                            <label for="isrecord">Recording? </label>
-                            &nbsp;<div id="isrecord" class="default-action displayonly">&nbsp;</div>
-                        </div>
-                        <div class="input-group" id="motion-group">
-                            <label for="motion">Motion Sensitivity</label>
-                            <div class="range-min">1</div>
-                            <input type="range" id="motion" min="1" max="10" value="7" class="default-action">
-                            <output name="rangeVal">7</output>
-                            <div class="range-max">10</div>
-                        </div>                                                                
-                        <div class="input-group" id="lamp-group">
-                            <label for="lamp">Lamp</label>
-                            <div class="switch">
-                                <input id="lamp" type="checkbox" class="default-action">
-                                <label class="slider" for="lamp"></label>
-                            </div>
-                         </div>
-                        <div class="input-group" id="lswitch-group">
-                            <label for="lswitch">Night Switch</label>
-                            <div class="range-min">0</div>
-                            <input type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
-                            <output name="rangeVal">10</output>
-                            <div class="range-max">100</div>
-                        </div>
-                        <div class="input-group" id="llevel-group">
-                            <label for="llevel">Ambient Light</label>
-                            &nbsp;<div id="llevel" class="default-action displayonly">&nbsp;</div>
-                        </div>
-                        <div class="input-group" id="night-group">
-                            <label for="night">Night Time</label>
-                            &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
-                        </div>                             
-                        <div class="input-group extras" id="atemp-group">
-                            <label for="atemp">Camera Temp</label>
-                            &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
-                        </div>  
-                        <div class="input-group" id="dbgMotion-group">
-                            <label for="dbgMotion">Show Motion</label>
-                            <div class="switch">
-                                <input id="dbgMotion" type="checkbox" class="default-action">
-                                <label class="slider" for="dbgMotion"></label>
-                            </div>
-                        </div>
+                          </div>
+                          <section id="buttons"><br>
+                            <button id="upload" style="float:left; " value="1">Ftp Upload</button>
+                            <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
+                            <button id="delete" style="float:right; " value="">Delete</button>
+                          </section><br>
+                          <div class="input-group" id="quality-group">
+                              <label for="quality">Quality</label>
+                              <div class="range-min">10</div>
+                              <input type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                              <output name="rangeVal">10</output>
+                              <div class="range-max">63</div>
+                          </div>
+                          <div class="input-group" id="record-group">
+                              <label for="record">Save Capture</label>
+                              <div class="switch">
+                                  <input id="record" type="checkbox" class="default-action">
+                                  <label class="slider" for="record"></label>
+                              </div>
+                          </div> 
+                          <div class="input-group" id="isrecord">
+                              <label for="isrecord">Recording? </label>
+                              &nbsp;<div id="isrecord" class="default-action displayonly">&nbsp;</div>
+                          </div>
+                          <div class="input-group" id="motion-group">
+                              <label for="motion">Motion Sensitivity</label>
+                              <div class="range-min">1</div>
+                              <input type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                              <output name="rangeVal">7</output>
+                              <div class="range-max">10</div>
+                          </div>                                                                
+                          <div class="input-group" id="lamp-group">
+                              <label for="lamp">Lamp</label>
+                              <div class="switch">
+                                  <input id="lamp" type="checkbox" class="default-action">
+                                  <label class="slider" for="lamp"></label>
+                              </div>
+                           </div>
+                          <div class="input-group" id="lswitch-group">
+                              <label for="lswitch">Night Switch</label>
+                              <div class="range-min">0</div>
+                              <input type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                              <output name="rangeVal">10</output>
+                              <div class="range-max">100</div>
+                          </div>
+                          <div class="input-group" id="llevel-group">
+                              <label for="llevel">Ambient Light</label>
+                              &nbsp;<div id="llevel" class="default-action displayonly">&nbsp;</div>
+                          </div>
+                          <div class="input-group" id="night-group">
+                              <label for="night">Night Time</label>
+                              &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
+                          </div>                             
+                          <div class="input-group extras" id="atemp-group">
+                              <label for="atemp">Camera Temp</label>
+                              &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                          </div>  
+                          <div class="input-group" id="dbgMotion-group">
+                              <label for="dbgMotion">Show Motion</label>
+                              <div class="switch">
+                                  <input id="dbgMotion" type="checkbox" class="default-action">
+                                  <label class="slider" for="dbgMotion"></label>
+                              </div>
+                          </div>
+                       </div>
                      </nav>
                      <nav class="menu">                                                                
-                        <input type='checkbox' id="settings-cb">
-                        <label for="settings-cb" style="float:left;">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
+                        <input type="checkbox" id="settings-cb">
+                        <label for="settings-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
                         <div>
                           <div class="input-group" id="brightness-group">
                               <label for="brightness">Brightness</label>
@@ -676,7 +688,7 @@ const char* index_ov2640_html = R"~(
                     </nav>
                     <nav class="menu">
                         <input type="checkbox" id="other-cb">
-                        <label for="other-cb" style="float:left;">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
+                        <label for="other-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
                         <div>
                           <div class="input-group" id="wifi-group">
                               <label for "hostName">Host Name</label>
@@ -746,10 +758,11 @@ $('input[type="range"]').on('input', function () {
   var output = control.next('output');
   output.
   css('left', 'calc(' + position + '%)').text(controlVal);
-
+  
 });
 
 document.addEventListener('DOMContentLoaded', function (event) {
+
   var baseHost = document.location.origin
   var streamUrl = baseHost + ':81'
 
@@ -800,7 +813,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
           show(agcGain)
         }
       } else if(el.id === "hostName"){
-        document.title = value
+        document.title = value;
+        document.getElementById("page-title").innerHTML = value;
       } else if(el.id === "awb_gain"){
         value ? show(wb) : hide(wb)
       }
