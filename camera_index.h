@@ -19,6 +19,12 @@ const char* index_ov2640_html = R"~(
                 padding-left: 10px;
             }
             
+            h3 {
+                font-style: italic;
+                font-size: 14px;
+                padding-left: 5px;
+            }
+            
             nav#maintoolbar {
               display: flex;
               flex-wrap: nowrap;
@@ -377,22 +383,6 @@ const char* index_ov2640_html = R"~(
             { 
               display: none; 
             }
-/*
-            #settings-cb {
-              display: none;
-            }
-
-            #settings-cb:not(:checked)+ label + div { 
-              display: none; 
-            }
-            
-            #other-cb {
-              display: none;
-            }
-            
-            #other-cb:not(:checked)+ label + div { 
-              display: none; 
-            }*/
         </style>
     </head>
     <body>
@@ -690,6 +680,7 @@ const char* index_ov2640_html = R"~(
                         <input type="checkbox" id="other-cb">
                         <label for="other-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
                         <div>
+                          <h3>Network settings</h3>
                           <div class="input-group" id="wifi-group">
                               <label for "hostName">Host Name</label>
                               <input id="hostName" name="hostName" length=32 placeholder="Host name" class="default-action">
@@ -702,29 +693,44 @@ const char* index_ov2640_html = R"~(
                               <label for="ST_Pass">Password</label>
                               <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
                           </div>
-                          <br>
-                          <div class="input-group" id="wifi-group">
+                          <h3>Clock settings</h3>
+                          <div class="input-group" id="time-group">
+                             <label for="timezone">Time zone</label>
+                             <input id="timezone" name="timezone" length=64 placeholder="Time zone string" class="default-action">
+                          </div>
+                          <div class="input-group" id="time-group">
+                             <label for="timezoneSel">Time zone select</label>
+                             <select id="timezoneSel" name="timezoneSel">
+                                <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
+                                <option value="GMT0BST,M3.5.0/01,M10.5.0/02">Europe/Belfast</option>
+                             </select>
+                          </div>
+                          <div class="input-group" id="time-group">
+                              <label for="clock">Local time</label>
+                              <input id="clock" name="clock" length=20 class="default-action" readonly="readonly">
+                          </div>                          
+                          <h3>Ftp settings</h3>
+                          <div class="input-group" id="ftp-group">
                               <label for "ftp_server">Ftp Server</label>
                               <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name" class="default-action">
                           </div>
-                          <div class="input-group" id="wifi-group">
+                          <div class="input-group" id="ftp-group">
                               <label for "ftp_port">Ftp port</label>
                               <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port" class="default-action">
-                          </div>
-                          
-                          <div class="input-group" id="wifi-group">
+                          </div>                          
+                          <div class="input-group" id="ftp-group">
                               <label for="ftp_user">Ftp user name</label>
                               <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name" class="default-action">
                           </div>
-                          <div class="input-group" id="wifi-group">
+                          <div class="input-group" id="ftp-group">
                               <label for="ftp_pass">Ftp password</label>
                               <input id="ftp_pass" name="ftp_pass" length=32 placeholder="Ftp password" class="default-action">
                           </div>
-                          <div class="input-group" id="wifi-group">
+                          <div class="input-group" id="ftp-group">
                               <label for="ftp_wd">Ftp root dir</label>
                               <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory" class="default-action">
                           </div>                          
-                          <br>                                                 
+                          <br>
                           <div>
                             <section id="buttons">
                               <button id="reboot" style="float:right;">Reboot</button>
@@ -812,6 +818,15 @@ document.addEventListener('DOMContentLoaded', function (event) {
           hide(gainCeiling)
           show(agcGain)
         }
+      } else if(el.id === "clock"){
+        var d = value.replace(" ","T");
+        var clock = new Date(d);        
+        var now = new Date();
+        var timeDiff = Math.abs(now.getTime() - clock.getTime());
+        console.log("Local time diff to browser: " + timeDiff);
+        
+        //ToDo 
+        //Sync to browser if time not synchronized
       } else if(el.id === "hostName"){
         document.title = value;
         document.getElementById("page-title").innerHTML = value;
@@ -984,6 +999,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
 
   // Custom actions
+  //Timezone 
+  const timezoneSel = document.getElementById('timezoneSel')
+  timezoneSel.onchange = () => {
+    var tz = document.getElementById('timezone');
+    tz.value = timezoneSel.options[timezoneSel.selectedIndex].value;    
+    updateConfig(tz)    
+  }
+
   // Gain
   const agc = document.getElementById('agc')
   const agcGain = document.getElementById('agc_gain-group')
