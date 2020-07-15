@@ -2,6 +2,9 @@
 This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 Added functionality 
 
+* Stream and playback from access point conections. No internet at all!
+* Synchronize clock from browser if no internet (Access Point connections)
+* Save and load Camera settings from nvs
 * Modified user interface
 
 ![image1](extras/screenshot.png)
