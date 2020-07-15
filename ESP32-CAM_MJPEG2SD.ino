@@ -15,11 +15,11 @@
 #include "camera_pins.h"
 #include "myConfig.h"
 
+//External tasks
 void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
 bool prepSD_MMC();
-
 bool startWifi();
 
 float moduleTemp;
@@ -96,16 +96,8 @@ void setup() {
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
-/*
-  WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi connected");
- */
+  //Prepare sd card
   prepSD_MMC();
   
   //Connect wifi and start config AP if fail
@@ -122,6 +114,7 @@ void setup() {
   }
   //Start httpd
   startCameraServer();
+  //Start disk tasks
   startSDtasks();
   
   Serial.print("Camera Ready! Use 'http://");
@@ -138,4 +131,3 @@ void loop() {
   // put your main code here, to run repeatedly:
   delay(100000);
 }
-
