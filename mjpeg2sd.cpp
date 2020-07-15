@@ -30,7 +30,7 @@ extern bool doRecording;// = true; // whether to capture to SD or not
 extern uint8_t minSeconds;// = 5; // default min video length (includes POST_MOTION_TIME)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
 extern float motionVal;// = 8.0; // initial motion sensitivity setting 
-
+bool timeSynchronized = false;
 // status & control fields
 uint8_t FPS;
 bool lampOn = false;     
@@ -162,6 +162,7 @@ void getLocalNTP() {
     time_t currEpoch = getEpoch();  
     char timeFormat[20];
     strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
+    timeSynchronized = true;
     showInfo("Got current time from NTP: %s", timeFormat);
   }  
   else showError("Unable to sync with NTP");
