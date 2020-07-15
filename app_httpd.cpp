@@ -18,6 +18,7 @@
 #include "esp_camera.h"
 #include "camera_index.h"
 #include "Arduino.h"
+#include <sys/time.h>
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -27,6 +28,8 @@ const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
+
+extern bool timeSynchronized; //True if ntp was succesfull
 
 //Defined in custom config file myConfig.h
 extern char hostName[];
@@ -255,6 +258,35 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
     //Other settings
+    else if(!strcmp(variable, "clockUTC")){
+      if(timeSynchronized){
+        Serial.printf("Time already synchronized\n");
+      }else{ //Synchronize to browser time, On access point connections with no internet
+        Serial.printf("Sync clock to: %s\n", value);
+        struct tm now;
+        getLocalTime(&now,0);
+    
+        int Year, Month, Day, Hour, Minute, Second ;
+        sscanf(value, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
+        struct tm t; 
+        t.tm_year = Year - 1900;
+        t.tm_mon  = Month - 1;    // Month, 0 - jan
+        t.tm_mday = Day;          // Day of the month
+        t.tm_hour = Hour;
+        t.tm_min  = Minute;
+        t.tm_sec  = Second;
+        //Serial.printf("%d-%d-%d %d/%d/%d\n", Year, Month, Day, Hour, Minute, Second);      
+        
+        time_t t_of_day = mktime(&t);            
+        timeval epoch = {t_of_day, 0};
+        struct timezone utc = {0,0};      
+        settimeofday(&epoch, &utc);
+        
+        Serial.print(&now,"\nBefore sync: %B %d %Y %H:%M:%S (%A) ");
+        getLocalTime(&now,0);
+        Serial.println(&now,"After sync: %B %d %Y %H:%M:%S (%A)");
+      }
+    }
     else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
     else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
     else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
@@ -347,10 +379,12 @@ static esp_err_t status_handler(httpd_req_t *req){
     struct timeval tv;
     gettimeofday(&tv, NULL);
     time_t currEpoch = tv.tv_sec;
-    char inBuff[20];
-    strftime(inBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+    char buff[20];
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+    p+=sprintf(p, "\"clock\":\"%s\",", buff);
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", gmtime(&currEpoch));
+    p+=sprintf(p, "\"clockUTC\":\"%s\",", buff);    
     p+=sprintf(p, "\"timezone\":\"%s\",", timezone);
-    p+=sprintf(p, "\"clock\":\"%s\",", inBuff);
     p+=sprintf(p, "\"hostName\":\"%s\",", hostName);
     p+=sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
     p+=sprintf(p, "\"ST_Pass\":\"%s\",", ST_Pass);
@@ -390,6 +424,10 @@ static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
 }
+static esp_err_t jquery_handler(httpd_req_t *req){
+    httpd_resp_set_type(req, "text/javascript");                              
+    return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
+}
 // end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
@@ -399,6 +437,13 @@ void startCameraServer(){
         .uri       = "/",
         .method    = HTTP_GET,
         .handler   = index_handler,
+        .user_ctx  = NULL
+    };
+    
+    httpd_uri_t jquery_uri = {
+        .uri       = "/jquery.min.js",
+        .method    = HTTP_GET,
+        .handler   = jquery_handler,
         .user_ctx  = NULL
     };
 
@@ -433,6 +478,7 @@ void startCameraServer(){
     if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
+        httpd_register_uri_handler(camera_httpd, &jquery_uri);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
