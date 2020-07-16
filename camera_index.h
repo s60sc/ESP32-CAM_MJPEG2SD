@@ -700,8 +700,14 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="time-group">
                              <label for="timezoneSel">Time zone select</label>
                              <select id="timezoneSel" name="timezoneSel">
+                                <option value="" selected>&nbsp;--- Select ---</option>
                                 <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
                                 <option value="GMT0BST,M3.5.0/01,M10.5.0/02">Europe/Belfast</option>
+                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
+                                <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London</option>
+                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
+                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
+                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
                              </select>
                           </div>
                           <div class="input-group" id="time-group">
@@ -822,18 +828,17 @@ document.addEventListener('DOMContentLoaded', function (event) {
           hide(gainCeiling)
           show(agcGain)
         }
-      } else if(el.id === "clockUTC"){
-        var d = value.replace(" ","T");
-        var uClock = new Date(d);        
+      } else if(el.id === "clockUTC"){        
+        var uClock = new Date(value.replace(" ","T"));
         var now = new Date();
         var nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
-        var timeDiff = Math.abs(nowUTC - uClock.getTime());
-        console.log("Local time diff to browser: " + timeDiff/100 +" sec");
-        if(timeDiff > 1000){ //10 sec
+        var timeDiff = Math.abs(nowUTC - uClock.getTime());        
+        console.log("Now: " + now.toISOString() + " browser: " + uClock.toISOString() + " Local time diff to browser: " + timeDiff/100 +" sec");
+        if(timeDiff > 2000){ //2 sec
           now = new Date();
-          var value = new Date(now.getTime() + now.getTimezoneOffset() * 60000).toISOString();
+          var value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
           console.log("Sync to time: " + value );
-          const query = `${baseHost}/control?var=clockUTC&val=${value}`      
+          const query = `${baseHost}/control?var=clockUTC&val=${value}`
           fetch(query)
             .then(response => {
               console.log(`request to ${query} finished, status: ${response.status}`)
@@ -1011,14 +1016,16 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
 
   // Custom actions
-  //Timezone 
+  //Timezone selection
   const timezoneSel = document.getElementById('timezoneSel')
   timezoneSel.onchange = () => {
     var tz = document.getElementById('timezone');
-    tz.value = timezoneSel.options[timezoneSel.selectedIndex].value;    
-    updateConfig(tz)    
+    if(timezoneSel.options[timezoneSel.selectedIndex].value!=''){
+      tz.value = timezoneSel.options[timezoneSel.selectedIndex].value;    
+      updateConfig(tz)
+    }
   }
-
+  
   // Gain
   const agc = document.getElementById('agc')
   const agcGain = document.getElementById('agc_gain-group')
