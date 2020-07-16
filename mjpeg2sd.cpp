@@ -167,7 +167,35 @@ void getLocalNTP() {
   }  
   else showError("Unable to sync with NTP");
 }
-
+//Synchronize clock to browser clock on AP connection
+void syncToBrowser(char *val){
+  if(timeSynchronized) return;
+  
+  //Synchronize to browser time, On access point connections with no internet
+  Serial.printf("Sync clock to: %s with tz:%s\n", val, timezone);
+  struct tm now;
+  getLocalTime(&now,0);
+  
+  int Year, Month, Day, Hour, Minute, Second ;
+  sscanf(val, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
+  
+  struct tm t; 
+  t.tm_year = Year - 1900;
+  t.tm_mon  = Month - 1;    // Month, 0 - jan
+  t.tm_mday = Day;          // Day of the month
+  t.tm_hour = Hour;
+  t.tm_min  = Minute;
+  t.tm_sec  = Second;
+  
+  time_t t_of_day = mktime(&t);            
+  timeval epoch = {t_of_day, 0};
+  struct timezone utc = {0,0};      
+  settimeofday(&epoch, &utc);
+  //setenv("TZ", timezone, 1);
+  Serial.print(&now,"Before sync: %B %d %Y %H:%M:%S (%A) ");
+  getLocalTime(&now,0);
+  Serial.println(&now,"After sync: %B %d %Y %H:%M:%S (%A)");     
+ }
 /*********************** Utility functions ****************************/
 
 void showProgress() {
