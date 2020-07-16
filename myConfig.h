@@ -28,6 +28,9 @@ char ST_ns2[16] = "";
 #define ESP_getChipId() ((uint32_t)ESP.getEfuseMac())
 String AP_SSID = "CAM_" + String(ESP_getChipId(), HEX);
 char   AP_Pass[20] = "123456789";
+char   AP_ip[16]  = ""; //Leave blank for 192.168.1.4
+char   AP_sn[16]  = "";
+char   AP_gw[16]  = "";
 
 //Ftp server default params
 char ftp_server[32] = "test.ftp.com";
@@ -208,17 +211,15 @@ bool setWifiAP() {
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
   else if (WiFi.getMode() == WIFI_STA) WiFi.mode(WIFI_AP_STA);
 
-  /*//set static ip
-    if(strlen(ST_ip)>1){
+  //set static ip
+ if(strlen(AP_ip)>1){
     IPAddress _ip,_gw,_sn,_ns1,_ns2;
-    _ip.fromString(ST_ip);
-    _gw.fromString(ST_gw);
-    _sn.fromString(ST_sn);
-    _ns1.fromString(ST_ns1);
-    _ns2.fromString(ST_ns2);
+    _ip.fromString(AP_ip);
+    _gw.fromString(AP_gw);
+    _sn.fromString(AP_sn);
     //set static ip
-    WiFi.softAPConfig(ip, gateway, subnet);
-    } */
+    WiFi.softAPConfig(_ip, _gw, _sn);
+  } 
   ESP_LOGI(TAG, "Starting Access point with SSID %s", AP_SSID.c_str());
   WiFi.softAP(AP_SSID.c_str(), AP_Pass );
   ESP_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), ipToString(WiFi.softAPIP()).c_str());
