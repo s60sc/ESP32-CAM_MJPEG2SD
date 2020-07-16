@@ -68,6 +68,7 @@ void controlLamp(bool lampVal);
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val);
+void syncToBrowser(char *val);
 //Config file
 bool saveConfig();
 void resetConfig();
@@ -258,35 +259,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
     //Other settings
-    else if(!strcmp(variable, "clockUTC")){
-      if(timeSynchronized){
-        Serial.printf("Time already synchronized\n");
-      }else{ //Synchronize to browser time, On access point connections with no internet
-        Serial.printf("Sync clock to: %s\n", value);
-        struct tm now;
-        getLocalTime(&now,0);
-    
-        int Year, Month, Day, Hour, Minute, Second ;
-        sscanf(value, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
-        struct tm t; 
-        t.tm_year = Year - 1900;
-        t.tm_mon  = Month - 1;    // Month, 0 - jan
-        t.tm_mday = Day;          // Day of the month
-        t.tm_hour = Hour;
-        t.tm_min  = Minute;
-        t.tm_sec  = Second;
-        //Serial.printf("%d-%d-%d %d/%d/%d\n", Year, Month, Day, Hour, Minute, Second);      
-        
-        time_t t_of_day = mktime(&t);            
-        timeval epoch = {t_of_day, 0};
-        struct timezone utc = {0,0};      
-        settimeofday(&epoch, &utc);
-        
-        Serial.print(&now,"\nBefore sync: %B %d %Y %H:%M:%S (%A) ");
-        getLocalTime(&now,0);
-        Serial.println(&now,"After sync: %B %d %Y %H:%M:%S (%A)");
-      }
-    }
+    else if(!strcmp(variable, "clockUTC")) syncToBrowser(value);      
     else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
     else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
     else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
