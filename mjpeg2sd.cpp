@@ -522,6 +522,9 @@ static void openSDfile() {
   }
 }
 
+
+
+//If filename open it for playback
 void listDir(const char* fname, char* htmlBuff) {
   // either list day folders in root, or files in a day folder
   std::string decodedName(fname); 
@@ -532,7 +535,9 @@ void listDir(const char* fname, char* htmlBuff) {
     // mjpeg file selected
     strcpy(mjpegName, decodedName.c_str());
     openSDfile();
-    decodedName = "/"; // enable day folders to be returned 
+    strcpy(htmlBuff, "{}");
+    //File selected for playback. No html return 
+    return;    
   } else strcpy(dayFolder, decodedName.c_str());
   bool returnDirs = (decodedName.compare("/")) ? false : true;
 
@@ -543,7 +548,8 @@ void listDir(const char* fname, char* htmlBuff) {
   showDebug("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
 
   // build relevant option list
-  strcpy(htmlBuff, "{"); 
+  if(returnDirs) strcpy(htmlBuff, "{"); 
+  else strcpy(htmlBuff, " {\"/\":\".. [ Up ]\","); 
   File file = root.openNextFile();
   bool noEntries = true;
   while (file) {
@@ -575,8 +581,7 @@ void listDir(const char* fname, char* htmlBuff) {
     }
     file = root.openNextFile();
   }
-  if (noEntries) strcat(htmlBuff, "\"/\":\"Get Folders\"}");
-  else htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
+  htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
 }
 
 size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize) { 
