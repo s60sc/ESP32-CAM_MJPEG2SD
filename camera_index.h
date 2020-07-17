@@ -700,7 +700,7 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="time-group">
                              <label for="timezoneSel">Time zone select</label>
                              <select id="timezoneSel" name="timezoneSel">
-                                <option value="" selected>&nbsp;--- Select ---</option>
+                                <option value="" selected>&nbsp;-- Select --</option>
                                 <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
                                 <option value="GMT0BST,M3.5.0/01,M10.5.0/02">Europe/Belfast</option>
                                 <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
@@ -1089,8 +1089,10 @@ document.addEventListener('DOMContentLoaded', function (event) {
     var selection = sid.val();
     document.getElementById('delete').value = selection; //Store file path for delete
     document.getElementById('upload').value = selection; //Store file path for ftp upload
-    sid.find('option:not(:first)').remove(); // remove all except first option
     var listItems = '';
+    //Not a file list
+    var pathDir = selection.substring(0,selection.lastIndexOf("/"))
+    if(pathDir=="") sid.find('option:not(:first)').remove(); // remove all except first option
     $.ajax({
       url: baseHost + '/control',
       data: {
