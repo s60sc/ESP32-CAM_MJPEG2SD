@@ -65,6 +65,7 @@ size_t* getNextFrame();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
+String upTime();
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val);
@@ -380,8 +381,10 @@ static esp_err_t status_handler(httpd_req_t *req){
       useBytes = SD_MMC.usedBytes() / 1048576;
       p+=sprintf(p, "\"card_size\":\"%llu MB\",", cardSize);
       p+=sprintf(p, "\"used_bytes\":\"%llu MB\",", useBytes);
+      p+=sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
       p+=sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
     }
+    p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());    
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\"", WiFi.RSSI() );  
     
