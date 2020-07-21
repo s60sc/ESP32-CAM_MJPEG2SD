@@ -24,29 +24,43 @@ const char* index_ov2640_html = R"~(
                 padding-left: 5px;
             }
             
-            nav#maintoolbar {
+           .center{
+              text-align: center; 
+           }
+           
+           nav#maintoolbar {
               display: flex;
               flex-wrap: nowrap;
               justify-content: flex-end;
-            }
-            
-            section#main {
+           }
+                        
+           section#main {
               display: flex;
               flex-direction: column;
-              margin-bottom: 7px;
-            }
+              /*margin-bottom: 7px;*/
+           }
             
             section#header {
               min-width: 342px;
               background-color: #363636;
-              margin-bottom: 6px;
+              margin-bottom: 13px;
               padding: 4px 12px;
               display: flex;
               flex-wrap: wrap;
               border-radius: 4px;
               justify-content: space-between;
+           }
+           section#footer {
+              min-width: 342px;
+              background-color: #363636;
+              margin-top: -10px;
+              padding: 4px 12px;
+              display: flex;
+              flex-wrap: wrap;
+              border-radius: 4px;
+              justify-content: space-between;
+              font-size: 11px;
             }
-             
             nav.menu {
               display: grid;
               flex-direction: column;
@@ -130,7 +144,11 @@ const char* index_ov2640_html = R"~(
                 line-height: 22px;
                 margin: 5px 0
             }
-
+            .info-group {
+                position: relative;                               
+                margin: 5px 0;
+                
+            }
             .input-group>label {
                 display: inline-block;
                 padding-right: 10px;
@@ -325,7 +343,9 @@ const char* index_ov2640_html = R"~(
 
             .image-container {
                 position: relative;
-                min-width: 160px
+                min-width: 160px;
+                margin-bottom: 15px;
+                margin-top:-15px;
             }
 
             .close {
@@ -392,8 +412,7 @@ const char* index_ov2640_html = R"~(
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
               </nav>
-            </section>
-         </section>   
+            </section>        
             <div id="content">
                 <div id="sidebar">
                     <nav class="menu">                                                                
@@ -461,10 +480,6 @@ const char* index_ov2640_html = R"~(
                                   <label class="slider" for="record"></label>
                               </div>
                           </div> 
-                          <div class="input-group" id="isrecord">
-                              <label for="isrecord">Recording? </label>
-                              &nbsp;<div id="isrecord" class="default-action displayonly">&nbsp;</div>
-                          </div>
                           <div class="input-group" id="motion-group">
                               <label for="motion">Motion Sensitivity</label>
                               <div class="range-min">1</div>
@@ -485,15 +500,7 @@ const char* index_ov2640_html = R"~(
                               <input type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
                               <output name="rangeVal">10</output>
                               <div class="range-max">100</div>
-                          </div>
-                          <div class="input-group" id="llevel-group">
-                              <label for="llevel">Ambient Light</label>
-                              &nbsp;<div id="llevel" class="default-action displayonly">&nbsp;</div>
-                          </div>
-                          <div class="input-group" id="night-group">
-                              <label for="night">Night Time</label>
-                              &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
-                          </div>                             
+                          </div>                              
                           <div class="input-group extras" id="atemp-group">
                               <label for="atemp">Camera Temp</label>
                               &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
@@ -710,10 +717,6 @@ const char* index_ov2640_html = R"~(
                                 <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
                              </select>
                           </div>
-                          <div class="input-group" id="time-group">
-                              <label for="clock">Camera time</label>
-                              <input id="clock" name="clock" length=20 style="max-width:124px" class="default-action">
-                          </div>
                           <div class="input-group extras" id="time-group">
                               <label for="clockUTC">Camera UTC</label>
                               <input id="clockUTC" name="clockUTC" length=20 style="max-width:124px" class="default-action">
@@ -757,6 +760,48 @@ const char* index_ov2640_html = R"~(
                     </div>
                 </figure>
             </div>
+            <section id="footer">
+                <div class="info-group" id="isrecord">
+                    <label for="isrecord">Recording?</label>
+                    <div id="isrecord" class="default-action displayonly center">&nbsp;</div>
+                </div>
+                <div class="info-group" id="llevel-group">
+                    <label for="llevel">Ambient&nbsp;Light</label>
+                    <div id="llevel" class="default-action displayonly center">&nbsp;</div>
+                </div>
+                <div class="info-group" id="night-group">
+                    <label for="night">Night&nbsp;Time</label>
+                    <div id="night" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>
+                <div class="info-group center" id="clock-group">
+                    <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
+                    <div id="clock" class="default-action displayonly" name="textonly">&nbsp;</div>
+                </div>
+                <div class="info-group" id="uptime-group">
+                    <label for="up_time">Up&nbsp;time</label>
+                    <div id="up_time" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>                                                 
+                <div class="info-group" id="rssi-group">
+                    <label for="wifi_rssi">Signal&nbsp;Strength</label>
+                    <div id="wifi_rssi" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>
+                <div class="info-group" id="heap-group">
+                    <label for="free_heap">Free&nbsp;memory</label>
+                    <div id="free_heap" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>                
+                <div class="info-group" id="total-group">
+                    <label for="total_bytes">Total&nbsp;space</label>
+                    <div id="total_bytes" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>                
+                <div class="info-group" id="used-group">
+                    <label for="used_bytes">Used&nbsp;space</label>
+                    <div id="used_bytes" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>
+                <div class="info-group" id="free-group">
+                    <label for="free_bytes">Free&nbsp;space</label>
+                    <div id="free_bytes" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                </div>                
+            </section>                         
         </section>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
         <script src="/jquery.min.js"></script>
