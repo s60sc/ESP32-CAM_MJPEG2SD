@@ -243,7 +243,6 @@ void controlFrameTimer(bool restartTimer) {
 }
 
 /**************** capture MJPEG  ************************/
-
 static bool openMjpeg() {
   // derive filename from date & time, store in date folder
   // time to open a new file on SD increases with the number of files already present
@@ -466,7 +465,6 @@ uint8_t setFPSlookup(uint8_t val) {
 }
 
 /********************** plackback MJPEG ***********************/
-
 int* extractMeta(const char* fname) {
   // extract frame type, FPS, duration, and frame count from filename with assumed format 
   int i = 0, _recFPS = 0, _frameCnt = 0, _recDuration = 0, _ftypePtr = 0;
@@ -521,8 +519,6 @@ static void openSDfile() {
     xTaskNotifyGive(playbackHandle);
   }
 }
-
-
 
 //If filename open it for playback
 void listDir(const char* fname, char* htmlBuff) {
@@ -901,3 +897,23 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   xSemaphoreGive(motionMutex);
 }
 #endif
+
+String upTime(){
+  String ret="";
+  long days=0;
+  long hours=0;
+  long mins=0;
+  long secs=0;
+  secs = millis()/1000; //convect milliseconds to seconds
+  mins=secs/60; //convert seconds to minutes
+  hours=mins/60; //convert minutes to hours
+  days=hours/24; //convert hours to days
+  secs=secs-(mins*60); //subtract the coverted seconds to minutes in order to display 59 secs max 
+  mins=mins-(hours*60); //subtract the coverted minutes to hours in order to display 59 minutes max
+  hours=hours-(days*24); //subtract the coverted hours to days in order to display 23 hours max
+  if(days > 0) ret += String(days) + "d ";
+  if(hours > 0) ret += String(hours) + "h ";
+  if(mins >= 0) ret += String(mins) + "m ";
+  if(secs >= 0) ret += String(secs) + "s ";
+  return ret;
+}
