@@ -1,6 +1,7 @@
 
 This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 Added functionality 
+* Added footer information
 * Improved select sd stored file for playback 
 * Stream and playback from access point conections via 
   SmartPhone or Tablet with no internet at all
