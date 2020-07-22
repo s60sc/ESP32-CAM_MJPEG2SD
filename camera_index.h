@@ -715,6 +715,31 @@ const char* index_ov2640_html = R"~(
                                 <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
                                 <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
                                 <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
+                                <option value="Etc/GMT-12">GMT-12:00</option>
+                                <option value="Etc/GMT-11">GMT-11:00</option>
+                                <option value="Etc/GMT-10">GMT-10:00</option>
+                                <option value="Etc/GMT-9">GMT-9:00</option>
+                                <option value="Etc/GMT-8">GMT-8:00</option>
+                                <option value="Etc/GMT-7">GMT-7:00</option>
+                                <option value="Etc/GMT-6">GMT-6:00</option>
+                                <option value="Etc/GMT-5">GMT-5:00</option>
+                                <option value="Etc/GMT-4">GMT-4:00</option>
+                                <option value="Etc/GMT-3">GMT-3:00</option>
+                                <option value="Etc/GMT-2">GMT-2:00</option>
+                                <option value="Etc/GMT-1">GMT-1:00</option>
+                                <option value="Etc/GMT+0">GMT+0:00</option>
+                                <option value="Etc/GMT-1">GMT+1:00</option>
+                                <option value="Etc/GMT-2">GMT+2:00</option>
+                                <option value="Etc/GMT-3">GMT+3:00</option>
+                                <option value="Etc/GMT-4">GMT+4:00</option>
+                                <option value="Etc/GMT-5">GMT+5:00</option>
+                                <option value="Etc/GMT-6">GMT+6:00</option>
+                                <option value="Etc/GMT-7">GMT+7:00</option>
+                                <option value="Etc/GMT-8">GMT+8:00</option>
+                                <option value="Etc/GMT-9">GMT+9:00</option>
+                                <option value="Etc/GMT-10">GMT+10:00</option>
+                                <option value="Etc/GMT-11">GMT+11:00</option>
+                                <option value="Etc/GMT-12">GMT+12:00</option>                                
                              </select>
                           </div>
                           <div class="input-group extras" id="time-group">
@@ -761,45 +786,45 @@ const char* index_ov2640_html = R"~(
                 </figure>
             </div>
             <section id="footer">
-                <div class="info-group" id="isrecord">
+                <div class="info-group center" id="isrecord">
                     <label for="isrecord">Recording?</label>
-                    <div id="isrecord" class="default-action displayonly center">&nbsp;</div>
+                    <div id="isrecord" class="default-action displayonly">&nbsp;</div>
                 </div>
-                <div class="info-group" id="llevel-group">
+                <div class="info-group center" id="llevel-group">
                     <label for="llevel">Ambient&nbsp;Light</label>
-                    <div id="llevel" class="default-action displayonly center">&nbsp;</div>
+                    <div id="llevel" class="default-action displayonly">&nbsp;</div>
                 </div>
-                <div class="info-group" id="night-group">
+                <div class="info-group center" id="night-group">
                     <label for="night">Night&nbsp;Time</label>
-                    <div id="night" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="clock-group">
                     <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
                     <div id="clock" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>
-                <div class="info-group" id="uptime-group">
+                <div class="info-group center" id="uptime-group">
                     <label for="up_time">Up&nbsp;time</label>
-                    <div id="up_time" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="up_time" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>                                                 
-                <div class="info-group" id="rssi-group">
+                <div class="info-group center" id="rssi-group">
                     <label for="wifi_rssi">Signal&nbsp;Strength</label>
-                    <div id="wifi_rssi" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="wifi_rssi" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>
-                <div class="info-group" id="heap-group">
+                <div class="info-group center" id="heap-group">
                     <label for="free_heap">Free&nbsp;memory</label>
-                    <div id="free_heap" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="free_heap" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>                
-                <div class="info-group" id="total-group">
+                <div class="info-group center" id="total-group">
                     <label for="total_bytes">Total&nbsp;space</label>
-                    <div id="total_bytes" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="total_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>                
-                <div class="info-group" id="used-group">
+                <div class="info-group center" id="used-group">
                     <label for="used_bytes">Used&nbsp;space</label>
-                    <div id="used_bytes" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="used_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>
-                <div class="info-group" id="free-group">
+                <div class="info-group center" id="free-group">
                     <label for="free_bytes">Free&nbsp;space</label>
-                    <div id="free_bytes" class="default-action displayonly center" name="textonly">&nbsp;</div>
+                    <div id="free_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>                
             </section>                         
         </section>
