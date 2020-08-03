@@ -328,21 +328,25 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
   ftpDisconnect();  
 }
 
+static bool removeAfterUpload=false; //Delete file if successfully uploaded
+
 static void taskUpload(void * parameter){
     // prevent SD access by other tasks
     String fname((char*) parameter);
     delay(1000); // allow other tasks to finish off
     
-    ESP_LOGV(TAG, "Entering upload task with param: %s\n",fname.c_str());    
-    uploadFolderOrFileFtp(fname,false,0);
+    ESP_LOGV(TAG, "Entering upload task fname: %s\n",fname.c_str());    
+    uploadFolderOrFileFtp(fname, removeAfterUpload, 0);
     ESP_LOGV(TAG, "Ending uploadTask");
     vTaskDelete( NULL );
 }
 
-void createUploadTask(const char* val){
+void createUploadTask(const char* val, bool move=false){
     static char fname[100];
     strcpy(fname, val); // else wont persist
-    ESP_LOGV(TAG, "Starting upload task with val: %s\n",val);
+    removeAfterUpload = move;
+    ESP_LOGV(TAG, "Starting upload task with val: %s and delete on upload %i\n",val,removeAfterUpload);
+    
     xTaskCreate(
         &taskUpload,       /* Task function. */
         "taskUpload",     /* String with name of task. */
@@ -351,4 +355,3 @@ void createUploadTask(const char* val){
         1,                /* Priority of the task. */
         NULL);            /* Task handle. */
 }
-
