@@ -141,7 +141,7 @@ const char* index_ov2640_html = R"~(
                 position: relative;
                 display: flex;
                 flex-wrap: nowrap;
-                line-height: 22px;
+                line-height: 29px;
                 margin: 5px 0
             }
             .info-group {
@@ -453,7 +453,7 @@ const char* index_ov2640_html = R"~(
                                   <input id="dbg" type="checkbox" class="default-action">
                                   <label class="slider" for="dbg"></label>
                               </div>
-                          </div>
+                          </div>                                                  
                           <div class="input-group" id="sfiles-group" style="display: grid;">
                             <label for="sfiles">Select folder / file</label>                          
                             <select id="sfile" style="font-size: 11px;">
@@ -463,9 +463,16 @@ const char* index_ov2640_html = R"~(
                           </div>
                           <section id="buttons"><br>
                             <button id="upload" style="float:left; " value="1">Ftp Upload</button>
-                            <button id="uploadrem" class="extras" style="float:left; " value="1">Ftp Upload Delete</button>
-                            <button id="delete" style="float:right; " value="">Delete</button>
+                            <button id="uploadMove" style="float:left; " value="1">Ftp Move</button>
+                            <button id="delete" style="float:right; " value="1">Delete</button>
                           </section><br>
+                          <div class="input-group" id="aviOn-group">
+                              <label for="aviOn">Upload avi</label>
+                              <div class="switch">
+                                  <input id="aviOn" type="checkbox" class="default-action">
+                                  <label class="slider" for="aviOn"></label>
+                              </div>
+                          </div>                            
                           <div class="input-group" id="quality-group">
                               <label for="quality">Quality</label>
                               <div class="range-min">10</div>
@@ -935,8 +942,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
         break
       case 'button':
       case 'submit':
-        if(el.value!="1"){ //Delete folder or file, or ftp upload
-          value = el.value
+        if(el.value!="1"){ //Delete folder or file, or ftp upload or move
+          value = el.value;        
         }else{
           value = '1'
         }
@@ -949,8 +956,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }
     
     const query = `${baseHost}/control?var=${el.id}&val=${value}`
-
-    fetch(query)
+    const encoded = encodeURI(query);
+    console.log(`Encoded request ${query}`)
+    fetch(encoded)
       .then(response => {
         console.log(`request to ${query} finished, status: ${response.status}`)
     })
@@ -983,6 +991,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')  
   const uploadButton = document.getElementById('upload')    
+  const uploadMoveButton = document.getElementById('uploadMove')    
   const deleteButton = document.getElementById('delete') 
   const rebootButton = document.getElementById('reboot')
   const saveButton = document.getElementById('save')
@@ -991,7 +1000,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
   }
-  
+  uploadMoveButton.onclick = () => {
+    updateConfig(uploadMoveButton);
+  }
   deleteButton.onclick = () => {
     var deleteBt = $('#delete');
     if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
@@ -1159,6 +1170,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     var selection = sid.val();
     document.getElementById('delete').value = selection; //Store file path for delete
     document.getElementById('upload').value = selection; //Store file path for ftp upload
+    document.getElementById('uploadMove').value = selection; //Store file path for ftp upload move
     var listItems = '';
     //Not a file list
     var pathDir = selection.substring(0,selection.lastIndexOf("/"))
