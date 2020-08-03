@@ -14,9 +14,9 @@ static const char* TAG = "myConfig";
 //If no default SSID value defined here
 //will start an access point if no saved value found
 
-char hostName[20] = ""; //Host name for ddns
-char ST_SSID[20]  = "";       //Router ssid
-char ST_Pass[12]  = ""; //Router passd
+char hostName[32] = ""; //Host name for ddns
+char ST_SSID[32]  = "";       //Router ssid
+char ST_Pass[64]  = ""; //Router passd
 
 char ST_ip[16]  = ""; //Leave blank for dhcp
 char ST_sn[16]  = "";
