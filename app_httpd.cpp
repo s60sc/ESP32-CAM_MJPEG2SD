@@ -68,12 +68,13 @@ void controlLamp(bool lampVal);
 String upTime();
 
 void deleteFolderOrFile(const char* val);
-void createUploadTask(const char* val);
+void createUploadTask(const char* val,bool move=false);
 void syncToBrowser(char *val);
 //Config file
 bool saveConfig();
 void resetConfig();
 
+String urldecode(String str);
 
 // status & control fields 
 extern float moduleTemp;
@@ -196,10 +197,11 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     char*  buf = (char*)malloc(buf_len);
     if (buf_len > 1) {
       if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-        if (httpd_query_key_value(buf, "var", variable, sizeof(variable)) == ESP_OK &&
-          httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK) {
+        String decoded = urldecode(String(buf));
+        if (httpd_query_key_value(decoded.c_str(), "var", variable, sizeof(variable)) == ESP_OK &&
+          httpd_query_key_value(decoded.c_str(), "val", value, sizeof(value)) == ESP_OK) {
         } else res = ESP_FAIL;
-                                                                  
+                                                                          
       } else res = ESP_FAIL;
                                             
     } else res = ESP_FAIL;
@@ -246,8 +248,9 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
-    else if(!strcmp(variable, "avi")) aviOn = val;
+    else if(!strcmp(variable, "aviOn")) aviOn = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
+    else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     else if(!strcmp(variable, "dbgMotion")) {
@@ -317,7 +320,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
-    p+=sprintf(p, "\"avi\":%u,", aviOn);
+    p+=sprintf(p, "\"aviOn\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
@@ -467,3 +470,81 @@ void startCameraServer(){
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
 }
+
+//==============================================================
+//                     URL Encode Decode Functions
+//==============================================================
+unsigned char h2int(char c)
+{
+    if (c >= '0' && c <='9'){
+        return((unsigned char)c - '0');
+    }
+    if (c >= 'a' && c <='f'){
+        return((unsigned char)c - 'a' + 10);
+    }
+    if (c >= 'A' && c <='F'){
+        return((unsigned char)c - 'A' + 10);
+    }
+    return(0);
+}
+
+String urldecode(String str){    
+    String encodedString="";
+    char c;
+    char code0;
+    char code1;
+    for (int i =0; i < str.length(); i++){
+        c=str.charAt(i);
+      if (c == '+'){
+        encodedString+=' ';  
+      }else if (c == '%') {
+        i++;
+        code0=str.charAt(i);
+        i++;
+        code1=str.charAt(i);
+        c = (h2int(code0) << 4) | h2int(code1);
+        encodedString+=c;
+      } else{
+        
+        encodedString+=c;  
+      }
+      
+      yield();
+    }
+    
+   return encodedString;
+}
+ 
+String urlencode(String str){
+    String encodedString="";
+    char c;
+    char code0;
+    char code1;
+    char code2;
+    for (int i =0; i < str.length(); i++){
+      c=str.charAt(i);
+      if (c == ' '){
+        encodedString+= '+';
+      } else if (isalnum(c)){
+        encodedString+=c;
+      } else{
+        code1=(c & 0xf)+'0';
+        if ((c & 0xf) >9){
+            code1=(c & 0xf) - 10 + 'A';
+        }
+        c=(c>>4)&0xf;
+        code0=c+'0';
+        if (c > 9){
+            code0=c - 10 + 'A';
+        }
+        code2='\0';
+        encodedString+='%';
+        encodedString+=code0;
+        encodedString+=code1;
+        //encodedString+=code2;
+      }
+      yield();
+    }
+    return encodedString;
+}
+ 
