@@ -17,6 +17,7 @@
 #include "esp_timer.h"
 #include "esp_camera.h"
 #include "camera_index.h"
+#include <regex>
 #include "Arduino.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -70,7 +71,6 @@ void resetConfig();
 
 
 // status & control fields 
-extern float moduleTemp;
 extern bool lampOn;
 extern float motionVal;
 extern bool aviOn;
@@ -180,6 +180,11 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   return res;
 }
 
+static void urlDecode(char* saveVal, const char* urlVal) {
+  // replace url encoded space with space
+  std::string decodeVal(urlVal); 
+  strcpy(saveVal, (std::regex_replace(decodeVal, std::regex("%20"), " ")).c_str()); 
+}
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -254,13 +259,13 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
     //Other settings
-    else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
-    else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
-    else if(!strcmp(variable, "ST_Pass")) strcpy(ST_Pass,value);
-    else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server,value);
+    else if(!strcmp(variable, "hostName")) urlDecode(hostName, value);
+    else if(!strcmp(variable, "ST_SSID")) urlDecode(ST_SSID, value);
+    else if(!strcmp(variable, "ST_Pass")) urlDecode(ST_Pass, value);
+    else if(!strcmp(variable, "ftp_server")) urlDecode(ftp_server, value);
     else if(!strcmp(variable, "ftp_port")) strcpy(ftp_port,value);
-    else if(!strcmp(variable, "ftp_user")) strcpy(ftp_user,value);
-    else if(!strcmp(variable, "ftp_pass")) strcpy(ftp_pass,value);
+    else if(!strcmp(variable, "ftp_user")) urlDecode(ftp_user, value);
+    else if(!strcmp(variable, "ftp_pass")) urlDecode(ftp_pass, value);
     else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd,value);
     
     else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
@@ -312,7 +317,6 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"avi\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
-    p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mjpeg2sd.cpp
@@ -436,4 +440,3 @@ void startCameraServer(){
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
 }
-
