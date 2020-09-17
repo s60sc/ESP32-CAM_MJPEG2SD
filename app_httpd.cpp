@@ -74,7 +74,7 @@ void syncToBrowser(char *val);
 bool saveConfig();
 void resetConfig();
 
-String urldecode(String str);
+String urlDecode(String str);
 
 // status & control fields 
 extern float moduleTemp;
@@ -197,7 +197,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     char*  buf = (char*)malloc(buf_len);
     if (buf_len > 1) {
       if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-        String decoded = urldecode(String(buf));
+        String decoded = urlDecode(String(buf));
         if (httpd_query_key_value(decoded.c_str(), "var", variable, sizeof(variable)) == ESP_OK &&
           httpd_query_key_value(decoded.c_str(), "val", value, sizeof(value)) == ESP_OK) {
         } else res = ESP_FAIL;
@@ -474,77 +474,49 @@ void startCameraServer(){
 //==============================================================
 //                     URL Encode Decode Functions
 //==============================================================
-unsigned char h2int(char c)
-{
-    if (c >= '0' && c <='9'){
-        return((unsigned char)c - '0');
-    }
-    if (c >= 'a' && c <='f'){
-        return((unsigned char)c - 'a' + 10);
-    }
-    if (c >= 'A' && c <='F'){
-        return((unsigned char)c - 'A' + 10);
-    }
-    return(0);
-}
+String urlEncode(String str){
+    String new_str = "";
+    char c;
+    int ic;
+    const char* chars = str.c_str();
+    char bufHex[10];
+    int len = strlen(chars);
 
-String urldecode(String str){    
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    for (int i =0; i < str.length(); i++){
-        c=str.charAt(i);
-      if (c == '+'){
-        encodedString+=' ';  
-      }else if (c == '%') {
-        i++;
-        code0=str.charAt(i);
-        i++;
-        code1=str.charAt(i);
-        c = (h2int(code0) << 4) | h2int(code1);
-        encodedString+=c;
-      } else{
-        
-        encodedString+=c;  
-      }
-      
-      yield();
-    }
-    
-   return encodedString;
-}
- 
-String urlencode(String str){
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    char code2;
-    for (int i =0; i < str.length(); i++){
-      c=str.charAt(i);
-      if (c == ' '){
-        encodedString+= '+';
-      } else if (isalnum(c)){
-        encodedString+=c;
-      } else{
-        code1=(c & 0xf)+'0';
-        if ((c & 0xf) >9){
-            code1=(c & 0xf) - 10 + 'A';
+    for(int i=0;i<len;i++){
+        c = chars[i];
+        ic = c;
+        // uncomment this if you want to encode spaces with +
+        /*if (c==' ') new_str += '+';   
+        else */if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') new_str += c;
+        else {
+            sprintf(bufHex,"%X",c);
+            if(ic < 16) 
+                new_str += "%0"; 
+            else
+                new_str += "%";
+            new_str += bufHex;
         }
-        c=(c>>4)&0xf;
-        code0=c+'0';
-        if (c > 9){
-            code0=c - 10 + 'A';
-        }
-        code2='\0';
-        encodedString+='%';
-        encodedString+=code0;
-        encodedString+=code1;
-        //encodedString+=code2;
-      }
-      yield();
     }
-    return encodedString;
+    return new_str;
+ }
+
+String urlDecode(String str){
+    String ret;
+    char ch;
+    int i, ii, len = str.length();
+
+    for (i=0; i < len; i++){
+        if(str[i] != '%'){
+            if(str[i] == '+')
+                ret += ' ';
+            else
+                ret += str[i];
+        }else{
+            sscanf(str.substring(i + 1, 2).c_str(), "%x", &ii);
+            ch = static_cast<char>(ii);
+            ret += ch;
+            i = i + 2;
+        }
+    }
+    return ret;
 }
- 
