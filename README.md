@@ -1,6 +1,7 @@
 
 This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 Added functionality 
+* Fixed Url encoded requests to handle '._-~'
 * Url encoded requests to handle ssids with spaces
 * Added upload move function
 * Added footer information
