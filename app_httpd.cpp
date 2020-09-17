@@ -58,10 +58,12 @@ extern bool lampVal;
 void listDir(const char* fname, char* htmlBuff);
 uint8_t setFPSlookup(uint8_t val);
 uint8_t setFPS(uint8_t val);
+void openSDfile();
 size_t* getNextFrame();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
+float readDStemp(boolean isCelsius);
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val);
@@ -123,10 +125,13 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
+  bool startPlayback = true;
   while (true) {
     // additions for mjpeg2sd.cpp
     if (doPlayback) {
       // playback mjpeg from SD
+      if (startPlayback) openSDfile(); // open playback file when start streaming
+      startPlayback = false;
       size_t* imgPtrs = getNextFrame(); 
       size_t clusterLen = imgPtrs[0];
       if (clusterLen) res = httpd_resp_send_chunk(req, (const char*)SDbuffer+imgPtrs[1], clusterLen);
@@ -181,10 +186,12 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 }
 
 static void urlDecode(char* saveVal, const char* urlVal) {
-  // replace url encoded space with space
+  // replace url encoded characters - make more generic
   std::string decodeVal(urlVal); 
-  strcpy(saveVal, (std::regex_replace(decodeVal, std::regex("%20"), " ")).c_str()); 
+  strcpy(saveVal, (std::regex_replace(decodeVal, std::regex("%20"), " ")).c_str()); // spaces
+  strcpy(saveVal, (std::regex_replace(saveVal, std::regex("%2E"), ".")).c_str()); // dots
 }
+
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -266,7 +273,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "ftp_port")) strcpy(ftp_port,value);
     else if(!strcmp(variable, "ftp_user")) urlDecode(ftp_user, value);
     else if(!strcmp(variable, "ftp_pass")) urlDecode(ftp_pass, value);
-    else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd,value);
+    else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd, value);
     
     else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, val);
@@ -317,6 +324,9 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"avi\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
+    float aTemp = readDStemp(true);
+    if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
+    else p+=sprintf(p, "\"atemp\":\"n/a\",");
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mjpeg2sd.cpp
