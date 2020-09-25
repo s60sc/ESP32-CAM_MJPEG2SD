@@ -11,6 +11,7 @@ extern const char* TIMEZONE; //Defined in myConfig.h
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
+#define USE_MICROPHONE false // to record from analog microphone attached to pin 33
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
@@ -36,7 +37,7 @@ uint8_t FPS;
 bool lampOn = false;     
 bool nightTime = false;
 uint8_t lightLevel; // Current ambient light level     
-uint16_t insufficient = 0;         
+uint16_t insufficient = 0;  
 
 // stream separator
 extern const char* _STREAM_BOUNDARY; 
@@ -111,6 +112,7 @@ bool doPlayback = false;
 // task control
 static TaskHandle_t captureHandle = NULL;
 static TaskHandle_t playbackHandle = NULL;
+extern TaskHandle_t getDS18tempHandle;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
 SemaphoreHandle_t frameMutex;
@@ -125,6 +127,10 @@ static camera_fb_t* fb;
 bool isNight(uint8_t nightSwitch);
 bool checkMotion(camera_fb_t* fb, bool captureStatus);
 void stopPlaying();
+void readSD();
+void prepSound();
+void startAudio();
+void finishAudio(const char* mjpegName, bool isvalid);
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -207,6 +213,7 @@ void controlFrameTimer(bool restartTimer) {
     timer3 = timerBegin(3, 8000, true); // 0.1ms tick
     frameInterval = 10000 / FPS; // in units of 0.1ms 
     showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
+    
     timerAlarmWrite(timer3, frameInterval, true); // 
     timerAlarmEnable(timer3);
     timerAttachInterrupt(timer3, &frameISR, true);
@@ -222,11 +229,11 @@ static bool openMjpeg() {
   dateFormat(partName, sizeof(partName), true);
   SD_MMC.mkdir(partName); // make date folder if not present
   dateFormat(partName, sizeof(partName), false);
-  mjpegFile = SD_MMC.open(partName, FILE_WRITE);
-
   // open mjpeg file with temporary name
+  mjpegFile  = SD_MMC.open(partName, FILE_WRITE);
   oTime = millis() - oTime;
   showDebug("File opening time: %ums", oTime);
+  if (USE_MICROPHONE) startAudio();
   // initialisation of counters
   startMjpeg = millis();
   frameCnt = fTimeTot = wTimeTot = dTimeTot = highPoint = vidSize = 0;
@@ -305,6 +312,7 @@ static bool closeMjpeg() {
     snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%u_%u_%u.%s", 
       partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000.0), frameCnt, MJPEGEXT);
     SD_MMC.rename(partName, mjpegName);
+    if (USE_MICROPHONE) finishAudio(mjpegName, true);
     showDebug("MJPEG close/rename time %u ms", millis() - hTime); 
     cTime = millis() - cTime;
     insufficient = 0;
@@ -330,9 +338,10 @@ static bool closeMjpeg() {
     showInfo("*************************************\n");
     return true;
   } else {
-    // delete too small file if exists
+    // delete too small files if exist
     mjpegFile.close();
     SD_MMC.remove(partName);
+    if (USE_MICROPHONE) finishAudio(partName, false);
     showDebug("Insufficient capture duration: %u secs", captureTime);
     insufficient++;
     return false;
@@ -353,7 +362,8 @@ static boolean processFrame() {
   if (fb) {
     // determine if time to monitor, then get motion capture status
     if (USE_MOTION) {
-      if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); 
+      if (debugMotion) checkMotion(fb, false); // check each frame for debug
+      else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
       nightTime = isNight(nightSwitch); 
       if (nightTime) {
         // dont record if night time as image shift is spurious
@@ -390,7 +400,7 @@ static boolean processFrame() {
       }
       wasCapturing = isCapturing;
       
-    } else finishRecording = true; // in case Save Capture switched off
+    } 
     showDebug("============================");
   } else {
     showError("Failed to get frame");
@@ -402,7 +412,7 @@ static boolean processFrame() {
     if (stopPlayback) {
       closeMjpeg();
       controlLamp(false);
-    }
+    } 
     finishRecording = isCapturing = wasCapturing = stopPlayback = false; // allow for playbacks
   }
   return res;
@@ -476,7 +486,7 @@ static void playbackFPS(const char* fname) {
   controlFrameTimer(true); // set frametimer
 }
 
-static void openSDfile() {
+void openSDfile() {
   // open selected file on SD for streaming 
   if (stopPlayback) showError("Playback refused - capture in progress");
   else {
@@ -489,7 +499,7 @@ static void openSDfile() {
     firstCallPlay = true;
     isPlaying = true; // task control
     doPlayback = true; // browser control
-    xTaskNotifyGive(playbackHandle);
+    readSD(); // prime playback task
   }
 }
 
@@ -499,52 +509,54 @@ void listDir(const char* fname, char* htmlBuff) {
   // need to decode encoded slashes
   decodedName = std::regex_replace(decodedName, std::regex("%2F"), "/");
   // check if folder or file
+  bool noEntries = true;
+  strcpy(htmlBuff, "{"); 
   if (decodedName.find(MJPEGEXT) != std::string::npos) {
     // mjpeg file selected
     strcpy(mjpegName, decodedName.c_str());
-    openSDfile();
-    decodedName = "/"; // enable day folders to be returned 
-  } else strcpy(dayFolder, decodedName.c_str());
-  bool returnDirs = (decodedName.compare("/")) ? false : true;
-
-  // open relevant folder to list contents
-  File root = SD_MMC.open(decodedName.c_str());
-  if (!root) showError("Failed to open directory %s", decodedName.c_str());
-  if (!root.isDirectory()) showError("Not a directory %s", decodedName.c_str());
-  showDebug("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
-
-  // build relevant option list
-  strcpy(htmlBuff, "{"); 
-  File file = root.openNextFile();
-  bool noEntries = true;
-  while (file) {
-    if (file.isDirectory() && returnDirs) {
-      // build folder names into HTML response
-      std::string str(file.name());
-      if (str.find("/System") == std::string::npos) { // ignore Sys Vol Info
-        sprintf(optionHtml, "\"%s\":\"%s\",", file.name(), file.name());
-        if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
-        else {
-          showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
-          break;
+    doPlayback = true; // browser control
+    noEntries = true; 
+  } else {
+    strcpy(dayFolder, decodedName.c_str());
+    bool returnDirs = (decodedName.compare("/")) ? false : true;
+  
+    // open relevant folder to list contents
+    File root = SD_MMC.open(decodedName.c_str());
+    if (!root) showError("Failed to open directory %s", decodedName.c_str());
+    if (!root.isDirectory()) showError("Not a directory %s", decodedName.c_str());
+    showDebug("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
+  
+    // build relevant option list
+    File file = root.openNextFile();
+    while (file) {
+      if (file.isDirectory() && returnDirs) {
+        // build folder names into HTML response
+        std::string str(file.name());
+        if (str.find("/System") == std::string::npos) { // ignore Sys Vol Info
+          sprintf(optionHtml, "\"%s\":\"%s\",", file.name(), file.name());
+          if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
+          else {
+            showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+            break;
+          }
+          noEntries = false;
         }
-        noEntries = false;
       }
-    }
-    if (!file.isDirectory() && !returnDirs) {
-      // update existing html with file details
-      std::string str(file.name());
-      if (str.find(MJPEGEXT) != std::string::npos) {
-        sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size()/ONEMEG);
-        if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
-        else {
-          showError("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
-          break;
+      if (!file.isDirectory() && !returnDirs) {
+        // update existing html with file details
+        std::string str(file.name());
+        if (str.find(MJPEGEXT) != std::string::npos) {
+          sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size()/ONEMEG);
+          if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
+          else {
+            showError("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+            break;
+          }
+          noEntries = false;
         }
-        noEntries = false;
       }
+      file = root.openNextFile();
     }
-    file = root.openNextFile();
   }
   if (noEntries) strcat(htmlBuff, "\"/\":\"Get Folders\"}");
   else htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
@@ -809,6 +821,7 @@ void deleteFolderOrFile(const char * val) {
     }  
   }
 }
+
 /******************* Startup ********************/
 
 bool prepMjpeg() {
@@ -829,6 +842,8 @@ bool prepMjpeg() {
       frameMutex = xSemaphoreCreateMutex();
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
+      showInfo("Free DRAM: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+      showInfo("Sound recording is %s", USE_MICROPHONE ? "On" : "Off");
       showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
@@ -855,9 +870,23 @@ void startSDtasks() {
   setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
 }
 
+static void deleteTask(TaskHandle_t thisTaskHandle) {
+  if (thisTaskHandle != NULL) vTaskDelete(thisTaskHandle);
+  thisTaskHandle = NULL;
+}
+
 void endTasks() {
-  vTaskDelete(captureHandle);
-  vTaskDelete(playbackHandle);
+  deleteTask(captureHandle);
+  deleteTask(playbackHandle);
+  deleteTask(getDS18tempHandle);
+}
+
+void OTAprereq() {
+  // stop timer isrs, and free up heap space, or crashes esp32
+  esp_camera_deinit();
+  controlFrameTimer(false);  
+  endTasks();
+  delay(100);
 }
 
 # ifndef USE_MOTION
@@ -867,4 +896,3 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   xSemaphoreGive(motionMutex);
 }
 #endif
-

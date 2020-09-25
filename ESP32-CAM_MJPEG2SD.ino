@@ -1,3 +1,4 @@
+
 #include "esp_camera.h"
 #include <WiFi.h>
 //
@@ -19,10 +20,12 @@ void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
 bool prepSD_MMC();
-
+bool prepDS18();
+void OTAsetup();
+bool OTAlistener();
 bool startWifi();
 
-float moduleTemp;
+static const String versionStr = "1.7";
 
 void setup() {
   Serial.begin(115200);
@@ -54,7 +57,7 @@ void setup() {
   if (psramFound()){
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
-    config.fb_count = 8;
+    config.fb_count = 4;
   } else {
     config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 12;
@@ -122,20 +125,15 @@ void setup() {
   }
   //Start httpd
   startCameraServer();
+  OTAsetup();
   startSDtasks();
+  if (prepDS18()) Serial.println("DS18B20 device available");
+  else Serial.println("DS18B20 device not present"); 
   
-  Serial.print("Camera Ready! Use 'http://");
-  if (WiFi.getMode() == WIFI_AP){  
-    Serial.print(WiFi.softAPIP());
-  }else{
-    Serial.print(WiFi.localIP());
-  }
-  Serial.println("' to connect");
-  
+  String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", versionStr, wifiIP.c_str());
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  delay(100000);
+  if (!OTAlistener()) delay(100000);
 }
-

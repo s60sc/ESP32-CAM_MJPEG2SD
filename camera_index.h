@@ -498,7 +498,7 @@ const char* index_ov2640_html = R"~(
                             <label for="night">Night Time</label>
                             &nbsp;<div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
                         </div>                             
-                        <div class="input-group extras" id="atemp-group">
+                        <div class="input-group" id="atemp-group">
                             <label for="atemp">Camera Temp</label>
                             &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
                         </div>  
