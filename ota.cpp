@@ -1,12 +1,15 @@
 /*
- In Arduino IDE, select Sketch / Export compiled Binary
+ To apply web based OTA update.
+ In Arduino IDE:
+ - select Tools / Partition Scheme / Minimal SPIFFS
+ - select Sketch / Export compiled Binary
  On browser, enter <ESP32-cam ip address>:82, e.g 192.168.1.100:82
- On returned page, select Choose file and navigate to .bin file in sketch folder, then press Upldate
+ On returned page, select Choose file and navigate to .bin file in sketch folder, then press Update
 
  s60sc 2020
  */
 
-#define USE_OTA false
+#define USE_OTA true
 
 #include <WebServer.h>
 #include <Update.h>

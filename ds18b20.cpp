@@ -1,9 +1,9 @@
 /*
  DS18B20 is a one wire digital temperature sensor
- DS18B20 pins from flat front L-R: Gnd, data, 3V3.
+ Pin layout from flat front L-R: Gnd, data, 3V3.
  Need a 4.7k resistor between 3V3 and data line
 
- Runs in its own task as there is a 750ms delay to get temp
+ Runs in its own task as there is a 750ms delay to get temperature
  Another task is used to poll for the temperature on a timer
 
  Need to install the DallasTemperature library

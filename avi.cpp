@@ -4,10 +4,19 @@ On the fly convert MJPEG file to AVI format when uploaded via FTP.
 Allows recordings to replay at correct frame rate on media players.
 The file names must include the frame count to be converted, 
 so older style files will still be uploaded as MJPEGs.
-Optionally includes a PCM audio stream recorded from a microphone on pin 33.
+
+Optionally includes a PCM audio stream recorded from an analog microphone on pin 33.
+Only records first 150 seconds per capture.
+Use a microphone with AGC to optimise volume & clarity, eg MAX9814 
+Use of microphone will slow down framerate and quality of recorded audio is low
+Placing 100nf cap between pin 33 and GND may clean up signal
+More sophisticated filters could reduce the noise level
+Audio is not replayed on streaming, only via uploaded AVI file
 
 s60sc 2020
 */
+
+#define USE_MICROPHONE false // to record from analog microphone attached to pin 33
 
 /* AVI file format:
 header:
@@ -124,10 +133,15 @@ bool aviOn = true;  // set to false if do not want conversion to AVI
 #define SAMPLE_RATE 11025  // 11025Hz sample rate used - adequate for voice
 #define AUDIO_RAM SAMPLE_RATE*150 //up to 150 secs in psram
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
+#define INTER_BUFSIZE 8192
 static hw_timer_t* timer2 = NULL;
 static uint8_t* psramBuf;
-static volatile uint32_t psramPtr = 0;
+static uint32_t psramPtr = 0;
+static uint8_t ramBuf[INTER_BUFSIZE]; // intermediate buffer for ISR as psram much slower
+static volatile uint32_t ramPtr = 0;
 static File wavFile;
+static uint8_t bufferPointer;
+static TaskHandle_t tranferBufHandle = NULL;
 
 #define WAV_HEADER_LEN 44 // WAV header length
 static uint8_t wavHeader[WAV_HEADER_LEN] = { // WAV header template
@@ -376,57 +390,114 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
 
 // record from ADC at sample rate and store in PSRAM 
 // at end write to SD card as WAV file so can read by media players
-// combine into AVI file as PCM channel on FTP upload
-// placing 100nf cap between pin 33 and GND can clean up signal
-// Use a microphone with AGC to optimise volume & clarity, eg MAX9814 
+// combined into AVI file as PCM channel on FTP upload
 
 void IRAM_ATTR onSampleISR() { 
   // on timer interrupt, sample microphone (12 bits) and save 8 MSB in psram
   // pin 33 is only one available with ADC
-  if (psramPtr < AUDIO_RAM) psramBuf[psramPtr++] = (uint8_t)(adc1_get_raw(ADC1_CHANNEL_5) >> 4);   
+////if (psramPtr < AUDIO_RAM) psramBuf[psramPtr++] = (uint8_t)(adc1_get_raw(ADC1_CHANNEL_5) >> 4); 
+  if (ramPtr++ >= INTER_BUFSIZE) ramPtr = 0;
+  ramBuf[ramPtr] = (uint8_t)(adc1_get_raw(ADC1_CHANNEL_5) >> 4);   
+}
+
+void tranferBufTask(void* parameter) {
+  while (true) {
+    // periodically transfers half of ram buffer to psram
+    static bool bottomDone = false;
+    bool doTransfer = false;
+    size_t ramOffset = 0;
+    if (!bottomDone && ramPtr > INTER_BUFSIZE/2) {
+      // transfer bottom half
+      bottomDone = true;
+      doTransfer = true;
+    }
+    if (bottomDone && ramPtr < INTER_BUFSIZE/2) {
+      // transfer top half
+      bottomDone = false;
+      ramOffset = INTER_BUFSIZE/2;
+      doTransfer = true;
+    }
+    if (doTransfer && psramPtr < AUDIO_RAM-(INTER_BUFSIZE/2)) {
+      memcpy(psramBuf+psramPtr, ramBuf+ramOffset, INTER_BUFSIZE/2);
+      psramPtr += INTER_BUFSIZE/2;
+    }
+    delay(1000*INTER_BUFSIZE/(3*SAMPLE_RATE));
+  }
 }
 
 void startAudio() {
   // start a recording
-  if (psramBuf) free(psramBuf);
-  adc1_config_width(ADC_WIDTH_BIT_12); // configure 12 bit ADC
-////  adc1_config_channel_atten(ADC1_CHANNEL_5,  ADC_ATTEN_DB_6);
-  psramBuf = (uint8_t*)ps_malloc(AUDIO_RAM); // up to 150 secs audio per recording in psram
-  psramPtr = WAV_HEADER_LEN; // allow space for header
-  // timer 2 interrupt at audio sample rate
-  timer2 = timerBegin(2, 80000000/SAMPLE_RATE, true); // ticks per SAMPLE_RATE
-  timerAttachInterrupt(timer2, &onSampleISR, true);
-  timerAlarmWrite(timer2, 1, true); 
-  timerAlarmEnable(timer2);
+  if (USE_MICROPHONE) {
+    adc1_config_width(ADC_WIDTH_BIT_12); // configure 12 bit ADC
+    ////  adc1_config_channel_atten(ADC1_CHANNEL_5,  ADC_ATTEN_DB_6); 
+    if (psramBuf) free(psramBuf);
+    psramBuf = (uint8_t*)ps_malloc(AUDIO_RAM); // up to 150 secs audio per recording in psram
+    psramPtr = WAV_HEADER_LEN; // allow space for header
+    ramPtr = 0;
+    // timer 2 interrupt at audio sample rate
+    timer2 = timerBegin(2, 80000000/SAMPLE_RATE, true); // ticks per SAMPLE_RATE
+    timerAttachInterrupt(timer2, &onSampleISR, true);
+    timerAlarmWrite(timer2, 1, true); 
+    timerAlarmEnable(timer2);
+    if (tranferBufHandle == NULL) xTaskCreate(&tranferBufTask, "tranferBufTask", 4096, NULL, 2, &tranferBufHandle);
+  } 
+}
+
+void noiseFilter() {
+  // single pass moving average filter to reduce noise 
+  const uint8_t bins = 8;
+  uint8_t integratingBuffer[bins-1];
+  for (uint32_t s=WAV_HEADER_LEN; s<psramPtr; s++) {
+    // add sample to the cyclic integrating buffer 
+    bufferPointer = (bufferPointer+1)%(bins-1);
+    integratingBuffer[bufferPointer] = psramBuf[s];
+    
+    // sum the current content of the buffer to create one filtered sample
+    uint16_t filteredSample = integratingBuffer[bufferPointer]; // double weight for current sample
+    for (int k=0; k<bins-1; k++) filteredSample += integratingBuffer[k]; 
+      
+    // filteredSample is now a sum of <bins> samples range 0-255
+    // so divide to fit into uint8_t
+    psramBuf[s] = (uint8_t)(filteredSample/bins); // store filtered data
+  }
 }
 
 void finishAudio(const char* mjpegName, bool isValid) {
-  // finish a recording and save
-  timerEnd(timer2);
-  if (isValid) {
-    // build wav file name
-    std::string wfile(mjpegName);
-    wfile = std::regex_replace(wfile, std::regex("mjpeg"), "wav");
-    size_t _psramPtr = (psramPtr%2 == 0) ? psramPtr : --psramPtr; // size needs to be even number of bytes
+  if (USE_MICROPHONE) {
+    // finish a recording and save
+    timerEnd(timer2);
+    if (tranferBufHandle != NULL) vTaskDelete(tranferBufHandle);
+    tranferBufHandle = NULL;
+    noiseFilter();
+    if (isValid) {
+      // build wav file name
+      std::string wfile(mjpegName);
+      wfile = std::regex_replace(wfile, std::regex("mjpeg"), "wav");
+      size_t _psramPtr = (psramPtr%2 == 0) ? psramPtr : --psramPtr; // size needs to be even number of bytes
+  
+      // update wav header
+      littleEndian(wavHeader+4, _psramPtr-CHUNK_HDR); // wav file size
+      littleEndian(wavHeader+WAV_HEADER_LEN-4, _psramPtr-WAV_HEADER_LEN); // wav data size
+      memcpy(psramBuf, wavHeader, WAV_HEADER_LEN);
+      // write psram to wav file on sd card 
+      File wavFile = SD_MMC.open(wfile.data(), FILE_WRITE);
+      uint32_t wTime = millis();
+      int written = 0;
+      while (_psramPtr) {
+        int writeLen = _psramPtr > CLUSTERSIZE ? CLUSTERSIZE : _psramPtr;
+        wavFile.write(psramBuf+written, writeLen);
+        _psramPtr -= writeLen;
+        written += writeLen;
+      }
+      wavFile.close();   
+      wTime = millis() - wTime;
+      Serial.printf("\nSaved %s to SD in %u ms for %ukB\n", wfile.data(), wTime, written/1024);
+    } 
+    if (psramBuf) free(psramBuf);
+    psramBuf = NULL;
+  }
+}
 
-    // update wav header
-    littleEndian(wavHeader+4, _psramPtr-CHUNK_HDR); // wav file size
-    littleEndian(wavHeader+WAV_HEADER_LEN-4, _psramPtr-WAV_HEADER_LEN); // wav data size
-    memcpy(psramBuf, wavHeader, WAV_HEADER_LEN);
-    // write psram to wav file on sd card 
-    File wavFile = SD_MMC.open(wfile.data(), FILE_WRITE);
-    uint32_t wTime = millis();
-    int written = 0;
-    while (_psramPtr) {
-      int writeLen = _psramPtr > CLUSTERSIZE ? CLUSTERSIZE : _psramPtr;
-      wavFile.write(psramBuf+written, writeLen);
-      _psramPtr -= writeLen;
-      written += writeLen;
-    }
-    wavFile.close();   
-    wTime = millis() - wTime;
-    Serial.printf("\nSaved %s to SD in %u ms for %ukB\n", wfile.data(), wTime, written/1024);
-  } 
-  free(psramBuf);
-  psramBuf = NULL;
+bool useMicrophone() {
+  return USE_MICROPHONE;
 }
