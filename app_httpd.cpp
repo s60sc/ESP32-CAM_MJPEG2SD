@@ -18,6 +18,7 @@
 #include "esp_camera.h"
 #include "camera_index.h"
 #include <regex>
+#include <sys/time.h>
 #include "Arduino.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -29,10 +30,13 @@ const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 
+extern bool timeSynchronized; //True if ntp was succesfull
+
 //Defined in custom config file myConfig.h
 extern char hostName[];
 extern char ST_SSID[];
 extern char ST_Pass[];
+extern char timezone[]; //Defined in myConfig.h  
 extern char ftp_server[];
 extern char ftp_user[];
 extern char ftp_port[];
@@ -64,9 +68,11 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
 float readDStemp(boolean isCelsius);
+String upTime();
 
 void deleteFolderOrFile(const char* val);
-void createUploadTask(const char* val);
+void createUploadTask(const char* val,bool move=false);
+void syncToBrowser(char *val);
 //Config file
 bool saveConfig();
 void resetConfig();
@@ -186,10 +192,16 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 }
 
 static void urlDecode(char* saveVal, const char* urlVal) {
-  // replace url encoded characters - make more generic
+  // replace url encoded characters
   std::string decodeVal(urlVal); 
-  strcpy(saveVal, (std::regex_replace(decodeVal, std::regex("%20"), " ")).c_str()); // spaces
-  strcpy(saveVal, (std::regex_replace(saveVal, std::regex("%2E"), ".")).c_str()); // dots
+  std::string replaceVal = decodeVal;
+  std::smatch match; 
+  while (regex_search(decodeVal, match, std::regex("(%)([0-9A-Fa-f]{2})"))) {
+    std::string s(1, static_cast<char>(std::strtoul(match.str(2).c_str(),nullptr,16))); // hex to ascii 
+    replaceVal = std::regex_replace(replaceVal, std::regex(match.str(0)), s);
+    decodeVal = match.suffix().str();
+  }
+  strcpy(saveVal, replaceVal.c_str());
 }
 
 static esp_err_t cmd_handler(httpd_req_t *req){
@@ -202,8 +214,10 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     char*  buf = (char*)malloc(buf_len);
     if (buf_len > 1) {
       if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-        if (httpd_query_key_value(buf, "var", variable, sizeof(variable)) == ESP_OK &&
-          httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK) {
+        char* decoded = (char*)malloc(buf_len);
+        urlDecode(decoded, buf);
+        if (httpd_query_key_value(decoded, "var", variable, sizeof(variable)) == ESP_OK &&
+          httpd_query_key_value(decoded, "val", value, sizeof(value)) == ESP_OK) {
         } else res = ESP_FAIL;
                                                                   
       } else res = ESP_FAIL;
@@ -252,8 +266,9 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
-    else if(!strcmp(variable, "avi")) aviOn = val;
+    else if(!strcmp(variable, "aviOn")) aviOn = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
+    else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     else if(!strcmp(variable, "dbgMotion")) {
@@ -266,6 +281,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
     //Other settings
+    else if(!strcmp(variable, "clockUTC")) syncToBrowser(value);      
+    else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
     else if(!strcmp(variable, "hostName")) urlDecode(hostName, value);
     else if(!strcmp(variable, "ST_SSID")) urlDecode(ST_SSID, value);
     else if(!strcmp(variable, "ST_Pass")) urlDecode(ST_Pass, value);
@@ -321,7 +338,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
-    p+=sprintf(p, "\"avi\":%u,", aviOn);
+    p+=sprintf(p, "\"aviOn\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     float aTemp = readDStemp(true);
@@ -356,6 +373,15 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
     p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
     //Other settings 
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    time_t currEpoch = tv.tv_sec;
+    char buff[20];
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+    p+=sprintf(p, "\"clock\":\"%s\",", buff);
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", gmtime(&currEpoch));
+    p+=sprintf(p, "\"clockUTC\":\"%s\",", buff);    
+    p+=sprintf(p, "\"timezone\":\"%s\",", timezone);
     p+=sprintf(p, "\"hostName\":\"%s\",", hostName);
     p+=sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
     p+=sprintf(p, "\"ST_Pass\":\"%s\",", ST_Pass);
@@ -378,8 +404,10 @@ static esp_err_t status_handler(httpd_req_t *req){
       useBytes = SD_MMC.usedBytes() / 1048576;
       p+=sprintf(p, "\"card_size\":\"%llu MB\",", cardSize);
       p+=sprintf(p, "\"used_bytes\":\"%llu MB\",", useBytes);
+      p+=sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
       p+=sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
     }
+    p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\"", WiFi.RSSI() );  
     
@@ -395,6 +423,10 @@ static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, index_ov2640_html, strlen(index_ov2640_html));
 }
+static esp_err_t jquery_handler(httpd_req_t *req){
+    httpd_resp_set_type(req, "text/javascript");                              
+    return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
+}
 // end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
@@ -406,7 +438,14 @@ void startCameraServer(){
         .handler   = index_handler,
         .user_ctx  = NULL
     };
-
+    
+    httpd_uri_t jquery_uri = {
+        .uri       = "/jquery.min.js",
+        .method    = HTTP_GET,
+        .handler   = jquery_handler,
+        .user_ctx  = NULL
+    };
+    
     httpd_uri_t status_uri = {
         .uri       = "/status",
         .method    = HTTP_GET,
@@ -438,6 +477,7 @@ void startCameraServer(){
     if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
+        httpd_register_uri_handler(camera_httpd, &jquery_uri);       
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);

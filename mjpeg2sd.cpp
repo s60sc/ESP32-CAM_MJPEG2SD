@@ -6,12 +6,11 @@
 * s60sc 2020
 */
 
-extern const char* TIMEZONE; //Defined in myConfig.h
+extern char timezone[]; //Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
-#define USE_MICROPHONE false // to record from analog microphone attached to pin 33
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
 #define CLUSTERSIZE 32768 // set this to match the SD card cluster size
@@ -31,7 +30,7 @@ extern bool doRecording;// = true; // whether to capture to SD or not
 extern uint8_t minSeconds;// = 5; // default min video length (includes POST_MOTION_TIME)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
 extern float motionVal;// = 8.0; // initial motion sensitivity setting 
-
+bool timeSynchronized = false;
 // status & control fields
 uint8_t FPS;
 bool lampOn = false;     
@@ -131,6 +130,7 @@ void readSD();
 void prepSound();
 void startAudio();
 void finishAudio(const char* mjpegName, bool isvalid);
+bool useMicrophone();
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -162,16 +162,47 @@ void getLocalNTP() {
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     delay(1000);
   } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
-  // set TIMEZONE as required
-  setenv("TZ", TIMEZONE, 1);
+  // set timezone as required
+  setenv("TZ", timezone, 1);
   if (getEpoch() > 1000) {
     time_t currEpoch = getEpoch();  
     char timeFormat[20];
     strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
+    timeSynchronized = true;                            
     showInfo("Got current time from NTP: %s", timeFormat);
   }  
   else showError("Unable to sync with NTP");
 }
+
+//Synchronize clock to browser clock on AP connection
+void syncToBrowser(char *val){
+  if(timeSynchronized) return;
+  
+  //Synchronize to browser time, On access point connections with no internet
+  Serial.printf("Sync clock to: %s with tz:%s\n", val, timezone);
+  struct tm now;
+  getLocalTime(&now,0);
+  
+  int Year, Month, Day, Hour, Minute, Second ;
+  sscanf(val, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
+  
+  struct tm t; 
+  t.tm_year = Year - 1900;
+  t.tm_mon  = Month - 1;    // Month, 0 - jan
+  t.tm_mday = Day;          // Day of the month
+  t.tm_hour = Hour;
+  t.tm_min  = Minute;
+  t.tm_sec  = Second;
+  
+  time_t t_of_day = mktime(&t);            
+  timeval epoch = {t_of_day, 0};
+  struct timezone utc = {0,0};      
+  settimeofday(&epoch, &utc);
+  //setenv("TZ", timezone, 1);
+  Serial.print(&now,"Before sync: %B %d %Y %H:%M:%S (%A) ");
+  getLocalTime(&now,0);
+  Serial.println(&now,"After sync: %B %d %Y %H:%M:%S (%A)");     
+ }
 
 /*********************** Utility functions ****************************/
 
@@ -233,7 +264,7 @@ static bool openMjpeg() {
   mjpegFile  = SD_MMC.open(partName, FILE_WRITE);
   oTime = millis() - oTime;
   showDebug("File opening time: %ums", oTime);
-  if (USE_MICROPHONE) startAudio();
+  startAudio();
   // initialisation of counters
   startMjpeg = millis();
   frameCnt = fTimeTot = wTimeTot = dTimeTot = highPoint = vidSize = 0;
@@ -312,7 +343,7 @@ static bool closeMjpeg() {
     snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%u_%u_%u.%s", 
       partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000.0), frameCnt, MJPEGEXT);
     SD_MMC.rename(partName, mjpegName);
-    if (USE_MICROPHONE) finishAudio(mjpegName, true);
+    finishAudio(mjpegName, true);
     showDebug("MJPEG close/rename time %u ms", millis() - hTime); 
     cTime = millis() - cTime;
     insufficient = 0;
@@ -341,7 +372,7 @@ static bool closeMjpeg() {
     // delete too small files if exist
     mjpegFile.close();
     SD_MMC.remove(partName);
-    if (USE_MICROPHONE) finishAudio(partName, false);
+    finishAudio(partName, false);
     showDebug("Insufficient capture duration: %u secs", captureTime);
     insufficient++;
     return false;
@@ -516,6 +547,7 @@ void listDir(const char* fname, char* htmlBuff) {
     strcpy(mjpegName, decodedName.c_str());
     doPlayback = true; // browser control
     noEntries = true; 
+    strcpy(htmlBuff, "{}");                                                
   } else {
     strcpy(dayFolder, decodedName.c_str());
     bool returnDirs = (decodedName.compare("/")) ? false : true;
@@ -527,6 +559,8 @@ void listDir(const char* fname, char* htmlBuff) {
     showDebug("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
   
     // build relevant option list
+    if(returnDirs) strcpy(htmlBuff, "{"); 
+    else strcpy(htmlBuff, " {\"/\":\".. [ Up ]\",");              
     File file = root.openNextFile();
     while (file) {
       if (file.isDirectory() && returnDirs) {
@@ -843,7 +877,7 @@ bool prepMjpeg() {
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
       showInfo("Free DRAM: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
-      showInfo("Sound recording is %s", USE_MICROPHONE ? "On" : "Off");
+      showInfo("Sound recording is %s", useMicrophone() ? "On" : "Off");
       showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
@@ -896,3 +930,23 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   xSemaphoreGive(motionMutex);
 }
 #endif
+
+String upTime(){
+  String ret="";
+  long days=0;
+  long hours=0;
+  long mins=0;
+  long secs=0;
+  secs = millis()/1000; //convect milliseconds to seconds
+  mins=secs/60; //convert seconds to minutes
+  hours=mins/60; //convert minutes to hours
+  days=hours/24; //convert hours to days
+  secs=secs-(mins*60); //subtract the coverted seconds to minutes in order to display 59 secs max 
+  mins=mins-(hours*60); //subtract the coverted minutes to hours in order to display 59 minutes max
+  hours=hours-(days*24); //subtract the coverted hours to days in order to display 23 hours max
+  if(days > 0) ret += String(days) + "d ";
+  if(hours > 0) ret += String(hours) + "h ";
+  if(mins >= 0) ret += String(mins) + "m ";
+  if(secs >= 0) ret += String(secs) + "s ";
+  return ret;
+}
