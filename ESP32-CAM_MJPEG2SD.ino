@@ -11,6 +11,8 @@
 //#define CAMERA_MODEL_M5STACK_WIDE
 #define CAMERA_MODEL_AI_THINKER
 
+#define USE_DS18B20 false //Enable 1Wire temperature sensor 
+
 #include "camera_pins.h"
 #include "myConfig.h"
 
@@ -18,7 +20,9 @@ void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
 bool prepSD_MMC();
-bool prepDS18();
+#if USE_DS18B20
+  bool prepDS18();
+#endif
 void OTAsetup();
 bool OTAlistener();
 bool startWifi();
@@ -116,9 +120,10 @@ void setup() {
   startCameraServer();
   OTAsetup();
   startSDtasks();
+#if USE_DS18B20  
   if (prepDS18()) Serial.println("DS18B20 device available");
   else Serial.println("DS18B20 device not present"); 
-  
+#endif  
   String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
   Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", versionStr, wifiIP.c_str());
 }
