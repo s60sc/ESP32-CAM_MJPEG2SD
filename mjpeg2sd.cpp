@@ -111,7 +111,9 @@ bool doPlayback = false;
 // task control
 static TaskHandle_t captureHandle = NULL;
 static TaskHandle_t playbackHandle = NULL;
+#if USE_DS18B20  
 extern TaskHandle_t getDS18tempHandle;
+#endif
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
 SemaphoreHandle_t frameMutex;
@@ -912,7 +914,9 @@ static void deleteTask(TaskHandle_t thisTaskHandle) {
 void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
+  #if USE_DS18B20  
   deleteTask(getDS18tempHandle);
+  #endif
 }
 
 void OTAprereq() {
