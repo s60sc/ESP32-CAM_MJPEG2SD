@@ -10,13 +10,9 @@
 
  s60sc 2020
  */
-
-#define USE_DS18B20 false
-
-#ifdef USE_DS18B20
+#if USE_DS18B20
 #include <OneWire.h> 
 #include <DallasTemperature.h>
-#endif
 
 // configuration
 static const uint8_t DS18Bpin = 3; // labelled U0R on ESP32-CAM board
@@ -27,7 +23,6 @@ static bool DS18Bfound = false;
 
 static void getDS18tempTask(void* pvParameters) {
   // get current temperature from DS18B20 device
-#ifdef USE_DS18B20
   OneWire oneWire(DS18Bpin);
   DallasTemperature sensors(&oneWire);
   while (true) {
@@ -53,7 +48,6 @@ static void getDS18tempTask(void* pvParameters) {
     // allow task to be retried if fail to connect
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
-#endif
 }
 
 bool prepDS18() {
@@ -75,3 +69,5 @@ float readDStemp(boolean isCelsius) {
   // return latest read DS18B20 value in celsius (true) or fahrenheit (false), unless error
   return (dsTemp > -127) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 }
+
+#endif
