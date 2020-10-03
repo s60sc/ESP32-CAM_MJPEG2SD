@@ -8,7 +8,7 @@
 #include "esp_log.h"
 
 static const char* TAG = "myConfig";
-#define APP_NAME "ESP32-CAM_MJPED"
+#define APP_NAME "ESP32-CAM_MJPEG"
 
 //Wifi Station parameters
 //If no default SSID value defined here

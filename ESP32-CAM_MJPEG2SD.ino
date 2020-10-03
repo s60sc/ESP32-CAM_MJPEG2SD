@@ -4,8 +4,7 @@
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
 //
-
-// Select camera model
+// Select camera model
 //#define CAMERA_MODEL_WROVER_KIT
 //#define CAMERA_MODEL_ESP_EYE
 //#define CAMERA_MODEL_M5STACK_PSRAM
@@ -15,14 +14,16 @@
 #include "camera_pins.h"
 #include "myConfig.h"
 
-//External tasks
 void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
 bool prepSD_MMC();
+bool prepDS18();
+void OTAsetup();
+bool OTAlistener();
 bool startWifi();
 
-float moduleTemp;
+static const String versionStr = "1.7";
 
 void setup() {
   Serial.begin(115200);
@@ -54,7 +55,7 @@ void setup() {
   if (psramFound()){
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
-    config.fb_count = 8;
+    config.fb_count = 4;
   } else {
     config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 12;
@@ -97,7 +98,6 @@ void setup() {
   s->set_hmirror(s, 1);
 #endif
 
-  //Prepare sd card
   prepSD_MMC();
   
   //Connect wifi and start config AP if fail
@@ -114,20 +114,15 @@ void setup() {
   }
   //Start httpd
   startCameraServer();
-  //Start disk tasks
+  OTAsetup();
   startSDtasks();
+  if (prepDS18()) Serial.println("DS18B20 device available");
+  else Serial.println("DS18B20 device not present"); 
   
-  Serial.print("Camera Ready! Use 'http://");
-  if (WiFi.getMode() == WIFI_AP){  
-    Serial.print(WiFi.softAPIP());
-  }else{
-    Serial.print(WiFi.localIP());
-  }
-  Serial.println("' to connect");
-  
+  String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", versionStr, wifiIP.c_str());
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  delay(100000);
+  if (!OTAlistener()) delay(100000);
 }

@@ -17,8 +17,9 @@
 #include "esp_timer.h"
 #include "esp_camera.h"
 #include "camera_index.h"
-#include "Arduino.h"
+#include <regex>
 #include <sys/time.h>
+#include "Arduino.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -35,7 +36,7 @@ extern bool timeSynchronized; //True if ntp was succesfull
 extern char hostName[];
 extern char ST_SSID[];
 extern char ST_Pass[];
-extern char timezone[]; //Defined in myConfig.h
+extern char timezone[]; //Defined in myConfig.h  
 extern char ftp_server[];
 extern char ftp_user[];
 extern char ftp_port[];
@@ -61,10 +62,12 @@ extern bool lampVal;
 void listDir(const char* fname, char* htmlBuff);
 uint8_t setFPSlookup(uint8_t val);
 uint8_t setFPS(uint8_t val);
+void openSDfile();
 size_t* getNextFrame();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
+float readDStemp(boolean isCelsius);
 String upTime();
 
 void deleteFolderOrFile(const char* val);
@@ -74,10 +77,8 @@ void syncToBrowser(char *val);
 bool saveConfig();
 void resetConfig();
 
-String urlDecode(String str);
 
 // status & control fields 
-extern float moduleTemp;
 extern bool lampOn;
 extern float motionVal;
 extern bool aviOn;
@@ -130,10 +131,13 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
+  bool startPlayback = true;
   while (true) {
     // additions for mjpeg2sd.cpp
     if (doPlayback) {
       // playback mjpeg from SD
+      if (startPlayback) openSDfile(); // open playback file when start streaming
+      startPlayback = false;
       size_t* imgPtrs = getNextFrame(); 
       size_t clusterLen = imgPtrs[0];
       if (clusterLen) res = httpd_resp_send_chunk(req, (const char*)SDbuffer+imgPtrs[1], clusterLen);
@@ -187,6 +191,19 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   return res;
 }
 
+static void urlDecode(char* saveVal, const char* urlVal) {
+  // replace url encoded characters
+  std::string decodeVal(urlVal); 
+  std::string replaceVal = decodeVal;
+  std::smatch match; 
+  while (regex_search(decodeVal, match, std::regex("(%)([0-9A-Fa-f]{2})"))) {
+    std::string s(1, static_cast<char>(std::strtoul(match.str(2).c_str(),nullptr,16))); // hex to ascii 
+    replaceVal = std::regex_replace(replaceVal, std::regex(match.str(0)), s);
+    decodeVal = match.suffix().str();
+  }
+  strcpy(saveVal, replaceVal.c_str());
+}
+
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -197,11 +214,12 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     char*  buf = (char*)malloc(buf_len);
     if (buf_len > 1) {
       if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-        String decoded = urlDecode(String(buf));
-        if (httpd_query_key_value(decoded.c_str(), "var", variable, sizeof(variable)) == ESP_OK &&
-          httpd_query_key_value(decoded.c_str(), "val", value, sizeof(value)) == ESP_OK) {
+        char* decoded = (char*)malloc(buf_len);
+        urlDecode(decoded, buf);
+        if (httpd_query_key_value(decoded, "var", variable, sizeof(variable)) == ESP_OK &&
+          httpd_query_key_value(decoded, "val", value, sizeof(value)) == ESP_OK) {
         } else res = ESP_FAIL;
-                                                                          
+                                                                  
       } else res = ESP_FAIL;
                                             
     } else res = ESP_FAIL;
@@ -265,14 +283,14 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     //Other settings
     else if(!strcmp(variable, "clockUTC")) syncToBrowser(value);      
     else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
-    else if(!strcmp(variable, "hostName")) strcpy(hostName,value);
-    else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID,value);
-    else if(!strcmp(variable, "ST_Pass")) strcpy(ST_Pass,value);
-    else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server,value);
+    else if(!strcmp(variable, "hostName")) urlDecode(hostName, value);
+    else if(!strcmp(variable, "ST_SSID")) urlDecode(ST_SSID, value);
+    else if(!strcmp(variable, "ST_Pass")) urlDecode(ST_Pass, value);
+    else if(!strcmp(variable, "ftp_server")) urlDecode(ftp_server, value);
     else if(!strcmp(variable, "ftp_port")) strcpy(ftp_port,value);
-    else if(!strcmp(variable, "ftp_user")) strcpy(ftp_user,value);
-    else if(!strcmp(variable, "ftp_pass")) strcpy(ftp_pass,value);
-    else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd,value);
+    else if(!strcmp(variable, "ftp_user")) urlDecode(ftp_user, value);
+    else if(!strcmp(variable, "ftp_pass")) urlDecode(ftp_pass, value);
+    else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd, value);
     
     else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, val);
@@ -323,7 +341,9 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
-    p+=sprintf(p, "\"atemp\":\"%0.1f\",", moduleTemp);
+    float aTemp = readDStemp(true);
+    if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
+    else p+=sprintf(p, "\"atemp\":\"n/a\",");
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mjpeg2sd.cpp
@@ -387,7 +407,7 @@ static esp_err_t status_handler(httpd_req_t *req){
       p+=sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
       p+=sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
     }
-    p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());    
+    p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\"", WiFi.RSSI() );  
     
@@ -425,7 +445,7 @@ void startCameraServer(){
         .handler   = jquery_handler,
         .user_ctx  = NULL
     };
-
+    
     httpd_uri_t status_uri = {
         .uri       = "/status",
         .method    = HTTP_GET,
@@ -457,7 +477,7 @@ void startCameraServer(){
     if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
-        httpd_register_uri_handler(camera_httpd, &jquery_uri);
+        httpd_register_uri_handler(camera_httpd, &jquery_uri);       
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
@@ -469,54 +489,4 @@ void startCameraServer(){
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
-}
-
-//==============================================================
-//                     URL Encode Decode Functions
-//==============================================================
-String urlEncode(String str){
-    String new_str = "";
-    char c;
-    int ic;
-    const char* chars = str.c_str();
-    char bufHex[10];
-    int len = strlen(chars);
-
-    for(int i=0;i<len;i++){
-        c = chars[i];
-        ic = c;
-        // uncomment this if you want to encode spaces with +
-        /*if (c==' ') new_str += '+';   
-        else */if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') new_str += c;
-        else {
-            sprintf(bufHex,"%X",c);
-            if(ic < 16) 
-                new_str += "%0"; 
-            else
-                new_str += "%";
-            new_str += bufHex;
-        }
-    }
-    return new_str;
- }
-
-String urlDecode(String str){
-    String ret;
-    char ch;
-    int i, ii, len = str.length();
-
-    for (i=0; i < len; i++){
-        if(str[i] != '%'){
-            if(str[i] == '+')
-                ret += ' ';
-            else
-                ret += str[i];
-        }else{
-            sscanf(str.substring(i + 1, 2).c_str(), "%x", &ii);
-            ch = static_cast<char>(ii);
-            ret += ch;
-            i = i + 2;
-        }
-    }
-    return ret;
 }

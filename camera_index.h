@@ -805,6 +805,10 @@ const char* index_ov2640_html = R"~(
                     <label for="night">Night&nbsp;Time</label>
                     <div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
                 </div>
+                <div class="info-group center" id="atemp-group">
+                    <label for="atemp">Camera&nbsp;Temp</label>
+                    <div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                </div> 
                 <div class="info-group center" id="clock-group">
                     <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
                     <div id="clock" class="default-action displayonly" name="textonly">&nbsp;</div>

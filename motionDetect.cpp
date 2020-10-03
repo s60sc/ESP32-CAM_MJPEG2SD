@@ -10,10 +10,10 @@
 
  When frame size is changed the OV2640 outputs a few glitched frames whilst it 
  makes the transition. These could be interpreted as spurious motion.
-
  
  s60sc 2020
  
+
 */
 
 #include "esp_camera.h"
@@ -114,14 +114,14 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   for (int i=0; i<num_pixels; i++) {
     if (abs(rgb_buf[i] - prev_buf[i]) > CHANGE_THRESHOLD) {
       if (i > startPixel && i < endPixel) changeCount++; // number of changed pixels
-      if (debugMotion) changeMap[i] = 64; // populate changeMap image as black with changed pixels in gray
-    } else if (debugMotion) changeMap[i] =  0; // set black 
+      if (debugMotion) changeMap[i] = 192; // populate changeMap image as with with changed pixels in gray
+    } else if (debugMotion) changeMap[i] =  255; // set white 
     lux += rgb_buf[i]; // for calculating light level
   }
   lightLevel = (lux*100)/(num_pixels*255); // light value as a %
   memcpy(prev_buf, rgb_buf, num_pixels); // save image for next comparison 
   // esp32-cam issue #126
-  if (rgb_buf == NULL) showError("Memory leak, heap now: %u", xPortGetFreeHeapSize());
+  if (rgb_buf == NULL) showError("Memory leak, heap now: %u, pSRAM now: %u", ESP.getFreeHeap(), ESP.getFreePsram());
   free(rgb_buf); 
   rgb_buf = NULL;
   showDebug("Detected %u changes, threshold %u, light level %u, in %ums", changeCount, moveThreshold, lightLevel, millis() - dTime);
@@ -136,9 +136,9 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
       motionStatus = true; // motion started
     } 
     if (debugMotion)
-      // to highlight movement detected in changeMap image, set all gray in region of interest to white
+      // to highlight movement detected in changeMap image, set all gray in region of interest to black
       for (int i=0; i<num_pixels; i++) 
-         if (i > startPixel && i < endPixel && changeMap[i] > 0) changeMap[i] = 255;
+         if (i > startPixel && i < endPixel && changeMap[i] < 255) changeMap[i] = 0;
   } else {
     // insufficient change
     if (motionStatus) {
