@@ -67,7 +67,9 @@ size_t* getNextFrame();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
+#if USE_DS18B20  
 float readDStemp(boolean isCelsius);
+#endif
 String upTime();
 
 void deleteFolderOrFile(const char* val);
@@ -341,9 +343,11 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
-    float aTemp = readDStemp(true);
-    if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
-    else p+=sprintf(p, "\"atemp\":\"n/a\",");
+    #if USE_DS18B20  
+      float aTemp = readDStemp(true);
+      if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
+      else p+=sprintf(p, "\"atemp\":\"n/a\",");
+    #endif
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mjpeg2sd.cpp
