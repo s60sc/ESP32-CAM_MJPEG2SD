@@ -125,6 +125,17 @@ void setup() {
   Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", versionStr, wifiIP.c_str());
 }
 
+void checkSDcard(fs::FS &fs, const char * dirname, uint8_t levels);
+
 void loop() {
+  static unsigned long millisCopy = 0;
+
+  if(millis() > millisCopy){
+    millisCopy = (millis() + 3600000 < 0xFFFFFFFE) ? (0xFFFFFFFD) : (millis() + 3600000) ;
+    
+    checkSDcard(SD_MMC, "/",1);
+  }
+
+  
   if (!OTAlistener()) delay(100000);
 }
