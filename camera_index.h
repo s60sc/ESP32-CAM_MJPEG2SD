@@ -780,6 +780,7 @@ const char* index_ov2640_html = R"~(
                               <button id="reboot" style="float:right;">Reboot</button>
                               <button id="save" style="float:right;">Save</button>
                               <button id="defaults" style="float:right;">Defaults</button>
+                              <!-- <button id="format" style="float:right;">Format</button> -->
                             </section>
                           </div>   
                         </div>
@@ -1000,13 +1001,16 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const rebootButton = document.getElementById('reboot')
   const saveButton = document.getElementById('save')
   const defaultsButton = document.getElementById('defaults')
+  //const formatButton = document.getElementById('format')
   
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
   }
+  
   uploadMoveButton.onclick = () => {
     updateConfig(uploadMoveButton);
   }
+  
   deleteButton.onclick = () => {
     var deleteBt = $('#delete');
     if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
@@ -1054,6 +1058,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
+ 
+ /*
+  formatButton.onclick = () => {
+    updateConfig(formatButton);
+  }
+ */
+ 
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
