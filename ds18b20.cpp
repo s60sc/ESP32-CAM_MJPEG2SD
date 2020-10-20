@@ -21,6 +21,7 @@ static float dsTemp = -127;
 TaskHandle_t getDS18tempHandle = NULL;
 static bool DS18Bfound = false;
 
+
 static void getDS18tempTask(void* pvParameters) {
   // get current temperature from DS18B20 device
   OneWire oneWire(DS18Bpin);
