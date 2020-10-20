@@ -26,7 +26,7 @@ bool prepSD_MMC();
 void OTAsetup();
 bool OTAlistener();
 bool startWifi();
-
+  
 static const String versionStr = "1.7";
 
 void setup() {
@@ -112,7 +112,7 @@ void setup() {
   }
   
   if (!prepMjpeg()) {
-    Serial.println("Unable to continue, restart after 10 secs");
+    Serial.println("Unable to continue, SD card fail, restart after 10 secs");
     delay(10000);
     ESP.restart();
   }
