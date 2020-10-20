@@ -38,7 +38,7 @@ bool nightTime = false;
 uint8_t lightLevel; // Current ambient light level
 uint16_t insufficient = 0;
 uint64_t minCardFreeSpace = 50; //Minimum amount or card free Megabytes before move or delete action is enabled
-bool freeSpaceMode = 2; // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp and delete then
+bool freeSpaceMode = 2; // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp and then delete folder
 
 // stream separator
 extern const char* _STREAM_BOUNDARY;
