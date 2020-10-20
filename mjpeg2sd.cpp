@@ -38,7 +38,7 @@ bool nightTime = false;
 uint8_t lightLevel; // Current ambient light level
 uint16_t insufficient = 0;
 uint64_t minCardFreeSpace = 50; //Minimum amount or card free Megabytes before move or delete action is enabled
-bool deleteMode = 2; // 0 - No Check, 1 - Delete, 2 - Move
+bool freeSpaceMode = 2; // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp and delete then
 
 // stream separator
 extern const char* _STREAM_BOUNDARY;
@@ -330,15 +330,15 @@ static void saveFrame() {
 }
 
 bool checkFreeSpace() { //Check for suficcient space in card
-  if (deleteMode < 1) return false;
+  if (freeSpaceMode < 1) return false;
   unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
   Serial.print("Card free space: "); Serial.println(freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
     Serial.print("Oldest dir to delete: "); Serial.println(oldestDir);
-    if (deleteMode == 1) { //Delete oldest folder
+    if (freeSpaceMode == 1) { //Delete oldest folder
       deleteFolderOrFile(oldestDir.c_str());
-    } else if (deleteMode == 2) { //Upload and then delete oldest folder
+    } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
       createUploadTask(oldestDir.c_str(), true);
     }
     return true;
