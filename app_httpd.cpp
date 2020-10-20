@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "esp_http_server.h"
+#include "SPIFFS.h"
 #include <SD_MMC.h>
 #include "WiFi.h"
 #include "esp_timer.h"
@@ -206,6 +207,16 @@ static void urlDecode(char* saveVal, const char* urlVal) {
   strcpy(saveVal, replaceVal.c_str());
 }
 
+bool formatMMC(){
+    Serial.print("Formating card..");
+    bool formatted = SPIFFS.format();
+    if(formatted){
+      Serial.println("\nSuccess formatting card");
+    }else{
+      Serial.println("\nError formatting card");
+    }
+    return formatted;
+}
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -272,7 +283,14 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
-    else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
+    else if(!strcmp(variable, "record")) doRecording = (val) ? true : false; 
+    else if(!strcmp(variable, "format")){
+      if(formatMMC()){
+          return httpd_resp_send(req, "Formated card", strlen("Formated card"));
+      }else{
+          return httpd_resp_send(req, "Format card failed!", strlen("Format card failed!"));
+      }      
+    }
     else if(!strcmp(variable, "dbgMotion")) {
       debugMotion = (val) ? true : false;   
       doRecording = !debugMotion;
