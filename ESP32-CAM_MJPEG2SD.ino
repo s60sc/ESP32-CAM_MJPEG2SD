@@ -26,8 +26,9 @@ bool prepSD_MMC();
 void OTAsetup();
 bool OTAlistener();
 bool startWifi();
-  
-char versionStr[] = "1.7.1";
+void checkConnection();  
+
+char versionStr[] = "1.7.3";
 
 void setup() {
   Serial.begin(115200);
@@ -129,5 +130,9 @@ void setup() {
 }
 
 void loop() {
-  if (!OTAlistener()) delay(100000);
+  //Check connection
+  checkConnection();
+  
+  if (!OTAlistener())
+    delay(100000);  
 }
