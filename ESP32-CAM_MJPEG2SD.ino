@@ -28,7 +28,7 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();  
 
-char versionStr[] = "1.7.3";
+char versionStr[] = "1.7.5";
 
 void setup() {
   Serial.begin(115200);
