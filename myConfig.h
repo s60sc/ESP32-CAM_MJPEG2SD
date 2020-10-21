@@ -3,9 +3,11 @@
 #include <FS.h>
 #include <SD_MMC.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <DNSServer.h>
 #include <Preferences.h>
 #include "esp_log.h"
+
 
 static const char* TAG = "myConfig";
 #define APP_NAME "ESP32-CAM_MJPEG"
@@ -229,15 +231,29 @@ bool setWifiAP() {
   */
   return true;
 }
-
+void setupHost(){  //Mdns services   
+  if (MDNS.begin(hostName) ) {
+    // Add service to MDNS-SD
+    MDNS.addService("http", "tcp", 80);
+    MDNS.addService("ws", "udp", 81);
+    //MDNS.addService("ftp", "tcp", 21);    
+    ESP_LOGI(TAG,"Mdns services http://%s Started.", hostName );
+  } else {
+    ESP_LOGE(TAG, "Mdns host name: %s Failed.", hostName);
+  }
+}
 bool startWifi() {
   //No config found. Setup AP to create one
   if (!loadConfig()) return setWifiAP();
+  WiFi.persistent(false); //prevent the flash storage WiFi credentials
+  WiFi.setAutoReconnect(false); //Set whether module will attempt to reconnect to an access point in case it is disconnected
+  WiFi.setAutoConnect(false);
   ESP_LOGV(TAG, "Starting wifi, exist mode: %i", WiFi.getMode() );
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
   else if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
   ESP_LOGV(TAG, "Setup wifi, mode: %i", WiFi.getMode() );
-
+  //Setup mdns services
+  setupHost();
   //Disconnect if already connected
   if (WiFi.status() == WL_CONNECTED) {
     ESP_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
@@ -299,3 +315,26 @@ bool startWifi() {
   ESP_LOGI(TAG, "Connected! Navigate to 'http://%s to setup", WiFi.localIP().toString());
   return true;
 }
+
+//Check for Station disconnections and reboot if not connected for some seconds
+//and not ap clients connected. 
+unsigned long tmConn=millis();
+unsigned long tmReboot=0;
+void checkConnection(){
+  //Reboot?
+  if(tmReboot>0 && millis() - tmReboot > 15000 ){
+    int apClients = WiFi.softAPgetStationNum();
+    Serial.printf("Reboot.. Clients active: %i\n",apClients);
+    if(apClients < 1 ) //Reboot if no clients
+       ESP.restart();
+    else
+       tmReboot = 0; 
+  }
+  
+  //Check for wifi station reconnection every 20 seconds
+  if(WiFi.status() != WL_CONNECTED && millis() - tmConn > 20000){
+    ESP_LOGI(TAG, "Wifi not connected, mode: %i, status: %i, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
+    tmConn = millis();   //Recheck
+    tmReboot = millis(); //Reboot after 15 seconds      
+  }
+} 
