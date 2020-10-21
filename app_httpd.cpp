@@ -59,6 +59,7 @@ extern bool stopPlayback;
 extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
 extern bool lampVal;
+extern char versionStr[];
 
 void listDir(const char* fname, char* htmlBuff);
 uint8_t setFPSlookup(uint8_t val);
@@ -431,8 +432,8 @@ static esp_err_t status_handler(httpd_req_t *req){
     }
     p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
-    p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\"", WiFi.RSSI() );  
-    
+    p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
+    p+=sprintf(p, "\"fw_version\":\"%s\"", versionStr );  
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
