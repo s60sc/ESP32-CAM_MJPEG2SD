@@ -1,7 +1,7 @@
 
 /* 
 On the fly convert MJPEG file to AVI format when uploaded via FTP.
-Allows recordings to replay at correct frame rate on media players.
+Allows recordings to replay at correct frame rate on media players
 The file names must include the frame count to be converted, 
 so older style files will still be uploaded as MJPEGs.
 
@@ -9,7 +9,6 @@ Optionally includes a PCM audio stream recorded from an analog microphone on pin
 Only records first 150 seconds per capture.
 Use a microphone with AGC to optimise volume & clarity, eg MAX9814 
 Use of microphone will slow down framerate and quality of recorded audio is low
-Placing 100nf cap between pin 33 and GND may clean up signal
 More sophisticated filters could reduce the noise level
 Audio is not replayed on streaming, only via uploaded AVI file
 
@@ -132,12 +131,11 @@ bool aviOn = true;  // set to false if do not want conversion to AVI
 // sound recording
 #define SAMPLE_RATE 11025  // 11025Hz sample rate used - adequate for voice
 #define AUDIO_RAM SAMPLE_RATE*150 //up to 150 secs in psram
-#define CLUSTERSIZE 32768 // set this to match the SD card cluster size
-#define INTER_BUFSIZE 8192
+#define RAMSIZE 8192 // must be multiple of sd card sector size
 static hw_timer_t* timer2 = NULL;
 static uint8_t* psramBuf;
 static uint32_t psramPtr = 0;
-static uint8_t ramBuf[INTER_BUFSIZE]; // intermediate buffer for ISR as psram much slower
+static uint8_t ramBuf[RAMSIZE]; // intermediate buffer for ISR as psram much slower
 static volatile uint32_t ramPtr = 0;
 static File wavFile;
 static uint8_t bufferPointer;
@@ -283,7 +281,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
       
     } else {     
       if (haveSoundFile) {
-        int readLen = wavFile.read(clientBuf, CLUSTERSIZE); // already opened by soundFile()  
+        int readLen = wavFile.read(clientBuf, RAMSIZE); // already opened by soundFile()  
         // if data available return it, else move to next section on completion
         if (readLen) return readLen; 
         else {
@@ -395,8 +393,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
 void IRAM_ATTR onSampleISR() { 
   // on timer interrupt, sample microphone (12 bits) and save 8 MSB in psram
   // pin 33 is only one available with ADC
-////if (psramPtr < AUDIO_RAM) psramBuf[psramPtr++] = (uint8_t)(adc1_get_raw(ADC1_CHANNEL_5) >> 4); 
-  if (ramPtr++ >= INTER_BUFSIZE) ramPtr = 0;
+  if (ramPtr++ >= RAMSIZE) ramPtr = 0;
   ramBuf[ramPtr] = (uint8_t)(adc1_get_raw(ADC1_CHANNEL_5) >> 4);   
 }
 
@@ -406,22 +403,22 @@ void tranferBufTask(void* parameter) {
     static bool bottomDone = false;
     bool doTransfer = false;
     size_t ramOffset = 0;
-    if (!bottomDone && ramPtr > INTER_BUFSIZE/2) {
+    if (!bottomDone && ramPtr > RAMSIZE/2) {
       // transfer bottom half
       bottomDone = true;
       doTransfer = true;
     }
-    if (bottomDone && ramPtr < INTER_BUFSIZE/2) {
+    if (bottomDone && ramPtr < RAMSIZE/2) {
       // transfer top half
       bottomDone = false;
-      ramOffset = INTER_BUFSIZE/2;
+      ramOffset = RAMSIZE/2;
       doTransfer = true;
     }
-    if (doTransfer && psramPtr < AUDIO_RAM-(INTER_BUFSIZE/2)) {
-      memcpy(psramBuf+psramPtr, ramBuf+ramOffset, INTER_BUFSIZE/2);
-      psramPtr += INTER_BUFSIZE/2;
+    if (doTransfer && psramPtr < AUDIO_RAM-(RAMSIZE/2)) {
+      memcpy(psramBuf+psramPtr, ramBuf+ramOffset, RAMSIZE/2);
+      psramPtr += RAMSIZE/2;
     }
-    delay(1000*INTER_BUFSIZE/(3*SAMPLE_RATE));
+    delay(1000*RAMSIZE/(3*SAMPLE_RATE));
   }
 }
 
@@ -429,7 +426,7 @@ void startAudio() {
   // start a recording
   if (USE_MICROPHONE) {
     adc1_config_width(ADC_WIDTH_BIT_12); // configure 12 bit ADC
-    ////  adc1_config_channel_atten(ADC1_CHANNEL_5,  ADC_ATTEN_DB_6); 
+    //  adc1_config_channel_atten(ADC1_CHANNEL_5,  ADC_ATTEN_DB_6); 
     if (psramBuf) free(psramBuf);
     psramBuf = (uint8_t*)ps_malloc(AUDIO_RAM); // up to 150 secs audio per recording in psram
     psramPtr = WAV_HEADER_LEN; // allow space for header
@@ -484,7 +481,7 @@ void finishAudio(const char* mjpegName, bool isValid) {
       uint32_t wTime = millis();
       int written = 0;
       while (_psramPtr) {
-        int writeLen = _psramPtr > CLUSTERSIZE ? CLUSTERSIZE : _psramPtr;
+        int writeLen = _psramPtr > RAMSIZE ? RAMSIZE : _psramPtr;
         wavFile.write(psramBuf+written, writeLen);
         _psramPtr -= writeLen;
         written += writeLen;
