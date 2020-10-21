@@ -1,6 +1,9 @@
 
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
  Added functionality
+ 
+ * Check internet connection and automatically reconnect if needed on power loss.
+ * Added mdns name services on order to visit http://[Host Name] instead of ip address
  * Display version number on page header
  * Delete or ftp upload and delete oldest folder when card free space is running out. 
 
