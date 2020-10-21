@@ -1,7 +1,11 @@
 
-This ia a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+ Added functionality
+ * Display version number on page header
+ * Delete or ftp upload and delete oldest folder when card free space is running out. 
 
 ![image1](extras/screenshot.png)
+
 
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. 
