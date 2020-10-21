@@ -23,6 +23,11 @@ const char* index_ov2640_html = R"~(
                 font-size: 14px;
                 padding-left: 5px;
             }
+            h6 {
+                font-style: bold;
+                font-size: 9px;
+                padding-left: 15px;
+            }
             
            .center{
               text-align: center; 
@@ -49,6 +54,9 @@ const char* index_ov2640_html = R"~(
               flex-wrap: wrap;
               border-radius: 4px;
               justify-content: space-between;
+           }
+           section#title{
+              display: flex;
            }
            section#footer {
               min-width: 342px;
@@ -407,7 +415,10 @@ const char* index_ov2640_html = R"~(
     <body>
         <section id="main">
             <section id="header">
-              <h2 id="page-title">ESP32 Camera</h2>
+              <section id="title">
+                <h2 id="page-title">ESP32 Camera</h2>&nbsp;
+                <h6 id="fw_version" class="default-action displayonly"></h6>
+              </section>  
               <nav id="maintoolbar">
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
@@ -837,7 +848,7 @@ const char* index_ov2640_html = R"~(
                 <div class="info-group center" id="free-group">
                     <label for="free_bytes">Free&nbsp;space</label>
                     <div id="free_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
-                </div>                
+                </div>   
             </section>                         
         </section>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
@@ -925,7 +936,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
             .then(response => {
               console.log(`request to ${query} finished, status: ${response.status}`)
           })
-        }
+        }      
+      } else if(el.id === "fw_version"){    
+        document.getElementById("fw_version").innerHTML = "ver: " + value;
       } else if(el.id === "hostName"){
         document.title = value;
         document.getElementById("page-title").innerHTML = value;
