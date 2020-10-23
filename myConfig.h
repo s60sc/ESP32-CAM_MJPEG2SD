@@ -66,6 +66,7 @@ bool resetConfig() {
   pref.clear();
   // Close the Preferences
   pref.end();
+  return true;
 }
 
 bool saveConfig() {

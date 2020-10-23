@@ -1,7 +1,7 @@
 
 /* 
 On the fly convert MJPEG file to AVI format when uploaded via FTP.
-Allows recordings to replay at correct frame rate on media players
+Allows recordings to replay at correct frame rate on media players.
 The file names must include the frame count to be converted, 
 so older style files will still be uploaded as MJPEGs.
 
@@ -131,7 +131,7 @@ bool aviOn = true;  // set to false if do not want conversion to AVI
 // sound recording
 #define SAMPLE_RATE 11025  // 11025Hz sample rate used - adequate for voice
 #define AUDIO_RAM SAMPLE_RATE*150 //up to 150 secs in psram
-#define RAMSIZE 8192 // must be multiple of sd card sector size
+#define RAMSIZE ((SAMPLE_RATE+1)/2)
 static hw_timer_t* timer2 = NULL;
 static uint8_t* psramBuf;
 static uint32_t psramPtr = 0;
@@ -148,7 +148,8 @@ static uint8_t wavHeader[WAV_HEADER_LEN] = { // WAV header template
   0x01, 0x00, 0x08, 0x00, 0x64, 0x61, 0x74, 0x61, 0x00, 0x00, 0x00, 0x00,
 };
 
-int* extractMeta(const char* fname);   
+int* extractMeta(const char* fname); 
+void showProgress();  
 
 size_t soundFile(File &fh) {
   // derive audio file name from video file but with extension .wav
@@ -260,8 +261,8 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
   static int iPtr = 0; // pointer in index buffer
   static int hdrOffset = 0; // indicates if mjpeg header straddles buffers
   static bool theEnd = false;
-  static int readPtr = WAV_HEADER_LEN;
-  
+  showProgress();
+    
   if (theEnd) {
     // end of avi file processing, reset for next file
     theEnd = false;
@@ -269,7 +270,6 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
     jEnd = 0; 
     iPtr = 0;
     hdrOffset = 0;
-    readPtr = WAV_HEADER_LEN;
     Serial.printf("\nProcessed %d of %d frames\n", framePtr, frameCnt);
     return 0; 
   }

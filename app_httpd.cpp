@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "esp_http_server.h"
-#include "SPIFFS.h"
+#include "SPIFFS.h"                  
 #include <SD_MMC.h>
 #include "WiFi.h"
 #include "esp_timer.h"
@@ -59,7 +59,7 @@ extern bool stopPlayback;
 extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
 extern bool lampVal;
-extern char versionStr[];
+extern char* appVersion;                        
 
 void listDir(const char* fname, char* htmlBuff);
 uint8_t setFPSlookup(uint8_t val);
@@ -69,9 +69,7 @@ size_t* getNextFrame();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void stopPlaying();
 void controlLamp(bool lampVal);
-#if USE_DS18B20  
-float readDStemp(boolean isCelsius);
-#endif
+float readDStemp(bool isCelsius);
 String upTime();
 
 void deleteFolderOrFile(const char* val);
@@ -107,11 +105,7 @@ static esp_err_t capture_handler(httpd_req_t *req){
     httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
-    size_t out_len, out_width, out_height;
-    uint8_t * out_buf;
-    bool s;
-    size_t fb_len = 0;
-    fb_len = fb->len;
+    size_t fb_len = fb->len;
     res = httpd_resp_send(req, (const char *)fb->buf, fb->len); 
     esp_camera_fb_return(fb);
     int64_t fr_end = esp_timer_get_time();
@@ -125,7 +119,6 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   size_t jpg_len = 0;
   uint8_t * jpg_buf = NULL;
   char * part_buf[64];
-  int64_t fr_start = 0;
 
   static int64_t last_frame = 0;
   if (!last_frame) last_frame = esp_timer_get_time();
@@ -167,7 +160,6 @@ static esp_err_t stream_handler(httpd_req_t *req) {
         }
       }
       // end of additions for mjpeg2sd.cpp
-      fr_start = esp_timer_get_time();
       if (res == ESP_OK) {
         res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));    
         size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, jpg_len);
@@ -217,7 +209,7 @@ bool formatMMC(){
       Serial.println("\nError formatting card");
     }
     return formatted;
-}
+}                
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -284,14 +276,14 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
-    else if(!strcmp(variable, "record")) doRecording = (val) ? true : false; 
+    else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
     else if(!strcmp(variable, "format")){
       if(formatMMC()){
           return httpd_resp_send(req, "Formated card", strlen("Formated card"));
       }else{
           return httpd_resp_send(req, "Format card failed!", strlen("Format card failed!"));
       }      
-    }
+    }                                         
     else if(!strcmp(variable, "dbgMotion")) {
       debugMotion = (val) ? true : false;   
       doRecording = !debugMotion;
@@ -433,7 +425,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
-    p+=sprintf(p, "\"fw_version\":\"%s\"", versionStr );  
+    p+=sprintf(p, "\"fw_version\":\"%s\"", appVersion);  
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");

@@ -67,7 +67,14 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
 
-* The FTP, Wifi, and other parameters ned to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
+* The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
+
+* Check internet connection and automatically reconnect if needed on power loss.
+
+* Added mdns name services in order to use `http://[Host Name]` instead of ip address
+
+* Delete or ftp upload and delete oldest folder when card free space is running out.  
+  See `minCardFreeSpace` and `freeSpaceMode` in `mjpeg2sd.cpp`
 
 
 Additional ancilliary functions:
