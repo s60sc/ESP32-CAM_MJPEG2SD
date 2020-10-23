@@ -30,7 +30,7 @@ char ST_ns2[16] = "";
 #define ESP_getChipId() ((uint32_t)ESP.getEfuseMac())
 String AP_SSID = "CAM_" + String(ESP_getChipId(), HEX);
 char   AP_Pass[20] = "123456789";
-char   AP_ip[16]  = ""; //Leave blank for 192.168.1.4
+char   AP_ip[16]  = ""; //Leave blank for 192.168.4.1
 char   AP_sn[16]  = "";
 char   AP_gw[16]  = "";
 
@@ -52,7 +52,7 @@ void controlLamp(bool lampVal);
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting
 
-/*  Hanlde config nvs load & save and wifi start   */
+/*  Handle config nvs load & save and wifi start   */
 DNSServer dnsAPServer;
 Preferences pref;
 

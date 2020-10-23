@@ -1,9 +1,9 @@
 /*
-  Extension to capture ESP32 Cam JPEG images into a MJPEG file and store on SD
-  minimises the file writes and matches them to the SD card cluster size.
-  MJPEG files stored on the SD card can also be selected and streamed to a browser.
-
-  s60sc 2020
+* Extension to capture ESP32 Cam JPEG images into a MJPEG file and store on SD
+* minimises the file writes and matches them to the SD card sector size.
+* MJPEG files stored on the SD card can also be selected and streamed to a browser.
+*
+* s60sc 2020
 */
 
 extern char timezone[]; //Defined in myConfig.h
@@ -13,7 +13,7 @@ extern char timezone[]; //Defined in myConfig.h
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
-#define CLUSTERSIZE 32768 // set this to match the SD card cluster size
+#define RAMSIZE 16384 // set this to multiple of SD card sector size
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
 
@@ -44,7 +44,8 @@ bool freeSpaceMode = 2; // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp 
 extern const char* _STREAM_BOUNDARY;
 extern const char* _STREAM_PART;
 static const size_t streamBoundaryLen = strlen(_STREAM_BOUNDARY);
-static char* part_buf[64];
+#define PART_BUF_LEN 64
+static char* part_buf[PART_BUF_LEN];
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -68,17 +69,17 @@ struct frameStruct {
 };
 // indexed by frame size - needs to be consistent with sensor.h enum
 extern const frameStruct frameData[] = {
-  {"QQVGA", 160, 120, 25, 1, 1},
-  {"n/a", 0, 0, 0, 0, 1},
-  {"n/a", 0, 0, 0, 0, 1},
-  {"HQVGA", 240, 176, 25, 2, 1},
-  {"QVGA", 320, 240, 25, 2, 1},
-  {"CIF", 400, 296, 25, 2, 1},
-  {"VGA", 640, 480, 15, 3, 1},
-  {"SVGA", 800, 600, 10, 3, 1},
-  {"XGA", 1024, 768, 5, 3, 1},
-  {"SXGA", 1280, 1024, 3, 3, 1},
-  {"UXGA", 1600, 1200, 2, 3, 1}
+  {"QQVGA", 160, 120, 30, 1, 1},
+  {"n/a", 0, 0, 0, 0, 1}, 
+  {"n/a", 0, 0, 0, 0, 1}, 
+  {"HQVGA", 240, 176, 30, 2, 1}, 
+  {"QVGA", 320, 240, 30, 2, 1}, 
+  {"CIF", 400, 296, 30, 2, 1},
+  {"VGA", 640, 480, 20, 3, 1}, 
+  {"SVGA", 800, 600, 20, 3, 1}, 
+  {"XGA", 1024, 768, 5, 3, 1}, 
+  {"SXGA", 1280, 1024, 5, 3, 1}, 
+  {"UXGA", 1600, 1200, 5, 3, 1}  
 };
 extern uint8_t fsizePtr; // index to frameData[] for record
 uint8_t ftypePtr; // index to frameData[] for ftp
@@ -90,6 +91,7 @@ static uint16_t frameInterval; // units of 0.1ms between frames
 #define MAX_JPEG ONEMEG/2 // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MJPEGEXT "mjpeg"
 uint8_t* SDbuffer; // has to be dynamically allocated due to size
+uint8_t iSDbuffer[RAMSIZE];
 char* htmlBuff;
 static size_t htmlBuffLen = 20000; // set big enough to hold all file names in a folder
 static size_t highPoint;
@@ -245,14 +247,17 @@ void controlFrameTimer(bool restartTimer) {
   // frame timer control, timer3 so dont conflict with cam
   static hw_timer_t* timer3 = NULL;
   // stop current timer
-  if (timer3) timerEnd(timer3);
+  if (timer3) {
+    timerAlarmDisable(timer3);   
+    timerDetachInterrupt(timer3); 
+    timerEnd(timer3);
+  }
   if (restartTimer) {
     // (re)start timer 3 interrupt per required framerate
     timer3 = timerBegin(3, 8000, true); // 0.1ms tick
-    frameInterval = 10000 / FPS; // in units of 0.1ms
-    showDebug("Frame timer interval %ums for FPS %u", frameInterval / 10, FPS);
-
-    timerAlarmWrite(timer3, frameInterval, true); //
+    frameInterval = 10000 / FPS; // in units of 0.1ms 
+    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
+    timerAlarmWrite(timer3, frameInterval, true); // 
     timerAlarmEnable(timer3);
     timerAttachInterrupt(timer3, &frameISR, true);
   }
@@ -281,9 +286,9 @@ static inline bool doMonitor(bool capturing) {
   // monitor incoming frames for motion
   static uint8_t motionCnt = 0;
   // ratio for monitoring stop during capture / movement prior to capture
-  uint8_t checkRate = (capturing) ? FPS * MOVE_STOP_SECS : FPS / MOVE_START_CHECKS;
+  uint8_t checkRate = (capturing) ? FPS*MOVE_STOP_SECS : FPS/MOVE_START_CHECKS;
   if (!checkRate) checkRate = 1;
-  if (++motionCnt / checkRate) motionCnt = 0; // time to check for motion
+  if (++motionCnt/checkRate) motionCnt = 0; // time to check for motion
   return !(bool)motionCnt;
 }
 
@@ -296,29 +301,35 @@ static inline void freeFrame() {
 }
 
 static void saveFrame() {
-  // build frame boundary for jpeg
+  // build frame boundary for jpeg 
   uint32_t fTime = millis();
   // add boundary to buffer
-  memcpy(SDbuffer + highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
+  memcpy(SDbuffer+highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
   highPoint += streamBoundaryLen;
-  size_t jpegSize = fb->len;
+  size_t jpegSize = fb->len; 
   uint16_t filler = (4 - (jpegSize & 0x00000003)) & 0x00000003; // align end of jpeg on 4 byte boundary for subsequent AVI
   jpegSize += filler;
-  size_t streamPartLen = snprintf((char*)part_buf, 63, _STREAM_PART, jpegSize);
-  memcpy(SDbuffer + highPoint, part_buf, streamPartLen); // marker at start of each mjpeg frame
+  size_t streamPartLen = snprintf((char*)part_buf, PART_BUF_LEN-1, _STREAM_PART, jpegSize);
+  memcpy(SDbuffer+highPoint, part_buf, streamPartLen); // marker at start of each mjpeg frame
   highPoint += streamPartLen;
-  memcpy(SDbuffer + highPoint, fb->buf, jpegSize);
-  highPoint += jpegSize;
-  freeFrame();
-  // only write to SD when at least CLUSTERSIZE is available in buffer
+  memcpy(SDbuffer+highPoint, fb->buf, jpegSize);
+  highPoint += jpegSize;                                                        
+  freeFrame(); 
+  // only write to SD when at least RAMSIZE is available in buffer
   uint32_t wTime = millis();
-  if (highPoint / CLUSTERSIZE) {
-    size_t remainder = highPoint % CLUSTERSIZE;
-    mjpegFile.write(SDbuffer, highPoint - remainder);
+  if (highPoint/RAMSIZE) {  
+    size_t remainder = highPoint % RAMSIZE;
+    size_t transferSize = highPoint-remainder;
+    for (int i=0; i<transferSize/RAMSIZE; i++) {
+      // copy psram to interim dram before writing
+      memcpy(iSDbuffer, SDbuffer+RAMSIZE*i, RAMSIZE);
+      mjpegFile.write(iSDbuffer, RAMSIZE);
+    }
     // push remainder to buffer start, should not overlap
-    memcpy(SDbuffer, SDbuffer + highPoint - remainder, remainder);
+    memcpy(SDbuffer, SDbuffer+transferSize, remainder);
     highPoint = remainder;
-  }
+  } 
+
   wTime = millis() - wTime;
   wTimeTot += wTime;
   vidSize += streamPartLen + jpegSize + filler + streamBoundaryLen;
@@ -659,11 +670,16 @@ size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize
 void readSD() {
   // read next cluster from SD for playback
   uint32_t rTime = millis();
-  readLen = (stopPlayback) ? 0 : playbackFile.read(SDbuffer + CLUSTERSIZE * 2, CLUSTERSIZE);
+  readLen = 0;
+  if (!stopPlayback) {
+    // read to interim dram before copying to psram
+    readLen = playbackFile.read(iSDbuffer, RAMSIZE);
+    memcpy(SDbuffer+RAMSIZE*2, iSDbuffer, RAMSIZE);
+  }
   showDebug("SD read time %u ms", millis() - rTime);
   wTimeTot += millis() - rTime;
-  xSemaphoreGive(readSemaphore); // signal that ready
-  delay(20);
+  xSemaphoreGive(readSemaphore); // signal that ready     
+  delay(10);                     
 }
 
 size_t* getNextFrame() {
@@ -695,11 +711,11 @@ size_t* getNextFrame() {
     if (!remaining) {
       mTime = millis();
       xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
-      showDebug("SD wait time %u ms", millis() - mTime);
-      wTimeTot += millis() - mTime;
-      mTime = millis();
-      memcpy(SDbuffer, SDbuffer + CLUSTERSIZE * 2, readLen); // load new cluster from double buffer
-      showDebug("memcpy took %u ms for %u bytes", millis() - mTime, readLen);
+      showDebug("SD wait time %u ms", millis()-mTime);
+      wTimeTot += millis()-mTime;
+      mTime = millis();                                 
+      memcpy(SDbuffer, SDbuffer+RAMSIZE*2, readLen); // load new cluster from double buffer
+      showDebug("memcpy took %u ms for %u bytes", millis()-mTime, readLen);
       buffLen = readLen;
       fTimeTot += millis() - mTime;
       remaining = true;

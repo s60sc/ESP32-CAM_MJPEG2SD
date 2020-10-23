@@ -1,15 +1,7 @@
 
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
- Added functionality
- 
- * Check internet connection and automatically reconnect if needed on power loss.
- * Added mdns name services on order to visit http://[Host Name] instead of ip address
- * Display version number on page header
- * Delete or ftp upload and delete oldest folder when card free space is running out. 
 
 ![image1](extras/screenshot.png)
-
-
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. 
 
@@ -22,19 +14,19 @@ Saving a set of JPEGs as a single file is faster than as individual files and is
 
 Frame Size | OV2640 camera max fps | mjpeg2sd max fps | Detection time ms
 ------------ | ------------- | ------------- | -------------
-QQVGA | 50 | 35 |  20
-HQVGA | 50 | 30 |  40
-QVGA | 50 | 25 |  70
-CIF | 50 | 20 | 110
-VGA | 25 | 15 |  80
-SVGA | 25 | 10 | 120
-XGA | 6.25 | 6 | 180
-SXGA | 6.25 | 4 | 300
-UXGA | 6.25 | 2 | 450
+QQVGA | 50 | 45 |  20
+HQVGA | 50 | 45 |  40
+QVGA | 50 | 40 |  70
+CIF | 50 | 40 | 110
+VGA | 25 | 20 |  80
+SVGA | 25 | 20 | 120
+XGA | 6.25 | 5 | 180
+SXGA | 6.25 | 5 | 300
+UXGA | 6.25 | 5 | 450
 
 ## Design
 
-The ESP32 Cam module has 4MB of pSRAM which is used to buffer the camera frames and the construction of the MJPEG file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card cluster size. For playback the MJPEG is read from SD into a cluster sized buffer, and sent to the browser as timed individual frames.
+The ESP32 Cam module has 4MB of pSRAM which is used to buffer the camera frames and the construction of the MJPEG file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the MJPEG is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames.
 
 The SD card can be used in either __MMC 1 line__ mode (default) or __MMC 4 line__ mode. The __MMC 1 line__ mode is practically as fast as __MMC 4 line__ and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
@@ -69,13 +61,23 @@ The recorded playback rate can be changed during replay by changing the __FPS__ 
 After playback finished, press __Stop Stream__ button. 
 If a recording is started during a playback, playback will stop.
 
-The following functions are provided by [@gemi254](https://github.com/gemi254).
+The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming.
 
 * Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
 
 * The FTP, Wifi, and other parameters ned to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
+
+
+Additional ancilliary functions:
+
+* Enable Over The Air (OTA) updates - see `ota.cpp`
+* Add temperature sensor - see `ds18b20.cpp`
+* Add analog microphone support - see `avi.cpp`
+* Check internet connection and automatically reconnect if needed on power loss.
+* Added mdns name services on order to visit http://[Host Name] instead of ip address
+* Delete or ftp upload and delete oldest folder when card free space is running out. 
 
 Browser functions only tested on Chrome.
 
@@ -84,9 +86,8 @@ Browser functions only tested on Chrome.
 
 To get the maximum frame rate on OV2640, in `ESP32-CAM_MJPEG2SD.ino`:
 * `config.xclk_freq_hz = 10000000;` This is faster than the default `20000000` 
-* `config.fb_count = 8` to provide sufficient buffering between SD writes for smaller frame sizes 
+* `config.fb_count = 4` to provide sufficient buffering between SD writes for smaller frame sizes 
 
-In `mjpeg2sd.cpp` change `#define CLUSTERSIZE 32768` if the SD card cluster size is not 32kB.
 
 ## Motion detection by Camera
 
