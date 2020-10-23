@@ -575,21 +575,6 @@ void openSDfile() {
     readSD(); // prime playback task
   }
 }
-String getOldestDir() {
-  String oldName = "";
-  File root = SD_MMC.open("/");
-  File file = root.openNextFile();
-  while (file) {
-    std::string str(file.name());
-    if ( file.isDirectory() && str.find("/System") == std::string::npos ) { // ignore Sys Vol Info
-      //Serial.print("D: "); Serial.println(file.name());
-      String Name = file.name();
-      if (oldName == "" || oldName > Name) oldName = Name;
-    }
-    file = root.openNextFile();
-  }
-  return oldName;
-}
 
 String getOldestDir() {
   String oldName = "";
