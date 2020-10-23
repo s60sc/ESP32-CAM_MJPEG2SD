@@ -24,8 +24,9 @@ bool prepDS18();
 void OTAsetup();
 bool OTAlistener();
 bool startWifi();
+void checkConnection();                         
 
-static const String versionStr = "1.8";
+const char* appVersion = "1.8";
 
 void setup() {
   Serial.begin(115200);
@@ -110,7 +111,7 @@ void setup() {
   }
   
   if (!prepMjpeg()) {
-    Serial.println("Unable to continue, restart after 10 secs");
+    Serial.println("Unable to continue, SD card fail, restart after 10 secs");
     delay(10000);
     ESP.restart();
   }
@@ -122,9 +123,13 @@ void setup() {
   else Serial.println("DS18B20 device not present"); 
   
   String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-  Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", versionStr, wifiIP.c_str());
+  Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", appVersion, wifiIP.c_str());
 }
 
 void loop() {
+  //Check connection
+  checkConnection();                    
   if (!OTAlistener()) delay(100000);
 }
+
+

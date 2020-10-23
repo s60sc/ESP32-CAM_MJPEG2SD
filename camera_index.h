@@ -23,6 +23,11 @@ const char* index_ov2640_html = R"~(
                 font-size: 14px;
                 padding-left: 5px;
             }
+            h6 {
+                font-style: bold;
+                font-size: 9px;
+                padding-left: 15px;
+            }
             
            .center{
               text-align: center; 
@@ -49,6 +54,9 @@ const char* index_ov2640_html = R"~(
               flex-wrap: wrap;
               border-radius: 4px;
               justify-content: space-between;
+           }
+           section#title{
+              display: flex;
            }
            section#footer {
               min-width: 342px;
@@ -407,7 +415,10 @@ const char* index_ov2640_html = R"~(
     <body>
         <section id="main">
             <section id="header">
-              <h2 id="page-title">ESP32 Camera</h2>
+              <section id="title">
+                <h2 id="page-title">ESP32 Camera</h2>&nbsp;
+                <h6 id="fw_version" class="default-action displayonly"></h6>
+              </section>  
               <nav id="maintoolbar">
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
@@ -780,6 +791,7 @@ const char* index_ov2640_html = R"~(
                               <button id="reboot" style="float:right;">Reboot</button>
                               <button id="save" style="float:right;">Save</button>
                               <button id="defaults" style="float:right;">Defaults</button>
+                              <!-- <button id="format" style="float:right;">Format</button> -->
                             </section>
                           </div>   
                         </div>
@@ -836,7 +848,7 @@ const char* index_ov2640_html = R"~(
                 <div class="info-group center" id="free-group">
                     <label for="free_bytes">Free&nbsp;space</label>
                     <div id="free_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
-                </div>                
+                </div>   
             </section>                         
         </section>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
@@ -924,7 +936,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
             .then(response => {
               console.log(`request to ${query} finished, status: ${response.status}`)
           })
-        }
+        }      
+      } else if(el.id === "fw_version"){    
+        document.getElementById("fw_version").innerHTML = "ver: " + value;
       } else if(el.id === "hostName"){
         document.title = value;
         document.getElementById("page-title").innerHTML = value;
@@ -1000,13 +1014,16 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const rebootButton = document.getElementById('reboot')
   const saveButton = document.getElementById('save')
   const defaultsButton = document.getElementById('defaults')
+  //const formatButton = document.getElementById('format')
   
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
   }
+  
   uploadMoveButton.onclick = () => {
     updateConfig(uploadMoveButton);
   }
+  
   deleteButton.onclick = () => {
     var deleteBt = $('#delete');
     if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
@@ -1054,6 +1071,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
+ 
+ /*
+  formatButton.onclick = () => {
+    updateConfig(formatButton);
+  }
+ */
+ 
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
@@ -1199,7 +1223,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
     </body>
 </html>
 )~";
-
 
 const char* jquery_min_js_html = R"~(
 /*! jQuery v2.1.3 | (c) 2005, 2014 jQuery Foundation, Inc. | jquery.org/license */
