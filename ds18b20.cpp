@@ -11,11 +11,13 @@
  s60sc 2020
  */
 
-#define USE_DS18B20 false
+//#define USE_DS18B20 // uncomment to include DS18B20
 
 #ifdef USE_DS18B20
 #include <OneWire.h> 
 #include <DallasTemperature.h>
+#else
+#include "Arduino.h"
 #endif
 
 // configuration
@@ -57,11 +59,13 @@ static void getDS18tempTask(void* pvParameters) {
 }
 
 bool prepDS18() {
-  if (USE_DS18B20) {
-    xTaskCreatePinnedToCore(&getDS18tempTask, "getDS18tempTask", 4096, NULL, 1, &getDS18tempHandle, 1); 
-    delay(1000);
-    return DS18Bfound;
-  } else return false;
+#ifdef USE_DS18B20
+  xTaskCreatePinnedToCore(&getDS18tempTask, "getDS18tempTask", 1024, NULL, 1, &getDS18tempHandle, 1); 
+  delay(1000);
+  return DS18Bfound;
+#else
+  return false;
+#endif
 }
 
 bool tryDS18() {
@@ -71,7 +75,7 @@ bool tryDS18() {
   return DS18Bfound;
 }
 
-float readDStemp(boolean isCelsius) {
+float readDStemp(bool isCelsius) {
   // return latest read DS18B20 value in celsius (true) or fahrenheit (false), unless error
   return (dsTemp > -127) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 }

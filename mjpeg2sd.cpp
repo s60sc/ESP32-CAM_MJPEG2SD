@@ -13,9 +13,12 @@ extern char timezone[]; //Defined in myConfig.h
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
-#define RAMSIZE 16384 // set this to multiple of SD card sector size
+#define RAMSIZE 16384 // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
+#define minCardFreeSpace 50 // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
+#define freeSpaceMode 1 // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp and then delete folder                                                                                                               
+
 
 #include <SD_MMC.h>
 #include <regex>
@@ -97,6 +100,7 @@ static File mjpegFile;
 static char mjpegName[100];
 char dayFolder[50];
 static const uint8_t zeroBuf[4] = {0x00, 0x00, 0x00, 0x00}; // 0000
+bool stopCheck = false;
 
 // SD playback
 static File playbackFile;
@@ -133,6 +137,9 @@ void prepSound();
 void startAudio();
 void finishAudio(const char* mjpegName, bool isvalid);
 bool useMicrophone();
+String getOldestDir();
+void deleteFolderOrFile(const char* val);
+void createUploadTask(const char* val, bool move = false);                      
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -258,7 +265,7 @@ void controlFrameTimer(bool restartTimer) {
 
 /**************** capture MJPEG  ************************/
 
-static bool openMjpeg() {
+static void openMjpeg() {
   // derive filename from date & time, store in date folder
   // time to open a new file on SD increases with the number of files already present
   oTime = millis();
@@ -277,12 +284,15 @@ static bool openMjpeg() {
 
 static inline bool doMonitor(bool capturing) {
   // monitor incoming frames for motion 
-  static uint8_t motionCnt = 0;
-  // ratio for monitoring stop during capture / movement prior to capture
-  uint8_t checkRate = (capturing) ? FPS*MOVE_STOP_SECS : FPS/MOVE_START_CHECKS;
-  if (!checkRate) checkRate = 1;
-  if (++motionCnt/checkRate) motionCnt = 0; // time to check for motion
-  return !(bool)motionCnt;
+  if (stopCheck) return false; // no checks during FTP upload
+  else {
+    static uint8_t motionCnt = 0;
+    // ratio for monitoring stop during capture / movement prior to capture
+    uint8_t checkRate = (capturing) ? FPS*MOVE_STOP_SECS : FPS/MOVE_START_CHECKS;
+    if (!checkRate) checkRate = 1;
+    if (++motionCnt/checkRate) motionCnt = 0; // time to check for motion
+    return !(bool)motionCnt;
+  }
 }  
 
 static inline void freeFrame() {
@@ -333,6 +343,23 @@ static void saveFrame() {
   showDebug("Frame processing time %u ms", fTime);
 }
 
+bool checkFreeSpace() { //Check for suficcient space in card
+  if (freeSpaceMode < 1) return false;
+  unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
+  Serial.print("Card free space: "); Serial.println(freeSize);
+  if (freeSize < minCardFreeSpace) {
+    String oldestDir = getOldestDir();
+    Serial.print("Oldest dir to delete: "); Serial.println(oldestDir);
+    if (freeSpaceMode == 1) { //Delete oldest folder
+      deleteFolderOrFile(oldestDir.c_str());
+    } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
+      createUploadTask(oldestDir.c_str(), true);
+    }
+    return true;
+  }
+  return false;
+}                                                            
+
 static bool closeMjpeg() {
   // closes and renames the file
   uint32_t captureTime = frameCnt/FPS;
@@ -343,7 +370,7 @@ static bool closeMjpeg() {
     highPoint += streamBoundaryLen;
     // write remaining frame content to SD
     mjpegFile.write(SDbuffer, highPoint); 
-    showDebug("Final SD storage time %u ms", millis() - cTime); 
+    showDebug("Final SD storage time %lu ms", millis() - cTime); 
 
     // finalise file on SD
     uint32_t hTime = millis();
@@ -351,11 +378,11 @@ static bool closeMjpeg() {
     float actualFPS = (1000.0f * (float)frameCnt) / ((float)vidDuration);
     mjpegFile.close();
     // rename file to include actual FPS, duration, and frame count, plus file extension
-    snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%u_%u_%u.%s", 
+    snprintf(mjpegName, sizeof(mjpegName)-1, "%s_%s_%lu_%lu_%u.%s", 
       partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000.0), frameCnt, MJPEGEXT);
     SD_MMC.rename(partName, mjpegName);
     finishAudio(mjpegName, true);
-    showDebug("MJPEG close/rename time %u ms", millis() - hTime); 
+    showDebug("MJPEG close/rename time %lu ms", millis() - hTime); 
     cTime = millis() - cTime;
     insufficient = 0;
 
@@ -378,6 +405,7 @@ static bool closeMjpeg() {
     showInfo("Busy: %u%%", std::min(100 * (wTimeTot+fTimeTot+dTimeTot+oTime+cTime) / vidDuration, (uint32_t)100));
     showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
     showInfo("*************************************\n");
+    checkFreeSpace();                     
     return true;
   } else {
     // delete too small files if exist
@@ -386,6 +414,7 @@ static bool closeMjpeg() {
     finishAudio(partName, false);
     showDebug("Insufficient capture duration: %u secs", captureTime);
     insufficient++;
+    checkFreeSpace();                     
     return false;
   }
 }
@@ -545,6 +574,22 @@ void openSDfile() {
   }
 }
 
+String getOldestDir() {
+  String oldName = "";
+  File root = SD_MMC.open("/");
+  File file = root.openNextFile();
+  while (file) {
+    std::string str(file.name());
+    if ( file.isDirectory() && str.find("/System") == std::string::npos ) { // ignore Sys Vol Info
+      //Serial.print("D: "); Serial.println(file.name());
+      String Name = file.name();
+      if (oldName == "" || oldName > Name) oldName = Name;
+    }
+    file = root.openNextFile();
+  }
+  return oldName;
+}
+
 void listDir(const char* fname, char* htmlBuff) {
   // either list day folders in root, or files in a day folder
   std::string decodedName(fname); 
@@ -636,7 +681,7 @@ void readSD() {
     readLen = playbackFile.read(iSDbuffer, RAMSIZE);
     memcpy(SDbuffer+RAMSIZE*2, iSDbuffer, RAMSIZE);
   }
-  showDebug("SD read time %u ms", millis() - rTime);
+  showDebug("SD read time %lu ms", millis() - rTime);
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready     
   delay(10);                     
@@ -664,18 +709,18 @@ size_t* getNextFrame() {
     buffLen = readLen;
   }  
   
-  showDebug("http send time %u ms", millis() - hTime);
+  showDebug("http send time %lu ms", millis() - hTime);
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
   if (buffLen && !stopPlayback) {
     if (!remaining) {
       mTime = millis(); 
       xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
-      showDebug("SD wait time %u ms", millis()-mTime);
+      showDebug("SD wait time %lu ms", millis()-mTime);
       wTimeTot += millis()-mTime;
       mTime = millis();                                 
       memcpy(SDbuffer, SDbuffer+RAMSIZE*2, readLen); // load new cluster from double buffer
-      showDebug("memcpy took %u ms for %u bytes", millis()-mTime, readLen);
+      showDebug("memcpy took %lu ms for %u bytes", millis()-mTime, readLen);
       buffLen = readLen;
       fTimeTot += millis()-mTime;                                 
       remaining = true; 
@@ -690,14 +735,14 @@ size_t* getNextFrame() {
       // search for next boundary in buffer
       boundary = isSubArray(SDbuffer+streamOffset+skipOver, (uint8_t*)needle, buffLen-streamOffset-skipOver, streamBoundaryLen);
       skipOver = 0;
-      showDebug("frame search time %u ms", millis()-mTime);
+      showDebug("frame search time %lu ms", millis()-mTime);
       fTimeTot += millis()-mTime;
       if (boundary) {
         // found image boundary
         mTime = millis();
         // wait on playbackSemaphore for rate control
         xSemaphoreTake(playbackSemaphore, portMAX_DELAY);
-        showDebug("frame timer wait %u ms", millis()-mTime);
+        showDebug("frame timer wait %lu ms", millis()-mTime);
         tTimeTot += millis()-mTime;
         frameCnt++;
         showProgress();
@@ -912,8 +957,8 @@ bool prepMjpeg() {
 
 void startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreate(&captureTask, "captureTask", 4096*2, NULL, 5, &captureHandle);
-  if (xTaskCreate(&playbackTask, "playbackTask", 4096*4, NULL, 4, &playbackHandle) != pdPASS)
+  xTaskCreate(&captureTask, "captureTask", 4096, NULL, 5, &captureHandle);
+  if (xTaskCreate(&playbackTask, "playbackTask", 4096, NULL, 4, &playbackHandle) != pdPASS)
     showError("Insufficient memory to create playbackTask");
   sensor_t * s = esp_camera_sensor_get();
   fsizePtr = s->status.framesize;

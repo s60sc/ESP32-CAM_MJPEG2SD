@@ -12,7 +12,6 @@
  makes the transition. These could be interpreted as spurious motion.
  
  s60sc 2020
- 
 
 */
 
@@ -95,7 +94,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
       for (int c=0; c<sampleWidth; c++)      
         rgb_buf[c+(r*sampleWidth)] = rgb_buf[(c+(r*sampleWidth))*reducer]; 
 */
-  showDebug("JPEG to greyscale conversion %u bytes in %ums", rgb_len, millis() - dTime);
+  showDebug("JPEG to greyscale conversion %u bytes in %lums", rgb_len, millis() - dTime);
   dTime = millis();
 
   // allocate buffer space on heap
@@ -124,7 +123,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   if (rgb_buf == NULL) showError("Memory leak, heap now: %u, pSRAM now: %u", ESP.getFreeHeap(), ESP.getFreePsram());
   free(rgb_buf); 
   rgb_buf = NULL;
-  showDebug("Detected %u changes, threshold %u, light level %u, in %ums", changeCount, moveThreshold, lightLevel, millis() - dTime);
+  showDebug("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
   dTime = millis();
 
   if (changeCount > moveThreshold) {
@@ -161,7 +160,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
     xSemaphoreGive(motionMutex);
     free(jpg_buf);
     jpg_buf = NULL;
-    showDebug("Created changeMap JPEG %u bytes in %ums", jpg_len, millis() - dTime);
+    showDebug("Created changeMap JPEG %d bytes in %lums", jpg_len, millis() - dTime);
   }
 
   showDebug("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());

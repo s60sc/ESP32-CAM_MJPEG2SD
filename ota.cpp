@@ -11,13 +11,21 @@
 
 #define USE_OTA true
 
+//#define SHOW_LOG // leave commented out
+
 #include <WebServer.h>
 #include <Update.h>
 #include "OTApage.h"
 
 WebServer ota(82); // listen on port 82
 
+#ifdef SHOW_LOG
+extern char* logBuff;
+void doMessageLog();
+#endif
+
 void OTAprereq();
+void doMessageLog();
 
 void OTAsetup() {
   if (USE_OTA) {
@@ -50,13 +58,14 @@ void OTAsetup() {
         } else Update.printError(Serial);
       }
     });
-    /*
+#ifdef SHOW_LOG
     ota.on("/log", HTTP_GET, []() {
       ota.sendHeader("Connection", "close");
       doMessageLog(); // present message log for display (not part of ota)
       ota.send(200, "text/plain", logBuff); // sends as download not display
       free(logBuff);
-    }); */
+    }); 
+#endif
     ota.begin();
   }
 }

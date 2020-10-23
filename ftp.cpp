@@ -20,7 +20,7 @@ extern char ftp_wd[];
 
 //FTP buffers
 char rspBuf[255]; //Ftp response buffer
-char rspCount;
+uint8_t rspCount;
 #define BUFF_EXT 100
 #define BUFF_SIZE (32 * 1024)+BUFF_EXT // Upload data buffer size
 #define RESPONSE_TIMEOUT 10000                             
@@ -31,6 +31,7 @@ WiFiClient client;
 WiFiClient dclient;
 
 extern bool doPlayback;
+extern bool stopCheck;
 bool isAVI(File &fh);
 size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize);
 size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize);
@@ -345,20 +346,26 @@ static void taskUpload(void * parameter){
     ESP_LOGV(TAG, "Entering upload task fname: %s\n",fname.c_str());    
     uploadFolderOrFileFtp(fname, removeAfterUpload, 0);
     ESP_LOGV(TAG, "Ending uploadTask");
+    stopCheck = false;
     vTaskDelete( NULL );
 }
 
 void createUploadTask(const char* val, bool move=false){
-    doPlayback = false;
-    static char fname[100];
-    strcpy(fname, val); // else wont persist
-    removeAfterUpload = move;
-    ESP_LOGV(TAG, "Starting upload task with val: %s and delete on upload %i\n",val,removeAfterUpload);
-    xTaskCreate(
-        &taskUpload,       /* Task function. */
-        "taskUpload",     /* String with name of task. */
-        4096*2,           /* Stack size in bytes. */
-        (void *)fname,      /* Parameter passed as input of the task */
-        1,                /* Priority of the task. */
-        NULL);            /* Task handle. */
+    if (ESP.getFreeHeap() < 50000) printf("Insufficient free heap for FTP: %u\n", ESP.getFreeHeap());
+    else {
+      stopCheck = true; // prevent ram space contention
+      delay(100);
+      doPlayback = false;
+      static char fname[100];
+      strcpy(fname, val); // else wont persist
+      removeAfterUpload = move;
+      ESP_LOGV(TAG, "Starting upload task with val: %s and delete on upload %i\n",val,removeAfterUpload);
+      xTaskCreate(
+          &taskUpload,       /* Task function. */
+          "taskUpload",     /* String with name of task. */
+          4096*2,           /* Stack size in bytes. */
+          (void *)fname,      /* Parameter passed as input of the task */
+          1,                /* Priority of the task. */
+          NULL);            /* Task handle. */
+    }
 }
