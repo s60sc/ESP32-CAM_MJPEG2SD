@@ -26,7 +26,7 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();                         
 
-const char* appVersion = "1.8";
+const char* appVersion = "1.8b";
 
 void setup() {
   Serial.begin(115200);
@@ -132,5 +132,3 @@ void loop() {
   checkConnection();                    
   if (!OTAlistener()) delay(100000);
 }
-
-
