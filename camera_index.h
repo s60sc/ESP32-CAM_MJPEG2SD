@@ -1046,6 +1046,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         "val": "1"
       }
     })
+    setTimeout(function () { location.reload(true); }, 10000);
   }
  
  saveButton.onclick = () => {
