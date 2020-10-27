@@ -1,5 +1,6 @@
+Check if file exists on folder upload and ignore it. Incremental  upload
+Fixed save camera settings
 Added delete or ftp upload on card full
-Merged 
 Fixed compiling without OneWire library
 Fixed Url encoded requests to handle '._-~'
 Url encoded requests to handle ssids with spaces
