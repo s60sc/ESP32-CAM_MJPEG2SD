@@ -1,5 +1,5 @@
-Check if file exists on folder upload and ignore it. Incremental  upload
-Fixed save camera settings
+Check if file exists on upload a folder and ignore it. Incremental  upload
+Fixed save / restore camera settings on boot
 Added delete or ftp upload on card full
 Fixed compiling without OneWire library
 Fixed Url encoded requests to handle '._-~'
