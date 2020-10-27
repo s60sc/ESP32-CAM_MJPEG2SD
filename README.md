@@ -1,6 +1,10 @@
 
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
+* Check if file exists on upload a folder and ignore it. Incremental  upload
+* Fixed save / restore camera settings on boot
+* Reload page on reboot
+
 ![image1](extras/screenshot.png)
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. 
