@@ -17,7 +17,7 @@ static const char* TAG = "myConfig";
 //will start an access point if no saved value found
 
 char hostName[32] = ""; //Host name for ddns
-char ST_SSID[32]  = "";       //Router ssid
+char ST_SSID[32]  = ""; //Router ssid
 char ST_Pass[64]  = ""; //Router passd
 
 char ST_ip[16]  = ""; //Leave blank for dhcp
@@ -51,7 +51,17 @@ bool lampVal = false;
 void controlLamp(bool lampVal);
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting
-
+struct frameStruct {
+  const char* frameSizeStr;
+  const uint16_t frameWidth;
+  const uint16_t frameHeight;
+  const uint16_t defaultFPS;
+  const uint8_t scaleFactor; // (0..3)
+  const uint8_t sampleRate;  // (1..N)
+};;
+extern const frameStruct frameData[];
+uint8_t setFPSlookup(uint8_t val);
+uint8_t setFPS(uint8_t val);
 /*  Handle config nvs load & save and wifi start   */
 DNSServer dnsAPServer;
 Preferences pref;
@@ -141,7 +151,8 @@ bool loadConfig() {
   strcpy(ST_ns2, pref.getString("ST_ns2").c_str());
 
   fsizePtr = pref.getUShort("framesize", fsizePtr);
-  FPS = pref.getUShort("fps", FPS);
+  FPS = pref.getUChar("fps", FPS);
+  
   minSeconds = pref.getUChar("minf", minSeconds );
   doRecording = pref.getBool("doRecording", doRecording);
   motionVal = pref.getFloat("motion", motionVal);
@@ -159,11 +170,11 @@ bool loadConfig() {
   size_t schLen = pref.getBytesLength("camera_sensor");
   char buffer[schLen]; // prepare a buffer for the data
   schLen = pref.getBytes("camera_sensor", buffer, schLen);
-  if (true || schLen < 1 || schLen % sizeof(camera_status_t)) { // simple check that data fits
+  if (schLen < 1 || schLen % sizeof(camera_status_t)) { // simple check that data fits
     ESP_LOGE(TAG, "Camera sensor data is not correct size! get %u, size: %u",schLen,sizeof(camera_status_t));
     //return false;
   }else{
-    ESP_LOGI(TAG, "Data camera_sensor size get %u, size: %u",schLen, sizeof(camera_status_t));
+    ESP_LOGI(TAG, "Setup camera_sensor, size get %u, def size: %u",schLen, sizeof(camera_status_t));
     camera_status_t * st = (camera_status_t *)buffer; // cast the bytes into a struct ptr
     sensor_t *s = esp_camera_sensor_get();
     s->set_ae_level(s,st->ae_level);
@@ -192,6 +203,14 @@ bool loadConfig() {
     s->set_wb_mode(s,st->wb_mode);
     s->set_whitebal(s,st->awb);
     s->set_wpc(s,st->wpc);
+    
+    /* Not working Set fps and frame size on load time
+    if(s->pixformat == PIXFORMAT_JPEG) {
+        setFPSlookup(fsizePtr);
+        setFPS(FPS);
+        s->set_framesize(s, (framesize_t)fsizePtr);
+    }*/
+    
   }
   // Close the Preferences
   pref.end();
@@ -325,7 +344,7 @@ void checkConnection(){
   //Reboot?
   if(tmReboot>0 && millis() - tmReboot > 15000 ){
     int apClients = WiFi.softAPgetStationNum();
-    Serial.printf("Reboot.. Clients active: %i\n",apClients);
+    ESP_LOGI(TAG, "Reboot.. Clients active: %i",apClients);
     if(apClients < 1 ) //Reboot if no clients
        ESP.restart();
     else
