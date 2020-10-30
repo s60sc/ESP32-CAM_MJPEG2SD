@@ -82,14 +82,21 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 
 Additional ancilliary functions:
-
 * Enable Over The Air (OTA) updates - see `ota.cpp`
 * Add temperature sensor - see `ds18b20.cpp`
 * Add analog microphone support - see `avi.cpp`
 * Check internet connection and automatically reconnect if needed on power loss.
 * Added mdns name services on order to visit http://[Host Name] instead of ip address
 * Delete or ftp upload and delete oldest folder when card free space is running out. 
+* Automatically ftp upload new recordings on motion detection
 
+Help info text on each control
+Check if file exists on upload a folder and ignore it. Incremental  upload
+Fixed save / restore camera settings on boot
+Added delete or ftp upload on card full
+Fixed compiling without OneWire library
+Fixed Url encoded requests to handle '._-~'
+Url encoded requests to handle ssids with spaces
 Browser functions only tested on Chrome.
 
 
