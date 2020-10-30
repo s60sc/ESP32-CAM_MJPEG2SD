@@ -340,10 +340,10 @@ unsigned long tmConn=millis();
 unsigned long tmReboot=0;
 void checkConnection(){
   //Reboot?
-  if(tmReboot>0 && millis() - tmReboot > 15000 ){
+  if(tmReboot>0 && millis() - tmReboot > 25000 ){
     int apClients = WiFi.softAPgetStationNum();
-    ESP_LOGI(TAG, "Reboot.. Clients active: %i",apClients);
-    if(apClients < 1 ) //Reboot if no clients
+    ESP_LOGI(TAG, "Need reboot.. Wifi status: %i Clients active: %i", WiFi.status(), apClients);
+    if(apClients < 1 && WiFi.status() != WL_CONNECTED ) //Reboot if no clients and no connection
        ESP.restart();
     else
        tmReboot = 0; 
