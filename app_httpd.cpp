@@ -84,6 +84,7 @@ void resetConfig();
 extern bool lampOn;
 extern float motionVal;
 extern bool aviOn;
+extern bool autoUpload;
 extern bool nightTime;
 extern uint8_t lightLevel;   
 extern uint8_t nightSwitch;                                  
@@ -273,6 +274,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "aviOn")) aviOn = val;
+    else if(!strcmp(variable, "autoUpload")) autoUpload = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
@@ -352,6 +354,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
+    p+=sprintf(p, "\"autoUpload\":%u,", autoUpload);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     #if USE_DS18B20  
