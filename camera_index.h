@@ -432,7 +432,7 @@ const char* index_ov2640_html = R"~(
                         <div>                    
                           <div class="input-group" id="framesize-group">
                               <label for="framesize">Resolution</label>
-                              <select id="framesize" class="default-action">
+                              <select title="Set camera recording resolution" id="framesize" class="default-action">
                                   <option value="10">UXGA(1600x1200)</option>
                                   <option value="9">SXGA(1280x1024)</option>
                                   <option value="8">XGA(1024x768)</option>
@@ -447,14 +447,14 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="fps-group">
                               <label for="fps">FPS</label>
                               <div class="range-min">1</div>
-                              <input type="range" id="fps" min="1" max="30" value="10" class="default-action">
+                              <input title="Set camera frames per second to record" type="range" id="fps" min="1" max="30" value="10" class="default-action">
                               <output name="rangeVal">15</output>
                               <div class="range-max">30</div>
                           </div>
                           <div class="input-group" id="minf-group">
                               <label for="minf">Min Seconds</label>
                               <div class="range-min">0</div>
-                              <input type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                              <input title="Minimum seconds of movements to record" type="range" id="minf" min="0" max="20" value="5" class="default-action">
                               <output name="rangeVal">5</output>
                               <div class="range-max">20</div>
                           </div>
@@ -462,32 +462,39 @@ const char* index_ov2640_html = R"~(
                               <label for="dbg">Verbose</label>
                               <div class="switch">
                                   <input id="dbg" type="checkbox" class="default-action">
-                                  <label class="slider" for="dbg"></label>
+                                  <label title="Print detailed debug information on serial port" class="slider" for="dbg"></label>
                               </div>
                           </div>                                                  
                           <div class="input-group" id="sfiles-group" style="display: grid;">
                             <label for="sfiles">Select folder / file</label>                          
-                            <select id="sfile" style="font-size: 11px;">
+                            <select title="Select sd card file or folder" id="sfile" style="font-size: 11px;">
                               <option value="None" selected="selected">-- Select --</option>
                               <option value="/">Get Folders</option>
                             </select>
                           </div>
                           <section id="buttons"><br>
-                            <button id="upload" style="float:left; " value="1">Ftp Upload</button>
-                            <button id="uploadMove" style="float:left; " value="1">Ftp Move</button>
-                            <button id="delete" style="float:right; " value="1">Delete</button>
+                            <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
+                            <button title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
+                            <button title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
                           </section><br>
+                          <div class="input-group" id="autoUpload-group">
+                              <label for="autoUpload">Auto upload</label>
+                              <div class="switch">
+                                  <input id="autoUpload" type="checkbox" class="default-action">
+                                  <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
+                              </div>
+                          </div>                            
                           <div class="input-group" id="aviOn-group">
                               <label for="aviOn">Upload avi</label>
                               <div class="switch">
                                   <input id="aviOn" type="checkbox" class="default-action">
-                                  <label class="slider" for="aviOn"></label>
+                                  <label  title="Convert file to avi format on upload"  class="slider" for="aviOn"></label>
                               </div>
                           </div>                            
                           <div class="input-group" id="quality-group">
                               <label for="quality">Quality</label>
                               <div class="range-min">10</div>
-                              <input type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                              <input title="Set the recording quiality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
                               <output name="rangeVal">10</output>
                               <div class="range-max">63</div>
                           </div>
@@ -495,13 +502,13 @@ const char* index_ov2640_html = R"~(
                               <label for="record">Save Capture</label>
                               <div class="switch">
                                   <input id="record" type="checkbox" class="default-action">
-                                  <label class="slider" for="record"></label>
+                                  <label title="Enable recording on motion detection" class="slider" for="record"></label>
                               </div>
                           </div> 
                           <div class="input-group" id="motion-group">
                               <label for="motion">Motion Sensitivity</label>
                               <div class="range-min">1</div>
-                              <input type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
                               <output name="rangeVal">7</output>
                               <div class="range-max">10</div>
                           </div>                                                                
@@ -509,13 +516,13 @@ const char* index_ov2640_html = R"~(
                               <label for="lamp">Lamp</label>
                               <div class="switch">
                                   <input id="lamp" type="checkbox" class="default-action">
-                                  <label class="slider" for="lamp"></label>
+                                  <label title="Control onboard led" class="slider" for="lamp"></label>
                               </div>
                            </div>
                           <div class="input-group" id="lswitch-group">
                               <label for="lswitch">Night Switch</label>
                               <div class="range-min">0</div>
-                              <input type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
                               <output name="rangeVal">10</output>
                               <div class="range-max">100</div>
                           </div>                              
@@ -527,7 +534,7 @@ const char* index_ov2640_html = R"~(
                               <label for="dbgMotion">Show Motion</label>
                               <div class="switch">
                                   <input id="dbgMotion" type="checkbox" class="default-action">
-                                  <label class="slider" for="dbgMotion"></label>
+                                  <labe title="Display detected camera motion" class="slider" for="dbgMotion"></label>
                               </div>
                           </div>
                        </div>
