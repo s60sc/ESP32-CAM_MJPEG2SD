@@ -47,19 +47,13 @@ uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not
 extern uint8_t FPS;
+extern bool aviOn;
+extern bool autoUpload;
+
 bool lampVal = false;
 void controlLamp(bool lampVal);
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting
-struct frameStruct {
-  const char* frameSizeStr;
-  const uint16_t frameWidth;
-  const uint16_t frameHeight;
-  const uint16_t defaultFPS;
-  const uint8_t scaleFactor; // (0..3)
-  const uint8_t sampleRate;  // (1..N)
-};;
-extern const frameStruct frameData[];
 uint8_t setFPSlookup(uint8_t val);
 uint8_t setFPS(uint8_t val);
 /*  Handle config nvs load & save and wifi start   */
@@ -106,6 +100,8 @@ bool saveConfig() {
   pref.putBool("doRecording", doRecording);
   pref.putFloat("motion", motionVal);
   pref.putBool("lamp", lampVal);
+  pref.putBool("aviOn", aviOn);
+  pref.putBool("autoUpload", autoUpload);  
   pref.putUChar("lswitch", nightSwitch);
 
   pref.putString("ftp_server", ftp_server);
@@ -155,6 +151,8 @@ bool loadConfig() {
   
   minSeconds = pref.getUChar("minf", minSeconds );
   doRecording = pref.getBool("doRecording", doRecording);
+  aviOn = pref.getBool("aviOn", aviOn);
+  autoUpload = pref.getBool("autoUpload", autoUpload);
   motionVal = pref.getFloat("motion", motionVal);
   lampVal = pref.getBool("lamp", lampVal);
   controlLamp(lampVal);
