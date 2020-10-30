@@ -38,6 +38,7 @@ bool timeSynchronized = false;
 uint8_t FPS;
 bool lampOn = false;
 bool nightTime = false;
+bool autoUpload = false;  // Automatically upload every created file to remote ftp server
 uint8_t lightLevel; // Current ambient light level     
 uint16_t insufficient = 0;  
 
@@ -142,6 +143,7 @@ bool useMicrophone();
 String getOldestDir();
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val, bool move = false);                      
+void createScheduledUploadTask(const char* val);
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -407,6 +409,8 @@ static bool closeMjpeg() {
     showInfo("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
     showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
     showInfo("*************************************\n");
+    //Upload it to remote ftp server
+    if(autoUpload) createScheduledUploadTask(mjpegName);
     checkFreeSpace();                     
     return true;
   } else {
