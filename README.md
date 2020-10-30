@@ -1,6 +1,6 @@
-
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
+* Automatic ftp upload recordings on motion detection.
 * Check if file exists on upload a folder and ignore it. Incremental  upload
 * Fixed save / restore camera settings on boot
 * Reload page on reboot
