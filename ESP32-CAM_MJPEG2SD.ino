@@ -26,7 +26,7 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();                         
 
-const char* appVersion = "1.8b";
+const char* appVersion = "1.8c";
 
 void setup() {
   Serial.begin(115200);
