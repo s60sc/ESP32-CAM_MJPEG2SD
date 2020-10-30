@@ -534,7 +534,7 @@ const char* index_ov2640_html = R"~(
                               <label for="dbgMotion">Show Motion</label>
                               <div class="switch">
                                   <input id="dbgMotion" type="checkbox" class="default-action">
-                                  <labe title="Display detected camera motion" class="slider" for="dbgMotion"></label>
+                                  <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
                               </div>
                           </div>
                        </div>
