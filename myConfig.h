@@ -349,10 +349,10 @@ void checkConnection(){
        tmReboot = 0; 
   }
   
-  //Check for wifi station reconnection every 20 seconds
-  if(WiFi.status() != WL_CONNECTED && millis() - tmConn > 20000){
+  //Check for wifi station reconnection every 30 seconds
+  if(WiFi.status() != WL_CONNECTED && millis() - tmConn > 30000){
     ESP_LOGI(TAG, "Wifi not connected, mode: %i, status: %i, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
     tmConn = millis();   //Recheck
-    tmReboot = millis(); //Reboot after 15 seconds      
+    tmReboot = millis(); //Reboot after 25 seconds      
   }
 } 
