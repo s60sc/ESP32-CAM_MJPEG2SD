@@ -447,24 +447,31 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="fps-group">
                               <label for="fps">FPS</label>
                               <div class="range-min">1</div>
-                              <input title="Set camera frames per second to record" type="range" id="fps" min="1" max="30" value="10" class="default-action">
+                              <input title="Set camera required frames per second" type="range" id="fps" min="1" max="30" value="10" class="default-action">
                               <output name="rangeVal">15</output>
                               <div class="range-max">30</div>
                           </div>
                           <div class="input-group" id="minf-group">
                               <label for="minf">Min Seconds</label>
                               <div class="range-min">0</div>
-                              <input title="Minimum seconds of movements to record" type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
                               <output name="rangeVal">5</output>
                               <div class="range-max">20</div>
+                          </div>
+                          <div class="input-group" id="remote-log-group">
+                              <label for="remote-log">Remote log</label>
+                              <div class="switch">
+                                  <input id="remote-log" type="checkbox" class="default-action">
+                                  <label title="Enable remote logging via telnet on port 443" class="slider" for="remote-log"></label>
+                              </div>
                           </div>
                           <div class="input-group" id="dbg-group">
                               <label for="dbg">Verbose</label>
                               <div class="switch">
                                   <input id="dbg" type="checkbox" class="default-action">
-                                  <label title="Print detailed debug information on serial port" class="slider" for="dbg"></label>
+                                  <label title="Outputs additional logging to the serial monitor" class="slider" for="dbg"></label>
                               </div>
-                          </div>                                                  
+                          </div>
                           <div class="input-group" id="sfiles-group" style="display: grid;">
                             <label for="sfiles">Select folder / file</label>                          
                             <select title="Select sd card file or folder" id="sfile" style="font-size: 11px;">
