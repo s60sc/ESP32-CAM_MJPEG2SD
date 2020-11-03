@@ -1,5 +1,3 @@
-#include "Arduino.h"
-#include <WiFi.h>
 #include <WiFiClient.h> 
 #include <WiFiUdp.h>
 #include "FS.h"     // SD Card ESP32
@@ -7,9 +5,9 @@
 #include <vector>  // Dynamic string array
 #include <regex>
 
-
-#include "esp_log.h"
 static const char* TAG = "ftp";
+#include "remote_log.h"
+
 
 //Defined in custom config file myConfig.h
 extern char ftp_server[];
@@ -86,6 +84,7 @@ bool ftpConnect(){
     ESP_LOGE(TAG, "Error opening ftp connection to %s:%s", ftp_server, ftp_port);
     return 0;
   }
+  ESP_LOGV(TAG, "Connected to ftp!");
   if (!eRcv()) return 0;
 
   client.print("USER ");
@@ -378,9 +377,9 @@ static void taskUpload(void * parameter){
 }
 
 void createUploadTask(const char* val, bool move=false){
-    if (ESP.getFreeHeap() < 50000) 
-      ESP_LOGE(TAG,"Insufficient free heap for FTP: %u", ESP.getFreeHeap());
-    else {
+    if (ESP.getFreeHeap() < 50000) {
+      ESP_LOGE(TAG, "Insufficient free heap for FTP: %u", ESP.getFreeHeap());
+    } else {
       stopCheck = true; // prevent ram space contention
       delay(100);
       doPlayback = false;
