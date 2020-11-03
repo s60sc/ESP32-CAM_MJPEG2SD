@@ -1,3 +1,4 @@
+Remote log via telnet on port 443
 Automatic upload switch to ftp upload recordings on motion detection
 Help info text on each control
 Check if file exists on upload a folder and ignore it. Incremental  upload
