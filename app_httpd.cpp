@@ -20,7 +20,9 @@
 #include "camera_index.h"
 #include <regex>
 #include <sys/time.h>
-#include "Arduino.h"
+
+static const char* TAG = "apphttpd";
+#include "remote_log.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -259,7 +261,19 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "dbg")) {
       debug = (val) ? true : false;
       Serial.setDebugOutput(debug);
+    }else if(!strcmp(variable, "remote-log")) {
+      bool rLog = (val) ? true : false;
+      if(rLog){
+        esp_log_level_set("*", ESP_LOG_VERBOSE);
+        Serial.println("Enabling remote log..");
+        int r = remote_log_init();   
+      }else{
+        Serial.println("Disabling remote log..");
+        int r = remote_log_free();
+      }
     }
+    
+    
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -445,6 +459,51 @@ static esp_err_t jquery_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/javascript");                              
     return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
 }
+
+// HTTP GET handler for downloading files 
+esp_err_t file_get_handler(httpd_req_t *req)
+{
+    /* Assuming that the sdcard has been initialized (formatted to FAT) and loaded with some files. */
+    const char *filepath_prefix = "/sdcard/";
+    char *filename = NULL;
+    size_t filename_len = httpd_req_get_url_query_len(req);
+
+    if (filename_len == 0) {
+        const char * resp_str = "Please specify a filename. eg. file?somefile.txt";
+        httpd_resp_send(req, resp_str, strlen(resp_str));
+        return ESP_OK;
+    }
+    filename = (char *)malloc(strlen(filepath_prefix) + filename_len + 1); // extra 1 byte for null termination
+    strncpy(filename, filepath_prefix, strlen(filepath_prefix));
+
+    // Get null terminated filename
+    httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
+    ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
+
+    FILE *f = fopen(filename, "r");
+    free(filename);
+    if (f == NULL) {
+        const char * resp_str = "File doesn't exist";
+        httpd_resp_send(req, resp_str, strlen(resp_str));
+        return ESP_OK;
+    }
+
+    /* Read file in chunks (relaxes any constraint due to large file sizes)
+     * and send HTTP response in chunked encoding */
+    char   chunk[1024];
+    size_t chunksize;
+    do {
+        chunksize = fread(chunk, 1, sizeof(chunk), f);
+        if (httpd_resp_send_chunk(req, chunk, chunksize) != ESP_OK) {
+            fclose(f);
+            return ESP_FAIL;
+        }
+    } while (chunksize != 0);
+
+    httpd_resp_send_chunk(req, NULL, 0);
+    fclose(f);
+    return ESP_OK;
+}
 // end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
@@ -464,6 +523,13 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
     
+    httpd_uri_t file_serve = {
+        .uri       = "/file",
+        .method    = HTTP_GET,
+        .handler   = file_get_handler,
+        .user_ctx  = NULL
+    };
+      
     httpd_uri_t status_uri = {
         .uri       = "/status",
         .method    = HTTP_GET,
@@ -495,7 +561,8 @@ void startCameraServer(){
     if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
-        httpd_register_uri_handler(camera_httpd, &jquery_uri);       
+        httpd_register_uri_handler(camera_httpd, &jquery_uri);
+        httpd_register_uri_handler(camera_httpd, &file_serve);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
