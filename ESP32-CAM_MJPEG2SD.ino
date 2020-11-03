@@ -1,5 +1,4 @@
 #include "esp_camera.h"
-#include <WiFi.h>
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
@@ -12,10 +11,14 @@
 #define CAMERA_MODEL_AI_THINKER
 
 #define USE_DS18B20 false //Enable 1Wire temperature sensor 
+static const char* TAG = "ESP32-CAM";
 
 #include "camera_pins.h"
 #include "myConfig.h"
 
+const char* appVersion = "1.9";
+
+//External functions
 void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
@@ -24,15 +27,13 @@ bool prepDS18();
 void OTAsetup();
 bool OTAlistener();
 bool startWifi();
-void checkConnection();                         
-
-const char* appVersion = "1.8c";
+void checkConnection();  
 
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
-
+  
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -110,8 +111,18 @@ void setup() {
     ESP.restart();
   }
   
+  
+  //SD_MMC.remove("/log.txt");
+  //Remote debug via Telnet on port 23
+
+  /*ESP_LOGE(TAG, "Error");
+  ESP_LOGW(TAG, "Warning");
+  ESP_LOGI(TAG, "Info");
+  ESP_LOGD(TAG, "Debug");
+  ESP_LOGV(TAG, "Verbose");  
+  */
   if (!prepMjpeg()) {
-    Serial.println("Unable to continue, SD card fail, restart after 10 secs");
+    ESP_LOGE(TAG, "Unable to continue, SD card fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
@@ -120,11 +131,12 @@ void setup() {
   OTAsetup();
   startSDtasks();
 #if USE_DS18B20  
-  if (prepDS18()) Serial.println("DS18B20 device available");
-  else Serial.println("DS18B20 device not present"); 
+  if (prepDS18()) ESP_LOGI(TAG, "DS18B20 device available");
+  else ESP_LOGE(TAG, "DS18B20 device not present"); 
 #endif  
   String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-  Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", appVersion, wifiIP.c_str());
+  ESP_LOGI(TAG, "Camera Ready, version %s. Use 'http://%s' to connect", appVersion, wifiIP.c_str());  
+ 
 }
 
 void loop() {
