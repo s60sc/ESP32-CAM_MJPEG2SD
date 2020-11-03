@@ -91,8 +91,9 @@ Additional ancilliary functions:
 * Delete or ftp upload and delete oldest folder when card free space is running out. 
 * Automatically ftp upload new recordings on motion detection
 
+Remote debugging via telnet on camera ip and port 443
 Help info text on each control
-Check if file exists on upload a folder and ignore it. Incremental  upload
+Check if file exists on "upload a folder" and ignore it. Incremental  upload
 Fixed save / restore camera settings on boot
 Added delete or ftp upload on card full
 Fixed compiling without OneWire library
