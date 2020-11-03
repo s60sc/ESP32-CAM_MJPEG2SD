@@ -14,7 +14,6 @@
  s60sc 2020
 
 */
-
 #include "esp_camera.h"
 #include "esp_jpg_decode.h"
 #include <SD_MMC.h>
@@ -33,11 +32,17 @@ using namespace std;
 
 #define RGB888_BYTES 3 // number of bytes per pixel
 
+static const char* TAG = "mjped2sd";
+#include "remote_log.h"
+/*
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
 #define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
-
+*/
+#define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
+#define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
+#define showDebug(format, ...) if (debug) ESP_LOGD(TAG, format, ##__VA_ARGS__)
 /********* the following must be declared and initialised elsewhere **********/
 extern bool debug;
 extern bool debugMotion;
