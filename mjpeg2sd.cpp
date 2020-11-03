@@ -26,6 +26,9 @@ extern char timezone[]; //Defined in myConfig.h
 #include "time.h"
 #include "esp_camera.h"
 
+static const char* TAG = "mjped2sd";
+#include "remote_log.h"
+
 // user parameters
 bool debug = false;
 bool debugMotion = false;
@@ -145,11 +148,15 @@ void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val, bool move = false);                      
 void createScheduledUploadTask(const char* val);
 
+/*
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
 #define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
-
+*/
+#define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
+#define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
+#define showDebug(format, ...) if (debug) ESP_LOGD(TAG, format, ##__VA_ARGS__)
 /************************** NTP  **************************/
 
 static inline time_t getEpoch() {
@@ -192,7 +199,7 @@ void syncToBrowser(char *val) {
   if (timeSynchronized) return;
 
   //Synchronize to browser time, On access point connections with no internet
-  Serial.printf("Sync clock to: %s with tz:%s\n", val, timezone);
+  showInfo("Sync clock to: %s with tz:%s\n", val, timezone);
   struct tm now;
   getLocalTime(&now, 0);
 
@@ -350,10 +357,10 @@ static void saveFrame() {
 bool checkFreeSpace() { //Check for suficcient space in card
   if (freeSpaceMode < 1) return false;
   unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
-  Serial.print("Card free space: "); Serial.println(freeSize);
+  showInfo("Card free space: %lu", freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
-    Serial.print("Oldest dir to delete: "); Serial.println(oldestDir);
+    showInfo("Oldest dir to delete: %s", oldestDir);
     if (freeSpaceMode == 1) { //Delete oldest folder
       deleteFolderOrFile(oldestDir.c_str());
     } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
@@ -408,7 +415,7 @@ static bool closeMjpeg() {
     showInfo("File open / completion times: %u ms / %u ms", oTime, cTime);
     showInfo("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
     showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
-    showInfo("*************************************\n");
+    showInfo("*************************************");
     //Upload it to remote ftp server
     if(autoUpload) createScheduledUploadTask(mjpegName);
     checkFreeSpace();                     
@@ -565,8 +572,9 @@ static void playbackFPS(const char* fname) {
 
 void openSDfile() {
   // open selected file on SD for streaming
-  if (stopPlayback) showError("Playback refused - capture in progress");
-  else {
+  if (stopPlayback) {
+    showError("Playback refused - capture in progress");
+  }  else {
     stopPlaying(); // in case already running
     showInfo("Playing %s", mjpegName);
     playbackFile = SD_MMC.open(mjpegName, FILE_READ);
@@ -771,8 +779,9 @@ size_t* getNextFrame() {
     playbackFile.close();
     imgPtrs[0] = 0;
     imgPtrs[1] = 0;
-    if (stopPlayback) showInfo("Force close playback");
-    else {
+    if (stopPlayback){
+      showInfo("Force close playback");
+    } else {
       uint32_t playDuration = (millis() - sTime) / 1000;
       uint32_t totBusy = wTimeTot + fTimeTot + hTimeTot;
       showInfo("\n******** MJPEG playback stats ********");
@@ -832,8 +841,9 @@ static void playbackTask(void* parameter) {
 
 static void infoSD() {
   uint8_t cardType = SD_MMC.cardType();
-  if (cardType == CARD_NONE) showError("No SD card attached");
-  else {
+  if (cardType == CARD_NONE){
+    showError("No SD card attached");
+  } else {
     char typeStr[8] = "UNKNOWN";
     if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
     else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
@@ -890,17 +900,13 @@ void deleteFolderOrFile(const char * val) {
     File file = f.openNextFile();
     while (file) {
       if (file.isDirectory()) {
-        Serial.print("  DIR : ");
-        Serial.println(file.name());
+        ESP_LOGV(TAG,"  DIR : %s", file.name() );
       } else {
-        Serial.print("  FILE: ");
-        Serial.print(file.name());
-        Serial.print("  SIZE: ");
-        Serial.print(file.size());
+        
         if (SD_MMC.remove(file.name())) {
-          Serial.println(" deleted.");
+          ESP_LOGV(TAG,"  FILE : %s SIZE : %lu Deleted", file.name(), file.size());
         } else {
-          Serial.println(" FAILED.");
+          ESP_LOGV(TAG,"  FILE : %s SIZE : %lu Failed", file.name(), file.size());
         }
       }
       file = f.openNextFile();
@@ -910,7 +916,7 @@ void deleteFolderOrFile(const char * val) {
     if (SD_MMC.rmdir(val)) {
       showInfo("Dir %s removed", val);
     } else {
-      Serial.println("Remove dir failed");
+      showError("Remove directory failed");
     }
 
   } else {
@@ -918,7 +924,7 @@ void deleteFolderOrFile(const char * val) {
     if (SD_MMC.remove(val)) {
       showInfo("File %s deleted", val);
     } else {
-      Serial.println("Delete failed");
+      showError("Delete failed");
     }
   }
 }
