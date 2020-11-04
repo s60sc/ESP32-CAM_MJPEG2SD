@@ -70,21 +70,21 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
 
+* Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming.
+
 * Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
   On `upload a folder` check if each file exists and ignore it. __Incremental upload__
 
-* Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming.
-  
 * Check internet connection and automatically reconnect if needed on __power loss__.
 
-* Added mdns name services in order to use `http://[Host Name]` instead of ip address
+* Added __mdns__ name services in order to use `http://[Host Name]` instead of ip address
 
-* Delete or ftp upload and delete oldest folder when card free space is running out.  
+* Automatic `delete` or `ftp upload and delete` oldest folder when card free space is running out.  
   See `minCardFreeSpace` and `freeSpaceMode` in `mjpeg2sd.cpp`
 
-* Automatically ftp upload __new recordings__ on motion detection. Setup an ftp server on `Other settings` and  check `Auto upload` button.
+* Automatically ftp upload __new recordings__ on motion detection. Setup an ftp server on `Other settings` and check `Auto upload` button.
 
-* Remote debugging via __telnet__ on a remote pc. Press `Remote log` button and in 30 seconds from 
+* Remote __debugging__ via __telnet__ on a remote pc. Press `Remote log` button and in 30 seconds from 
   command line of your remote pc type: `telnet ip port i.e`. > telnet 192.168.168.1 443
   You can set debug level during compile time inside of your Arduino IDE from menu . `Tools` -> `Core debug level`
 
