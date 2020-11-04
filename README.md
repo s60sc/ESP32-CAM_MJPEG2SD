@@ -84,9 +84,8 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Automatically ftp upload __new recordings__ on motion detection. Setup an ftp server on `Other settings` and check `Auto upload` button.
 
-* Remote __debugging__ via __telnet__ on a remote pc. Press `Remote log` button and in 30 seconds from 
-  command line of your remote pc type: `telnet ip port i.e`. > telnet 192.168.168.1 443
-  You can set debug level during compile time inside of your Arduino IDE from menu . `Tools` -> `Core debug level`
+* Remote __debugging__ via __telnet__ on a remote pc. Press `Remote log` button and in command line of your remote pc type: `telnet ip port i.e`. > telnet 192.168.168.1 443
+  You have 30 seconds to connect or timeout will occur. You can set debug level during compile time inside of your Arduino IDE from menu . `Tools` -> `Core debug level`
 
 Additional ancilliary functions:
 * Enable Over The Air (OTA) updates - see `ota.cpp`
