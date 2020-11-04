@@ -1,7 +1,7 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
 * Remote logging/debugging via telnet on camera ip and port 443.
-* Automatic ftp upload recordings on motion detection.
+* Automatic ftp upload new recordings on motion detection.
 * Check if file exists on upload a folder and ignore it. Incremental  upload
 * Fixed save / restore camera settings on boot
 * Reload page on reboot
@@ -68,11 +68,12 @@ If a recording is started during a playback, playback will stop.
 
 The following functions are provided by [@gemi254](https://github.com/gemi254):
 
-* Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming.
+* The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
 
 * Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
 
-* The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
+* Entire folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the __Delete__ button and confirming.
+  On `upload a folder` check if each file exists and ignore it. __Incremental upload__
 
 * Check internet connection and automatically reconnect if needed on power loss.
 
@@ -81,20 +82,19 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 * Delete or ftp upload and delete oldest folder when card free space is running out.  
   See `minCardFreeSpace` and `freeSpaceMode` in `mjpeg2sd.cpp`
 
+* Automatically ftp upload __new recordings__ on motion detection. Setup an ftp server on `Other settings` and  check `Auto upload` button.
+
+* Remote debugging via __telnet__ on a remote pc. Press `Remote log` button and in 30 seconds from 
+  command line of your remote pc type: `telnet ip port i.e`. > telnet 192.168.168.1 443
+  You can set debug level inside of your Arduino. `IDE Tools` -> `Core debug level`
 
 Additional ancilliary functions:
-* Automatically ftp upload new recordings on motion detection
-* Remote debugging via telnet on camera ip and port 443
-* Delete folder or ftp upload when card in near to full
 * Enable Over The Air (OTA) updates - see `ota.cpp`
 * Add temperature sensor - see `ds18b20.cpp`
 * Add analog microphone support - see `avi.cpp`
 * Check internet connection and automatically reconnect if needed on power loss.
 * Added mdns name services on order to visit http://[Host Name] instead of ip address
-* Delete or ftp upload and delete oldest folder when card free space is running out. 
-* Check if file exists on "upload a folder" and ignore it. Incremental  upload
-*  Browser functions only tested on Chrome.
-
+* Browser functions only tested on Chrome.
 
 ## To maximise rate
 
