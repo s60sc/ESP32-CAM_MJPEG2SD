@@ -71,6 +71,7 @@ void stopPlaying();
 void controlLamp(bool lampVal);
 float readDStemp(bool isCelsius);
 String upTime();
+uint8_t fsizeLookup(uint8_t lookup, bool old2new);
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val,bool move=false);
@@ -244,7 +245,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       if(s->pixformat == PIXFORMAT_JPEG) {
         fsizePtr = val;
         setFPSlookup(fsizePtr);
-        res = s->set_framesize(s, (framesize_t)fsizePtr);
+        res = s->set_framesize(s, (framesize_t)fsizeLookup(fsizePtr, false));
       }
     }
     // additions for mjpeg2sd.cpp
@@ -361,7 +362,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
-    p+=sprintf(p, "\"quality\":%u,", s->status.quality);
+    p+=sprintf(p, "\"quality\":%d,", s->status.quality);
     p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
     p+=sprintf(p, "\"contrast\":%d,", s->status.contrast);
     p+=sprintf(p, "\"saturation\":%d,", s->status.saturation);

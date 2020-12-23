@@ -1,6 +1,10 @@
 
 #include "esp_camera.h"
 #include <WiFi.h>
+
+// current arduino-esp32 stable release is v1.0.4
+#define USE_v104 // comment out to use with arduino-esp32 development release v1.0.5-rc4
+
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
@@ -26,7 +30,14 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();                         
 
-const char* appVersion = "1.8";
+const char* appVersion = "2.0";
+
+// fastest clock rate is changed for release v1.0.5
+#ifdef USE_v104
+#define XCLK_MHZ 10
+#else
+#define XCLK_MHZ 20
+#endif
 
 void setup() {
   Serial.begin(115200);
@@ -52,7 +63,7 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000;
+  config.xclk_freq_hz = XCLK_MHZ*1000000;
   config.pixel_format = PIXFORMAT_JPEG;
   //init with high specs to pre-allocate larger buffers
   if (psramFound()){
@@ -123,7 +134,8 @@ void setup() {
   else Serial.println("DS18B20 device not present"); 
   
   String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-  Serial.printf("Camera Ready, version %s. Use 'http://%s' to connect\n", appVersion, wifiIP.c_str());
+  Serial.printf("Free DRAM: %u, free pSRAM %u\n", ESP.getFreeHeap(), ESP.getFreePsram());
+  Serial.printf("Camera Ready @ %uMHz, version %s. Use 'http://%s' to connect\n", XCLK_MHZ, appVersion, wifiIP.c_str());
 }
 
 void loop() {
@@ -132,4 +144,13 @@ void loop() {
   if (!OTAlistener()) delay(100000);
 }
 
-
+uint8_t fsizeLookup(uint8_t lookup, bool old2new) {
+  // framesize enum in v1.0.4 not compatible with v1.0.5
+#ifdef USE_v104
+  // unmapped lookups default to nearest res
+  static uint8_t oldNewData[] = {1,1,1,3,5,6,8,9,10,12,13}; 
+  static uint8_t newOldData[] = {FRAMESIZE_QQVGA,FRAMESIZE_QQVGA,FRAMESIZE_HQVGA,FRAMESIZE_HQVGA,FRAMESIZE_QVGA,FRAMESIZE_QVGA,FRAMESIZE_CIF,FRAMESIZE_VGA,FRAMESIZE_VGA,FRAMESIZE_SVGA,FRAMESIZE_XGA,FRAMESIZE_SXGA,FRAMESIZE_SXGA,FRAMESIZE_UXGA};
+  lookup = (old2new) ? oldNewData[lookup] : newOldData[lookup]; // read : set
+#endif
+  return lookup;
+}

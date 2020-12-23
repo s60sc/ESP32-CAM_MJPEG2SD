@@ -4,12 +4,11 @@
 #include <SD_MMC.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include <DNSServer.h>
+#include <DNSServer.h>                    
 #include <Preferences.h>
 #include "esp_log.h"
 
 
-static const char* TAG = "myConfig";
 #define APP_NAME "ESP32-CAM_MJPEG"
 
 //Wifi Station parameters
@@ -17,7 +16,7 @@ static const char* TAG = "myConfig";
 //will start an access point if no saved value found
 
 char hostName[32] = ""; //Host name for ddns
-char ST_SSID[32]  = "";       //Router ssid
+char ST_SSID[32]  = ""; //Router ssid
 char ST_Pass[64]  = ""; //Router passd
 
 char ST_ip[16]  = ""; //Leave blank for dhcp
@@ -47,19 +46,20 @@ uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not
 extern uint8_t FPS;
+extern bool aviOn;                 
 bool lampVal = false;
 void controlLamp(bool lampVal);
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0; // initial motion sensitivity setting
 
 /*  Handle config nvs load & save and wifi start   */
-DNSServer dnsAPServer;
+DNSServer dnsAPServer;                      
 Preferences pref;
 
 bool resetConfig() {
-  ESP_LOGI(TAG, "Reseting config..");
+  puts("Reseting config..");
   if (!pref.begin(APP_NAME, false)) {
-    ESP_LOGE(TAG, "Failed to open config.");
+    puts("Failed to open config.");
     return false;
   }
   // Remove all preferences under the opened namespace
@@ -70,9 +70,9 @@ bool resetConfig() {
 }
 
 bool saveConfig() {
-  ESP_LOGI(TAG, "Saving config.");
+  puts("Saving config.");
   if (!pref.begin(APP_NAME, false)) {
-    ESP_LOGE(TAG, "Failed to open config.");
+    puts("Failed to open config.");
     return false;
   }
 
@@ -96,6 +96,7 @@ bool saveConfig() {
   pref.putBool("doRecording", doRecording);
   pref.putFloat("motion", motionVal);
   pref.putBool("lamp", lampVal);
+  pref.putBool("aviOn", aviOn);                              
   pref.putUChar("lswitch", nightSwitch);
 
   pref.putString("ftp_server", ftp_server);
@@ -115,22 +116,26 @@ bool saveConfig() {
 bool loadConfig() {
   bool saveDefPrefs = false;
   //resetConfig();
-  ESP_LOGI(TAG, "Loading config..");
+  puts("Loading config..");
   AP_SSID.toUpperCase();
   if (!pref.begin(APP_NAME, false)) {
-    ESP_LOGE(TAG, "Failed to open config.");
+    puts("Failed to open config.");
     return false;
   }
   strcpy(hostName, pref.getString("hostName", String(hostName)).c_str());
   //Add default hostname
   if (strlen(hostName) < 1) {
-    ESP_LOGE(TAG, "Setting default hostname %s", hostName);
+    printf("Setting default hostname %s\n", hostName);
     strcpy(hostName, AP_SSID.c_str());
     //No nvs prefs yet. Save them at end
     saveDefPrefs = true;
   }
-  strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
-  strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
+  
+  // prevent empty saved SSID overwriting default
+  if (strlen(pref.getString("ST_SSID").c_str()) > 0) {
+    strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
+    strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
+  }
 
   ESP_LOGI(TAG, "Loaded ssid: %s pass: %s", String(ST_SSID).c_str(), String(ST_Pass).c_str());
 
@@ -141,9 +146,10 @@ bool loadConfig() {
   strcpy(ST_ns2, pref.getString("ST_ns2").c_str());
 
   fsizePtr = pref.getUShort("framesize", fsizePtr);
-  FPS = pref.getUShort("fps", FPS);
+  FPS = pref.getUChar("fps", FPS);
   minSeconds = pref.getUChar("minf", minSeconds );
   doRecording = pref.getBool("doRecording", doRecording);
+  aviOn = pref.getBool("aviOn", aviOn);                                       
   motionVal = pref.getFloat("motion", motionVal);
   lampVal = pref.getBool("lamp", lampVal);
   controlLamp(lampVal);
@@ -163,7 +169,7 @@ bool loadConfig() {
     ESP_LOGE(TAG, "Camera sensor data is not correct size! get %u, size: %u",schLen,sizeof(camera_status_t));
     //return false;
   }else{
-    ESP_LOGI(TAG, "Data camera_sensor size get %u, size: %u",schLen, sizeof(camera_status_t));
+    printf("Setup camera_sensor, size get %u, def size: %u\n",schLen, sizeof(camera_status_t));
     camera_status_t * st = (camera_status_t *)buffer; // cast the bytes into a struct ptr
     sensor_t *s = esp_camera_sensor_get();
     s->set_ae_level(s,st->ae_level);
@@ -197,7 +203,7 @@ bool loadConfig() {
   pref.end();
 
   if (saveDefPrefs) {
-    ESP_LOGE(TAG, "Saving default config.");
+    puts("Saving default config.");
     saveConfig();
   }
   return true;

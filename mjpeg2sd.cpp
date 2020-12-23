@@ -6,14 +6,14 @@
 * s60sc 2020
 */
 
-extern char timezone[]; //Defined in myConfig.h
+extern char timezone[]; // Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 1 // secs between each check for stop
-#define RAMSIZE 16384 // set this to multiple of SD card sector size (512 or 1024 bytes)
+#define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
 #define minCardFreeSpace 50 // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
@@ -68,23 +68,27 @@ struct frameStruct {
   const uint8_t scaleFactor; // (0..3)
   const uint8_t sampleRate;  // (1..N)
 };
-// indexed by frame size - needs to be consistent with sensor.h enum
+
+// indexed by frame size - needs to be consistent with sensor.h framesize_t enum
 extern const frameStruct frameData[] = {
+  {"96X96", 96, 96, 30, 1, 1}, 
   {"QQVGA", 160, 120, 30, 1, 1},
-  {"n/a", 0, 0, 0, 0, 1}, 
-  {"n/a", 0, 0, 0, 0, 1}, 
+  {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
+  {"240X240", 240, 240, 30, 2, 1}, 
   {"QVGA", 320, 240, 30, 2, 1}, 
-  {"CIF", 400, 296, 30, 2, 1},
+  {"CIF", 400, 296, 30, 2, 1},  
+  {"HVGA", 480, 320, 30, 2, 1}, 
   {"VGA", 640, 480, 20, 3, 1}, 
   {"SVGA", 800, 600, 20, 3, 1}, 
-  {"XGA", 1024, 768, 5, 3, 1}, 
+  {"XGA", 1024, 768, 5, 3, 1},   
+  {"HD", 1280, 720, 5, 3, 1}, 
   {"SXGA", 1280, 1024, 5, 3, 1}, 
   {"UXGA", 1600, 1200, 5, 3, 1}  
 };
 extern uint8_t fsizePtr; // index to frameData[] for record
 uint8_t ftypePtr; // index to frameData[] for ftp
-uint8_t frameDataRows = 11;                         
+uint8_t frameDataRows = 14;                         
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
@@ -139,7 +143,8 @@ void finishAudio(const char* mjpegName, bool isvalid);
 bool useMicrophone();
 String getOldestDir();
 void deleteFolderOrFile(const char* val);
-void createUploadTask(const char* val, bool move = false);                      
+void createUploadTask(const char* val, bool move = false);               
+uint8_t fsizeLookup(uint8_t lookup, bool old2new);       
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -256,8 +261,8 @@ void controlFrameTimer(bool restartTimer) {
     // (re)start timer 3 interrupt per required framerate
     timer3 = timerBegin(3, 8000, true); // 0.1ms tick
     frameInterval = 10000 / FPS; // in units of 0.1ms 
-    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
-    timerAlarmWrite(timer3, frameInterval, true); // 
+    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
+    timerAlarmWrite(timer3, frameInterval, true); 
     timerAlarmEnable(timer3);
     timerAttachInterrupt(timer3, &frameISR, true);
   }
@@ -343,7 +348,7 @@ static void saveFrame() {
   showDebug("Frame processing time %u ms", fTime);
 }
 
-bool checkFreeSpace() { //Check for suficcient space in card
+bool checkFreeSpace() { //Check for sufficient space in card
   if (freeSpaceMode < 1) return false;
   unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
   Serial.print("Card free space: "); Serial.println(freeSize);
@@ -494,6 +499,7 @@ static void captureTask(void* parameter) {
   uint32_t ulNotifiedValue;
   while (true) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (ulNotifiedValue > 5) ulNotifiedValue = 5; // prevent too big queue if FPS excessive
     // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
     while(ulNotifiedValue-- > 0) processFrame();
   }
@@ -937,7 +943,6 @@ bool prepMjpeg() {
       frameMutex = xSemaphoreCreateMutex();
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
-      showInfo("Free DRAM: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
       showInfo("Sound recording is %s", useMicrophone() ? "On" : "Off");
       showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
@@ -951,7 +956,7 @@ bool prepMjpeg() {
     }
   } else {
     showError("pSRAM must be enabled");
-    return false;
+    return false;\
   }
 }
 
@@ -961,7 +966,7 @@ void startSDtasks() {
   if (xTaskCreate(&playbackTask, "playbackTask", 4096, NULL, 4, &playbackHandle) != pdPASS)
     showError("Insufficient memory to create playbackTask");
   sensor_t * s = esp_camera_sensor_get();
-  fsizePtr = s->status.framesize;
+  fsizePtr = fsizeLookup(s->status.framesize, true); 
   setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
 }
 
@@ -1008,6 +1013,5 @@ String upTime(){
   if(days > 0) ret += String(days) + "d ";
   if(hours > 0) ret += String(hours) + "h ";
   if(mins >= 0) ret += String(mins) + "m ";
-  if(secs >= 0) ret += String(secs) + "s ";
-  return ret;
+  if(secs >= 0) ret += String(secs) + "s ";  return ret;
 }

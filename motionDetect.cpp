@@ -63,7 +63,7 @@ static size_t jpgImgSize = 0;
 
 /**********************************************************************************/
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, size_t * out_len, uint8_t scale);
+static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, uint8_t scale);
 
 bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   // check difference between current and previous image (subtract background)
@@ -72,7 +72,6 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   uint32_t lux = 0;
   static uint32_t motionCnt = 0;
   uint8_t* rgb_buf = NULL;
-  size_t rgb_len = 0;
   uint8_t* jpg_buf = NULL;
   size_t jpg_len = 0;
 
@@ -84,7 +83,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   int num_pixels = sampleWidth * sampleHeight;
 
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, &rgb_len, scaling))
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling))
     showError("motionDetect: fmt2rgb() failed");
 
 /*
@@ -94,7 +93,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
       for (int c=0; c<sampleWidth; c++)      
         rgb_buf[c+(r*sampleWidth)] = rgb_buf[(c+(r*sampleWidth))*reducer]; 
 */
-  showDebug("JPEG to greyscale conversion %u bytes in %lums", rgb_len, millis() - dTime);
+  showDebug("JPEG to greyscale conversion %u bytes in %lums", num_pixels, millis() - dTime);
   dTime = millis();
 
   // allocate buffer space on heap
@@ -180,7 +179,6 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   } else return false;
 }
 
-
 bool isNight(uint8_t nightSwitch) {
   // check if night time for switching on lamp during recording
   static bool nightTime = false;
@@ -231,20 +229,20 @@ static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t 
     return true;
   }
 
-  size_t jw = jpeg->width*3;
+  size_t jw = jpeg->width*RGB888_BYTES;
   size_t t = y * jw;
   size_t b = t + (h * jw);
-  size_t l = x * 3;
+  size_t l = x * RGB888_BYTES;
   uint8_t *out = jpeg->output+jpeg->data_offset;
   uint8_t *o = out;
   size_t iy, ix;
-  w = w * 3;
+  w *= RGB888_BYTES;
 
   for (iy=t; iy<b; iy+=jw) {
-    o = out+(iy+l)/3;
-    for (ix=0; ix<w; ix+=3) {
-      uint16_t grayscale = (data[ix+2]+data[ix+1]+data[ix])/3;
-      o[ix/3] = (uint8_t)grayscale;
+    o = out+(iy+l)/RGB888_BYTES;
+    for (ix=0; ix<w; ix+=RGB888_BYTES) {
+      uint16_t grayscale = (data[ix+2]+data[ix+1]+data[ix])/RGB888_BYTES;
+      o[ix/RGB888_BYTES] = (uint8_t)grayscale;
     }
     data+=w;
   }
@@ -257,21 +255,14 @@ static uint32_t _jpg_read(void * arg, size_t index, uint8_t *buf, size_t len) {
   return len;
 }
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, size_t * out_len, uint8_t scale) {
+static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t **out, uint8_t scale) {
   rgb_jpg_decoder jpeg;
   jpeg.width = 0;
   jpeg.height = 0;
   jpeg.input = src;
   jpeg.output = NULL; 
   jpeg.data_offset = 0;
-  if (esp_jpg_decode(src_len, jpg_scale_t(scale), _jpg_read, _rgb_write, (void*)&jpeg) != ESP_OK) {
-    *out = jpeg.output;
-    return false;
-  }
-
-  size_t output_size = jpeg.width*jpeg.height;
+  esp_err_t res = esp_jpg_decode(src_len, jpg_scale_t(scale), _jpg_read, _rgb_write, (void*)&jpeg);
   *out = jpeg.output;
-  *out_len = output_size;
-
-  return true;
+  return (res == ESP_OK) ? true : false;
 }

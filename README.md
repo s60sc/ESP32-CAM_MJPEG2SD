@@ -6,19 +6,26 @@ Files uploaded by FTP are optionally converted to AVI format to allow recordings
 ## Purpose
 The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
 
-Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 using SD_MMC 1 line mode on a AI Thinker OV2640 board, set to maximum JPEG quality and the configuration given in the __To maximise rate__ section below.
+Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 using SD_MMC 1 line mode on a AI Thinker OV2640 board, set to maximum JPEG quality and highest clock rate.
 
 Frame Size | OV2640 camera max fps | mjpeg2sd max fps | Detection time ms
 ------------ | ------------- | ------------- | -------------
+*96X96 | 50 | 45 |  15
 QQVGA | 50 | 45 |  20
+*QCIF  | 50 | 45 |  30
 HQVGA | 50 | 45 |  40
+*240X240 | 50 | 45 |  55
 QVGA | 50 | 40 |  70
 CIF | 50 | 40 | 110
+*HGVA | 50 | 40 | 130
 VGA | 25 | 20 |  80
 SVGA | 25 | 20 | 120
 XGA | 6.25 | 5 | 180
+*HD | 6.25 | 5 | 220
 SXGA | 6.25 | 5 | 300
 UXGA | 6.25 | 5 | 450
+
+\* Ony available with `arduino-esp32` development release v1.0.5rc4
 
 ## Design
 
@@ -27,10 +34,12 @@ The ESP32 Cam module has 4MB of pSRAM which is used to buffer the camera frames 
 The SD card can be used in either __MMC 1 line__ mode (default) or __MMC 4 line__ mode. The __MMC 1 line__ mode is practically as fast as __MMC 4 line__ and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
 The MJPEG files are named using a date time format __YYYYMMDD_HHMMSS__, with added frame size, recording rate, duration and frame count, eg __20200130_201015_VGA_15_60_900.mjpeg__, and stored in a per day folder __YYYYMMDD__.  
-The ESP32 time is set from an NTP server. Define a different timezone as appropriate in`mjpeg2sd.cpp`.
-
+The ESP32 time is set from an NTP server. 
 
 ## Installation and Use
+
+Note: `arduino-esp32` stable release v1.0.4 is over a year old, since when improvements has been made to `arduino-esp32` and `esp32-camera`. To compile this extension
+using the latest v1.0.5 development release candidate (assuming this is loaded in the Arduino IDE), comment out `#define USE_v1.0.4` in `ESP32-CAM_MJPEG2SD.ino`
 
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
 The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
@@ -80,13 +89,6 @@ Additional ancilliary functions:
 * Add analog microphone support - see `avi.cpp`
 
 Browser functions only tested on Chrome.
-
-
-## To maximise rate
-
-To get the maximum frame rate on OV2640, in `ESP32-CAM_MJPEG2SD.ino`:
-* `config.xclk_freq_hz = 10000000;` This is faster than the default `20000000` 
-* `config.fb_count = 4` to provide sufficient buffering between SD writes for smaller frame sizes 
 
 
 ## Motion detection by Camera

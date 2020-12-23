@@ -433,15 +433,20 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="framesize-group">
                               <label for="framesize">Resolution</label>
                               <select id="framesize" class="default-action">
-                                  <option value="10">UXGA(1600x1200)</option>
-                                  <option value="9">SXGA(1280x1024)</option>
-                                  <option value="8">XGA(1024x768)</option>
-                                  <option value="7">SVGA(800x600)</option>
-                                  <option value="6" selected="selected">VGA(640x480)</option>
-                                  <option value="5">CIF(400x296)</option>
-                                  <option value="4">QVGA(320x240)</option>
-                                  <option value="3">HQVGA(240x176)</option>
-                                  <option value="0">QQVGA(160x120)</option>
+                                  <option value="13">UXGA(1600x1200)</option>
+                                  <option value="12">SXGA(1280x1024)</option>
+                                  <option value="11">*HD(1280x720)</option>
+                                  <option value="10">XGA(1024x768)</option>
+                                  <option value="9" selected="selected">SVGA(800x600)</option> 
+                                  <option value="8">VGA(640x480)</option> 
+                                  <option value="7">*HVGA(480x320)</option>
+                                  <option value="6">CIF(400x296)</option> 
+                                  <option value="5">QVGA(320x240)</option>
+                                  <option value="4">*240X240</option> 
+                                  <option value="3">HQVGA(240x176)</option> 
+                                  <option value="2">*QCIF(176x144)</option> 
+                                  <option value="1">QQVGA(160x120)</option> 
+                                  <option value="0">*96X96</option>
                               </select>
                           </div>
                           <div class="input-group" id="fps-group">
