@@ -10,22 +10,20 @@ Saving a set of JPEGs as a single file is faster than as individual files and is
 
 Frame Size | OV2640 camera max fps | mjpeg2sd max fps | Detection time ms
 ------------ | ------------- | ------------- | -------------
-*96X96 | 50 | 45 |  15
+96X96 | 50 | 45 |  15
 QQVGA | 50 | 45 |  20
-*QCIF  | 50 | 45 |  30
+QCIF  | 50 | 45 |  30
 HQVGA | 50 | 45 |  40
-*240X240 | 50 | 45 |  55
+240X240 | 50 | 45 |  55
 QVGA | 50 | 40 |  70
 CIF | 50 | 40 | 110
-*HGVA | 50 | 40 | 130
+HGVA | 50 | 40 | 130
 VGA | 25 | 20 |  80
 SVGA | 25 | 20 | 120
 XGA | 6.25 | 5 | 180
-*HD | 6.25 | 5 | 220
+HD | 6.25 | 5 | 220
 SXGA | 6.25 | 5 | 300
 UXGA | 6.25 | 5 | 450
-
-\* Ony available with `arduino-esp32` development release v1.0.5rc4
 
 ## Design
 
@@ -38,8 +36,7 @@ The ESP32 time is set from an NTP server.
 
 ## Installation and Use
 
-Note: `arduino-esp32` stable release v1.0.4 is over a year old, since when improvements has been made to `arduino-esp32` and `esp32-camera`. To compile this extension
-using the latest v1.0.5 development release candidate (assuming this is loaded in the Arduino IDE), comment out `#define USE_v1.0.4` in `ESP32-CAM_MJPEG2SD.ino`
+Note: Needs to be compiled with latest `arduino-esp32` Stable Release v1.0.6.
 
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
 The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 

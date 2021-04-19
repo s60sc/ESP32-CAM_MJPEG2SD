@@ -71,7 +71,6 @@ void stopPlaying();
 void controlLamp(bool lampVal);
 float readDStemp(bool isCelsius);
 String upTime();
-uint8_t fsizeLookup(uint8_t lookup, bool old2new);
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val,bool move=false);
@@ -245,7 +244,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       if(s->pixformat == PIXFORMAT_JPEG) {
         fsizePtr = val;
         setFPSlookup(fsizePtr);
-        res = s->set_framesize(s, (framesize_t)fsizeLookup(fsizePtr, false));
+        res = s->set_framesize(s, (framesize_t)fsizePtr);
       }
     }
     // additions for mjpeg2sd.cpp

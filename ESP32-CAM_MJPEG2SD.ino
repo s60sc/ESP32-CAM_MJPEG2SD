@@ -2,8 +2,7 @@
 #include "esp_camera.h"
 #include <WiFi.h>
 
-// current arduino-esp32 stable release is v1.0.4
-#define USE_v104 // comment out to use with arduino-esp32 development release v1.0.5-rc4
+// current arduino-esp32 stable release is v1.0.6
 
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
@@ -30,14 +29,9 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();                         
 
-const char* appVersion = "2.0";
+const char* appVersion = "2.1";
 
-// fastest clock rate is changed for release v1.0.5
-#ifdef USE_v104
-#define XCLK_MHZ 10
-#else
-#define XCLK_MHZ 20
-#endif
+#define XCLK_MHZ 20 // fastest clock rate
 
 void setup() {
   Serial.begin(115200);
@@ -142,15 +136,4 @@ void loop() {
   //Check connection
   checkConnection();                    
   if (!OTAlistener()) delay(100000);
-}
-
-uint8_t fsizeLookup(uint8_t lookup, bool old2new) {
-  // framesize enum in v1.0.4 not compatible with v1.0.5
-#ifdef USE_v104
-  // unmapped lookups default to nearest res
-  static uint8_t oldNewData[] = {1,1,1,3,5,6,8,9,10,12,13}; 
-  static uint8_t newOldData[] = {FRAMESIZE_QQVGA,FRAMESIZE_QQVGA,FRAMESIZE_HQVGA,FRAMESIZE_HQVGA,FRAMESIZE_QVGA,FRAMESIZE_QVGA,FRAMESIZE_CIF,FRAMESIZE_VGA,FRAMESIZE_VGA,FRAMESIZE_SVGA,FRAMESIZE_XGA,FRAMESIZE_SXGA,FRAMESIZE_SXGA,FRAMESIZE_UXGA};
-  lookup = (old2new) ? oldNewData[lookup] : newOldData[lookup]; // read : set
-#endif
-  return lookup;
 }

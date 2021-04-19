@@ -12,7 +12,7 @@ extern char timezone[]; // Defined in myConfig.h
 #define USE_PIR false // whether to use PIR for motion detection
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
-#define MOVE_STOP_SECS 1 // secs between each check for stop
+#define MOVE_STOP_SECS 2 // secs between each check for stop, also determines post motion time
 #define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
@@ -30,7 +30,7 @@ extern char timezone[]; // Defined in myConfig.h
 bool debug = false;
 bool debugMotion = false;
 extern bool doRecording;// = true; // whether to capture to SD or not
-extern uint8_t minSeconds;// = 5; // default min video length (includes POST_MOTION_TIME)
+extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
 extern float motionVal;// = 8.0; // initial motion sensitivity setting 
 bool timeSynchronized = false;
@@ -143,8 +143,7 @@ void finishAudio(const char* mjpegName, bool isvalid);
 bool useMicrophone();
 String getOldestDir();
 void deleteFolderOrFile(const char* val);
-void createUploadTask(const char* val, bool move = false);               
-uint8_t fsizeLookup(uint8_t lookup, bool old2new);       
+void createUploadTask(const char* val, bool move = false);                      
 
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
@@ -596,6 +595,16 @@ String getOldestDir() {
   return oldName;
 }
 
+void inline getFileDate(File file, char* fileDate) {
+  // get creation date of file as string
+  time_t writeTime = file.getLastWrite();
+  struct tm lt;
+  localtime_r(&writeTime, &lt);
+  char timestring[20];
+  strftime(timestring, sizeof(timestring), "%Y-%m-%d %H:%M:%S", &lt);
+  strcpy(fileDate, timestring);
+}
+
 void listDir(const char* fname, char* htmlBuff) {
   // either list day folders in root, or files in a day folder
   std::string decodedName(fname); 
@@ -603,13 +612,19 @@ void listDir(const char* fname, char* htmlBuff) {
   decodedName = std::regex_replace(decodedName, std::regex("%2F"), "/");
   // check if folder or file
   bool noEntries = true;
+  char fileDate[20];
   strcpy(htmlBuff, "{"); 
+  
+  // hold sorted list of filenames/folders names paired with corresponding creation date in reverse order (newest first) 
+  std::map<std::string, std::string, std::greater <std::string>> mapFiles; 
+  
   if (decodedName.find(MJPEGEXT) != std::string::npos) {
     // mjpeg file selected
     strcpy(mjpegName, decodedName.c_str());
     doPlayback = true; // browser control
     noEntries = true; 
-    strcpy(htmlBuff, "{}");                                                
+    strcpy(htmlBuff, "{}");     
+                                           
   } else {
     strcpy(dayFolder, decodedName.c_str());
     bool returnDirs = (decodedName.compare("/")) ? false : true;
@@ -622,7 +637,7 @@ void listDir(const char* fname, char* htmlBuff) {
   
     // build relevant option list
     if(returnDirs) strcpy(htmlBuff, "{"); 
-    else strcpy(htmlBuff, " {\"/\":\".. [ Up ]\",");              
+    else strcpy(htmlBuff, " {\"/\":\".. [ Up ]\",");            
     File file = root.openNextFile();
     while (file) {
       if (file.isDirectory() && returnDirs) {
@@ -630,11 +645,8 @@ void listDir(const char* fname, char* htmlBuff) {
         std::string str(file.name());
         if (str.find("/System") == std::string::npos) { // ignore Sys Vol Info
           sprintf(optionHtml, "\"%s\":\"%s\",", file.name(), file.name());
-          if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
-          else {
-            showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
-            break;
-          }
+          getFileDate(file, fileDate);
+          mapFiles.insert(std::make_pair(fileDate, optionHtml));
           noEntries = false;
         }
       }
@@ -643,19 +655,27 @@ void listDir(const char* fname, char* htmlBuff) {
         std::string str(file.name());
         if (str.find(MJPEGEXT) != std::string::npos) {
           sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size()/ONEMEG);
-          if (strlen(htmlBuff)+strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
-          else {
-            showError("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
-            break;
-          }
+          getFileDate(file, fileDate);
+          mapFiles.insert(std::make_pair(fileDate, optionHtml));
           noEntries = false;
         }
       }
       file = root.openNextFile();
     }
   }
+  
   if (noEntries) strcat(htmlBuff, "\"/\":\"Get Folders\"}");
-  else htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
+  else {
+    // build json string content
+    for (const auto& m : mapFiles) {
+      if (strlen(htmlBuff)+strlen(m.second.c_str()) < htmlBuffLen) strcat(htmlBuff, m.second.c_str());
+      else {
+        showError("Too many folders/files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+        break;
+      }
+    }
+    htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
+  }
 }
 
 size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize) { 
@@ -966,7 +986,7 @@ void startSDtasks() {
   if (xTaskCreate(&playbackTask, "playbackTask", 4096, NULL, 4, &playbackHandle) != pdPASS)
     showError("Insufficient memory to create playbackTask");
   sensor_t * s = esp_camera_sensor_get();
-  fsizePtr = fsizeLookup(s->status.framesize, true); 
+  fsizePtr = s->status.framesize; 
   setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
 }
 
