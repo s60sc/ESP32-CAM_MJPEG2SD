@@ -1,4 +1,5 @@
 #include "esp_camera.h"
+// current arduino-esp32 stable release is v1.0.6
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
@@ -16,7 +17,8 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "1.9";
+const char* appVersion = "2.1a";
+#define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
 void startCameraServer();
