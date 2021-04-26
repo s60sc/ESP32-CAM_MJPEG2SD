@@ -12,13 +12,13 @@ extern char timezone[]; //Defined in myConfig.h
 #define USE_PIR false // whether to use PIR for motion detection
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
-#define MOVE_STOP_SECS 1 // secs between each check for stop
-#define RAMSIZE 16384 // set this to multiple of SD card sector size (512 or 1024 bytes)
+#define MOVE_STOP_SECS 2 // secs between each check for stop
+#define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
 #define minCardFreeSpace 50 // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
 #define freeSpaceMode 1 // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp and then delete folder                                                                                                               
-
+#define FORMAT_IF_MOUNT_FAILED  true //Auto format the sd card if mount failed. Set to false to not auto format.
 
 #include <SD_MMC.h>
 #include <regex>
@@ -33,7 +33,7 @@ static const char* TAG = "mjped2sd";
 bool debug = false;
 bool debugMotion = false;
 extern bool doRecording;// = true; // whether to capture to SD or not
-extern uint8_t minSeconds;// = 5; // default min video length (includes POST_MOTION_TIME)
+extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
 extern float motionVal;// = 8.0; // initial motion sensitivity setting
 bool timeSynchronized = false;
@@ -74,21 +74,24 @@ struct frameStruct {
 };
 // indexed by frame size - needs to be consistent with sensor.h enum
 extern const frameStruct frameData[] = {
+  {"96X96", 96, 96, 30, 1, 1}, 
   {"QQVGA", 160, 120, 30, 1, 1},
-  {"n/a", 0, 0, 0, 0, 1}, 
-  {"n/a", 0, 0, 0, 0, 1}, 
+  {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
+  {"240X240", 240, 240, 30, 2, 1}, 
   {"QVGA", 320, 240, 30, 2, 1}, 
-  {"CIF", 400, 296, 30, 2, 1},
+  {"CIF", 400, 296, 30, 2, 1},  
+  {"HVGA", 480, 320, 30, 2, 1}, 
   {"VGA", 640, 480, 20, 3, 1}, 
   {"SVGA", 800, 600, 20, 3, 1}, 
-  {"XGA", 1024, 768, 5, 3, 1}, 
+  {"XGA", 1024, 768, 5, 3, 1},   
+  {"HD", 1280, 720, 5, 3, 1}, 
   {"SXGA", 1280, 1024, 5, 3, 1}, 
   {"UXGA", 1600, 1200, 5, 3, 1}  
 };
 extern uint8_t fsizePtr; // index to frameData[] for record
 uint8_t ftypePtr; // index to frameData[] for ftp
-uint8_t frameDataRows = 11;
+uint8_t frameDataRows = 14;
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
@@ -507,6 +510,7 @@ static void captureTask(void* parameter) {
   uint32_t ulNotifiedValue;
   while (true) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (ulNotifiedValue > 5) ulNotifiedValue = 5; // prevent too big queue if FPS excessive
     // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
     while (ulNotifiedValue-- > 0) processFrame();
   }
@@ -604,6 +608,16 @@ String getOldestDir() {
   return oldName;
 }
 
+void inline getFileDate(File file, char* fileDate) {
+  // get creation date of file as string
+  time_t writeTime = file.getLastWrite();
+  struct tm lt;
+  localtime_r(&writeTime, &lt);
+  char timestring[20];
+  strftime(timestring, sizeof(timestring), "%Y-%m-%d %H:%M:%S", &lt);
+  strcpy(fileDate, timestring);
+}
+
 void listDir(const char* fname, char* htmlBuff) {
   // either list day folders in root, or files in a day folder
   std::string decodedName(fname);
@@ -611,7 +625,12 @@ void listDir(const char* fname, char* htmlBuff) {
   decodedName = std::regex_replace(decodedName, std::regex("%2F"), "/");
   // check if folder or file
   bool noEntries = true;
+  char fileDate[20];
   strcpy(htmlBuff, "{");
+  
+  // hold sorted list of filenames/folders names paired with corresponding creation date in reverse order (newest first) 
+  std::map<std::string, std::string, std::greater <std::string>> mapFiles; 
+  
   if (decodedName.find(MJPEGEXT) != std::string::npos) {
     // mjpeg file selected
     strcpy(mjpegName, decodedName.c_str());
@@ -638,7 +657,10 @@ void listDir(const char* fname, char* htmlBuff) {
         std::string str(file.name());
         if (str.find("/System") == std::string::npos) { // ignore Sys Vol Info
           sprintf(optionHtml, "\"%s\":\"%s\",", file.name(), file.name());
-          if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
+          getFileDate(file, fileDate);
+          mapFiles.insert(std::make_pair(fileDate, optionHtml));
+          if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen) 
+            strcat(htmlBuff, optionHtml);
           else {
             showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
             break;
@@ -651,7 +673,10 @@ void listDir(const char* fname, char* htmlBuff) {
         std::string str(file.name());
         if (str.find(MJPEGEXT) != std::string::npos) {
           sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size() / ONEMEG);
-          if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
+          getFileDate(file, fileDate);
+          mapFiles.insert(std::make_pair(fileDate, optionHtml));
+          if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen)
+            strcat(htmlBuff, optionHtml);
           else {
             showError("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
             break;
@@ -871,7 +896,7 @@ bool prepSD_MMC() {
   bool res = false;
   if (ONELINE) {
     // SD_MMC 1 line mode
-    res = SD_MMC.begin("/sdcard", true);
+    res = SD_MMC.begin("/sdcard", true, FORMAT_IF_MOUNT_FAILED );
   } else res = SD_MMC.begin(); // SD_MMC 4 line mode
   if (res) {
     showInfo("SD ready in %s mode ", ONELINE ? "1-line" : "4-line");
