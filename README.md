@@ -1,5 +1,6 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 * compile with arduino-esp32 stable release is v1.0.6
+* format the sd card if mount failed 
 * Remote logging/debugging via telnet on camera ip and port 443.
 * Automatic ftp upload new recordings on motion detection.
 * Check if file exists on upload a folder and ignore it. Incremental  upload
