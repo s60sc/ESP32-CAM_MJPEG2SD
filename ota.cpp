@@ -29,7 +29,7 @@ void doMessageLog();
 
 void OTAsetup() {
   if (USE_OTA) {
-    Serial.println("OTA on port 82");
+    ESP_EARLY_LOGI("OTAsetup","OTA on port 82");
     ota.on("/", HTTP_GET, []() {
       // stop timer isrs, and free up heap space, or crashes esp32
       OTAprereq();
@@ -41,7 +41,7 @@ void OTAsetup() {
       ota.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
       ESP.restart();
     }, []() {
-      HTTPUpload& upload = ota.upload();
+      HTTPUpload& upload = ota.upload();      
       if (upload.status == UPLOAD_FILE_START) {
         Serial.printf("Update: %s\n", upload.filename.c_str());
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
@@ -73,7 +73,7 @@ void OTAsetup() {
 bool OTAlistener() { 
   if (USE_OTA) {
     ota.handleClient();
-    delay(10);
+    delay(5);
     return true;
   } else return false;
 }
