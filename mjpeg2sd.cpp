@@ -157,9 +157,16 @@ void createScheduledUploadTask(const char* val);
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
 #define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
 */
+//for some reason ESP_LOG not working with serial Use ESP_EARLY_LOG instead
+#ifdef TELNET_DEBUG
 #define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
 #define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
 #define showDebug(format, ...) if (debug) ESP_LOGD(TAG, format, ##__VA_ARGS__)
+#else
+#define showInfo(format, ...) ESP_EARLY_LOGI(TAG, format, ##__VA_ARGS__)
+#define showError(format, ...) ESP_EARLY_LOGE(TAG, format, ##__VA_ARGS__)
+#define showDebug(format, ...) if (debug) ESP_EARLY_LOGD(TAG, format, ##__VA_ARGS__)
+#endif
 /************************** NTP  **************************/
 
 static inline time_t getEpoch() {
@@ -925,13 +932,13 @@ void deleteFolderOrFile(const char * val) {
     File file = f.openNextFile();
     while (file) {
       if (file.isDirectory()) {
-        ESP_LOGV(TAG,"  DIR : %s", file.name() );
+        showInfo("  DIR : %s", file.name() );
       } else {
         
         if (SD_MMC.remove(file.name())) {
-          ESP_LOGV(TAG,"  FILE : %s SIZE : %lu Deleted", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %lu Deleted", file.name(), file.size());
         } else {
-          ESP_LOGV(TAG,"  FILE : %s SIZE : %lu Failed", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %lu Failed", file.name(), file.size());
         }
       }
       file = f.openNextFile();

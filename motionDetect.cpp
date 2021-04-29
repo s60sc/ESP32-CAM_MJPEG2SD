@@ -40,9 +40,9 @@ static const char* TAG = "mjped2sd";
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
 #define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
 */
-#define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
-#define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
-#define showDebug(format, ...) if (debug) ESP_LOGD(TAG, format, ##__VA_ARGS__)
+#define showInfo(format, ...) ESP_EARLY_LOGI(TAG, format, ##__VA_ARGS__)
+#define showError(format, ...) ESP_EARLY_LOGE(TAG, format, ##__VA_ARGS__)
+#define showDebug(format, ...) if (debug) ESP_EARLY_LOGD(TAG, format, ##__VA_ARGS__)
 /********* the following must be declared and initialised elsewhere **********/
 extern bool debug;
 extern bool debugMotion;
