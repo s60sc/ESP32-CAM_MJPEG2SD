@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <esp_system.h>
-//#include <esp_log.h>
+//#include <ESP_EARLY_LOG.h>
 #include <WiFi.h>
 #include <SD_MMC.h>
 #include <ESPmDNS.h>
@@ -12,6 +12,7 @@
 #include <lwip/netdb.h>
 
 #define TAG "utils"
+#include "esp_log.h"
 #include "remote_log.h"
 extern char hostName[]; //Host name for ddns
 extern char ST_SSID[]; //Router ssid
@@ -97,7 +98,7 @@ int vprintf_into_spiffs(const char* szFormat, va_list args) {
 int remote_log_init()
 {
     int ret = 0;
-    ESP_LOGV(TAG, "Initialize remote log");
+    ESP_EARLY_LOGV(TAG, "Initialize remote log");
     memset(&log_serv_addr, 0, sizeof(log_serv_addr));
     memset(&log_cli_addr, 0, sizeof(log_cli_addr));
 
@@ -106,27 +107,27 @@ int remote_log_init()
     log_serv_addr.sin_port = htons(LOG_PORT);
 
     if((log_serv_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0) {
-        ESP_LOGE(TAG, "Failed to create socket, fd value: %d", log_serv_sockfd);
+        ESP_EARLY_LOGE(TAG, "Failed to create socket, fd value: %d", log_serv_sockfd);
         return log_serv_sockfd;
     }
 
-    ESP_LOGI(TAG, "Socket FD is %d", log_serv_sockfd);
+    ESP_EARLY_LOGI(TAG, "Socket FD is %d", log_serv_sockfd);
 
     int reuse_option = 1;
     if((ret = setsockopt(log_serv_sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse_option, sizeof(reuse_option))) < 0) {
-        ESP_LOGE(TAG, "Failed to set reuse, returned %d, %s", ret, strerror(errno));
+        ESP_EARLY_LOGE(TAG, "Failed to set reuse, returned %d, %s", ret, strerror(errno));
         remote_log_free();
         return ret;
     }
 
     if((ret = bind(log_serv_sockfd, (struct sockaddr *)&log_serv_addr, sizeof(log_serv_addr))) < 0) {
-        ESP_LOGE(TAG, "Failed to bind the port, maybe someone is using it?? Reason: %d, %s", ret, strerror(errno));
+        ESP_EARLY_LOGE(TAG, "Failed to bind the port, maybe someone is using it?? Reason: %d, %s", ret, strerror(errno));
         remote_log_free();
         return ret;
     }
 
     if((ret = listen(log_serv_sockfd, 1)) != 0) {
-        ESP_LOGE(TAG, "Failed to listen, returned: %d", ret);
+        ESP_EARLY_LOGE(TAG, "Failed to listen, returned: %d", ret);
         return ret;
     }
 
@@ -138,23 +139,23 @@ int remote_log_init()
 
     // Set receive timeout
     if ((ret = setsockopt(log_serv_sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout))) < 0) {
-        ESP_LOGE(TAG, "Setting receive timeout failed");
+        ESP_EARLY_LOGE(TAG, "Setting receive timeout failed");
         remote_log_free();
         return ret;
     }
 
     // Set send timeout
     if ((ret = setsockopt(log_serv_sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout))) < 0) {
-        ESP_LOGE(TAG, "Setting send timeout failed");
+        ESP_EARLY_LOGE(TAG, "Setting send timeout failed");
         remote_log_free();
         return ret;
     }
 
-    ESP_LOGI(TAG, "Server created, please use telnet to debug me in 30 seconds!");
+    ESP_EARLY_LOGI(TAG, "Server created, please use telnet to debug me in 30 seconds!");
 
     size_t cli_addr_len = sizeof(log_cli_addr);
     if((log_sockfd = accept(log_serv_sockfd, (struct sockaddr *)&log_cli_addr, &cli_addr_len)) < 0) {
-        ESP_LOGE(TAG, "Failed to accept, returned: %d, %s", ret, strerror(errno));
+        ESP_EARLY_LOGE(TAG, "Failed to accept, returned: %d, %s", ret, strerror(errno));
         remote_log_free();
         return ret;
     }
@@ -162,7 +163,7 @@ int remote_log_init()
     // Bind vprintf callback
     orig_vprintf_cb = esp_log_set_vprintf(remote_log_vprintf_cb);
     //orig_vprintf_cb = esp_log_set_vprintf(&vprintf_into_spiffs);
-    ESP_LOGI(TAG, "Logger vprintf function bind successful!");
+    ESP_EARLY_LOGI(TAG, "Logger vprintf function bind successful!");
 
     return 0;
 }
@@ -171,7 +172,7 @@ int remote_log_free()
 {
     int ret = 0;
     if((ret = close(log_serv_sockfd)) != 0) {
-        ESP_LOGE(TAG, "Cannot close the socket! Have you even open it?");
+        ESP_EARLY_LOGE(TAG, "Cannot close the socket! Have you even open it?");
         return ret;
     }
 
@@ -236,6 +237,7 @@ bool setWifiAP() {
 
   //set static ip
  if(strlen(AP_ip)>1){
+    ESP_EARLY_LOGV(TAG, "Setting ap static ip :%s, %s, %s", AP_ip,AP_gw,AP_sn);  
     IPAddress _ip,_gw,_sn,_ns1,_ns2;
     _ip.fromString(AP_ip);
     _gw.fromString(AP_gw);
@@ -243,11 +245,11 @@ bool setWifiAP() {
     //set static ip
     WiFi.softAPConfig(_ip, _gw, _sn);
   } 
-  ESP_LOGI(TAG, "Starting Access point with SSID %s", AP_SSID.c_str());
+  ESP_EARLY_LOGI(TAG, "Starting Access point with SSID %s", AP_SSID.c_str());
   WiFi.softAP(AP_SSID.c_str(), AP_Pass );
-  ESP_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), ipToString(WiFi.softAPIP()).c_str());
-  /*//Start mdns for AP
-    ESP_LOGI(TAG, "Starting ddns on port 53: %s", ipToString(WiFi.softAPIP()).c_str() );
+  ESP_EARLY_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), ipToString(WiFi.softAPIP()).c_str());
+  /*//Start mdns for AP ?
+    ESP_EARLY_LOGI(TAG, "Starting ddns on port 53: %s", ipToString(WiFi.softAPIP()).c_str() );
     dnsAPServer.start(53, "*", WiFi.softAPIP());
   */
   return true;
@@ -259,9 +261,9 @@ void setupHost(){  //Mdns services
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("ws", "udp", 81);
     //MDNS.addService("ftp", "tcp", 21);    
-    ESP_LOGI(TAG,"Mdns services http://%s Started.", hostName );
+    ESP_EARLY_LOGI(TAG,"Mdns services http://%s Started.", hostName );
   } else {
-    ESP_LOGE(TAG, "Mdns host name: %s Failed.", hostName);
+    ESP_EARLY_LOGE(TAG, "Mdns host name: %s Failed.", hostName);
   }
 }
 
@@ -271,25 +273,27 @@ bool startWifi() {
   WiFi.persistent(false); //prevent the flash storage WiFi credentials
   WiFi.setAutoReconnect(false); //Set whether module will attempt to reconnect to an access point in case it is disconnected
   WiFi.setAutoConnect(false);
-  ESP_LOGV(TAG, "Starting wifi, exist mode: %i", WiFi.getMode() );
+  ESP_EARLY_LOGV(TAG, "Starting wifi, exist mode: %d", WiFi.getMode() );
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
   else if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
-  ESP_LOGV(TAG, "Setup wifi, mode: %i", WiFi.getMode() );
+  ESP_EARLY_LOGV(TAG, "Setup wifi, mode: %d", WiFi.getMode() );
   //Setup mdns services
   setupHost();
   //Disconnect if already connected
   if (WiFi.status() == WL_CONNECTED) {
-    ESP_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
+    ESP_EARLY_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
     WiFi.disconnect();
     delay(1000);
-    ESP_LOGV(TAG, "Disconnected from ssid: %s", String(WiFi.SSID()) );
+    ESP_EARLY_LOGV(TAG, "Disconnected from ssid: %s", String(WiFi.SSID()) );
   }
   //Set hostname
-  ESP_LOGI(TAG, "Setting wifi hostname: %s", hostName);
+  ESP_EARLY_LOGI(TAG, "Setting wifi hostname: %s", hostName);
   WiFi.setHostname(hostName);
-  //set static ip
+
   if (strlen(ST_ip) > 1) {
+    ESP_EARLY_LOGI(TAG, "Setting config static ip :%s, %s, %s", ST_ip,ST_gw,ST_sn);
     IPAddress _ip, _gw, _sn, _ns1, _ns2;
+
     _ip.fromString(ST_ip);
     _gw.fromString(ST_gw);
     _sn.fromString(ST_sn);
@@ -297,13 +301,14 @@ bool startWifi() {
     _ns2.fromString(ST_ns2);
     //set static ip
     WiFi.config(_ip, _gw, _sn);
+  }else{
+    ESP_EARLY_LOGI(TAG, "Getting ip from dhcp..");
   }
   //
-  if (strlen(ST_SSID) > 0) {
-    //ESP_LOGI(TAG, "Got stored router credentials. Connecting to %s", ST_SSID);
-    ESP_LOGI(TAG, "Got stored router credentials. Connecting to: %s with pass: %s", ST_SSID, ST_Pass);
+  if (strlen(ST_SSID) > 0) {    
+    ESP_EARLY_LOGI(TAG, "Got stored router credentials. Connecting to: %s with pass: %s", ST_SSID, ST_Pass);
   } else {
-    ESP_LOGI(TAG, "No stored Credentials. Starting Access point.");
+    ESP_EARLY_LOGI(TAG, "No stored Credentials. Starting Access point.");
     //Start AP config portal
     return setWifiAP();
   }
@@ -313,7 +318,7 @@ bool startWifi() {
     int ret = 0;
     timeout = 40; // 40 * 200 ms = 8 sec time out
     WiFi.begin(ST_SSID, ST_Pass);
-    ESP_LOGI(TAG, "ST waiting for connection. Try %i", tries);
+    ESP_EARLY_LOGI(TAG, "ST waiting for connection. Try %d", tries);
     while ( ((ret = WiFi.status()) != WL_CONNECTED) && timeout ) {
       Serial.print(".");
       delay(200);
@@ -331,10 +336,10 @@ bool startWifi() {
   }
 
   if (timeout <= 0) {
-    ESP_LOGE(TAG, "wifi ST timeout on connect. Failed.");
+    ESP_EARLY_LOGE(TAG, "wifi ST timeout on connect. Failed.");
     return setWifiAP();
   }
-  ESP_LOGI(TAG, "Connected! Navigate to 'http://%s to setup", WiFi.localIP().toString());
+  ESP_EARLY_LOGI(TAG, "Connected! Got ip: '%s ", String(WiFi.localIP().toString()).c_str());
   return true;
 }
 
@@ -346,7 +351,7 @@ void checkConnection(){
   //Reboot?
   if(tmReboot>0 && millis() - tmReboot > 25000 ){
     int apClients = WiFi.softAPgetStationNum();
-    ESP_LOGI(TAG, "Need reboot.. Wifi status: %i Clients active: %i", WiFi.status(), apClients);
+    ESP_EARLY_LOGV(TAG, "Need reboot.. Wifi status: %d Clients active: %d", WiFi.status(), apClients);
     if(apClients < 1 && WiFi.status() != WL_CONNECTED ) //Reboot if no clients and no connection
        ESP.restart();
     else
@@ -355,7 +360,7 @@ void checkConnection(){
   
   //Check for wifi station reconnection every 30 seconds
   if(WiFi.status() != WL_CONNECTED && millis() - tmConn > 30000){
-    ESP_LOGI(TAG, "Wifi not connected, mode: %i, status: %i, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
+    ESP_EARLY_LOGI(TAG, "Wifi not connected, mode: %d, status: %d, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
     tmConn = millis();   //Recheck
     tmReboot = millis(); //Reboot after 25 seconds      
   }
