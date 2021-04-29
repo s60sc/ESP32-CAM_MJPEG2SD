@@ -353,7 +353,7 @@ const char* index_ov2640_html = R"~(
                 position: relative;
                 min-width: 160px;
                 margin-bottom: 15px;
-                margin-top:-15px;
+                margin-top:-15px;                
             }
 
             .close {
@@ -369,7 +369,20 @@ const char* index_ov2640_html = R"~(
                 line-height: 18px;
                 cursor: pointer
             }
-
+            
+            .maximize {
+                position: absolute;
+                right: 25px;
+                top: 5px;
+                background: #ff3034;
+                width: 16px;
+                height: 16px;
+                border-radius: 100px;
+                color: #fff;
+                text-align: center;
+                line-height: 18px;
+                cursor: pointer
+            }
             .hidden {
                 display: none
             }
@@ -410,6 +423,12 @@ const char* index_ov2640_html = R"~(
             { 
               display: none; 
             }
+            .info{
+              margin-top: 2px;
+            }
+            .info-group label {
+              color: dimgray;
+            }
         </style>
     </head>
     <body>
@@ -432,16 +451,21 @@ const char* index_ov2640_html = R"~(
                         <div>                    
                           <div class="input-group" id="framesize-group">
                               <label for="framesize">Resolution</label>
-                              <select title="Set camera recording resolution" id="framesize" class="default-action">
-                                  <option value="10">UXGA(1600x1200)</option>
-                                  <option value="9">SXGA(1280x1024)</option>
-                                  <option value="8">XGA(1024x768)</option>
-                                  <option value="7">SVGA(800x600)</option>
-                                  <option value="6" selected="selected">VGA(640x480)</option>
-                                  <option value="5">CIF(400x296)</option>
-                                  <option value="4">QVGA(320x240)</option>
-                                  <option value="3">HQVGA(240x176)</option>
-                                  <option value="0">QQVGA(160x120)</option>
+                              <select id="framesize" class="default-action">
+                                  <option value="13">UXGA(1600x1200)</option>
+                                  <option value="12">SXGA(1280x1024)</option>
+                                  <option value="11">*HD(1280x720)</option>
+                                  <option value="10">XGA(1024x768)</option>
+                                  <option value="9" selected="selected">SVGA(800x600)</option> 
+                                  <option value="8">VGA(640x480)</option> 
+                                  <option value="7">*HVGA(480x320)</option>
+                                  <option value="6">CIF(400x296)</option> 
+                                  <option value="5">QVGA(320x240)</option>
+                                  <option value="4">*240X240</option> 
+                                  <option value="3">HQVGA(240x176)</option> 
+                                  <option value="2">*QCIF(176x144)</option> 
+                                  <option value="1">QQVGA(160x120)</option> 
+                                  <option value="0">*96X96</option>
                               </select>
                           </div>
                           <div class="input-group" id="fps-group">
@@ -814,6 +838,7 @@ const char* index_ov2640_html = R"~(
                 <figure>
                     <div id="stream-container" class="image-container hidden">
                         <div class="close" id="close-stream">×</div>
+                        <div class="maximize" id="full-screen">+</div>
                         <img id="stream" src="">
                     </div>
                 </figure>
@@ -821,47 +846,47 @@ const char* index_ov2640_html = R"~(
             <section id="footer">
                 <div class="info-group center" id="isrecord">
                     <label for="isrecord">Recording?</label>
-                    <div id="isrecord" class="default-action displayonly">&nbsp;</div>
+                    <div id="isrecord" class="default-action info displayonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="llevel-group">
                     <label for="llevel">Ambient&nbsp;Light</label>
-                    <div id="llevel" class="default-action displayonly">&nbsp;</div>
+                    <div id="llevel" class="default-action info displayonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="night-group">
                     <label for="night">Night&nbsp;Time</label>
-                    <div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="night" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="atemp-group">
                     <label for="atemp">Camera&nbsp;Temp</label>
-                    <div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div> 
                 <div class="info-group center" id="clock-group">
                     <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
-                    <div id="clock" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="clock" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="uptime-group">
                     <label for="up_time">Up&nbsp;time</label>
-                    <div id="up_time" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="up_time" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>                                                 
                 <div class="info-group center" id="rssi-group">
                     <label for="wifi_rssi">Signal&nbsp;Strength</label>
-                    <div id="wifi_rssi" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="wifi_rssi" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="heap-group">
                     <label for="free_heap">Free&nbsp;memory</label>
-                    <div id="free_heap" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="free_heap" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>                
                 <div class="info-group center" id="total-group">
                     <label for="total_bytes">Total&nbsp;space</label>
-                    <div id="total_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="total_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>                
                 <div class="info-group center" id="used-group">
                     <label for="used_bytes">Used&nbsp;space</label>
-                    <div id="used_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="used_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="free-group">
                     <label for="free_bytes">Free&nbsp;space</label>
-                    <div id="free_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="free_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>   
             </section>                         
         </section>
@@ -1022,6 +1047,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')  
+  const fullScreen= document.getElementById('full-screen') 
   const uploadButton = document.getElementById('upload')    
   const uploadMoveButton = document.getElementById('uploadMove')    
   const deleteButton = document.getElementById('delete') 
@@ -1076,6 +1102,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
   
  defaultsButton.onclick = () => {
+    if(!confirm('Are you sure you want to reset device to factory defaults? Your settings will be lost!')){
+     return false;
+    }   
     stopStream();
     window.stop();
     $.ajax({
@@ -1085,6 +1114,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         "val": "1"
       }
     })
+    setTimeout(function () { location.reload(true); }, 10000);
   }
  
  /*
@@ -1118,9 +1148,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
     show(viewContainer)
   }
 
-  closeButton.onclick = () => {
+  closeButton.onclick = (e) => {
     stopStream()
     hide(viewContainer)
+    e.stopPropagation();
+    //Exit from full screen
+    if(fullScreen.innerHTML === '-'){
+      toggleFullScreen()
+    }
   }
 
   streamButton.onclick = () => {
@@ -1130,6 +1165,38 @@ document.addEventListener('DOMContentLoaded', function (event) {
     } else {
       startStream()
     }
+  }
+
+  //Maximize - Minimize player window
+  function toggleFullScreen(){
+    const isFullScreen = fullScreen.innerHTML === '-'    
+    if (isFullScreen) {      
+      document.exitFullscreen()
+      fullScreen.innerHTML = '+'
+      $("#stream").css("width", "auto");
+      $("#stream").css("height", "auto");  
+      $("#stream-container").css("width", "auto");
+      $("#stream-container").css("height", "auto");
+    } else {      
+      viewContainer.requestFullscreen()
+      fullScreen.innerHTML = '-'
+      $("#stream-container").css("width", window.screen.availWidth);
+      $("#stream-container").css("height", window.screen.availHeight);
+      $("#stream").css("width", $("#stream-container").width());
+      $("#stream").css("height", $("#stream-container").height());      
+    }
+    //$("#full-screen").css("left",$("#stream").width() - 40)
+    //$("#close-stream").css("left",$("#stream").width() - 20)
+}
+ //Maximize - Minimize video on click
+  viewContainer.onclick = () => {
+     toggleFullScreen()
+  }
+  //Maximize - Minimize on button click
+  fullScreen.onclick = (e) => {
+    e.stopPropagation();
+    console.log("fullScreen click")
+    toggleFullScreen()
   }
   
   // Attach default on change action
@@ -1234,7 +1301,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }); 
   }
 });
-        </script>
+        </script>        
     </body>
 </html>
 )~";
