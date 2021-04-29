@@ -478,7 +478,7 @@ esp_err_t file_get_handler(httpd_req_t *req)
 
     // Get null terminated filename
     httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
-    ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
+    ESP_EARLY_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
 
     FILE *f = fopen(filename, "r");
     free(filename);
