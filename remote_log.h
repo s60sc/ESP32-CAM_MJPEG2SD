@@ -1,4 +1,4 @@
- #define LOG_FORMAT_BUF_LEN 512
+#define LOG_FORMAT_BUF_LEN 512
 #define LOG_PORT 443 //Define telnet port
 
 #if CONFIG_LOG_COLORS
