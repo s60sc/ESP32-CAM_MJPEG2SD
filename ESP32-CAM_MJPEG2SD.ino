@@ -1,4 +1,5 @@
 #include "esp_camera.h"
+
 // current arduino-esp32 stable release is v1.0.6
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
@@ -17,7 +18,7 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.1a";
+const char* appVersion = "2.1d";
 #define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
@@ -35,7 +36,7 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
-  
+  ESP_EARLY_LOGI(TAG, "\n==============================\nStarting..");
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -79,7 +80,7 @@ void setup() {
   while (retries && err != ESP_OK) {
     err = esp_camera_init(&config);
     if (err != ESP_OK) {
-      Serial.printf("Camera init failed with error 0x%x", err);
+      ESP_EARLY_LOGE(TAG,"Camera init failed with error 0x%x", err);
       digitalWrite(PWDN_GPIO_NUM, 1);
       delay(100);
       digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
@@ -87,7 +88,7 @@ void setup() {
     }
   } 
   if (err != ESP_OK) ESP.restart();
-  else Serial.println("Camera init OK");
+  else ESP_EARLY_LOGI(TAG, "Camera init OK");
 
   sensor_t * s = esp_camera_sensor_get();
   //initial sensors are flipped vertically and colors are a bit saturated
@@ -108,23 +109,13 @@ void setup() {
   
   //Connect wifi and start config AP if fail
   if(!startWifi()){
-    Serial.println("Failed to start wifi, restart after 10 secs");
+    ESP_EARLY_LOGE(TAG, "Failed to start wifi, restart after 10 secs");
     delay(10000);
     ESP.restart();
   }
-  
-  
-  //SD_MMC.remove("/log.txt");
-  //Remote debug via Telnet on port 23
 
-  /*ESP_LOGE(TAG, "Error");
-  ESP_LOGW(TAG, "Warning");
-  ESP_LOGI(TAG, "Info");
-  ESP_LOGD(TAG, "Debug");
-  ESP_LOGV(TAG, "Verbose");  
-  */
   if (!prepMjpeg()) {
-    ESP_LOGE(TAG, "Unable to continue, SD card fail, restart after 10 secs");    
+    ESP_EARLY_LOGE(TAG, "Unable to continue, SD card fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
@@ -133,16 +124,18 @@ void setup() {
   OTAsetup();
   startSDtasks();
 #if USE_DS18B20  
-  if (prepDS18()) ESP_LOGI(TAG, "DS18B20 device available");
-  else ESP_LOGE(TAG, "DS18B20 device not present"); 
+  if (prepDS18()) ESP_EARLY_LOGI(TAG, "DS18B20 device available");
+  else ESP_EARLY_LOGI(TAG, "DS18B20 device not present"); 
 #endif  
-  String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-  ESP_LOGI(TAG, "Camera Ready, version %s. Use 'http://%s' to connect", appVersion, wifiIP.c_str());  
- 
+
+  String wifiIP = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP) ? WiFi.localIP().toString(): WiFi.softAPIP().toString();
+  ESP_EARLY_LOGI(TAG, "Camera Ready, version %s. Use 'http://%s' to connect", appVersion, wifiIP.c_str());  
 }
 
 void loop() {
   //Check connection
-  checkConnection();                    
-  if (!OTAlistener()) delay(100000);
+  checkConnection();
+  //USE_OTA
+  if (!OTAlistener()) delay(100000);  
+  //else delay(2000);
 }
