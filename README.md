@@ -1,4 +1,7 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+* Added minimize/maximize button for full screen playback
+* Fixed set station static IP
+* Fixed remote telnet debug.
 * compile with arduino-esp32 stable release is v1.0.6
 * format the sd card if mount failed 
 * Remote logging/debugging via telnet on camera ip and port 443.
