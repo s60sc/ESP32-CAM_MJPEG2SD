@@ -29,7 +29,7 @@ void doMessageLog();
 
 void OTAsetup() {
   if (USE_OTA) {
-    ESP_EARLY_LOGI("OTAsetup","OTA on port 82");
+    ESP_LOGI("OTAsetup","OTA on port 82");
     ota.on("/", HTTP_GET, []() {
       // stop timer isrs, and free up heap space, or crashes esp32
       OTAprereq();
