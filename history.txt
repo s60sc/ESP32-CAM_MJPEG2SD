@@ -1,4 +1,3 @@
-
 Remote log to sdcard file /log.txt 
 Add minimize/maximize button for full screen video playback
 Remote log via telnet on port 443
