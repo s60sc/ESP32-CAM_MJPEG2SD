@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <esp_system.h>
-//#include <ESP_EARLY_LOG.h>
+//#include <ESP_LOG.h>
 #include <WiFi.h>
 #include <SD_MMC.h>
 #include <ESPmDNS.h>
@@ -12,6 +12,7 @@
 #include <lwip/netdb.h>
 
 #define TAG "utils"
+//#include "esp32-hal-log.h"
 #include "esp_log.h"
 #include "remote_log.h"
 extern char hostName[]; //Host name for ddns
@@ -35,19 +36,18 @@ DNSServer dnsAPServer; //DDNS server for name resolution
 bool loadConfig();
 
 // Remote loggging
+byte remote_log_mode = 1; //0 - Disabled, log to serial port only, 1 - Internal log to sdcard file, 2 - Remote telnet on port 443
 static int log_serv_sockfd = -1;
 static int log_sockfd = -1;
 static struct sockaddr_in log_serv_addr, log_cli_addr;
 static char fmt_buf[LOG_FORMAT_BUF_LEN];
 static vprintf_like_t orig_vprintf_cb;
+const char *log_file_name = "/sdcard/log.txt";
+FILE *_log_remote_fp = NULL;
 
-/**
- * Code originally from here, modified for TCP server:
- *  https://github.com/MalteJ/embedded-esp32-component-udp_logging/blob/master/udp_logging.c
- */
+//Remote log to telnet 443
 static int remote_log_vprintf_cb(const char *str, va_list list)
 {
-
     int ret = 0, len = 0;
     char task_name[16];
 
@@ -60,8 +60,7 @@ static int remote_log_vprintf_cb(const char *str, va_list list)
     if (strncmp(task_name, "tiT", 16) != 0) {
 
         len = vsprintf((char*)fmt_buf, str, list);
-        //strcat((char*)fmt_buf,"\n\r");
-        //len+=2;
+
         // Send off the formatted payload
         if(send(log_sockfd, fmt_buf, len, 0) < 0) {
             remote_log_free();
@@ -71,34 +70,45 @@ static int remote_log_vprintf_cb(const char *str, va_list list)
     return vprintf(str, list);
 }
 
-int vprintf_into_spiffs(const char* szFormat, va_list args) {
-  //write evaluated format string into buffer
-  int ret = vsnprintf (fmt_buf, sizeof(fmt_buf), szFormat, args);
-  //Serial.println(fmt_buf);
-  //output is now in buffer. write to file.
-  if(ret >= 0) {
-    if(!SD_MMC.exists("/log.txt")) {
-      File writeLog = SD_MMC.open("/log.txt", FILE_WRITE);
-      if(!writeLog) Serial.println("Couldn't open SD_MMC log.txt"); 
-      delay(50);
-      writeLog.close();
+int vprintf_into_spiffs_sync(const char *fmt, va_list args) {
+    static bool static_fatal_error = false;
+    static const uint32_t WRITE_CACHE_CYCLE = 5;
+    static uint32_t counter_write = 0;
+    int iresult;
+    //Open remote file
+    if(_log_remote_fp == NULL){
+     _log_remote_fp = fopen(log_file_name, "wb");
     }
-    
-    File spiffsLogFile = SD_MMC.open("/log.txt", FILE_APPEND);
-    //debug output
-    //printf("[Writing to SPIFFS] %.*s", ret, log_print_buffer);
-    spiffsLogFile.write((uint8_t*) fmt_buf, (size_t) ret);
-    //to be safe in case of crashes: flush the output
-    spiffsLogFile.flush();
-    spiffsLogFile.close();
-  }
-  return ret;
+    // #1 Write to SPIFFS
+    if (_log_remote_fp == NULL) {
+        printf("%s() ABORT. file handle _log_remote_fp is NULL\n", __FUNCTION__);
+        return -1;
+    }
+    if (static_fatal_error == false) {
+        iresult = vfprintf(_log_remote_fp, fmt, args);
+        if (iresult < 0) {
+            printf("%s() ABORT. failed vfprintf() -> disable future vfprintf(_log_remote_fp) \n", __FUNCTION__);
+            // MARK FATAL
+            static_fatal_error = true;
+            return iresult;
+        }
+
+        // #2 Smart commit after x writes
+        counter_write++;
+        if (counter_write % WRITE_CACHE_CYCLE == 0) {
+            /////printf("%s() fsync'ing log file on SPIFFS (WRITE_CACHE_CYCLE=%u)\n", WRITE_CACHE_CYCLE);
+            fsync(fileno(_log_remote_fp));
+        }
+    }
+
+    // #3 ALWAYS Write to stdout!
+    return vprintf(fmt, args);
 }
 
-int remote_log_init()
+int remote_log_init_telnet()
 {
     int ret = 0;
-    ESP_EARLY_LOGV(TAG, "Initialize remote log");
+    ESP_LOGV(TAG, "Initialize telnet remote log");
     memset(&log_serv_addr, 0, sizeof(log_serv_addr));
     memset(&log_cli_addr, 0, sizeof(log_cli_addr));
 
@@ -107,27 +117,27 @@ int remote_log_init()
     log_serv_addr.sin_port = htons(LOG_PORT);
 
     if((log_serv_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0) {
-        ESP_EARLY_LOGE(TAG, "Failed to create socket, fd value: %d", log_serv_sockfd);
+        ESP_LOGE(TAG, "Failed to create socket, fd value: %d", log_serv_sockfd);
         return log_serv_sockfd;
     }
 
-    ESP_EARLY_LOGI(TAG, "Socket FD is %d", log_serv_sockfd);
+    ESP_LOGI(TAG, "Socket FD is %d", log_serv_sockfd);
 
     int reuse_option = 1;
     if((ret = setsockopt(log_serv_sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse_option, sizeof(reuse_option))) < 0) {
-        ESP_EARLY_LOGE(TAG, "Failed to set reuse, returned %d, %s", ret, strerror(errno));
+        ESP_LOGE(TAG, "Failed to set reuse, returned %d, %s", ret, strerror(errno));
         remote_log_free();
         return ret;
     }
 
     if((ret = bind(log_serv_sockfd, (struct sockaddr *)&log_serv_addr, sizeof(log_serv_addr))) < 0) {
-        ESP_EARLY_LOGE(TAG, "Failed to bind the port, maybe someone is using it?? Reason: %d, %s", ret, strerror(errno));
+        ESP_LOGE(TAG, "Failed to bind the port, maybe someone is using it?? Reason: %d, %s", ret, strerror(errno));
         remote_log_free();
         return ret;
     }
 
     if((ret = listen(log_serv_sockfd, 1)) != 0) {
-        ESP_EARLY_LOGE(TAG, "Failed to listen, returned: %d", ret);
+        ESP_LOGE(TAG, "Failed to listen, returned: %d", ret);
         return ret;
     }
 
@@ -139,40 +149,39 @@ int remote_log_init()
 
     // Set receive timeout
     if ((ret = setsockopt(log_serv_sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout))) < 0) {
-        ESP_EARLY_LOGE(TAG, "Setting receive timeout failed");
+        ESP_LOGE(TAG, "Setting receive timeout failed");
         remote_log_free();
         return ret;
     }
 
     // Set send timeout
     if ((ret = setsockopt(log_serv_sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout))) < 0) {
-        ESP_EARLY_LOGE(TAG, "Setting send timeout failed");
+        ESP_LOGE(TAG, "Setting send timeout failed");
         remote_log_free();
         return ret;
     }
 
-    ESP_EARLY_LOGI(TAG, "Server created, please use telnet to debug me in 30 seconds!");
+    ESP_LOGI(TAG, "Server created, please use telnet to debug me in 30 seconds!");
 
     size_t cli_addr_len = sizeof(log_cli_addr);
     if((log_sockfd = accept(log_serv_sockfd, (struct sockaddr *)&log_cli_addr, &cli_addr_len)) < 0) {
-        ESP_EARLY_LOGE(TAG, "Failed to accept, returned: %d, %s", ret, strerror(errno));
+        ESP_LOGE(TAG, "Failed to accept, returned: %d, %s", ret, strerror(errno));
         remote_log_free();
         return ret;
     }
 
     // Bind vprintf callback
-    orig_vprintf_cb = esp_log_set_vprintf(remote_log_vprintf_cb);
-    //orig_vprintf_cb = esp_log_set_vprintf(&vprintf_into_spiffs);
-    ESP_EARLY_LOGI(TAG, "Logger vprintf function bind successful!");
+    orig_vprintf_cb = esp_log_set_vprintf(remote_log_vprintf_cb);    
+    ESP_LOGI(TAG, "Logger vprintf function bind to telnet successful!");
 
     return 0;
 }
 
-int remote_log_free()
+int remote_log_free_telnet()
 {
     int ret = 0;
-    if((ret = close(log_serv_sockfd)) != 0) {
-        ESP_EARLY_LOGE(TAG, "Cannot close the socket! Have you even open it?");
+    if(log_serv_sockfd != -1 && (ret = close(log_serv_sockfd)) != 0) {
+        ESP_LOGE(TAG, "Cannot close the socket! Have you even open it?");
         return ret;
     }
 
@@ -182,7 +191,38 @@ int remote_log_free()
 
     return ret;
 }
-
+int remote_log_init()
+{
+    if(remote_log_mode==0)
+      return 0;
+    if(remote_log_mode==2)
+      return remote_log_init_telnet();
+      
+    //if(SD_MMC.exists(log_file_name)) SD_MMC.remove(log_file_name);
+    /// Bind vprintf callback    
+    orig_vprintf_cb = esp_log_set_vprintf(&vprintf_into_spiffs_sync);
+    Serial.printf("Logger bind sdcard file: %d\n", orig_vprintf_cb); 
+    ESP_LOGI(TAG, "Logger vprintf function bind successful!");
+}
+int remote_log_free()
+{
+    if(remote_log_mode==0)
+      return 0;
+    if(remote_log_mode==2)
+      return remote_log_free_telnet();
+      
+    Serial.printf("Logger vprintf unbind sdcard file: %d\n", orig_vprintf_cb); 
+    if(orig_vprintf_cb != NULL) {
+        esp_log_set_vprintf(orig_vprintf_cb);
+    }
+    if(_log_remote_fp!=NULL){
+      fsync(fileno(_log_remote_fp));
+      fflush(_log_remote_fp);
+      fclose(_log_remote_fp);
+      _log_remote_fp = NULL;
+    }
+    return 0;
+}
 char *esp_log_system_timestamp(void)
 {
     static char buffer[18] = {0};
@@ -237,7 +277,7 @@ bool setWifiAP() {
 
   //set static ip
  if(strlen(AP_ip)>1){
-    ESP_EARLY_LOGV(TAG, "Setting ap static ip :%s, %s, %s", AP_ip,AP_gw,AP_sn);  
+    ESP_LOGV(TAG, "Setting ap static ip :%s, %s, %s", AP_ip,AP_gw,AP_sn);  
     IPAddress _ip,_gw,_sn,_ns1,_ns2;
     _ip.fromString(AP_ip);
     _gw.fromString(AP_gw);
@@ -245,11 +285,11 @@ bool setWifiAP() {
     //set static ip
     WiFi.softAPConfig(_ip, _gw, _sn);
   } 
-  ESP_EARLY_LOGI(TAG, "Starting Access point with SSID %s", AP_SSID.c_str());
+  ESP_LOGI(TAG, "Starting Access point with SSID %s", AP_SSID.c_str());
   WiFi.softAP(AP_SSID.c_str(), AP_Pass );
-  ESP_EARLY_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), ipToString(WiFi.softAPIP()).c_str());
+  ESP_LOGI(TAG, "Done. Connect to SSID: %s and navigate to http://%s", AP_SSID.c_str(), ipToString(WiFi.softAPIP()).c_str());
   /*//Start mdns for AP ?
-    ESP_EARLY_LOGI(TAG, "Starting ddns on port 53: %s", ipToString(WiFi.softAPIP()).c_str() );
+    ESP_LOGI(TAG, "Starting ddns on port 53: %s", ipToString(WiFi.softAPIP()).c_str() );
     dnsAPServer.start(53, "*", WiFi.softAPIP());
   */
   return true;
@@ -261,9 +301,9 @@ void setupHost(){  //Mdns services
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("ws", "udp", 81);
     //MDNS.addService("ftp", "tcp", 21);    
-    ESP_EARLY_LOGI(TAG,"Mdns services http://%s Started.", hostName );
+    ESP_LOGI(TAG,"Mdns services http://%s Started.", hostName );
   } else {
-    ESP_EARLY_LOGE(TAG, "Mdns host name: %s Failed.", hostName);
+    ESP_LOGE(TAG, "Mdns host name: %s Failed.", hostName);
   }
 }
 
@@ -273,25 +313,25 @@ bool startWifi() {
   WiFi.persistent(false); //prevent the flash storage WiFi credentials
   WiFi.setAutoReconnect(false); //Set whether module will attempt to reconnect to an access point in case it is disconnected
   WiFi.setAutoConnect(false);
-  ESP_EARLY_LOGV(TAG, "Starting wifi, exist mode: %d", WiFi.getMode() );
+  ESP_LOGV(TAG, "Starting wifi, exist mode: %d", WiFi.getMode() );
   if (WiFi.getMode() == WIFI_OFF) WiFi.mode(WIFI_AP);
   else if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
-  ESP_EARLY_LOGV(TAG, "Setup wifi, mode: %d", WiFi.getMode() );
+  ESP_LOGV(TAG, "Setup wifi, mode: %d", WiFi.getMode() );
   //Setup mdns services
   setupHost();
   //Disconnect if already connected
   if (WiFi.status() == WL_CONNECTED) {
-    ESP_EARLY_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
+    ESP_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
     WiFi.disconnect();
     delay(1000);
-    ESP_EARLY_LOGV(TAG, "Disconnected from ssid: %s", String(WiFi.SSID()) );
+    ESP_LOGV(TAG, "Disconnected from ssid: %s", String(WiFi.SSID()) );
   }
   //Set hostname
-  ESP_EARLY_LOGI(TAG, "Setting wifi hostname: %s", hostName);
+  ESP_LOGI(TAG, "Setting wifi hostname: %s", hostName);
   WiFi.setHostname(hostName);
 
   if (strlen(ST_ip) > 1) {
-    ESP_EARLY_LOGI(TAG, "Setting config static ip :%s, %s, %s", ST_ip,ST_gw,ST_sn);
+    ESP_LOGI(TAG, "Setting config static ip :%s, %s, %s", ST_ip,ST_gw,ST_sn);
     IPAddress _ip, _gw, _sn, _ns1, _ns2;
 
     _ip.fromString(ST_ip);
@@ -302,13 +342,13 @@ bool startWifi() {
     //set static ip
     WiFi.config(_ip, _gw, _sn);
   }else{
-    ESP_EARLY_LOGI(TAG, "Getting ip from dhcp..");
+    ESP_LOGI(TAG, "Getting ip from dhcp..");
   }
   //
   if (strlen(ST_SSID) > 0) {    
-    ESP_EARLY_LOGI(TAG, "Got stored router credentials. Connecting to: %s with pass: %s", ST_SSID, ST_Pass);
+    ESP_LOGI(TAG, "Got stored router credentials. Connecting to: %s with pass: %s", ST_SSID, ST_Pass);
   } else {
-    ESP_EARLY_LOGI(TAG, "No stored Credentials. Starting Access point.");
+    ESP_LOGI(TAG, "No stored Credentials. Starting Access point.");
     //Start AP config portal
     return setWifiAP();
   }
@@ -318,7 +358,7 @@ bool startWifi() {
     int ret = 0;
     timeout = 40; // 40 * 200 ms = 8 sec time out
     WiFi.begin(ST_SSID, ST_Pass);
-    ESP_EARLY_LOGI(TAG, "ST waiting for connection. Try %d", tries);
+    ESP_LOGI(TAG, "ST waiting for connection. Try %d", tries);
     while ( ((ret = WiFi.status()) != WL_CONNECTED) && timeout ) {
       Serial.print(".");
       delay(200);
@@ -336,10 +376,10 @@ bool startWifi() {
   }
 
   if (timeout <= 0) {
-    ESP_EARLY_LOGE(TAG, "wifi ST timeout on connect. Failed.");
+    ESP_LOGE(TAG, "wifi ST timeout on connect. Failed.");
     return setWifiAP();
   }
-  ESP_EARLY_LOGI(TAG, "Connected! Got ip: '%s ", String(WiFi.localIP().toString()).c_str());
+  ESP_LOGI(TAG, "Connected! Got ip: '%s ", String(WiFi.localIP().toString()).c_str());
   return true;
 }
 
@@ -351,7 +391,7 @@ void checkConnection(){
   //Reboot?
   if(tmReboot>0 && millis() - tmReboot > 25000 ){
     int apClients = WiFi.softAPgetStationNum();
-    ESP_EARLY_LOGV(TAG, "Need reboot.. Wifi status: %d Clients active: %d", WiFi.status(), apClients);
+    ESP_LOGV(TAG, "Need reboot.. Wifi status: %d Clients active: %d", WiFi.status(), apClients);
     if(apClients < 1 && WiFi.status() != WL_CONNECTED ) //Reboot if no clients and no connection
        ESP.restart();
     else
@@ -360,7 +400,7 @@ void checkConnection(){
   
   //Check for wifi station reconnection every 30 seconds
   if(WiFi.status() != WL_CONNECTED && millis() - tmConn > 30000){
-    ESP_EARLY_LOGI(TAG, "Wifi not connected, mode: %d, status: %d, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
+    ESP_LOGI(TAG, "Wifi not connected, mode: %d, status: %d, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
     tmConn = millis();   //Recheck
     tmReboot = millis(); //Reboot after 25 seconds      
   }
