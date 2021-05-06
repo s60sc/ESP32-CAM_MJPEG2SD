@@ -54,24 +54,25 @@ uint8_t setFPS(uint8_t val);
 Preferences pref;
 
 bool resetConfig() {
-  ESP_EARLY_LOGI(TAG, "Reseting config..");
+  ESP_LOGI(TAG, "Reseting config..");
   if (!pref.begin(APP_NAME, false)) {
-    ESP_EARLY_LOGE(TAG, "Failed to open config.");
+    ESP_LOGE(TAG, "Failed to open config.");
     return false;
   }
   // Remove all preferences under the opened namespace
   pref.clear();
   // Close the Preferences
   pref.end();
-  ESP_EARLY_LOGI(TAG, "Reseting config OK.\nRebooting..");
+  ESP_LOGI(TAG, "Reseting config OK.\nRebooting..");
   ESP.restart();
   return true;
 }
 
 bool saveConfig() {
-  ESP_EARLY_LOGI(TAG, "Saving config..");
+    
+  ESP_LOGI(TAG, "Saving config..");
   if (!pref.begin(APP_NAME, false)) {
-    ESP_EARLY_LOGE(TAG, "Failed to open config.");
+    ESP_LOGE(TAG, "Failed to open config.");
     return false;
   }
 
@@ -80,7 +81,7 @@ bool saveConfig() {
   pref.putString("ST_Pass", ST_Pass);
 
   /* Not working if field ST_pass type="password"
-    ESP_EARLY_LOGI(TAG, "Save pass %s",ST_Pass);
+    ESP_LOGI(TAG, "Save pass %s",ST_Pass);
   */
   pref.putString("ST_ip", ST_ip);
   pref.putString("ST_gw", ST_gw);
@@ -116,17 +117,17 @@ bool saveConfig() {
 bool loadConfig() {
   bool saveDefPrefs = false;
   //resetConfig();
-  ESP_EARLY_LOGI(TAG, "Loading config..");
+  ESP_LOGI(TAG, "Loading config..");
   AP_SSID.toUpperCase();
   if (!pref.begin(APP_NAME, false)) {
-    ESP_EARLY_LOGE(TAG, "Failed to open config.");
+    ESP_LOGE(TAG, "Failed to open config.");
     saveConfig();
     return false;
   }
   strcpy(hostName, pref.getString("hostName", String(hostName)).c_str());
   //Add default hostname
   if (strlen(hostName) < 1) {
-    ESP_EARLY_LOGE(TAG, "Setting default hostname %s", hostName);
+    ESP_LOGE(TAG, "Setting default hostname %s", hostName);
     strcpy(hostName, AP_SSID.c_str());
     //No nvs prefs yet. Save them at end
     saveDefPrefs = true;
@@ -134,7 +135,7 @@ bool loadConfig() {
   strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
   strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
 
-  ESP_EARLY_LOGI(TAG, "Loaded ssid: %s pass: %s", String(ST_SSID).c_str(), String(ST_Pass).c_str());
+  ESP_LOGI(TAG, "Loaded ssid: %s pass: %s", String(ST_SSID).c_str(), String(ST_Pass).c_str());
 
   strcpy(ST_ip, pref.getString("ST_ip",ST_ip).c_str());
   strcpy(ST_gw, pref.getString("ST_gw",ST_gw).c_str());
@@ -165,10 +166,10 @@ bool loadConfig() {
   char buffer[schLen]; // prepare a buffer for the data
   schLen = pref.getBytes("camera_sensor", buffer, schLen);
   if (schLen < 1 || schLen % sizeof(camera_status_t)) { // simple check that data fits
-    ESP_EARLY_LOGE(TAG, "Camera sensor data is not correct size! get %u, size: %u",schLen,sizeof(camera_status_t));
+    ESP_LOGE(TAG, "Camera sensor data is not correct size! get %u, size: %u",schLen,sizeof(camera_status_t));
     //return false;
   }else{
-    ESP_EARLY_LOGI(TAG, "Setup camera_sensor, size get %u, def size: %u",schLen, sizeof(camera_status_t));
+    ESP_LOGI(TAG, "Setup camera_sensor, size get %u, def size: %u",schLen, sizeof(camera_status_t));
     camera_status_t * st = (camera_status_t *)buffer; // cast the bytes into a struct ptr
     sensor_t *s = esp_camera_sensor_get();
     s->set_ae_level(s,st->ae_level);
@@ -210,7 +211,7 @@ bool loadConfig() {
   pref.end();
 
   if (saveDefPrefs) {
-    ESP_EARLY_LOGW(TAG, "Saving default config.");
+    ESP_LOGW(TAG, "Saving default config.");
     saveConfig();
   }
   return true;
