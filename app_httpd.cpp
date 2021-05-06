@@ -264,7 +264,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     }else if(!strcmp(variable, "remote-log")) {
       bool rLog = (val) ? true : false;
       if(rLog){
-        esp_log_level_set("*", ESP_LOG_VERBOSE);
+        //esp_log_level_set("*", ESP_LOG_VERBOSE);
         Serial.println("Enabling remote log..");
         int r = remote_log_init();   
       }else{
@@ -478,7 +478,7 @@ esp_err_t file_get_handler(httpd_req_t *req)
 
     // Get null terminated filename
     httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
-    ESP_EARLY_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
+    ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
 
     FILE *f = fopen(filename, "r");
     free(filename);
