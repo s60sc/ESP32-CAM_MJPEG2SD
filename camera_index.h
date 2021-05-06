@@ -446,7 +446,7 @@ const char* index_ov2640_html = R"~(
             <div id="content">
                 <div id="sidebar">
                     <nav class="menu">                                                                
-                        <input type="checkbox" id="control-cb" checked="checked">
+                        <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
                         <label for="control-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
                         <div>                    
                           <div class="input-group" id="framesize-group">
@@ -571,7 +571,7 @@ const char* index_ov2640_html = R"~(
                        </div>
                      </nav>
                      <nav class="menu">                                                                
-                        <input type="checkbox" id="settings-cb">
+                        <input type="checkbox" id="settings-cb" class="menu-action">
                         <label for="settings-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
                         <div>
                           <div class="input-group" id="brightness-group">
@@ -739,7 +739,7 @@ const char* index_ov2640_html = R"~(
                         </div>            
                     </nav>
                     <nav class="menu">
-                        <input type="checkbox" id="other-cb">
+                        <input type="checkbox" id="other-cb" class="menu-action">
                         <label for="other-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
                         <div>
                           <h3>Network settings</h3>
@@ -890,9 +890,21 @@ const char* index_ov2640_html = R"~(
                 </div>   
             </section>                         
         </section>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-        <script src="/jquery.min.js"></script>
+        <!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script> -->
+        <script src="/jquery.min.js"></script>        
         <script>
+
+//Menu accordion
+$('.menu-action').each(function () {
+  this.addEventListener('click', function(e) {    
+    var clickedID = $(this).prop('id')
+    $('.menu-action').each(function () {
+      if(clickedID != $(this).prop('id')) this.checked=false;
+    });
+  }); 
+});
+
+
 $('input[type="range"]').on('input', function () {
 
   var control = $(this),
