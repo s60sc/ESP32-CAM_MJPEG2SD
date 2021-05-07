@@ -1,18 +1,20 @@
-Remote log to sdcard file /log.txt 
-Add minimize/maximize button for full screen video playback
-Remote log via telnet on port 443
-Automatic upload switch to ftp upload recordings on motion detection
-Help info text on each control
-Check if file exists on upload a folder and ignore it. Incremental  upload
-Fixed save / restore camera settings on boot
-Added delete or ftp upload on card full
-Fixed compiling without OneWire library
-Fixed Url encoded requests to handle '._-~'
-Url encoded requests to handle ssids with spaces
-Added upload move function
-Added footer information
-Improved select sd stored file for playback
-Stream and playback from access point conections via SmartPhone or Tablet with no internet at all
-Synchronize clock from browser if no internet (Access Point connections)
-Save and load Camera settings from nvs
-Modified user interface
+* Use on chip temperature if no  ds18b20 present
+* Minimize,Maximize,Maximize no strech buttons
+* Remote log to sdcard file /log.txt 
+* Add minimize/maximize button for full screen video playback
+* Remote log via telnet on port 443
+* Automatic upload switch to ftp upload recordings on motion detection
+* Help info text on each control
+* Check if file exists on upload a folder and ignore it. Incremental  upload
+* Fixed save / restore camera settings on boot
+* Added delete or ftp upload on card full
+* Fixed compiling without OneWire library
+* Fixed Url encoded requests to handle '._-~'
+* Url encoded requests to handle ssids with spaces
+* Added upload move function
+* Added footer information
+* Improved select sd stored file for playback
+* Stream and playback from access point conections via SmartPhone or Tablet with no internet at all
+* Synchronize clock from browser if no internet (Access Point connections)
+* Save and load Camera settings from nvs
+* Modified user interface
