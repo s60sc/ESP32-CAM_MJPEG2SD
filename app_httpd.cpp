@@ -92,6 +92,17 @@ extern uint8_t lightLevel;
 extern uint8_t nightSwitch;                                  
 // end additions for mjpeg2sd.cpp
 
+//Use internal on chip temperature sensor
+#ifndef USE_DS18B20
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint8_t temprature_sens_read();
+#ifdef __cplusplus
+}
+#endif
+uint8_t temprature_sens_read();
+#endif
 static esp_err_t capture_handler(httpd_req_t *req){
     camera_fb_t * fb = NULL;
     esp_err_t res = ESP_OK;
@@ -375,6 +386,10 @@ static esp_err_t status_handler(httpd_req_t *req){
       float aTemp = readDStemp(true);
       if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
       else p+=sprintf(p, "\"atemp\":\"n/a\",");
+    #else
+      //Convert on chip raw temperature in F to Celsius degrees
+      float aTemp = (temprature_sens_read() - 32) / 1.8;      
+      p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
     #endif
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
