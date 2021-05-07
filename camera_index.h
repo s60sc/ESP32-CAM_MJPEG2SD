@@ -1165,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     hide(viewContainer)
     e.stopPropagation();
     //Exit from full screen
-    if(fullScreen.innerHTML === '-'){
+    if(fullScreen.innerHTML === '-' || fullScreen.innerHTML === '#'){
       toggleFullScreen()
     }
   }
@@ -1178,28 +1178,43 @@ document.addEventListener('DOMContentLoaded', function (event) {
       startStream()
     }
   }
-
-  //Maximize - Minimize player window
-  function toggleFullScreen(){
-    const isFullScreen = fullScreen.innerHTML === '-'    
-    if (isFullScreen) {      
-      document.exitFullscreen()
-      fullScreen.innerHTML = '+'
-      $("#stream").css("width", "auto");
-      $("#stream").css("height", "auto");  
-      $("#stream-container").css("width", "auto");
-      $("#stream-container").css("height", "auto");
-    } else {      
+  
+  function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+    var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+    return { width: srcWidth*ratio, height: srcHeight*ratio };
+  }
+  
+  //Maximize - Minimize player window  
+  var srcSize;  
+  function toggleFullScreen(){        
+   if (fullScreen.innerHTML === '+') {     //Maximize
+      srcSize = { width: $("#stream-container").width(), height: $("#stream-container").height() }
       viewContainer.requestFullscreen()
-      fullScreen.innerHTML = '-'
+      fullScreen.innerHTML = '#' 
       $("#stream-container").css("width", window.screen.availWidth);
       $("#stream-container").css("height", window.screen.availHeight);
       $("#stream").css("width", $("#stream-container").width());
       $("#stream").css("height", $("#stream-container").height());      
+      //console.log("Max",window.screen.availWidth,window.screen.availHeight);
+   }else  if (fullScreen.innerHTML === '-') {     //Maximized
+      document.exitFullscreen()
+      fullScreen.innerHTML = '+'
+      $("#stream-container").css("width", "auto");
+      $("#stream-container").css("height", "auto");   
+      $("#stream").css("width", "auto");
+      $("#stream").css("height", "auto");  
+    }else{ //Maximize with aspect ratio
+      fullScreen.innerHTML = '-' 
+      var r = calculateAspectRatioFit(srcSize.width,srcSize.height, window.screen.availWidth, window.screen.availHeight)
+      $("#stream-container").css("width",r.width);
+      $("#stream-container").css("height", r.height);
+      $("#stream").css("width", r.width);
+      $("#stream").css("height", r.height);      
+      //console.log("Max asp",srcSize,r);
     }
-    //$("#full-screen").css("left",$("#stream").width() - 40)
-    //$("#close-stream").css("left",$("#stream").width() - 20)
+
 }
+
  //Maximize - Minimize video on click
   viewContainer.onclick = () => {
      toggleFullScreen()
