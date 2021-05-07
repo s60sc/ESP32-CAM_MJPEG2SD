@@ -6,13 +6,13 @@
 * s60sc 2020
 */
 
-extern char timezone[]; //Defined in myConfig.h
+extern char timezone[]; // Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
 #define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
-#define MOVE_STOP_SECS 2 // secs between each check for stop
+#define MOVE_STOP_SECS 2 // secs between each check for stop, also determines post motion time
 #define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
@@ -72,7 +72,8 @@ struct frameStruct {
   const uint8_t scaleFactor; // (0..3)
   const uint8_t sampleRate;  // (1..N)
 };
-// indexed by frame size - needs to be consistent with sensor.h enum
+
+// indexed by frame size - needs to be consistent with sensor.h framesize_t enum
 extern const frameStruct frameData[] = {
   {"96X96", 96, 96, 30, 1, 1}, 
   {"QQVGA", 160, 120, 30, 1, 1},
@@ -91,7 +92,7 @@ extern const frameStruct frameData[] = {
 };
 extern uint8_t fsizePtr; // index to frameData[] for record
 uint8_t ftypePtr; // index to frameData[] for ftp
-uint8_t frameDataRows = 14;
+uint8_t frameDataRows = 14;                         
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
@@ -271,8 +272,8 @@ void controlFrameTimer(bool restartTimer) {
     // (re)start timer 3 interrupt per required framerate
     timer3 = timerBegin(3, 8000, true); // 0.1ms tick
     frameInterval = 10000 / FPS; // in units of 0.1ms 
-    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS);
-    timerAlarmWrite(timer3, frameInterval, true); // 
+    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
+    timerAlarmWrite(timer3, frameInterval, true); 
     timerAlarmEnable(timer3);
     timerAttachInterrupt(timer3, &frameISR, true);
   }
@@ -358,7 +359,7 @@ static void saveFrame() {
   showDebug("Frame processing time %u ms", fTime);
 }
 
-bool checkFreeSpace() { //Check for suficcient space in card
+bool checkFreeSpace() { //Check for sufficient space in card
   if (freeSpaceMode < 1) return false;
   unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
   showInfo("Card free space: %lu", freeSize);
@@ -627,7 +628,7 @@ void listDir(const char* fname, char* htmlBuff) {
   // check if folder or file
   bool noEntries = true;
   char fileDate[20];
-  strcpy(htmlBuff, "{");
+  strcpy(htmlBuff, "{"); 
   
   // hold sorted list of filenames/folders names paired with corresponding creation date in reverse order (newest first) 
   std::map<std::string, std::string, std::greater <std::string>> mapFiles; 
@@ -636,8 +637,8 @@ void listDir(const char* fname, char* htmlBuff) {
     // mjpeg file selected
     strcpy(mjpegName, decodedName.c_str());
     doPlayback = true; // browser control
-    noEntries = true;
-    strcpy(htmlBuff, "{}");
+    noEntries = true; 
+    strcpy(htmlBuff, "{}");     
   } else {
     strcpy(dayFolder, decodedName.c_str());
     bool returnDirs = (decodedName.compare("/")) ? false : true;
@@ -649,8 +650,8 @@ void listDir(const char* fname, char* htmlBuff) {
     showDebug("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
 
     // build relevant option list
-    if (returnDirs) strcpy(htmlBuff, "{");
-    else strcpy(htmlBuff, " {\"/\":\".. [ Up ]\",");
+    if(returnDirs) strcpy(htmlBuff, "{"); 
+    else strcpy(htmlBuff, " {\"/\":\".. [ Up ]\",");            
     File file = root.openNextFile();
     while (file) {
       if (file.isDirectory() && returnDirs) {
@@ -688,8 +689,20 @@ void listDir(const char* fname, char* htmlBuff) {
       file = root.openNextFile();
     }
   }
+  
   if (noEntries) strcat(htmlBuff, "\"/\":\"Get Folders\"}");
-  else htmlBuff[strlen(htmlBuff) - 1] = '}'; // lose trailing comma
+ // else htmlBuff[strlen(htmlBuff) - 1] = '}'; // lose trailing comma
+  else {
+    // build json string content
+    for (const auto& m : mapFiles) {
+      if (strlen(htmlBuff)+strlen(m.second.c_str()) < htmlBuffLen) strcat(htmlBuff, m.second.c_str());
+      else {
+        showError("Too many folders/files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+        break;
+      }
+    }
+    htmlBuff[strlen(htmlBuff)-1] = '}'; // lose trailing comma 
+  }
 }
 
 size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize) {
@@ -975,7 +988,6 @@ bool prepMjpeg() {
       frameMutex = xSemaphoreCreateMutex();
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
-      showInfo("Free DRAM: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
       showInfo("Sound recording is %s", useMicrophone() ? "On" : "Off");
       showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
@@ -989,7 +1001,7 @@ bool prepMjpeg() {
     }
   } else {
     showError("pSRAM must be enabled");
-    return false;
+    return false;\
   }
 }
 
@@ -999,8 +1011,8 @@ void startSDtasks() {
   if (xTaskCreate(&playbackTask, "playbackTask", 4096, NULL, 4, &playbackHandle) != pdPASS)
     showError("Insufficient memory to create playbackTask");
   sensor_t * s = esp_camera_sensor_get();
-  fsizePtr = s->status.framesize;
-  setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second
+  fsizePtr = s->status.framesize; 
+  setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
 }
 
 static void deleteTask(TaskHandle_t thisTaskHandle) {

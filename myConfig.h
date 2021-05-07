@@ -1,6 +1,8 @@
 #include <FS.h>
 #include <SD_MMC.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
+#include <DNSServer.h>  
 #include <Preferences.h>
 #include "remote_log.h"
 

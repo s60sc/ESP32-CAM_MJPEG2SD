@@ -1,3 +1,4 @@
+
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 * Added local sdcard logging (/log.txt). Set remote_log_mode on file utils.cpp to 0,1 to set debug mode.
   Uncomment //remote_log_init(); on line 53 on file ESP32-CAM_MJPEG2SD to enable wifi connection debugging (remote_log_mode 1 - sdcard file only)
