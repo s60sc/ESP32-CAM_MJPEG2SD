@@ -1,3 +1,4 @@
+* Debug mode select in user interface.0-Serial,1-log.txt,2-telnet
 * Use on chip temperature if no  ds18b20 present
 * Minimize,Maximize,Maximize no strech buttons
 * Remote log to sdcard file /log.txt 
