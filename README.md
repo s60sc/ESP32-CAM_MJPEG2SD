@@ -1,15 +1,14 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
-* Added local sdcard logging (/log.txt). Set remote_log_mode (line 39) on file utils.cpp to 0, 1 to set debug mode.
+* Debug mode select in user interface.0-Serial,1-log.txt,2-telnet
+  Added local sdcard logging (/log.txt) or telnet on port 443. Set remote_log_mode (line 39) on file utils.cpp to 0, 1, 2 to set debug mode.
   Uncomment //remote_log_init(); on line 53 on file ESP32-CAM_MJPEG2SD to enable wifi connection debugging (remote_log_mode 1 - sdcard file only)
-  Debug mode select in user interface.0-Serial,1-log.txt,2-telnet
   You can use view-source:http://[camera ip]/file?log.txt to view the log generated.
-
+  You can run `telnet 192.168.4.1 443` on a remote host to debug
 * Use internal onchip temperature sensor if no ds18b20 external temperature sensor is present
 * Added normal / maximize / maximize_no_strech, button for full screen video playback. 
 * Added local sdcard logging (/log.txt). Set remote_log_mode (line 39) on file utils.cpp to 0, 1 to set debug mode.
   Uncomment //remote_log_init(); on line 53 on file ESP32-CAM_MJPEG2SD to enable wifi connection debugging (remote_log_mode 1 - sdcard file only)
 	You can use view-source:http://[camera ip]/file?log.txt to view the log generated.
-
 * Fixed set station static IP from config.
 * Fixed remote telnet debug.
 * compile with arduino-esp32 stable release is v1.0.6
