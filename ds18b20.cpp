@@ -18,6 +18,15 @@
 #include <DallasTemperature.h>
 #else
 #include "Arduino.h"
+//Use internal on chip temperature sensor
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint8_t temprature_sens_read();
+#ifdef __cplusplus
+}
+#endif
+uint8_t temprature_sens_read();
 #endif
 
 // configuration
@@ -76,6 +85,11 @@ bool tryDS18() {
 }
 
 float readDStemp(bool isCelsius) {
+#ifdef USE_DS18B20
   // return latest read DS18B20 value in celsius (true) or fahrenheit (false), unless error
   return (dsTemp > -127) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
+#else
+  //Convert on chip raw temperature in F to Celsius degrees
+  return (temprature_sens_read() - 32) / 1.8;      
+#endif
 }

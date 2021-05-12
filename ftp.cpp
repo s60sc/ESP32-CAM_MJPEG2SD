@@ -1,5 +1,3 @@
-#include "Arduino.h"
-#include <WiFi.h>
 #include <WiFiClient.h> 
 #include <WiFiUdp.h>
 #include "FS.h"     // SD Card ESP32
@@ -7,9 +5,9 @@
 #include <vector>  // Dynamic string array
 #include <regex>
 
-
-#include "esp_log.h"
 static const char* TAG = "ftp";
+#include "remote_log.h"
+
 
 //Defined in custom config file myConfig.h
 extern char ftp_server[];
@@ -48,7 +46,7 @@ void efail(){
     Serial.write(thisByte);
   }
   client.stop();
-  ESP_LOGI(TAG, "Ftp command disconnected");  
+  ESP_LOGI(TAG, "Command disconnected");  
 }
 byte eRcv(bool bFail=true){
   byte respCode;
@@ -81,11 +79,12 @@ byte eRcv(bool bFail=true){
 bool ftpConnect(){
   //Connect
   if (client.connect(ftp_server, String(ftp_port).toInt()) ) {
-    ESP_LOGI(TAG, "Ftp command connected at %s:%s", ftp_server,ftp_port);
+    ESP_LOGI(TAG, "Command connected at %s:%s", ftp_server,ftp_port);
   } else {
-    ESP_LOGE(TAG, "Error opening ftp connection to %s:%s\n", ftp_server, ftp_port);
+    ESP_LOGE(TAG, "Error opening ftp connection to %s:%s", ftp_server, ftp_port);
     return 0;
   }
+  ESP_LOGV(TAG, "Connected to ftp!");
   if (!eRcv()) return 0;
 
   client.print("USER ");
@@ -140,7 +139,7 @@ byte ftpDisconnect(){
   root.close();
   dclient.stop();
   client.stop();
-  if (retVal) ESP_LOGI(TAG, "Ftp command disconnected");
+  if (retVal) ESP_LOGI(TAG, "Command disconnected");
   return retVal;
 }
 
@@ -186,33 +185,56 @@ bool ftpCheckDirPath(String filePath, String &fileName){
   return 1;
 }
 
-//Store sdfile to current ftp dir
-bool ftpStoreFile(String file, File &fh){
+//Upload sdfile to current ftp dir, ignore already existing files ?
+bool ftpStoreFile(String file, File &fh, bool notExistingOnly=false){
    
-   uint32_t fileSize = fh.size();
+   uint32_t fileSize = fh.size();   
   
   // determine if file is suitable for conversion to AVI
   std::string sfile(file.c_str());
   if (isAVI(fh)) {
     sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");
     file = String(sfile.data());
-    ESP_LOGI(TAG, "Ftp store renamed file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
-  }else{   
-    ESP_LOGI(TAG, "Ftp store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));                                                                                                  
+    ESP_LOGI(TAG, "Store renamed file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));    
+  }else{
+    ESP_LOGI(TAG, "Store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
   }
 
+  //Check if file already exists 
+  if(notExistingOnly){
+     ESP_LOGI(TAG, "Check local file: %s size: %u B", file.c_str(), fileSize);
+     client.print("SIZE ");        
+     client.println(file.c_str());
+     eRcv(false);
+     char *tStr = strtok(rspBuf, " ");
+     //Serial.printf("Size Res: %s\n", tStr);
+     if(strcmp(tStr,"213")==0){
+        tStr = strtok(NULL,"\n");
+        uint32_t remoteSize = atol(tStr);
+        ESP_LOGV(TAG, "Server file: %s real local size: %u, server size: %u, dif: %u ", file.c_str(), fileSize, remoteSize, abs((int32_t)(fileSize - remoteSize)));
+        if(abs(fileSize - remoteSize) < 10000){ //File exists and have same size
+            ESP_LOGV(TAG, "File already exists!");
+            dclient.stop();
+            return true;
+        }
+     }else{
+        ESP_LOGI(TAG, "File: %s was not found on server", file.c_str());
+     }
+  }
+ 
   //Connect to data port
   if (dclient.connect(ftp_server, hiPort)) {
-    ESP_LOGI(TAG, "Ftp data connected");
+    ESP_LOGV(TAG, "Data connected");
   } else{
-    ESP_LOGE(TAG, "Ftp data connection failed");   
-   return 0;
+    ESP_LOGE(TAG, "Data connection failed");   
+    return false;
   }
+  
   client.print("STOR ");
   client.println(file);
   if (!eRcv()){
     dclient.stop();
-    return 0;
+    return false;
   }
   
   ESP_LOGI(TAG, "Uploading..");
@@ -221,7 +243,7 @@ bool ftpStoreFile(String file, File &fh){
   if(clientBuf==NULL){
     ESP_LOGE(TAG, "Memory allocation failed ..");
     dclient.stop();
-    return 0;
+    return false;
   }
   
   unsigned int buffCount=0;
@@ -234,7 +256,7 @@ bool ftpStoreFile(String file, File &fh){
     if(readLen>0 && writeLen==0){
         ESP_LOGE(TAG, "Write buffer failed ..");
         dclient.stop();
-        return 0;
+        return false;
     }
     writeBytes += writeLen;
     if(buffCount%5==0){
@@ -247,27 +269,28 @@ bool ftpStoreFile(String file, File &fh){
   free(clientBuf);
   ESP_LOGI(TAG, "Done Uploaded in %3.1f sec",uploadDur); 
   dclient.stop();
-  return 1; 
+  return true; 
 }
 
 //Upload a single file or whole directory to ftp 
-void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels){
+//On directory incredimental upload
+bool uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t levels){
   ESP_LOGI(TAG, "Ftp upload name: %s", sdName.c_str());
   if(sdName=="" || sdName=="/"){
      ESP_LOGE(TAG, "Root or null is not allowed %s",sdName.c_str());  
-      return;  
+      return true;  
   }
   String ftpName = "";
   //Ftp connect
   if(!ftpConnect()){
-    return; 
+    return false; 
   }
 
   root = SD_MMC.open(sdName);
   if (!root) {
       ESP_LOGE(TAG, "Failed to open: %s", sdName.c_str());
       ftpDisconnect();
-      return;
+      return false;
   }  
     
   if (!root.isDirectory()) { //Upload a single file
@@ -276,12 +299,12 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
       if(!ftpCheckDirPath(sdName, ftpName)){
           ESP_LOGE(TAG, "Create ftp dir path %s failed", sdName.c_str());
           ftpDisconnect();
-          return;
+          return false;
       }
       if(!ftpStoreFile(ftpName, root)){
         ESP_LOGE(TAG, "Store file %s to ftp failed", ftpName.c_str());
         ftpDisconnect();
-        return;
+        return false;
       }
       root.close();
       ESP_LOGV(TAG, "File closed");
@@ -298,7 +321,7 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
       if(!ftpCheckDirPath(sdName, ftpName)){
           ESP_LOGE(TAG, "Create ftp dir path %s failed", sdName.c_str());
           ftpDisconnect();
-          return;
+          return false;
       }
           
       bool bUploadOK=false;
@@ -319,7 +342,8 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
                 bPos = sdName.lastIndexOf("/");
                 String ftpName = sdName.substring(bPos+1);      
                 ESP_LOGI(TAG, "Uploading sub sd file %s to %s", sdName.c_str(),ftpName.c_str()); 
-                bUploadOK = ftpStoreFile(ftpName, fh);
+                //
+                bUploadOK = ftpStoreFile(ftpName, fh, true);
                 if(!bUploadOK){
                   ESP_LOGE(TAG, "Store file %s to ftp failed", ftpName.c_str());
                 }
@@ -330,11 +354,13 @@ void uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
               ESP_LOGI(TAG, "Removing file %s\n", sdName.c_str()); 
               SD_MMC.remove(sdName.c_str());
             } 
+            delay(500); // allow other tasks to finish off
             fh = root.openNextFile();
        }
   }
   //Disconnect from ftp
-  ftpDisconnect();  
+  ftpDisconnect(); 
+  return true; 
 }
 
 static bool removeAfterUpload=false; //Delete file if successfully uploaded
@@ -343,7 +369,7 @@ static void taskUpload(void * parameter){
     String fname((char*) parameter);
     delay(1000); // allow other tasks to finish off
     
-    ESP_LOGV(TAG, "Entering upload task fname: %s\n",fname.c_str());    
+    ESP_LOGV(TAG, "Entering upload task fname: %s",fname.c_str());    
     uploadFolderOrFileFtp(fname, removeAfterUpload, 0);
     ESP_LOGV(TAG, "Ending uploadTask");
     stopCheck = false;
@@ -351,15 +377,16 @@ static void taskUpload(void * parameter){
 }
 
 void createUploadTask(const char* val, bool move=false){
-    if (ESP.getFreeHeap() < 50000) printf("Insufficient free heap for FTP: %u\n", ESP.getFreeHeap());
-    else {
+    if (ESP.getFreeHeap() < 50000) {
+      ESP_LOGE(TAG, "Insufficient free heap for FTP: %u", ESP.getFreeHeap());
+    } else {
       stopCheck = true; // prevent ram space contention
       delay(100);
       doPlayback = false;
       static char fname[100];
       strcpy(fname, val); // else wont persist
       removeAfterUpload = move;
-      ESP_LOGV(TAG, "Starting upload task with val: %s and delete on upload %i\n",val,removeAfterUpload);
+      ESP_LOGV(TAG, "Starting upload task with param: %s and delete on upload flag: %i",val,removeAfterUpload);
       xTaskCreate(
           &taskUpload,       /* Task function. */
           "taskUpload",     /* String with name of task. */
@@ -368,4 +395,34 @@ void createUploadTask(const char* val, bool move=false){
           1,                /* Priority of the task. */
           NULL);            /* Task handle. */
     }
+}
+static void taskScheduledUpload(void * parameter) {
+  // prevent SD access by other tasks
+    String fname((char*) parameter);
+    delay(1000); // allow other tasks to finish off
+
+    for(;;) {
+      ESP_LOGV(TAG, "Entering upload task with param: %s\n",fname.c_str());    
+      if(uploadFolderOrFileFtp(fname,false,0)) {
+        ESP_LOGV(TAG, "Upload completed");
+        break;
+      }else {
+        vTaskDelay(1*60*60*1000 / portTICK_PERIOD_MS);
+      }
+    }
+    ESP_LOGV(TAG, "Ending uploadTask");
+    vTaskDelete( NULL );
+}
+
+void createScheduledUploadTask(const char* val) {
+   static char fname[100];
+    strcpy(fname, val); // else wont persist
+    ESP_LOGV(TAG, "Starting upload task with val: %s\n",val);
+    xTaskCreate(
+        &taskScheduledUpload,       /* Task function. */
+        "scheduledTaskUpload",     /* String with name of task. */
+        4096*2,           /* Stack size in bytes. */
+        (void *)fname,      /* Parameter passed as input of the task */
+        1,                /* Priority of the task. */
+        NULL);            /* Task handle. */
 }

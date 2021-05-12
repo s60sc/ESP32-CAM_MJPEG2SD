@@ -14,7 +14,6 @@
  s60sc 2020
 
 */
-
 #include "esp_camera.h"
 #include "esp_jpg_decode.h"
 #include <SD_MMC.h>
@@ -33,14 +32,22 @@ using namespace std;
 
 #define RGB888_BYTES 3 // number of bytes per pixel
 
+#include "remote_log.h"
+/*
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
-#define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
+#define showDebug(format, ...) if (dbgVerbose) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
+*/
+static const char* TAG = "motionDetect";
+//Use ESP_LOG that can hanlde both, serial,file,telnet logging
+#define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
+#define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
+#define showDebug(format, ...) if (dbgVerbose) ESP_LOGD(TAG, format, ##__VA_ARGS__)
 
 /********* the following must be declared and initialised elsewhere **********/
-extern bool debug;
-extern bool debugMotion;
+extern bool dbgVerbose;
+extern bool dbgMotion;
 extern uint8_t fsizePtr;
 extern uint8_t lightLevel; // Current ambient light level 
 extern SemaphoreHandle_t motionMutex;
@@ -112,8 +119,8 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   for (int i=0; i<num_pixels; i++) {
     if (abs(rgb_buf[i] - prev_buf[i]) > CHANGE_THRESHOLD) {
       if (i > startPixel && i < endPixel) changeCount++; // number of changed pixels
-      if (debugMotion) changeMap[i] = 192; // populate changeMap image as with with changed pixels in gray
-    } else if (debugMotion) changeMap[i] =  255; // set white 
+      if (dbgMotion) changeMap[i] = 192; // populate changeMap image as with with changed pixels in gray
+    } else if (dbgMotion) changeMap[i] =  255; // set white 
     lux += rgb_buf[i]; // for calculating light level
   }
   lightLevel = (lux*100)/(num_pixels*255); // light value as a %
@@ -133,7 +140,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
       showDebug("***** Motion - START");
       motionStatus = true; // motion started
     } 
-    if (debugMotion)
+    if (dbgMotion)
       // to highlight movement detected in changeMap image, set all gray in region of interest to black
       for (int i=0; i<num_pixels; i++) 
          if (i > startPixel && i < endPixel && changeMap[i] < 255) changeMap[i] = 0;
@@ -147,7 +154,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   }
   if (motionStatus) showDebug("*** Motion - ongoing %u frames", motionCnt);
 
-  if (debugMotion) { 
+  if (dbgMotion) { 
     // build jpeg of changeMap for debug streaming
     dTime = millis();
     if (!fmt2jpg(changeMap, num_pixels, sampleWidth, sampleHeight, PIXFORMAT_GRAYSCALE, 80, &jpg_buf, &jpg_len))

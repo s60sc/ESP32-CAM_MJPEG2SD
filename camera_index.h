@@ -353,7 +353,7 @@ const char* index_ov2640_html = R"~(
                 position: relative;
                 min-width: 160px;
                 margin-bottom: 15px;
-                margin-top:-15px;
+                margin-top:-15px;                
             }
 
             .close {
@@ -369,7 +369,20 @@ const char* index_ov2640_html = R"~(
                 line-height: 18px;
                 cursor: pointer
             }
-
+            
+            .maximize {
+                position: absolute;
+                right: 25px;
+                top: 5px;
+                background: #ff3034;
+                width: 16px;
+                height: 16px;
+                border-radius: 100px;
+                color: #fff;
+                text-align: center;
+                line-height: 18px;
+                cursor: pointer
+            }
             .hidden {
                 display: none
             }
@@ -410,6 +423,12 @@ const char* index_ov2640_html = R"~(
             { 
               display: none; 
             }
+            .info{
+              margin-top: 2px;
+            }
+            .info-group label {
+              color: dimgray;
+            }
         </style>
     </head>
     <body>
@@ -427,7 +446,7 @@ const char* index_ov2640_html = R"~(
             <div id="content">
                 <div id="sidebar">
                     <nav class="menu">                                                                
-                        <input type="checkbox" id="control-cb" checked="checked">
+                        <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
                         <label for="control-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
                         <div>                    
                           <div class="input-group" id="framesize-group">
@@ -452,47 +471,63 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="fps-group">
                               <label for="fps">FPS</label>
                               <div class="range-min">1</div>
-                              <input type="range" id="fps" min="1" max="30" value="10" class="default-action">
+                              <input title="Set camera required frames per second" type="range" id="fps" min="1" max="30" value="10" class="default-action">
                               <output name="rangeVal">15</output>
                               <div class="range-max">30</div>
                           </div>
                           <div class="input-group" id="minf-group">
                               <label for="minf">Min Seconds</label>
                               <div class="range-min">0</div>
-                              <input type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
                               <output name="rangeVal">5</output>
                               <div class="range-max">20</div>
                           </div>
-                          <div class="input-group" id="dbg-group">
-                              <label for="dbg">Verbose</label>
+
+                           <div class="input-group" id="debugging-group">
+                              <label for="dbgMode" title="Enable debugging via sd card file or remote host telnet on port 443">Debug</label>
+                              <select id="dbgMode" class="default-action">
+                                  <option value="0" title="Log on serial port only.">Serial</option>
+                                  <option value="1" title="Log on a text file log.txt on sdcard root. On browser navigate to view-source:http://[camera ip]/file?log.txt to view the log">SD card log.txt</option>
+                                  <option value="2" title="Log on a remote host running telnet command.Enble and type: telnet camera_ip 443">Telnet 443</option>
+                              </select>
+                          </div>                          
+                           <div class="input-group" id="dbg-group">
+                              <label for="dbgVerbose">Verbose</label>
                               <div class="switch">
-                                  <input id="dbg" type="checkbox" class="default-action">
-                                  <label class="slider" for="dbg"></label>
+                                  <input id="dbgVerbose" type="checkbox" class="default-action">
+                                  <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
                               </div>
-                          </div>                                                  
+                          </div>
                           <div class="input-group" id="sfiles-group" style="display: grid;">
                             <label for="sfiles">Select folder / file</label>                          
-                            <select id="sfile" style="font-size: 11px;">
+                            <select title="Select sd card file or folder" id="sfile" style="font-size: 11px;">
                               <option value="None" selected="selected">-- Select --</option>
                               <option value="/">Get Folders</option>
                             </select>
                           </div>
                           <section id="buttons"><br>
-                            <button id="upload" style="float:left; " value="1">Ftp Upload</button>
-                            <button id="uploadMove" style="float:left; " value="1">Ftp Move</button>
-                            <button id="delete" style="float:right; " value="1">Delete</button>
+                            <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
+                            <button title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
+                            <button title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
                           </section><br>
+                          <div class="input-group" id="autoUpload-group">
+                              <label for="autoUpload">Auto upload</label>
+                              <div class="switch">
+                                  <input id="autoUpload" type="checkbox" class="default-action">
+                                  <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
+                              </div>
+                          </div>                            
                           <div class="input-group" id="aviOn-group">
                               <label for="aviOn">Upload avi</label>
                               <div class="switch">
                                   <input id="aviOn" type="checkbox" class="default-action">
-                                  <label class="slider" for="aviOn"></label>
+                                  <label  title="Convert file to avi format on upload"  class="slider" for="aviOn"></label>
                               </div>
                           </div>                            
                           <div class="input-group" id="quality-group">
                               <label for="quality">Quality</label>
                               <div class="range-min">10</div>
-                              <input type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                              <input title="Set the recording quiality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
                               <output name="rangeVal">10</output>
                               <div class="range-max">63</div>
                           </div>
@@ -500,13 +535,13 @@ const char* index_ov2640_html = R"~(
                               <label for="record">Save Capture</label>
                               <div class="switch">
                                   <input id="record" type="checkbox" class="default-action">
-                                  <label class="slider" for="record"></label>
+                                  <label title="Enable recording on motion detection" class="slider" for="record"></label>
                               </div>
                           </div> 
                           <div class="input-group" id="motion-group">
                               <label for="motion">Motion Sensitivity</label>
                               <div class="range-min">1</div>
-                              <input type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
                               <output name="rangeVal">7</output>
                               <div class="range-max">10</div>
                           </div>                                                                
@@ -514,13 +549,13 @@ const char* index_ov2640_html = R"~(
                               <label for="lamp">Lamp</label>
                               <div class="switch">
                                   <input id="lamp" type="checkbox" class="default-action">
-                                  <label class="slider" for="lamp"></label>
+                                  <label title="Control onboard led" class="slider" for="lamp"></label>
                               </div>
                            </div>
                           <div class="input-group" id="lswitch-group">
                               <label for="lswitch">Night Switch</label>
                               <div class="range-min">0</div>
-                              <input type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
                               <output name="rangeVal">10</output>
                               <div class="range-max">100</div>
                           </div>                              
@@ -532,13 +567,13 @@ const char* index_ov2640_html = R"~(
                               <label for="dbgMotion">Show Motion</label>
                               <div class="switch">
                                   <input id="dbgMotion" type="checkbox" class="default-action">
-                                  <label class="slider" for="dbgMotion"></label>
+                                  <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
                               </div>
                           </div>
                        </div>
                      </nav>
                      <nav class="menu">                                                                
-                        <input type="checkbox" id="settings-cb">
+                        <input type="checkbox" id="settings-cb" class="menu-action">
                         <label for="settings-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
                         <div>
                           <div class="input-group" id="brightness-group">
@@ -706,7 +741,7 @@ const char* index_ov2640_html = R"~(
                         </div>            
                     </nav>
                     <nav class="menu">
-                        <input type="checkbox" id="other-cb">
+                        <input type="checkbox" id="other-cb" class="menu-action">
                         <label for="other-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
                         <div>
                           <h3>Network settings</h3>
@@ -805,6 +840,7 @@ const char* index_ov2640_html = R"~(
                 <figure>
                     <div id="stream-container" class="image-container hidden">
                         <div class="close" id="close-stream">×</div>
+                        <div class="maximize" id="full-screen">+</div>
                         <img id="stream" src="">
                     </div>
                 </figure>
@@ -812,53 +848,65 @@ const char* index_ov2640_html = R"~(
             <section id="footer">
                 <div class="info-group center" id="isrecord">
                     <label for="isrecord">Recording?</label>
-                    <div id="isrecord" class="default-action displayonly">&nbsp;</div>
+                    <div id="isrecord" class="default-action info displayonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="llevel-group">
                     <label for="llevel">Ambient&nbsp;Light</label>
-                    <div id="llevel" class="default-action displayonly">&nbsp;</div>
+                    <div id="llevel" class="default-action info displayonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="night-group">
                     <label for="night">Night&nbsp;Time</label>
-                    <div id="night" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="night" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="atemp-group">
                     <label for="atemp">Camera&nbsp;Temp</label>
-                    <div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div> 
                 <div class="info-group center" id="clock-group">
                     <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
-                    <div id="clock" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="clock" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="uptime-group">
                     <label for="up_time">Up&nbsp;time</label>
-                    <div id="up_time" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="up_time" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>                                                 
                 <div class="info-group center" id="rssi-group">
                     <label for="wifi_rssi">Signal&nbsp;Strength</label>
-                    <div id="wifi_rssi" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="wifi_rssi" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="heap-group">
                     <label for="free_heap">Free&nbsp;memory</label>
-                    <div id="free_heap" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="free_heap" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>                
                 <div class="info-group center" id="total-group">
                     <label for="total_bytes">Total&nbsp;space</label>
-                    <div id="total_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="total_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>                
                 <div class="info-group center" id="used-group">
                     <label for="used_bytes">Used&nbsp;space</label>
-                    <div id="used_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="used_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>
                 <div class="info-group center" id="free-group">
                     <label for="free_bytes">Free&nbsp;space</label>
-                    <div id="free_bytes" class="default-action displayonly" name="textonly">&nbsp;</div>
+                    <div id="free_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>   
             </section>                         
         </section>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-        <script src="/jquery.min.js"></script>
+        <!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script> -->
+        <script src="/jquery.min.js"></script>        
         <script>
+
+//Menu accordion
+$('.menu-action').each(function () {
+  this.addEventListener('click', function(e) {    
+    var clickedID = $(this).prop('id')
+    $('.menu-action').each(function () {
+      if(clickedID != $(this).prop('id')) this.checked=false;
+    });
+  }); 
+});
+
+
 $('input[type="range"]').on('input', function () {
 
   var control = $(this),
@@ -1013,6 +1061,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')  
+  const fullScreen= document.getElementById('full-screen') 
   const uploadButton = document.getElementById('upload')    
   const uploadMoveButton = document.getElementById('uploadMove')    
   const deleteButton = document.getElementById('delete') 
@@ -1051,6 +1100,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         "val": "1"
       }
     })
+    setTimeout(function () { location.reload(true); }, 10000);
   }
  
  saveButton.onclick = () => {
@@ -1066,6 +1116,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
   
  defaultsButton.onclick = () => {
+    if(!confirm('Are you sure you want to reset device to factory defaults? Your settings will be lost!')){
+     return false;
+    }   
     stopStream();
     window.stop();
     $.ajax({
@@ -1075,6 +1128,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         "val": "1"
       }
     })
+    setTimeout(function () { location.reload(true); }, 10000);
   }
  
  /*
@@ -1108,9 +1162,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
     show(viewContainer)
   }
 
-  closeButton.onclick = () => {
+  closeButton.onclick = (e) => {
     stopStream()
     hide(viewContainer)
+    e.stopPropagation();
+    //Exit from full screen
+    if(fullScreen.innerHTML === '-' || fullScreen.innerHTML === '#'){
+      toggleFullScreen()
+    }
   }
 
   streamButton.onclick = () => {
@@ -1120,6 +1179,53 @@ document.addEventListener('DOMContentLoaded', function (event) {
     } else {
       startStream()
     }
+  }
+  
+  function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+    var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+    return { width: srcWidth*ratio, height: srcHeight*ratio };
+  }
+  
+  //Maximize - Minimize player window  
+  var srcSize;  
+  function toggleFullScreen(){        
+   if (fullScreen.innerHTML === '+') {     //Maximize
+      srcSize = { width: $("#stream-container").width(), height: $("#stream-container").height() }
+      viewContainer.requestFullscreen()
+      fullScreen.innerHTML = '#' 
+      $("#stream-container").css("width", window.screen.availWidth);
+      $("#stream-container").css("height", window.screen.availHeight);
+      $("#stream").css("width", $("#stream-container").width());
+      $("#stream").css("height", $("#stream-container").height());      
+      //console.log("Max",window.screen.availWidth,window.screen.availHeight);
+   }else  if (fullScreen.innerHTML === '-') {     //Maximized
+      document.exitFullscreen()
+      fullScreen.innerHTML = '+'
+      $("#stream-container").css("width", "auto");
+      $("#stream-container").css("height", "auto");   
+      $("#stream").css("width", "auto");
+      $("#stream").css("height", "auto");  
+    }else{ //Maximize with aspect ratio
+      fullScreen.innerHTML = '-' 
+      var r = calculateAspectRatioFit(srcSize.width,srcSize.height, window.screen.availWidth, window.screen.availHeight)
+      $("#stream-container").css("width",r.width);
+      $("#stream-container").css("height", r.height);
+      $("#stream").css("width", r.width);
+      $("#stream").css("height", r.height);      
+      //console.log("Max asp",srcSize,r);
+    }
+
+}
+
+ //Maximize - Minimize video on click
+  viewContainer.onclick = () => {
+     toggleFullScreen()
+  }
+  //Maximize - Minimize on button click
+  fullScreen.onclick = (e) => {
+    e.stopPropagation();
+    console.log("fullScreen click")
+    toggleFullScreen()
   }
   
   // Attach default on change action
@@ -1169,6 +1275,28 @@ document.addEventListener('DOMContentLoaded', function (event) {
   awb.onchange = () => {
     updateConfig(awb)
     awb.checked ? show(wb) : hide(wb)
+  }
+
+  // Debug mode
+  const dbgMode = document.getElementById('dbgMode')
+  dbgMode.onchange = () => {   
+    var selection = dbgMode.value;
+    if(selection==2){      
+      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")) {
+        dbgMode.value=0;
+        return false;
+      }
+    }
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "dbgMode",
+        "val": selection
+      },   
+      success: function(response) {
+        console.log('Set debug mode',selection);
+      }
+    }); 
   }
 
   // framesize
@@ -1224,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }); 
   }
 });
-        </script>
+        </script>        
     </body>
 </html>
 )~";

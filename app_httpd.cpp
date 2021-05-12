@@ -20,7 +20,9 @@
 #include "camera_index.h"
 #include <regex>
 #include <sys/time.h>
-#include "Arduino.h"
+
+static const char* TAG = "apphttpd";
+#include "remote_log.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -47,8 +49,9 @@ extern char ftp_wd[];
 // additions for mjpeg2sd.cpp
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
-extern bool debug;
-extern bool debugMotion;
+extern uint8_t dbgMode;
+extern bool dbgVerbose;
+extern bool dbgMotion;
 extern bool doRecording;
 extern bool isCapturing;
 extern uint8_t* SDbuffer;
@@ -84,6 +87,7 @@ void resetConfig();
 extern bool lampOn;
 extern float motionVal;
 extern bool aviOn;
+extern bool autoUpload;
 extern bool nightTime;
 extern uint8_t lightLevel;   
 extern uint8_t nightSwitch;                                  
@@ -142,7 +146,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       if (res != ESP_OK) break;
     } else {   
 
-      if (debugMotion) {
+      if (dbgMotion) {
         // wait for new move mapping image
         delay(100);
         xSemaphoreTake(motionMutex, portMAX_DELAY);
@@ -179,7 +183,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       last_frame = fr_end;
       frame_time /= 1000;
 
-      if (debug) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
+      if (dbgVerbose) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
          (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time);
     }
   }
@@ -255,10 +259,32 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     } 
     else if(!strcmp(variable, "fps")) setFPS(val);
     else if(!strcmp(variable, "minf")) minSeconds = val;
-    else if(!strcmp(variable, "dbg")) {
-      debug = (val) ? true : false;
-      Serial.setDebugOutput(debug);
+    else if(!strcmp(variable, "dbgVerbose")) {
+      dbgVerbose = (val) ? true : false;
+      Serial.setDebugOutput(dbgVerbose);
+    }else if(!strcmp(variable, "dbgMode")) {      
+      dbgMode = val;
+printf("********************* dbg val %d\n", dbgMode);
+      if(val==0){
+        Serial.println("Disabling logging..");
+        int r = remote_log_free();        
+      }else{
+        Serial.printf("Enabling logging, mode %d\n", dbgMode);
+        int r = remote_log_init();          
+      }                                                      
+    }else if(!strcmp(variable, "remote-log")) {
+      bool rLog = (val) ? true : false;
+      if(rLog){
+        //esp_log_level_set("*", ESP_LOG_VERBOSE);
+        Serial.println("Enabling remote log..");
+        int r = remote_log_init();   
+      }else{
+        Serial.println("Disabling remote log..");
+        int r = remote_log_free();
+      }
     }
+    
+    
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -273,6 +299,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "aviOn")) aviOn = val;
+    else if(!strcmp(variable, "autoUpload")) autoUpload = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
@@ -285,8 +312,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       }      
     }                                         
     else if(!strcmp(variable, "dbgMotion")) {
-      debugMotion = (val) ? true : false;   
-      doRecording = !debugMotion;
+      dbgMotion = (val) ? true : false;   
+      doRecording = !dbgMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) ESP.restart();   
@@ -345,13 +372,15 @@ static esp_err_t status_handler(httpd_req_t *req){
     // additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
     p+=sprintf(p, "\"minf\":%u,", minSeconds);
-    p+=sprintf(p, "\"dbg\":%u,", debug ? 1 : 0);
-    p+=sprintf(p, "\"dbgMotion\":%u,", debugMotion ? 1 : 0);
+    p+=sprintf(p, "\"dbgMode\":%u,", dbgMode );
+    p+=sprintf(p, "\"dbgVerbose\":%u,", dbgVerbose ? 1 : 0);
+    p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
+    p+=sprintf(p, "\"autoUpload\":%u,", autoUpload);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     float aTemp = readDStemp(true);
@@ -440,6 +469,51 @@ static esp_err_t jquery_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/javascript");                              
     return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
 }
+
+// HTTP GET handler for downloading files 
+esp_err_t file_get_handler(httpd_req_t *req)
+{
+    /* Assuming that the sdcard has been initialized (formatted to FAT) and loaded with some files. */
+    const char *filepath_prefix = "/sdcard/";
+    char *filename = NULL;
+    size_t filename_len = httpd_req_get_url_query_len(req);
+
+    if (filename_len == 0) {
+        const char * resp_str = "Please specify a filename. eg. file?somefile.txt";
+        httpd_resp_send(req, resp_str, strlen(resp_str));
+        return ESP_OK;
+    }
+    filename = (char *)malloc(strlen(filepath_prefix) + filename_len + 1); // extra 1 byte for null termination
+    strncpy(filename, filepath_prefix, strlen(filepath_prefix));
+
+    // Get null terminated filename
+    httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
+    ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
+
+    FILE *f = fopen(filename, "r");
+    free(filename);
+    if (f == NULL) {
+        const char * resp_str = "File doesn't exist";
+        httpd_resp_send(req, resp_str, strlen(resp_str));
+        return ESP_OK;
+    }
+
+    /* Read file in chunks (relaxes any constraint due to large file sizes)
+     * and send HTTP response in chunked encoding */
+    char   chunk[1024];
+    size_t chunksize;
+    do {
+        chunksize = fread(chunk, 1, sizeof(chunk), f);
+        if (httpd_resp_send_chunk(req, chunk, chunksize) != ESP_OK) {
+            fclose(f);
+            return ESP_FAIL;
+        }
+    } while (chunksize != 0);
+
+    httpd_resp_send_chunk(req, NULL, 0);
+    fclose(f);
+    return ESP_OK;
+}
 // end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
@@ -459,6 +533,13 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
     
+    httpd_uri_t file_serve = {
+        .uri       = "/file",
+        .method    = HTTP_GET,
+        .handler   = file_get_handler,
+        .user_ctx  = NULL
+    };
+      
     httpd_uri_t status_uri = {
         .uri       = "/status",
         .method    = HTTP_GET,
@@ -487,10 +568,11 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
+    if (dbgVerbose) ESP_LOGI(TAG,"Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
-        httpd_register_uri_handler(camera_httpd, &jquery_uri);       
+        httpd_register_uri_handler(camera_httpd, &jquery_uri);
+        httpd_register_uri_handler(camera_httpd, &file_serve);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
@@ -498,7 +580,7 @@ void startCameraServer(){
 
     config.server_port += 1;
     config.ctrl_port += 1;
-    if (debug) Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
+    if (dbgVerbose) ESP_LOGI(TAG, "Starting stream server on port: '%d'\n", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }

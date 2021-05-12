@@ -1,14 +1,10 @@
-
 #include "esp_camera.h"
-#include <WiFi.h>
 
 // current arduino-esp32 stable release is v1.0.6
-
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
 //
-
 // Select camera model
 //#define CAMERA_MODEL_WROVER_KIT
 //#define CAMERA_MODEL_ESP_EYE
@@ -16,9 +12,15 @@
 //#define CAMERA_MODEL_M5STACK_WIDE
 #define CAMERA_MODEL_AI_THINKER
 
+static const char* TAG = "ESP32-CAM";
+
 #include "camera_pins.h"
 #include "myConfig.h"
 
+const char* appVersion = "2.2";
+#define XCLK_MHZ 20 // fastest clock rate
+
+//External functions
 void startCameraServer();
 bool prepMjpeg();
 void startSDtasks();
@@ -27,17 +29,32 @@ bool prepDS18();
 void OTAsetup();
 bool OTAlistener();
 bool startWifi();
-void checkConnection();                         
-
-const char* appVersion = "2.1";
-
-#define XCLK_MHZ 20 // fastest clock rate
+void checkConnection();  
 
 void setup() {
+  WiFi.disconnect(true);
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
 
+  if(!prepSD_MMC()){
+    Serial.println("SD card initialization failed!!, Will restart after 10 secs");    
+    delay(10000);
+    ESP.restart();
+  }
+  //Remove old log file
+  if(SD_MMC.exists("/log.txt")) SD_MMC.remove("/log.txt");
+  
+  //ESP_LOG will not work if not set verbose
+  esp_log_level_set("*", ESP_LOG_VERBOSE);
+  //Telnet debug will need internet conection first
+  if(dbgMode!=2){ //Non telnet mode.
+    //Call remote log init to debug wifi connection on startup
+    //View the file from the access point http://192.168.4.1/file?log.txt
+    remote_log_init();  
+  }
+
+  ESP_LOGI(TAG, "\n==============================\nStarting..");
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -81,7 +98,7 @@ void setup() {
   while (retries && err != ESP_OK) {
     err = esp_camera_init(&config);
     if (err != ESP_OK) {
-      Serial.printf("Camera init failed with error 0x%x", err);
+      ESP_LOGE(TAG,"Camera init failed with error 0x%x", err);
       digitalWrite(PWDN_GPIO_NUM, 1);
       delay(100);
       digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
@@ -89,7 +106,7 @@ void setup() {
     }
   } 
   if (err != ESP_OK) ESP.restart();
-  else Serial.println("Camera init OK");
+  else ESP_LOGI(TAG, "Camera init OK");
 
   sensor_t * s = esp_camera_sensor_get();
   //initial sensors are flipped vertically and colors are a bit saturated
@@ -105,35 +122,36 @@ void setup() {
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
-
-  prepSD_MMC();
   
-  //Connect wifi and start config AP if fail
+  //Load config and connect wifi or start config AP if fail
   if(!startWifi()){
-    Serial.println("Failed to start wifi, restart after 10 secs");
+    ESP_LOGE(TAG, "Failed to start wifi, restart after 10 secs");
     delay(10000);
     ESP.restart();
   }
   
   if (!prepMjpeg()) {
-    Serial.println("Unable to continue, SD card fail, restart after 10 secs");
+    ESP_LOGE(TAG, "Unable to continue,MJPEG capture fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
+        
   //Start httpd
   startCameraServer();
   OTAsetup();
   startSDtasks();
-  if (prepDS18()) Serial.println("DS18B20 device available");
-  else Serial.println("DS18B20 device not present"); 
-  
-  String wifiIP = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-  Serial.printf("Free DRAM: %u, free pSRAM %u\n", ESP.getFreeHeap(), ESP.getFreePsram());
-  Serial.printf("Camera Ready @ %uMHz, version %s. Use 'http://%s' to connect\n", XCLK_MHZ, appVersion, wifiIP.c_str());
+  if (prepDS18()) {ESP_LOGI(TAG, "DS18B20 device available");}
+  else ESP_LOGI(TAG, "DS18B20 device not present");
+
+  String wifiIP = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP) ? WiFi.localIP().toString(): WiFi.softAPIP().toString();
+  ESP_LOGI(TAG, "Camera Ready @ %uMHz, version %s. Use 'http://%s' to connect", XCLK_MHZ, appVersion, wifiIP.c_str());  
+
 }
 
 void loop() {
   //Check connection
-  checkConnection();                    
-  if (!OTAlistener()) delay(100000);
+  checkConnection();
+  //USE_OTA
+  if (!OTAlistener()) delay(100000);  
+  //else delay(2000);
 }
