@@ -45,6 +45,7 @@ bool doRecording = true; // whether to capture to SD or not
 extern uint8_t FPS;
 extern bool aviOn;
 extern bool autoUpload;
+extern byte dbgMode;
 
 bool lampVal = false;
 void controlLamp(bool lampVal);
@@ -99,6 +100,7 @@ bool saveConfig() {
   pref.putFloat("motion", motionVal);
   pref.putBool("lamp", lampVal);
   pref.putBool("aviOn", aviOn);
+  //pref.putBool("dbgMode", dbgMode);
   pref.putBool("autoUpload", autoUpload);  
   pref.putUChar("lswitch", nightSwitch);
 
@@ -152,6 +154,7 @@ bool loadConfig() {
   doRecording = pref.getBool("doRecording", doRecording);
   aviOn = pref.getBool("aviOn", aviOn);
   autoUpload = pref.getBool("autoUpload", autoUpload);
+  //dbgMode = pref.getBool("dbgMode", dbgMode);  
   motionVal = pref.getFloat("motion", motionVal);
   lampVal = pref.getBool("lamp", lampVal);
   controlLamp(lampVal);
