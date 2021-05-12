@@ -36,7 +36,7 @@ DNSServer dnsAPServer; //DDNS server for name resolution
 bool loadConfig();
 
 // Remote loggging
-byte remote_log_mode = 1; //0 - Disabled, log to serial port only, 1 - Internal log to sdcard file, 2 - Remote telnet on port 443
+byte dbgMode = 0; //0 - Disabled, log to serial port only, 1 - Internal log to sdcard file, 2 - Remote telnet on port 443
 static int log_serv_sockfd = -1;
 static int log_sockfd = -1;
 static struct sockaddr_in log_serv_addr, log_cli_addr;
@@ -193,9 +193,9 @@ int remote_log_free_telnet()
 }
 int remote_log_init()
 {
-    if(remote_log_mode==0)
+    if(dbgMode==0)
       return 0;
-    if(remote_log_mode==2)
+    if(dbgMode==2)
       return remote_log_init_telnet();
       
     //if(SD_MMC.exists(log_file_name)) SD_MMC.remove(log_file_name);
@@ -206,9 +206,9 @@ int remote_log_init()
 }
 int remote_log_free()
 {
-    if(remote_log_mode==0)
+    if(dbgMode==0)
       return 0;
-    if(remote_log_mode==2)
+    if(dbgMode==2)
       return remote_log_free_telnet();
       
     Serial.printf("Logger vprintf unbind sdcard file: %d\n", orig_vprintf_cb); 
