@@ -30,8 +30,8 @@ static const char* TAG = "mjped2sd";
 #include "remote_log.h"
 
 // user parameters
-bool debug = false;
-bool debugMotion = false;
+bool dbgVerbose = false;
+bool dbgMotion = false;
 extern bool doRecording;// = true; // whether to capture to SD or not
 extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
@@ -156,12 +156,12 @@ void createScheduledUploadTask(const char* val);
 // auto newline printf
 #define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
 #define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
-#define showDebug(format, ...) if (debug) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
+#define showDebug(format, ...) if (dbgVerbose) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
 */
 //Use ESP_LOG that can hanlde both, serial,file,telnet logging
 #define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
 #define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
-#define showDebug(format, ...) if (debug) ESP_LOGD(TAG, format, ##__VA_ARGS__)
+#define showDebug(format, ...) if (dbgVerbose) ESP_LOGD(TAG, format, ##__VA_ARGS__)
 /************************** NTP  **************************/
 
 static inline time_t getEpoch() {
@@ -234,7 +234,7 @@ void syncToBrowser(char *val) {
 void showProgress() {
   // show progess if not verbose
   static uint8_t dotCnt = 0;
-  if (!debug) {
+  if (!dbgVerbose) {
     Serial.print("."); // progress marker
     if (++dotCnt >= 50) {
       dotCnt = 0;
@@ -451,7 +451,7 @@ static boolean processFrame() {
   if (fb) {
     // determine if time to monitor, then get motion capture status
     if (USE_MOTION) {
-      if (debugMotion) checkMotion(fb, false); // check each frame for debug
+      if (dbgMotion) checkMotion(fb, false); // check each frame for debug
       else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
       nightTime = isNight(nightSwitch);
       if (nightTime) {
