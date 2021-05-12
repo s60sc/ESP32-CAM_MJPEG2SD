@@ -18,7 +18,7 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.1e";
+const char* appVersion = "2.2";
 #define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
@@ -43,15 +43,19 @@ void setup() {
     delay(10000);
     ESP.restart();
   }
+  
   //Remove old log file
   if(SD_MMC.exists("/log.txt")) SD_MMC.remove("/log.txt");
   
   //ESP_LOG will not work if not set verbose
   esp_log_level_set("*", ESP_LOG_VERBOSE);
-  //Call remote log init to debug wifi connection on startup
-  //View the file from the access point http://192.168.4.1/file?log.txt
-  //remote_log_init();
-
+  //Telnet debug will need internet conection first
+  if(dbgMode!=2){ //Non telnet mode.
+    //Call remote log init to debug wifi connection on startup
+    //View the file from the access point http://192.168.4.1/file?log.txt
+    remote_log_init();  
+  }
+  
   ESP_LOGI(TAG, "\n==============================\nStarting..");
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
