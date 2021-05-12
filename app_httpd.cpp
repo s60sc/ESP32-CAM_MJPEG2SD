@@ -49,8 +49,9 @@ extern char ftp_wd[];
 // additions for mjpeg2sd.cpp
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
-extern bool debug;
-extern bool debugMotion;
+extern bool dbgMode;
+extern bool dbgVerbose;
+extern bool dbgMotion;
 extern bool doRecording;
 extern bool isCapturing;
 extern uint8_t* SDbuffer;
@@ -156,7 +157,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       if (res != ESP_OK) break;
     } else {   
 
-      if (debugMotion) {
+      if (dbgMotion) {
         // wait for new move mapping image
         delay(100);
         xSemaphoreTake(motionMutex, portMAX_DELAY);
@@ -193,7 +194,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       last_frame = fr_end;
       frame_time /= 1000;
 
-      if (debug) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
+      if (dbgVerbose) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
          (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time);
     }
   }
@@ -269,9 +270,18 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     } 
     else if(!strcmp(variable, "fps")) setFPS(val);
     else if(!strcmp(variable, "minf")) minSeconds = val;
-    else if(!strcmp(variable, "dbg")) {
-      debug = (val) ? true : false;
-      Serial.setDebugOutput(debug);
+    else if(!strcmp(variable, "dbgVerbose")) {
+      dbgVerbose = (val) ? true : false;
+      Serial.setDebugOutput(dbgVerbose);
+    }else if(!strcmp(variable, "dbgMode")) {      
+      dbgMode = val;
+      if(val==0){
+        Serial.println("Disabling logging..");
+        int r = remote_log_free();        
+      }else{
+        Serial.println("Enabling logging..");
+        int r = remote_log_init();          
+      }
     }else if(!strcmp(variable, "remote-log")) {
       bool rLog = (val) ? true : false;
       if(rLog){
@@ -283,8 +293,6 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         int r = remote_log_free();
       }
     }
-    
-    
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -312,8 +320,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       }      
     }                                         
     else if(!strcmp(variable, "dbgMotion")) {
-      debugMotion = (val) ? true : false;   
-      doRecording = !debugMotion;
+      dbgMotion = (val) ? true : false;   
+      doRecording = !dbgMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) ESP.restart();   
@@ -372,8 +380,9 @@ static esp_err_t status_handler(httpd_req_t *req){
     // additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
     p+=sprintf(p, "\"minf\":%u,", minSeconds);
-    p+=sprintf(p, "\"dbg\":%u,", debug ? 1 : 0);
-    p+=sprintf(p, "\"dbgMotion\":%u,", debugMotion ? 1 : 0);
+    p+=sprintf(p, "\"dbgMode\":%u,", dbgMode );
+    p+=sprintf(p, "\"dbgVerbose\":%u,", dbgVerbose ? 1 : 0);
+    p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
@@ -573,7 +582,7 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    if (debug) Serial.printf("Starting web server on port: '%d'\n", config.server_port);
+    if (dbgVerbose) ESP_LOGI(TAG,"Starting web server on port: '%d'\n", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
         httpd_register_uri_handler(camera_httpd, &jquery_uri);
@@ -585,7 +594,7 @@ void startCameraServer(){
 
     config.server_port += 1;
     config.ctrl_port += 1;
-    if (debug) Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
+    if (dbgVerbose) ESP_LOGI(TAG, "Starting stream server on port: '%d'\n", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
