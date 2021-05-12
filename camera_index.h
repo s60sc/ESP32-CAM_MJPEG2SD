@@ -482,18 +482,20 @@ const char* index_ov2640_html = R"~(
                               <output name="rangeVal">5</output>
                               <div class="range-max">20</div>
                           </div>
-                          <div class="input-group" id="remote-log-group">
-                              <label for="remote-log">Remote log</label>
+
+                           <div class="input-group" id="debugging-group">
+                              <label for="dbgMode" title="Enable debugging via sd card file or remote host telnet on port 443">Debug</label>
+                              <select id="dbgMode" class="default-action">
+                                  <option value="0" title="Log on serial port only.">Serial</option>
+                                  <option value="1" title="Log on a text file log.txt on sdcard root. On browser navigate to view-source:http://[camera ip]/file?log.txt to view the log">SD card log.txt</option>
+                                  <option value="2" title="Log on a remote host running telnet command.Enble and type: telnet camera_ip 443">Telnet 443</option>
+                              </select>
+                          </div>                          
+                           <div class="input-group" id="dbg-group">
+                              <label for="dbgVerbose">Verbose</label>
                               <div class="switch">
-                                  <input id="remote-log" type="checkbox" class="default-action">
-                                  <label title="Enable remote logging via telnet on port 443" class="slider" for="remote-log"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="dbg-group">
-                              <label for="dbg">Verbose</label>
-                              <div class="switch">
-                                  <input id="dbg" type="checkbox" class="default-action">
-                                  <label title="Outputs additional logging to the serial monitor" class="slider" for="dbg"></label>
+                                  <input id="dbgVerbose" type="checkbox" class="default-action">
+                                  <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
                               </div>
                           </div>
                           <div class="input-group" id="sfiles-group" style="display: grid;">
@@ -1273,6 +1275,27 @@ document.addEventListener('DOMContentLoaded', function (event) {
   awb.onchange = () => {
     updateConfig(awb)
     awb.checked ? show(wb) : hide(wb)
+  }
+
+  // Debug mode
+  const dbgMode = document.getElementById('dbgMode')
+  dbgMode.onchange = () => {   
+    var selection = dbgMode.value;
+    if(selection==2){      
+      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443"))
+        dbgMode.value=0;
+        return false;
+    }
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "dbgMode",
+        "val": selection
+      },   
+      success: function(response) {
+        console.log('Set debug mode',selection);
+      }
+    }); 
   }
 
   // framesize
