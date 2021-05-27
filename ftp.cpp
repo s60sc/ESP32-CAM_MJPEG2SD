@@ -185,7 +185,7 @@ bool ftpCheckDirPath(String filePath, String &fileName){
   return 1;
 }
 
-//Upload sdfile to current ftp dir, ignore allready existing files ?
+//Upload sdfile to current ftp dir, ignore already existing files ?
 bool ftpStoreFile(String file, File &fh, bool notExistingOnly=false){
    
    uint32_t fileSize = fh.size();   
@@ -200,9 +200,9 @@ bool ftpStoreFile(String file, File &fh, bool notExistingOnly=false){
     ESP_LOGI(TAG, "Store file: %s size: %0.1fMB", file.c_str(),(float)(fileSize/(1024*1024)));
   }
 
-  //Check if file allready exists 
+  //Check if file already exists 
   if(notExistingOnly){
-     ESP_LOGI(TAG, "Check local file: %s size: %lu B", file.c_str(), fileSize);
+     ESP_LOGI(TAG, "Check local file: %s size: %u B", file.c_str(), fileSize);
      client.print("SIZE ");        
      client.println(file.c_str());
      eRcv(false);
@@ -211,7 +211,7 @@ bool ftpStoreFile(String file, File &fh, bool notExistingOnly=false){
      if(strcmp(tStr,"213")==0){
         tStr = strtok(NULL,"\n");
         uint32_t remoteSize = atol(tStr);
-        ESP_LOGV(TAG, "Server file: %s real local size: %lu, server size: %lu, dif: %lu ", file.c_str(), fileSize, remoteSize, (uint32_t)abs(fileSize - remoteSize));
+        ESP_LOGV(TAG, "Server file: %s real local size: %u, server size: %u, dif: %u ", file.c_str(), fileSize, remoteSize, abs((int32_t)(fileSize - remoteSize)));
         if(abs(fileSize - remoteSize) < 10000){ //File exists and have same size
             ESP_LOGV(TAG, "File already exists!");
             dclient.stop();

@@ -16,11 +16,12 @@ char hostName[32] = ""; //Host name for ddns
 char ST_SSID[32]  = ""; //Router ssid
 char ST_Pass[64]  = ""; //Router passd
 
-char ST_ip[16]  = ""; //Leave blank for dhcp
-char ST_sn[16]  = "";
-char ST_gw[16]  = "";
-char ST_ns1[16] = "";
-char ST_ns2[16] = "";
+// leave following blank for dhcp
+char ST_ip[16]  = ""; //Static IP
+char ST_sn[16]  = ""; // subnet normally 255.255.255.0
+char ST_gw[16]  = ""; // gateway to internet, normally router IP
+char ST_ns1[16] = ""; // DNS Server, can be router IP (needed for SNTP)
+char ST_ns2[16] = ""; // alternative DNS Server, can be blank
 
 //Access point Config Portal SSID and Pass
 #define ESP_getChipId() ((uint32_t)ESP.getEfuseMac())
@@ -45,7 +46,7 @@ bool doRecording = true; // whether to capture to SD or not
 extern uint8_t FPS;
 extern bool aviOn;
 extern bool autoUpload;
-extern byte dbgMode;
+extern byte dbgMode;                    
 
 bool lampVal = false;
 void controlLamp(bool lampVal);
@@ -58,6 +59,7 @@ Preferences pref;
 
 bool resetConfig() {
   ESP_LOGI(TAG, "Reseting config..");
+
   if (!pref.begin(APP_NAME, false)) {
     ESP_LOGE(TAG, "Failed to open config.");
     return false;
@@ -100,7 +102,7 @@ bool saveConfig() {
   pref.putFloat("motion", motionVal);
   pref.putBool("lamp", lampVal);
   pref.putBool("aviOn", aviOn);
-  //pref.putBool("dbgMode", dbgMode);
+  //pref.putUChar("dbgMode", dbgMode);                                    
   pref.putBool("autoUpload", autoUpload);  
   pref.putUChar("lswitch", nightSwitch);
 
@@ -120,7 +122,7 @@ bool saveConfig() {
 
 bool loadConfig() {
   bool saveDefPrefs = false;
-  //resetConfig();
+  //resetConfig(); 
   ESP_LOGI(TAG, "Loading config..");
   AP_SSID.toUpperCase();
   if (!pref.begin(APP_NAME, false)) {
@@ -154,7 +156,8 @@ bool loadConfig() {
   doRecording = pref.getBool("doRecording", doRecording);
   aviOn = pref.getBool("aviOn", aviOn);
   autoUpload = pref.getBool("autoUpload", autoUpload);
-  //dbgMode = pref.getBool("dbgMode", dbgMode);  
+  dbgMode = pref.getUChar("dbgMode", dbgMode);                                                  
+
   motionVal = pref.getFloat("motion", motionVal);
   lampVal = pref.getBool("lamp", lampVal);
   controlLamp(lampVal);

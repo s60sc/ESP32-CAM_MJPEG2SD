@@ -67,7 +67,7 @@ The ESP32 time is set from an NTP server.
 
 ## Installation and Use
 
-Note: Needs to be compiled with latest `arduino-esp32` Stable Release v1.0.6.
+Note: Needs `arduino-esp32` Stable Release v1.0.6 and Partition Scheme: `Minimal SPIFFS (...)` to compile.
 
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
 The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
@@ -108,6 +108,10 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Delete or ftp upload and delete oldest folder when card free space is running out.  
   See `minCardFreeSpace` and `freeSpaceMode` in `mjpeg2sd.cpp`
+  
+* Additional log viewing options via web page __Debug__ dropdown, in addition to serial port:
+  * To SD card, accessed via `http://[camera ip]/file?log.txt`
+  * From remote host using `telnet [camera ip] 443`
 
 
 Additional ancilliary functions:

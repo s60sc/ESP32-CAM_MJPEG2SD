@@ -191,6 +191,7 @@ int remote_log_free_telnet()
 
     return ret;
 }
+
 int remote_log_init()
 {
     if(dbgMode==0)
@@ -204,14 +205,15 @@ int remote_log_init()
     Serial.printf("Logger bind sdcard file: %d\n", orig_vprintf_cb); 
     ESP_LOGI(TAG, "Logger vprintf function bind successful!");
 }
+
 int remote_log_free()
 {
     if(dbgMode==0)
       return 0;
     if(dbgMode==2)
       return remote_log_free_telnet();
-      
-    Serial.printf("Logger vprintf unbind sdcard file: %d\n", orig_vprintf_cb); 
+    Serial.printf("Logger vprintf unbind sdcard file: %d\n", (int)orig_vprintf_cb); 
+
     if(orig_vprintf_cb != NULL) {
         esp_log_set_vprintf(orig_vprintf_cb);
     }
@@ -321,17 +323,17 @@ bool startWifi() {
   setupHost();
   //Disconnect if already connected
   if (WiFi.status() == WL_CONNECTED) {
-    ESP_LOGI(TAG, "Disconnecting from ssid: %s", String(WiFi.SSID()) );
+    ESP_LOGI(TAG, "Disconnecting from ssid: %s", (String(WiFi.SSID()).c_str()) );
     WiFi.disconnect();
     delay(1000);
-    ESP_LOGV(TAG, "Disconnected from ssid: %s", String(WiFi.SSID()) );
+    ESP_LOGV(TAG, "Disconnected from ssid: %s", (String(WiFi.SSID()).c_str()) );
   }
   //Set hostname
   ESP_LOGI(TAG, "Setting wifi hostname: %s", hostName);
   WiFi.setHostname(hostName);
 
   if (strlen(ST_ip) > 1) {
-    ESP_LOGI(TAG, "Setting config static ip :%s, %s, %s", ST_ip,ST_gw,ST_sn);
+    ESP_LOGI(TAG, "Setting config static ip :%s, %s, %s, %s", ST_ip,ST_gw,ST_sn, ST_ns1);
     IPAddress _ip, _gw, _sn, _ns1, _ns2;
 
     _ip.fromString(ST_ip);
@@ -340,7 +342,7 @@ bool startWifi() {
     _ns1.fromString(ST_ns1);
     _ns2.fromString(ST_ns2);
     //set static ip
-    WiFi.config(_ip, _gw, _sn);
+    WiFi.config(_ip, _gw, _sn, _ns1); // need DNS for SNTP
   }else{
     ESP_LOGI(TAG, "Getting ip from dhcp..");
   }
@@ -400,7 +402,7 @@ void checkConnection(){
   
   //Check for wifi station reconnection every 30 seconds
   if(WiFi.status() != WL_CONNECTED && millis() - tmConn > 30000){
-    ESP_LOGI(TAG, "Wifi not connected, mode: %d, status: %d, ap clients: ", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );        
+    ESP_LOGI(TAG, "Wifi not connected, mode: %d, status: %d, ap clients: %d", WiFi.getMode(), WiFi.status(), WiFi.softAPgetStationNum() );       
     tmConn = millis();   //Recheck
     tmReboot = millis(); //Reboot after 25 seconds      
   }

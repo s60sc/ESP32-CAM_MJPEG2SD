@@ -180,16 +180,15 @@ void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder) {
 void getLocalNTP() {
   // get current time from NTP server and apply to ESP32
   const char* ntpServer = "pool.ntp.org";
-  const long gmtOffset_sec = 0;  // offset from GMT
-  const int daylightOffset_sec = 3600; // daylight savings offset in secs
   int i = 0;
   do {
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    configTzTime(timezone, ntpServer);
     delay(1000);
   } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
   // set timezone as required
   setenv("TZ", timezone, 1);
   if (getEpoch() > 1000) {
+
     time_t currEpoch = getEpoch();
     char timeFormat[20];
     strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
@@ -365,7 +364,7 @@ bool checkFreeSpace() { //Check for sufficient space in card
   showInfo("Card free space: %lu", freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
-    showInfo("Oldest dir to delete: %s", oldestDir);
+    showInfo("Oldest dir to delete: %s", oldestDir.c_str());
     if (freeSpaceMode == 1) { //Delete oldest folder
       deleteFolderOrFile(oldestDir.c_str());
     } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
@@ -943,9 +942,9 @@ void deleteFolderOrFile(const char * val) {
       } else {
         
         if (SD_MMC.remove(file.name())) {
-          showInfo("  FILE : %s SIZE : %lu Deleted", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %u Deleted", file.name(), file.size());
         } else {
-          showInfo("  FILE : %s SIZE : %lu Failed", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %u Failed", file.name(), file.size());
         }
       }
       file = f.openNextFile();
@@ -989,7 +988,7 @@ bool prepMjpeg() {
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
       showInfo("Sound recording is %s", useMicrophone() ? "On" : "Off");
-      showInfo("\nTo record new MJPEG, do one of:");
+      showInfo("To record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
       if (USE_MOTION) showInfo("- move in front of camera");

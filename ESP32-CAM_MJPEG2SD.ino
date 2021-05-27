@@ -12,7 +12,9 @@
 //#define CAMERA_MODEL_M5STACK_WIDE
 #define CAMERA_MODEL_AI_THINKER
 
+
 #define USE_DS18B20 false //Enable 1Wire temperature sensor 
+
 static const char* TAG = "ESP32-CAM";
 
 #include "camera_pins.h"
@@ -44,7 +46,6 @@ void setup() {
     delay(10000);
     ESP.restart();
   }
-  
   //Remove old log file
   if(SD_MMC.exists("/log.txt")) SD_MMC.remove("/log.txt");
   
@@ -56,7 +57,6 @@ void setup() {
     //View the file from the access point http://192.168.4.1/file?log.txt
     remote_log_init();  
   }
-  
   ESP_LOGI(TAG, "\n==============================\nStarting..");
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -143,14 +143,14 @@ void setup() {
   startCameraServer();
   OTAsetup();
   startSDtasks();
+
 #if USE_DS18B20  
   if (prepDS18()) ESP_LOGI(TAG, "DS18B20 device available");
   else ESP_LOGI(TAG, "DS18B20 device not present"); 
 #endif  
 
   String wifiIP = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP) ? WiFi.localIP().toString(): WiFi.softAPIP().toString();
-  ESP_LOGI(TAG, "Camera Ready, version %s. Use 'http://%s' to connect", appVersion, wifiIP.c_str());  
-
+  ESP_LOGI(TAG, "Camera Ready @ %uMHz, version %s. Use 'http://%s' to connect", XCLK_MHZ, appVersion, wifiIP.c_str());  
 }
 
 void loop() {
