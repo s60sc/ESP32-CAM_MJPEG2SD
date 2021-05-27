@@ -175,7 +175,7 @@ const char* index_ov2640_html = R"~(
             button {
                 display: block;
                 margin: 5px;
-                padding: 0 12px;
+                padding: 0 6px;
                 border: 0;
                 line-height: 28px;
                 cursor: pointer;
@@ -506,6 +506,7 @@ const char* index_ov2640_html = R"~(
                             </select>
                           </div>
                           <section id="buttons"><br>
+                            <button title="Download selected file from sd card" id="download" style="float:right; " value="1">Download</button>
                             <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
                             <button title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
                             <button title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
@@ -1064,6 +1065,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const fullScreen= document.getElementById('full-screen') 
   const uploadButton = document.getElementById('upload')    
   const uploadMoveButton = document.getElementById('uploadMove')    
+  const downloadButton = document.getElementById('download') 
   const deleteButton = document.getElementById('delete') 
   const rebootButton = document.getElementById('reboot')
   const saveButton = document.getElementById('save')
@@ -1073,11 +1075,21 @@ document.addEventListener('DOMContentLoaded', function (event) {
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
   }
-  
   uploadMoveButton.onclick = () => {
     updateConfig(uploadMoveButton);
+  }  
+  downloadButton.onclick = () => {
+    var downloadBtVal = $('#download').val();    
+    if(downloadBtVal  == downloadBtVal.split('.')) return       
+    const url = baseHost + '/file?'+downloadBtVal
+    const e = document.createElement('a');
+    e.href = url;
+    e.download = url.substr(url.lastIndexOf('/') + 1);
+    document.body.appendChild(e);
+    e.click();
+    document.body.removeChild(e);
   }
-  
+
   deleteButton.onclick = () => {
     var deleteBt = $('#delete');
     if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
@@ -1327,7 +1339,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   sfile.onchange = () => {
     // build option list from json
     var sid = $('#sfile');
-    var selection = sid.val();
+    var selection = sid.val();    
+    $("*").css("cursor", "wait");
+    document.getElementById('download').value = selection; //Store file path for download
     document.getElementById('delete').value = selection; //Store file path for delete
     document.getElementById('upload').value = selection; //Store file path for ftp upload
     document.getElementById('uploadMove').value = selection; //Store file path for ftp upload move
@@ -1347,7 +1361,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
           listItems += '<option value="' + key + '">' + value + '</option>';
         });
         sid.append(listItems);
-      }
+        $("*").css("cursor", "default");
+      },
+      error: function (xhr, ajaxOptions, thrownError) {
+        $("*").css("cursor", "default");
+        console.log(xhr.status);
+      }         
     }); 
   }
 });
