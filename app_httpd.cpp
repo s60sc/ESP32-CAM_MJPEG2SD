@@ -214,7 +214,7 @@ static void urlDecode(char* saveVal, const char* urlVal) {
   }
   strcpy(saveVal, replaceVal.c_str());
 }
-
+/* Not working with esp32 
 bool formatMMC(){
     Serial.print("Formating card..");
     bool formatted = SPIFFS.format();
@@ -223,8 +223,9 @@ bool formatMMC(){
     }else{
       Serial.println("\nError formatting card");
     }
-    return formatted;
+    return formatted;    
 }                
+*/
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -312,13 +313,14 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
+    /* not working with esp32
     else if(!strcmp(variable, "format")){
       if(formatMMC()){
           return httpd_resp_send(req, "Formated card", strlen("Formated card"));
       }else{
           return httpd_resp_send(req, "Format card failed!", strlen("Format card failed!"));
       }      
-    }                                         
+    }*/                                         
     else if(!strcmp(variable, "dbgMotion")) {
       dbgMotion = (val) ? true : false;   
       doRecording = !dbgMotion;
@@ -466,6 +468,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
+    //p+=sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 
     p+=sprintf(p, "\"fw_version\":\"%s\"", appVersion);  
     *p++ = '}';
     *p++ = 0;
