@@ -18,7 +18,8 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.2";
+const char* appVersion = "2.3";
+
 #define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
