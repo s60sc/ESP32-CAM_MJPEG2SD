@@ -1,4 +1,10 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+
+ver 2.3
+* Download button added to download a mjpeg recording from browser.
+* Turn on wait cursor when selecting files from sd card to wait for responce and avoid errors.
+
+vet 2.2
 * Debug mode select in user interface.0-Serial,1-log.txt,2-telnet
   Added local sdcard logging (/log.txt) or telnet on port 443. Set remote_log_mode (line 39) on file utils.cpp to 0, 1, 2 to set debug mode.
   Uncomment //remote_log_init(); on line 53 on file ESP32-CAM_MJPEG2SD to enable wifi connection debugging (remote_log_mode 1 - sdcard file only)
@@ -12,6 +18,8 @@ This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 * Fixed set station static IP from config.
 * Fixed remote telnet debug.
 * compile with arduino-esp32 stable release is v1.0.6
+
+ver 1.9
 * format the sd card if mount failed 
 * Remote logging/debugging via telnet on camera ip and port 443.
 * Automatic ftp upload new recordings on motion detection.
