@@ -49,7 +49,7 @@ extern char ftp_wd[];
 // additions for mjpeg2sd.cpp
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
-extern uint8_t dbgMode;
+extern bool dbgMode;
 extern bool dbgVerbose;
 extern bool dbgMotion;
 extern bool doRecording;
@@ -93,17 +93,6 @@ extern uint8_t lightLevel;
 extern uint8_t nightSwitch;                                  
 // end additions for mjpeg2sd.cpp
 
-//Use internal on chip temperature sensor
-#ifndef USE_DS18B20
-#ifdef __cplusplus
-extern "C" {
-#endif
-uint8_t temprature_sens_read();
-#ifdef __cplusplus
-}
-#endif
-uint8_t temprature_sens_read();
-#endif
 static esp_err_t capture_handler(httpd_req_t *req){
     camera_fb_t * fb = NULL;
     esp_err_t res = ESP_OK;
@@ -280,9 +269,9 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         Serial.println("Disabling logging..");
         int r = remote_log_free();        
       }else{
-        Serial.printf("Enabling logging, mode %d\n", dbgMode);
+        Serial.println("Enabling logging..");
         int r = remote_log_init();          
-      }                                                      
+      }
     }else if(!strcmp(variable, "remote-log")) {
       bool rLog = (val) ? true : false;
       if(rLog){
@@ -294,8 +283,6 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         int r = remote_log_free();
       }
     }
-    
-    
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -395,15 +382,9 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"autoUpload\":%u,", autoUpload);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
-    #if USE_DS18B20  
-      float aTemp = readDStemp(true);
-      if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
-      else p+=sprintf(p, "\"atemp\":\"n/a\",");
-    #else
-      //Convert on chip raw temperature in F to Celsius degrees
-      float aTemp = (temprature_sens_read() - 32) / 1.8;      
-      p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
-    #endif
+    float aTemp = readDStemp(true);
+    if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
+    else p+=sprintf(p, "\"atemp\":\"n/a\",");
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     // end of additions for mjpeg2sd.cpp
