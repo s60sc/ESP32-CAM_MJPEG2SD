@@ -10,7 +10,6 @@ extern char timezone[]; // Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
-#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 2 // secs between each check for stop, also determines post motion time
 #define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
@@ -30,8 +29,11 @@ static const char* TAG = "mjped2sd";
 #include "remote_log.h"
 
 // user parameters
+bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool dbgVerbose = false;
-bool dbgMotion = false;
+bool dbgMotion  = false;
+bool forceRecord = false; //Recording enabled by rec button
+
 extern bool doRecording;// = true; // whether to capture to SD or not
 extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
@@ -180,15 +182,16 @@ void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder) {
 void getLocalNTP() {
   // get current time from NTP server and apply to ESP32
   const char* ntpServer = "pool.ntp.org";
+  const long gmtOffset_sec = 0;  // offset from GMT
+  const int daylightOffset_sec = 3600; // daylight savings offset in secs
   int i = 0;
   do {
-    configTzTime(timezone, ntpServer);
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     delay(1000);
   } while (getEpoch() < 1000 && i++ < 5); // try up to 5 times
   // set timezone as required
   setenv("TZ", timezone, 1);
   if (getEpoch() > 1000) {
-
     time_t currEpoch = getEpoch();
     char timeFormat[20];
     strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
@@ -364,7 +367,7 @@ bool checkFreeSpace() { //Check for sufficient space in card
   showInfo("Card free space: %lu", freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
-    showInfo("Oldest dir to delete: %s", oldestDir.c_str());
+    showInfo("Oldest dir to delete: %s", oldestDir);
     if (freeSpaceMode == 1) { //Delete oldest folder
       deleteFolderOrFile(oldestDir.c_str());
     } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
@@ -378,7 +381,8 @@ bool checkFreeSpace() { //Check for sufficient space in card
 static bool closeMjpeg() {
   // closes and renames the file
   uint32_t captureTime = frameCnt / FPS;
-  if (captureTime > minSeconds) {
+  showInfo("Capture time %lu, min seconds: %lu ", captureTime, minSeconds);
+  if (captureTime >= minSeconds) {
     cTime = millis();
     // add final boundary to buffer
     memcpy(SDbuffer + highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
@@ -439,6 +443,7 @@ static bool closeMjpeg() {
 static boolean processFrame() {
   // get camera frame
   static bool wasCapturing = false;
+  static bool wasRecording = false;
   static bool captureMotion = false;
   bool capturePIR = false;
   bool res = true;
@@ -449,7 +454,7 @@ static boolean processFrame() {
   fb = esp_camera_fb_get();
   if (fb) {
     // determine if time to monitor, then get motion capture status
-    if (USE_MOTION) {
+    if(!forceRecord && useMotion) {      
       if (dbgMotion) checkMotion(fb, false); // check each frame for debug
       else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
       nightTime = isNight(nightSwitch);
@@ -460,14 +465,23 @@ static boolean processFrame() {
       }
     }
     if (USE_PIR) capturePIR = digitalRead(PIRpin);
-    // either active PIR or Motion will start capture, neither active will stop capture
-    isCapturing = captureMotion | capturePIR;
-    if (doRecording) {
+    
+    // either active PIR,  Motion, or force start button will start capture, neither active will stop capture
+    isCapturing = forceRecord | captureMotion | capturePIR;
+    if (forceRecord || wasRecording || doRecording) {
+      if(forceRecord && !wasRecording){
+        wasRecording = true;
+        Serial.println("wasRecording = true");
+      }else if(!forceRecord && wasRecording){
+        wasRecording = false;
+        Serial.println("wasRecording = false");
+      }
+      
       if (isCapturing && !wasCapturing) {
         // movement has occurred, start recording, and switch on lamp if night time
         stopPlaying(); // terminate any playback
         stopPlayback  = true; // stop any subsequent playback
-        showDebug("Capture started by %s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "");
+        showInfo("Capture started by %s%s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "",forceRecord ? "Button" : "");
         openMjpeg();
         wasCapturing = true;
       }
@@ -487,7 +501,6 @@ static boolean processFrame() {
         finishRecording = true;
       }
       wasCapturing = isCapturing;
-
     }
     showDebug("============================");
   } else {
@@ -942,9 +955,9 @@ void deleteFolderOrFile(const char * val) {
       } else {
         
         if (SD_MMC.remove(file.name())) {
-          showInfo("  FILE : %s SIZE : %u Deleted", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %lu Deleted", file.name(), file.size());
         } else {
-          showInfo("  FILE : %s SIZE : %u Failed", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %lu Failed", file.name(), file.size());
         }
       }
       file = f.openNextFile();
@@ -988,10 +1001,10 @@ bool prepMjpeg() {
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
       showInfo("Sound recording is %s", useMicrophone() ? "On" : "Off");
-      showInfo("To record new MJPEG, do one of:");
+      showInfo("\nTo record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
-      if (USE_MOTION) showInfo("- move in front of camera");
+      if (useMotion) showInfo("- move in front of camera");
       showInfo(" ");
       return true;
     } else {
@@ -1034,14 +1047,13 @@ void OTAprereq() {
   endTasks();
   delay(100);
 }
-
-# ifndef USE_MOTION
-bool fetchMoveMap(uint8_t **out, size_t *out_len) {
+/*
+bool fetchMoveMapDummy(uint8_t **out, size_t *out_len) {
   // dummy if motionDetect.cpp not used
   *out_len = 0;
   xSemaphoreGive(motionMutex);
 }
-#endif
+*/
 
 String upTime() {
   String ret = "";
