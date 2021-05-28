@@ -47,6 +47,8 @@ extern char ftp_pass[];
 extern char ftp_wd[];
 
 // additions for mjpeg2sd.cpp
+extern bool forceRecord; //Recording enabled by rec button
+extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
 extern bool dbgMode;
@@ -58,7 +60,6 @@ extern uint8_t* SDbuffer;
 extern char* htmlBuff; 
 extern bool doPlayback;
 extern bool stopPlayback;
-
 extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
 extern bool lampVal;
@@ -294,7 +295,13 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       lampVal = (val) ? true : false; 
       controlLamp(lampVal);
     }
-    else if(!strcmp(variable, "motion")) motionVal = val;
+    else if(!strcmp(variable, "motion"))  motionVal = val;
+    else if(!strcmp(variable, "enableMotion")){
+      //Turn on/off motion detection to save battery
+      useMotion = (val) ? true : false; 
+      if(useMotion) { ESP_LOGI(TAG, "Enabling motion detection"); }
+      else { ESP_LOGI(TAG, "Disabling motion detection"); }   
+    }
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "aviOn")) aviOn = val;
     else if(!strcmp(variable, "autoUpload")) autoUpload = val;
@@ -302,14 +309,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
-    /* not working with esp32
-    else if(!strcmp(variable, "format")){
-      if(formatMMC()){
-          return httpd_resp_send(req, "Formated card", strlen("Formated card"));
-      }else{
-          return httpd_resp_send(req, "Format card failed!", strlen("Format card failed!"));
-      }      
-    }*/                                         
+    else if(!strcmp(variable, "forceRecord")) forceRecord = (val) ? true : false;                                    
     else if(!strcmp(variable, "dbgMotion")) {
       dbgMotion = (val) ? true : false;   
       doRecording = !dbgMotion;
@@ -376,6 +376,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
+    p+=sprintf(p, "\"enableMotion\":%u,", useMotion ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
@@ -386,7 +387,8 @@ static esp_err_t status_handler(httpd_req_t *req){
     if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
     else p+=sprintf(p, "\"atemp\":\"n/a\",");
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
-    p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
+    p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");    
+    p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);   
     // end of additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
     p+=sprintf(p, "\"quality\":%d,", s->status.quality);
