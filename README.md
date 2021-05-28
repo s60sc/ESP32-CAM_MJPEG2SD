@@ -1,4 +1,7 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+ver 2.31
+* Enable/Disable motion detection by button to save power.
+* Record button to force record to sd card even if no motion detection
 
 ver 2.3
 * Download button added to download a mjpeg recording from browser.
