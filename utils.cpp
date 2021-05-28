@@ -202,8 +202,9 @@ int remote_log_init()
     //if(SD_MMC.exists(log_file_name)) SD_MMC.remove(log_file_name);
     /// Bind vprintf callback    
     orig_vprintf_cb = esp_log_set_vprintf(&vprintf_into_spiffs_sync);
-    Serial.printf("Logger bind sdcard file: %d\n", orig_vprintf_cb); 
+    Serial.printf("Logger bind sdcard file: %d\n", (int)orig_vprintf_cb); 
     ESP_LOGI(TAG, "Logger vprintf function bind successful!");
+    return dbgMode;
 }
 
 int remote_log_free()
@@ -212,8 +213,8 @@ int remote_log_free()
       return 0;
     if(dbgMode==2)
       return remote_log_free_telnet();
+      
     Serial.printf("Logger vprintf unbind sdcard file: %d\n", (int)orig_vprintf_cb); 
-
     if(orig_vprintf_cb != NULL) {
         esp_log_set_vprintf(orig_vprintf_cb);
     }
