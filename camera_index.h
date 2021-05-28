@@ -429,6 +429,15 @@ const char* index_ov2640_html = R"~(
             .info-group label {
               color: dimgray;
             }
+            .blinking {
+              animation: blinker 1s linear infinite;
+            }
+            
+            @keyframes blinker {
+              50% {
+                opacity: 0;
+              }
+            }
         </style>
     </head>
     <body>
@@ -439,6 +448,7 @@ const char* index_ov2640_html = R"~(
                 <h6 id="fw_version" class="default-action displayonly"></h6>
               </section>  
               <nav id="maintoolbar">
+                  <button id="forceRecord" class="default-action" style="float:right;">Record</button>
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
               </nav>
@@ -475,14 +485,13 @@ const char* index_ov2640_html = R"~(
                               <output name="rangeVal">15</output>
                               <div class="range-max">30</div>
                           </div>
-                          <div class="input-group" id="minf-group">
-                              <label for="minf">Min Seconds</label>
-                              <div class="range-min">0</div>
-                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
-                              <output name="rangeVal">5</output>
-                              <div class="range-max">20</div>
-                          </div>
-
+                          <div class="input-group" id="quality-group">
+                              <label for="quality">Quality</label>
+                              <div class="range-min">10</div>
+                              <input title="Set the recording quiality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                              <output name="rangeVal">10</output>
+                              <div class="range-max">63</div>
+                          </div>                          
                            <div class="input-group" id="debugging-group">
                               <label for="dbgMode" title="Enable debugging via sd card file or remote host telnet on port 443">Debug</label>
                               <select id="dbgMode" class="default-action">
@@ -525,13 +534,27 @@ const char* index_ov2640_html = R"~(
                                   <label  title="Convert file to avi format on upload"  class="slider" for="aviOn"></label>
                               </div>
                           </div>                            
-                          <div class="input-group" id="quality-group">
-                              <label for="quality">Quality</label>
-                              <div class="range-min">10</div>
-                              <input title="Set the recording quiality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
-                              <output name="rangeVal">10</output>
-                              <div class="range-max">63</div>
-                          </div>
+                          <div class="input-group" id="lamp-group">
+                              <label for="enableMotion">Enable motion detect</label>
+                              <div class="switch">
+                                  <input id="enableMotion" type="checkbox" class="default-action">
+                                  <label title="Enable/disable motion detection" class="slider" for="enableMotion"></label>
+                              </div>
+                           </div>
+                          <div class="input-group" id="motion-group">
+                              <label for="motion">Motion Sensitivity</label>
+                              <div class="range-min">1</div>
+                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                              <output name="rangeVal">7</output>
+                              <div class="range-max">10</div>
+                          </div> 
+                          <div class="input-group" id="minf-group">
+                              <label for="minf">Min Seconds</label>
+                              <div class="range-min">0</div>
+                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                              <output name="rangeVal">5</output>
+                              <div class="range-max">20</div>
+                         </div>                     
                           <div class="input-group" id="record-group">
                               <label for="record">Save Capture</label>
                               <div class="switch">
@@ -539,31 +562,6 @@ const char* index_ov2640_html = R"~(
                                   <label title="Enable recording on motion detection" class="slider" for="record"></label>
                               </div>
                           </div> 
-                          <div class="input-group" id="motion-group">
-                              <label for="motion">Motion Sensitivity</label>
-                              <div class="range-min">1</div>
-                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
-                              <output name="rangeVal">7</output>
-                              <div class="range-max">10</div>
-                          </div>                                                                
-                          <div class="input-group" id="lamp-group">
-                              <label for="lamp">Lamp</label>
-                              <div class="switch">
-                                  <input id="lamp" type="checkbox" class="default-action">
-                                  <label title="Control onboard led" class="slider" for="lamp"></label>
-                              </div>
-                           </div>
-                          <div class="input-group" id="lswitch-group">
-                              <label for="lswitch">Night Switch</label>
-                              <div class="range-min">0</div>
-                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
-                              <output name="rangeVal">10</output>
-                              <div class="range-max">100</div>
-                          </div>                              
-                          <div class="input-group extras" id="atemp-group">
-                              <label for="atemp">Camera Temp</label>
-                              &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
-                          </div>  
                           <div class="input-group" id="dbgMotion-group">
                               <label for="dbgMotion">Show Motion</label>
                               <div class="switch">
@@ -571,6 +569,24 @@ const char* index_ov2640_html = R"~(
                                   <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
                               </div>
                           </div>
+                          <div class="input-group" id="lswitch-group">
+                              <label for="lswitch">Night Switch</label>
+                              <div class="range-min">0</div>
+                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                              <output name="rangeVal">10</output>
+                              <div class="range-max">100</div>
+                          </div> 
+                          <div class="input-group" id="lamp-group">
+                              <label for="lamp">Lamp</label>
+                              <div class="switch">
+                                  <input id="lamp" type="checkbox" class="default-action">
+                                  <label title="Control onboard led" class="slider" for="lamp"></label>
+                              </div>
+                           </div>
+                          <div class="input-group extras" id="atemp-group">
+                              <label for="atemp">Camera Temp</label>
+                              &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                          </div>  
                        </div>
                      </nav>
                      <nav class="menu">                                                                
@@ -947,7 +963,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
 
   const updateValue = (el, value, updateRemote) => {
-    updateRemote = updateRemote == null ? true : updateRemote
+    updateRemote = updateRemote == null ? true : updateRemote    
     let initialValue
     if (el.type === 'checkbox') {
       initialValue = el.checked
@@ -975,6 +991,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
           hide(gainCeiling)
           show(agcGain)
         }
+      } else if(el.id === "forceRecord"){ 
+          if(value){
+            document.getElementById("forceRecord").innerHTML='Stop Recording'
+            document.getElementById("forceRecord").classList.add("blinking")
+          }else{
+            document.getElementById("forceRecord").innerHTML='Record'          
+            document.getElementById("forceRecord").classList.remove("blinking")
+          }
       } else if(el.id === "clockUTC"){        
         var uClock = new Date(value.replace(" ","T"));
         var now = new Date();
@@ -1029,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     
     const query = `${baseHost}/control?var=${el.id}&val=${value}`
     const encoded = encodeURI(query);
-    console.log(`Encoded request ${query}`)
+    //console.log(`Encoded request ${query}`)
     fetch(encoded)
       .then(response => {
         console.log(`request to ${query} finished, status: ${response.status}`)
@@ -1059,6 +1083,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   const view = document.getElementById('stream')
   const viewContainer = document.getElementById('stream-container')
+  const forceRecord = document.getElementById('forceRecord')
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')  
@@ -1142,13 +1167,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
     setTimeout(function () { location.reload(true); }, 10000);
   }
- 
- /*
-  formatButton.onclick = () => {
-    updateConfig(formatButton);
-  }
- */
- 
+
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
@@ -1160,20 +1179,38 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
-
   const startStream = () => {
     view.src = `${streamUrl}/stream`
     show(viewContainer)
     streamButton.innerHTML = 'Stop Stream'
   }
 
-  // Attach actions to buttons
+  forceRecord.onclick = () => {    
+    var recOn = 0;
+    if(forceRecord.innerHTML == 'Record'){
+      forceRecord.classList.add("blinking")
+      forceRecord.innerHTML='Stop Recording'
+      var recOn = 1;
+    }else{
+      forceRecord.classList.remove("blinking")
+      forceRecord.innerHTML='Record'
+      var recOn = 0;
+    }
+    
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "forceRecord",
+        "val": recOn
+      }
+    })
+    
+  }  
   stillButton.onclick = () => {
     stopStream()
     view.src = `${baseHost}/capture?_cb=${Date.now()}`
     show(viewContainer)
   }
-
   closeButton.onclick = (e) => {
     stopStream()
     hide(viewContainer)
