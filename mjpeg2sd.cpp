@@ -367,7 +367,7 @@ bool checkFreeSpace() { //Check for sufficient space in card
   showInfo("Card free space: %lu", freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
-    showInfo("Oldest dir to delete: %s", oldestDir);
+    showInfo("Oldest dir to delete: %s", oldestDir.c_str());
     if (freeSpaceMode == 1) { //Delete oldest folder
       deleteFolderOrFile(oldestDir.c_str());
     } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
@@ -471,10 +471,8 @@ static boolean processFrame() {
     if (forceRecord || wasRecording || doRecording) {
       if(forceRecord && !wasRecording){
         wasRecording = true;
-        Serial.println("wasRecording = true");
       }else if(!forceRecord && wasRecording){
         wasRecording = false;
-        Serial.println("wasRecording = false");
       }
       
       if (isCapturing && !wasCapturing) {
