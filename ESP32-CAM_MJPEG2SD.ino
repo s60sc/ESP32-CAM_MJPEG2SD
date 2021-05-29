@@ -146,7 +146,7 @@ void setup() {
   else ESP_LOGI(TAG, "DS18B20 device not present");
 
   String wifiIP = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP) ? WiFi.localIP().toString(): WiFi.softAPIP().toString();
-  ESP_LOGI(TAG, "Camera Ready, version %s. Use 'http://%s' to connect", appVersion, wifiIP.c_str());  
+  ESP_LOGI(TAG, "Camera Ready @ %uMHz, version %s. Use 'http://%s' to connect", XCLK_MHZ, appVersion, wifiIP.c_str());  
 
 }
 
