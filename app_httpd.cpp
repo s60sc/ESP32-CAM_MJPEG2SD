@@ -51,7 +51,7 @@ extern bool forceRecord; //Recording enabled by rec button
 extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
-extern bool dbgMode;
+extern uint8_t dbgMode;
 extern bool dbgVerbose;
 extern bool dbgMotion;
 extern bool doRecording;
@@ -270,7 +270,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         Serial.println("Disabling logging..");
         int r = remote_log_free();        
       }else{
-        Serial.println("Enabling logging..");
+        Serial.printf("Enabling logging, mode %d\n", dbgMode);
         int r = remote_log_init();          
       }
     }else if(!strcmp(variable, "remote-log")) {
