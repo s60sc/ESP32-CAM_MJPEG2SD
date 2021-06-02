@@ -265,14 +265,12 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       dbgVerbose = (val) ? true : false;
       Serial.setDebugOutput(dbgVerbose);
     }else if(!strcmp(variable, "dbgMode")) {      
-      dbgMode = val;
-      if(val==0){
-        Serial.println("Disabling logging..");
+      //Was in debugging
+      if(dbgMode>0){
         int r = remote_log_free();        
-      }else{
-        Serial.printf("Enabling logging, mode %d\n", dbgMode);
-        int r = remote_log_init();          
       }
+      dbgMode = val;
+      int r = remote_log_init();          
     }else if(!strcmp(variable, "remote-log")) {
       bool rLog = (val) ? true : false;
       if(rLog){
@@ -315,7 +313,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       doRecording = !dbgMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
-    else if(!strcmp(variable, "reset")) ESP.restart();   
+    else if(!strcmp(variable, "reset")) { remote_log_free(); ESP.restart();  }
     else if(!strcmp(variable, "save")) saveConfig();
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
