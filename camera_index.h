@@ -1331,9 +1331,10 @@ document.addEventListener('DOMContentLoaded', function (event) {
   dbgMode.onchange = () => {   
     var selection = dbgMode.value;
     if(selection==2){      
-      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443"))
+      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")){
         dbgMode.value=0;
         return false;
+      }
     }
     $.ajax({
       url: baseHost + '/control',
