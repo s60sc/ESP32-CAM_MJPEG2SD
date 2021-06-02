@@ -17,7 +17,7 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.31";
+const char* appVersion = "2.31a";
 
 #define XCLK_MHZ 20 // fastest clock rate
 
@@ -32,8 +32,7 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();  
 
-void setup() {
-  WiFi.disconnect(true);
+void setup() {  
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
@@ -131,6 +130,8 @@ void setup() {
     delay(10000);
     ESP.restart();
   }
+  //Disable telnet init without wifi
+  if(dbgMode==2) dbgMode =0;
 
   if (!prepMjpeg()) {
     ESP_LOGE(TAG, "Unable to continue,MJPEG capture fail, restart after 10 secs");    
