@@ -108,7 +108,7 @@ int vprintf_into_spiffs_sync(const char *fmt, va_list args) {
 int remote_log_init_telnet()
 {
     int ret = 0;
-    ESP_LOGV(TAG, "Initialize telnet remote log");
+    ESP_LOGV(TAG, "Initialize telnet remote log..");
     memset(&log_serv_addr, 0, sizeof(log_serv_addr));
     memset(&log_cli_addr, 0, sizeof(log_cli_addr));
 
@@ -180,11 +180,24 @@ int remote_log_init_telnet()
 int remote_log_free_telnet()
 {
     int ret = 0;
-    if(log_serv_sockfd != -1 && (ret = close(log_serv_sockfd)) != 0) {
-        ESP_LOGE(TAG, "Cannot close the socket! Have you even open it?");
-        return ret;
+    //Escape is Ctrl ] (^])
+    ESP_LOGI(TAG, "Disabling telnet. Sending quit string");
+    // Send escapestring
+    if(log_sockfd != -1 && send(log_sockfd, "^]\n\rquit\n\r", 10, 0) < 0) {
+       ESP_LOGI(TAG, "Failed to send escape string ctrl + ]");
     }
-
+    delay(100);
+    if(log_sockfd != -1){
+      close(log_sockfd);
+      log_sockfd=-1;
+    }
+        
+    if(log_serv_sockfd != -1 && (ret = close(log_serv_sockfd)) != 0) {
+       ESP_LOGE(TAG, "Cannot close the socket! Have you even open it?");        
+       //return ret;
+    }
+    log_serv_sockfd = -1;    
+    
     if(orig_vprintf_cb != NULL) {
         esp_log_set_vprintf(orig_vprintf_cb);
     }
@@ -194,6 +207,7 @@ int remote_log_free_telnet()
 
 int remote_log_init()
 {
+    Serial.printf("Enabling logging, mode %d\n", dbgMode);
     if(dbgMode==0)
       return 0;
     if(dbgMode==2)
@@ -226,6 +240,7 @@ int remote_log_free()
     }
     return 0;
 }
+
 char *esp_log_system_timestamp(void)
 {
     static char buffer[18] = {0};
