@@ -1,5 +1,9 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
+ver 2.31b
+* Fix range controls on load config.
+* Flush log file when download.
+
 ver 2.31a
 * Fix debug mode telnet. Send exit string to telnet to quit on change debug mode.
 
