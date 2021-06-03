@@ -966,9 +966,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
     updateRemote = updateRemote == null ? true : updateRemote    
     let initialValue
     if (el.type === 'checkbox') {
-      initialValue = el.checked
-      value = !!value
-      el.checked = value
+        initialValue = el.checked
+        value = !!value
+        el.checked = value
+    }else if (el.type === 'range') {
+        initialValue = el.value
+        el.value = value          
+        el.parentElement.children.rangeVal.value = value
     } else {
       if (el.classList.contains('displayonly')) {
         el.innerHTML = value       
@@ -1141,13 +1145,19 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
  
  saveButton.onclick = () => {
-    stopStream();
-    window.stop();
+    const bPlaying = (streamButton.innerHTML == 'Stop Stream')
+    if(bPlaying){
+      stopStream();
+      window.stop();
+    }
     $.ajax({
       url: baseHost + '/control',
       data: {
         "var": "save",
         "val": "1"
+      },
+      success: function(response) {
+        if(bPlaying) startStream()
       }
     })
   }
@@ -1156,13 +1166,19 @@ document.addEventListener('DOMContentLoaded', function (event) {
     if(!confirm('Are you sure you want to reset device to factory defaults? Your settings will be lost!')){
      return false;
     }   
-    stopStream();
-    window.stop();
+    const bPlaying = (streamButton.innerHTML == 'Stop Stream')
+    if(bPlaying){
+      stopStream();
+      window.stop();
+    }
     $.ajax({
       url: baseHost + '/control',
       data: {
         "var": "defaults",
         "val": "1"
+      },
+      success: function(response) {
+        if(bPlaying) startStream()
       }
     })
     setTimeout(function () { location.reload(true); }, 10000);
