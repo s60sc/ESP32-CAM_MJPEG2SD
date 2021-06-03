@@ -204,6 +204,13 @@ int remote_log_free_telnet()
 
     return ret;
 }
+void flush_log(){
+  if(_log_remote_fp != NULL){
+    //ESP_LOGI(TAG, "Flushing log file..");
+    fsync(fileno(_log_remote_fp));  
+    //fflush(_log_remote_fp);
+  }  
+}
 
 int remote_log_init()
 {
