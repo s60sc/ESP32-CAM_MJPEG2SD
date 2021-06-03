@@ -470,6 +470,9 @@ static esp_err_t jquery_handler(httpd_req_t *req){
     return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
 }
 
+extern void flush_log();
+extern char *log_file_name;
+
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
@@ -489,7 +492,11 @@ esp_err_t file_get_handler(httpd_req_t *req)
     // Get null terminated filename
     httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
     ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
-
+    
+    if(!strcmp(filename, log_file_name)){
+      flush_log();  
+    }
+    
     FILE *f = fopen(filename, "r");
     free(filename);
     if (f == NULL) {
