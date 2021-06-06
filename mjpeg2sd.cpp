@@ -10,7 +10,6 @@ extern char timezone[]; // Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
-#define USE_MOTION true // whether to use camera for motion detection (with motionDetect.cpp)
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 2 // secs between each check for stop, also determines post motion time
 #define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
@@ -30,8 +29,10 @@ static const char* TAG = "mjped2sd";
 #include "remote_log.h"
 
 // user parameters
+bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool dbgVerbose = false;
-bool dbgMotion = false;
+bool dbgMotion  = false;
+bool forceRecord = false; //Recording enabled by rec button
 extern bool doRecording;// = true; // whether to capture to SD or not
 extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
@@ -160,6 +161,7 @@ void createScheduledUploadTask(const char* val);
 #define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
 #define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
 #define showDebug(format, ...) if (dbgVerbose) ESP_LOGD(TAG, format, ##__VA_ARGS__)
+
 /************************** NTP  **************************/
 
 static inline time_t getEpoch() {
@@ -373,7 +375,8 @@ bool checkFreeSpace() { //Check for sufficient space in card
 static bool closeMjpeg() {
   // closes and renames the file
   uint32_t captureTime = frameCnt / FPS;
-  if (captureTime > minSeconds) {
+  showInfo("Capture time %u, min seconds: %u ", captureTime, minSeconds);
+  if (captureTime >= minSeconds) {
     cTime = millis();
     // add final boundary to buffer
     memcpy(SDbuffer + highPoint, _STREAM_BOUNDARY, streamBoundaryLen);
@@ -434,6 +437,7 @@ static bool closeMjpeg() {
 static boolean processFrame() {
   // get camera frame
   static bool wasCapturing = false;
+  static bool wasRecording = false;                                 
   static bool captureMotion = false;
   bool capturePIR = false;
   bool res = true;
@@ -444,7 +448,7 @@ static boolean processFrame() {
   fb = esp_camera_fb_get();
   if (fb) {
     // determine if time to monitor, then get motion capture status
-    if (USE_MOTION) {
+    if (!forceRecord && useMotion) { 
       if (dbgMotion) checkMotion(fb, false); // check each frame for debug
       else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
       nightTime = isNight(nightSwitch);
@@ -455,14 +459,21 @@ static boolean processFrame() {
       }
     }
     if (USE_PIR) capturePIR = digitalRead(PIRpin);
-    // either active PIR or Motion will start capture, neither active will stop capture
-    isCapturing = captureMotion | capturePIR;
-    if (doRecording) {
+    
+    // either active PIR,  Motion, or force start button will start capture, neither active will stop capture
+    isCapturing = forceRecord | captureMotion | capturePIR;
+    if (forceRecord || wasRecording || doRecording) {
+      if(forceRecord && !wasRecording){
+        wasRecording = true;
+      }else if(!forceRecord && wasRecording){
+        wasRecording = false;
+      }
+      
       if (isCapturing && !wasCapturing) {
         // movement has occurred, start recording, and switch on lamp if night time
         stopPlaying(); // terminate any playback
         stopPlayback  = true; // stop any subsequent playback
-        showDebug("Capture started by %s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "");
+        showInfo("Capture started by %s%s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "",forceRecord ? "Button" : "");
         openMjpeg();
         wasCapturing = true;
       }
@@ -986,7 +997,7 @@ bool prepMjpeg() {
       showInfo("To record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
-      if (USE_MOTION) showInfo("- move in front of camera");
+      if (useMotion) showInfo("- move in front of camera");
       showInfo(" ");
       return true;
     } else {
@@ -1028,13 +1039,6 @@ void OTAprereq() {
   delay(100);
 }
 
-# ifndef USE_MOTION
-bool fetchMoveMap(uint8_t **out, size_t *out_len) {
-  // dummy if motionDetect.cpp not used
-  *out_len = 0;
-  xSemaphoreGive(motionMutex);
-}
-#endif
 
 String upTime() {
   String ret = "";

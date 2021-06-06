@@ -47,6 +47,8 @@ extern char ftp_pass[];
 extern char ftp_wd[];
 
 // additions for mjpeg2sd.cpp
+extern bool forceRecord; //Recording enabled by rec button
+extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)                                                        
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
 extern uint8_t dbgMode;
@@ -203,7 +205,7 @@ static void urlDecode(char* saveVal, const char* urlVal) {
   }
   strcpy(saveVal, replaceVal.c_str());
 }
-
+/* Not working with esp32 
 bool formatMMC(){
     Serial.print("Formating card..");
     bool formatted = SPIFFS.format();
@@ -214,6 +216,7 @@ bool formatMMC(){
     }
     return formatted;
 }                
+*/
 static esp_err_t cmd_handler(httpd_req_t *req){
     esp_err_t res = ESP_OK;
                    
@@ -263,15 +266,12 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       dbgVerbose = (val) ? true : false;
       Serial.setDebugOutput(dbgVerbose);
     }else if(!strcmp(variable, "dbgMode")) {      
-      dbgMode = val;
-printf("********************* dbg val %d\n", dbgMode);
-      if(val==0){
-        Serial.println("Disabling logging..");
+      //Was in debugging
+      if(dbgMode>0){
         int r = remote_log_free();        
-      }else{
-        Serial.printf("Enabling logging, mode %d\n", dbgMode);
-        int r = remote_log_init();          
-      }                                                      
+      }
+      dbgMode = val;
+      int r = remote_log_init();                                            
     }else if(!strcmp(variable, "remote-log")) {
       bool rLog = (val) ? true : false;
       if(rLog){
@@ -283,7 +283,6 @@ printf("********************* dbg val %d\n", dbgMode);
         int r = remote_log_free();
       }
     }
-    
     
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
@@ -297,6 +296,12 @@ printf("********************* dbg val %d\n", dbgMode);
       controlLamp(lampVal);
     }
     else if(!strcmp(variable, "motion")) motionVal = val;
+    else if(!strcmp(variable, "enableMotion")){
+      //Turn on/off motion detection to save battery
+      useMotion = (val) ? true : false; 
+      if(useMotion) { ESP_LOGI(TAG, "Enabling motion detection"); }
+      else { ESP_LOGI(TAG, "Disabling motion detection"); }
+    }
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "aviOn")) aviOn = val;
     else if(!strcmp(variable, "autoUpload")) autoUpload = val;
@@ -304,19 +309,13 @@ printf("********************* dbg val %d\n", dbgMode);
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
-    else if(!strcmp(variable, "format")){
-      if(formatMMC()){
-          return httpd_resp_send(req, "Formated card", strlen("Formated card"));
-      }else{
-          return httpd_resp_send(req, "Format card failed!", strlen("Format card failed!"));
-      }      
-    }                                         
+    else if(!strcmp(variable, "forceRecord")) forceRecord = (val) ? true : false;                                       
     else if(!strcmp(variable, "dbgMotion")) {
       dbgMotion = (val) ? true : false;   
       doRecording = !dbgMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
-    else if(!strcmp(variable, "reset")) ESP.restart();   
+    else if(!strcmp(variable, "reset")) { remote_log_free(); ESP.restart();  }
     else if(!strcmp(variable, "save")) saveConfig();
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
@@ -377,6 +376,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
     p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
+    p+=sprintf(p, "\"enableMotion\":%u,", useMotion ? 1 : 0);
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
@@ -388,6 +388,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     else p+=sprintf(p, "\"atemp\":\"n/a\",");
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
+    p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
     // end of additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
     p+=sprintf(p, "\"quality\":%d,", s->status.quality);
@@ -452,6 +453,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
+    //p+=sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 
     p+=sprintf(p, "\"fw_version\":\"%s\"", appVersion);  
     *p++ = '}';
     *p++ = 0;
@@ -470,6 +472,8 @@ static esp_err_t jquery_handler(httpd_req_t *req){
     return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
 }
 
+extern void flush_log();
+extern char *log_file_name;                        
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
@@ -490,6 +494,10 @@ esp_err_t file_get_handler(httpd_req_t *req)
     httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
     ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
 
+    if(!strcmp(filename, log_file_name)){
+      flush_log();  
+    }
+    
     FILE *f = fopen(filename, "r");
     free(filename);
     if (f == NULL) {

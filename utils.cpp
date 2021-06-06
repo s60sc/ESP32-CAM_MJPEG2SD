@@ -180,20 +180,41 @@ int remote_log_init_telnet()
 int remote_log_free_telnet()
 {
     int ret = 0;
-    if(log_serv_sockfd != -1 && (ret = close(log_serv_sockfd)) != 0) {
-        ESP_LOGE(TAG, "Cannot close the socket! Have you even open it?");
-        return ret;
+    //Escape is Ctrl ] (^])
+    ESP_LOGI(TAG, "Disabling telnet. Sending quit string");
+    // Send escapestring
+    if(log_sockfd != -1 && send(log_sockfd, "^]\n\rquit\n\r", 10, 0) < 0) {
+       ESP_LOGI(TAG, "Failed to send escape string ctrl + ]");
     }
-
+    delay(100);
+    if(log_sockfd != -1){
+      close(log_sockfd);
+      log_sockfd=-1;
+    }
+        
+    if(log_serv_sockfd != -1 && (ret = close(log_serv_sockfd)) != 0) {
+       ESP_LOGE(TAG, "Cannot close the socket! Have you even open it?");        
+       //return ret;
+    }
+    log_serv_sockfd = -1;    
+    
     if(orig_vprintf_cb != NULL) {
         esp_log_set_vprintf(orig_vprintf_cb);
     }
 
     return ret;
 }
+void flush_log(){
+  if(_log_remote_fp != NULL){
+    //ESP_LOGI(TAG, "Flushing log file..");
+    fsync(fileno(_log_remote_fp));  
+    //fflush(_log_remote_fp);
+  }  
+}
 
 int remote_log_init()
 {
+    Serial.printf("Enabling logging, mode %d\n", dbgMode);
     if(dbgMode==0)
       return 0;
     if(dbgMode==2)
@@ -226,6 +247,7 @@ int remote_log_free()
     }
     return 0;
 }
+
 char *esp_log_system_timestamp(void)
 {
     static char buffer[18] = {0};
@@ -311,6 +333,7 @@ void setupHost(){  //Mdns services
 }
 
 bool startWifi() {
+  
   //No config found. Setup AP to create one
   if (!loadConfig()) return setWifiAP();
   WiFi.persistent(false); //prevent the flash storage WiFi credentials

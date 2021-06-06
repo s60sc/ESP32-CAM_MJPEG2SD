@@ -175,7 +175,7 @@ const char* index_ov2640_html = R"~(
             button {
                 display: block;
                 margin: 5px;
-                padding: 0 12px;
+                padding: 0 6px;
                 border: 0;
                 line-height: 28px;
                 cursor: pointer;
@@ -429,6 +429,15 @@ const char* index_ov2640_html = R"~(
             .info-group label {
               color: dimgray;
             }
+            .blinking {
+              animation: blinker 1s linear infinite;
+            }
+            
+            @keyframes blinker {
+              50% {
+                opacity: 0;
+              }
+            }
         </style>
     </head>
     <body>
@@ -439,6 +448,7 @@ const char* index_ov2640_html = R"~(
                 <h6 id="fw_version" class="default-action displayonly"></h6>
               </section>  
               <nav id="maintoolbar">
+                  <button id="forceRecord" class="default-action" style="float:right;">Record</button>
                   <button id="get-still" style="float:right;">Get Still</button>
                   <button id="toggle-stream" style="float:right;">Start Stream</button>
               </nav>
@@ -475,14 +485,13 @@ const char* index_ov2640_html = R"~(
                               <output name="rangeVal">15</output>
                               <div class="range-max">30</div>
                           </div>
-                          <div class="input-group" id="minf-group">
-                              <label for="minf">Min Seconds</label>
-                              <div class="range-min">0</div>
-                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
-                              <output name="rangeVal">5</output>
-                              <div class="range-max">20</div>
-                          </div>
-
+                          <div class="input-group" id="quality-group">
+                              <label for="quality">Quality</label>
+                              <div class="range-min">10</div>
+                              <input title="Set the recording quality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                              <output name="rangeVal">10</output>
+                              <div class="range-max">63</div>
+                          </div>                          
                            <div class="input-group" id="debugging-group">
                               <label for="dbgMode" title="Enable debugging via sd card file or remote host telnet on port 443">Debug</label>
                               <select id="dbgMode" class="default-action">
@@ -506,6 +515,7 @@ const char* index_ov2640_html = R"~(
                             </select>
                           </div>
                           <section id="buttons"><br>
+                            <button title="Download selected file from sd card" id="download" style="float:right; " value="1">Download</button>
                             <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
                             <button title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
                             <button title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
@@ -524,13 +534,27 @@ const char* index_ov2640_html = R"~(
                                   <label  title="Convert file to avi format on upload"  class="slider" for="aviOn"></label>
                               </div>
                           </div>                            
-                          <div class="input-group" id="quality-group">
-                              <label for="quality">Quality</label>
-                              <div class="range-min">10</div>
-                              <input title="Set the recording quiality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
-                              <output name="rangeVal">10</output>
-                              <div class="range-max">63</div>
-                          </div>
+                          <div class="input-group" id="lamp-group">
+                              <label for="enableMotion">Enable motion detect</label>
+                              <div class="switch">
+                                  <input id="enableMotion" type="checkbox" class="default-action">
+                                  <label title="Enable/disable motion detection" class="slider" for="enableMotion"></label>
+                              </div>
+                           </div>
+                          <div class="input-group" id="motion-group">
+                              <label for="motion">Motion Sensitivity</label>
+                              <div class="range-min">1</div>
+                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                              <output name="rangeVal">7</output>
+                              <div class="range-max">10</div>
+                          </div> 
+                          <div class="input-group" id="minf-group">
+                              <label for="minf">Min Seconds</label>
+                              <div class="range-min">0</div>
+                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                              <output name="rangeVal">5</output>
+                              <div class="range-max">20</div>
+                         </div>                     
                           <div class="input-group" id="record-group">
                               <label for="record">Save Capture</label>
                               <div class="switch">
@@ -538,31 +562,6 @@ const char* index_ov2640_html = R"~(
                                   <label title="Enable recording on motion detection" class="slider" for="record"></label>
                               </div>
                           </div> 
-                          <div class="input-group" id="motion-group">
-                              <label for="motion">Motion Sensitivity</label>
-                              <div class="range-min">1</div>
-                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
-                              <output name="rangeVal">7</output>
-                              <div class="range-max">10</div>
-                          </div>                                                                
-                          <div class="input-group" id="lamp-group">
-                              <label for="lamp">Lamp</label>
-                              <div class="switch">
-                                  <input id="lamp" type="checkbox" class="default-action">
-                                  <label title="Control onboard led" class="slider" for="lamp"></label>
-                              </div>
-                           </div>
-                          <div class="input-group" id="lswitch-group">
-                              <label for="lswitch">Night Switch</label>
-                              <div class="range-min">0</div>
-                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
-                              <output name="rangeVal">10</output>
-                              <div class="range-max">100</div>
-                          </div>                              
-                          <div class="input-group extras" id="atemp-group">
-                              <label for="atemp">Camera Temp</label>
-                              &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
-                          </div>  
                           <div class="input-group" id="dbgMotion-group">
                               <label for="dbgMotion">Show Motion</label>
                               <div class="switch">
@@ -570,6 +569,24 @@ const char* index_ov2640_html = R"~(
                                   <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
                               </div>
                           </div>
+                          <div class="input-group" id="lswitch-group">
+                              <label for="lswitch">Night Switch</label>
+                              <div class="range-min">0</div>
+                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                              <output name="rangeVal">10</output>
+                              <div class="range-max">100</div>
+                          </div> 
+                          <div class="input-group" id="lamp-group">
+                              <label for="lamp">Lamp</label>
+                              <div class="switch">
+                                  <input id="lamp" type="checkbox" class="default-action">
+                                  <label title="Control onboard led" class="slider" for="lamp"></label>
+                              </div>
+                           </div>
+                          <div class="input-group extras" id="atemp-group">
+                              <label for="atemp">Camera Temp</label>
+                              &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                          </div>  
                        </div>
                      </nav>
                      <nav class="menu">                                                                
@@ -946,12 +963,16 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
 
   const updateValue = (el, value, updateRemote) => {
-    updateRemote = updateRemote == null ? true : updateRemote
+    updateRemote = updateRemote == null ? true : updateRemote    
     let initialValue
     if (el.type === 'checkbox') {
       initialValue = el.checked
       value = !!value
       el.checked = value
+    }else if (el.type === 'range') {
+        initialValue = el.value
+        el.value = value          
+        el.parentElement.children.rangeVal.value = value
     } else {
       if (el.classList.contains('displayonly')) {
         el.innerHTML = value       
@@ -974,6 +995,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
           hide(gainCeiling)
           show(agcGain)
         }
+      } else if(el.id === "forceRecord"){ 
+          if(value){
+            document.getElementById("forceRecord").innerHTML='Stop Recording'
+            document.getElementById("forceRecord").classList.add("blinking")
+          }else{
+            document.getElementById("forceRecord").innerHTML='Record'          
+            document.getElementById("forceRecord").classList.remove("blinking")
+          }
       } else if(el.id === "clockUTC"){        
         var uClock = new Date(value.replace(" ","T"));
         var now = new Date();
@@ -1028,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     
     const query = `${baseHost}/control?var=${el.id}&val=${value}`
     const encoded = encodeURI(query);
-    console.log(`Encoded request ${query}`)
+    //console.log(`Encoded request ${query}`)
     fetch(encoded)
       .then(response => {
         console.log(`request to ${query} finished, status: ${response.status}`)
@@ -1058,12 +1087,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   const view = document.getElementById('stream')
   const viewContainer = document.getElementById('stream-container')
+  const forceRecord = document.getElementById('forceRecord')
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
   const closeButton = document.getElementById('close-stream')  
   const fullScreen= document.getElementById('full-screen') 
   const uploadButton = document.getElementById('upload')    
   const uploadMoveButton = document.getElementById('uploadMove')    
+  const downloadButton = document.getElementById('download') 
   const deleteButton = document.getElementById('delete') 
   const rebootButton = document.getElementById('reboot')
   const saveButton = document.getElementById('save')
@@ -1073,11 +1104,21 @@ document.addEventListener('DOMContentLoaded', function (event) {
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
   }
-  
   uploadMoveButton.onclick = () => {
     updateConfig(uploadMoveButton);
+  }  
+  downloadButton.onclick = () => {
+    var downloadBtVal = $('#download').val();    
+    if(downloadBtVal  == downloadBtVal.split('.')) return       
+    const url = baseHost + '/file?'+downloadBtVal
+    const e = document.createElement('a');
+    e.href = url;
+    e.download = url.substr(url.lastIndexOf('/') + 1);
+    document.body.appendChild(e);
+    e.click();
+    document.body.removeChild(e);
   }
-  
+
   deleteButton.onclick = () => {
     var deleteBt = $('#delete');
     if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
@@ -1104,13 +1145,19 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
  
  saveButton.onclick = () => {
-    stopStream();
-    window.stop();
+    const bPlaying = (streamButton.innerHTML == 'Stop Stream')
+    if(bPlaying){
+      stopStream();
+      window.stop();
+    }
     $.ajax({
       url: baseHost + '/control',
       data: {
         "var": "save",
         "val": "1"
+      },
+      success: function(response) {
+        if(bPlaying) startStream()
       }
     })
   }
@@ -1119,24 +1166,23 @@ document.addEventListener('DOMContentLoaded', function (event) {
     if(!confirm('Are you sure you want to reset device to factory defaults? Your settings will be lost!')){
      return false;
     }   
-    stopStream();
-    window.stop();
+    const bPlaying = (streamButton.innerHTML == 'Stop Stream')
+    if(bPlaying){
+      stopStream();
+      window.stop();
+    }
     $.ajax({
       url: baseHost + '/control',
       data: {
         "var": "defaults",
         "val": "1"
+      },
+      success: function(response) {
+        if(bPlaying) startStream()
       }
     })
     setTimeout(function () { location.reload(true); }, 10000);
   }
- 
- /*
-  formatButton.onclick = () => {
-    updateConfig(formatButton);
-  }
- */
- 
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
@@ -1148,20 +1194,38 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
-
   const startStream = () => {
     view.src = `${streamUrl}/stream`
     show(viewContainer)
     streamButton.innerHTML = 'Stop Stream'
   }
 
-  // Attach actions to buttons
+  forceRecord.onclick = () => {    
+    var recOn = 0;
+    if(forceRecord.innerHTML == 'Record'){
+      forceRecord.classList.add("blinking")
+      forceRecord.innerHTML='Stop Recording'
+      var recOn = 1;
+    }else{
+      forceRecord.classList.remove("blinking")
+      forceRecord.innerHTML='Record'
+      var recOn = 0;
+    }
+    
+    $.ajax({
+      url: baseHost + '/control',
+      data: {
+        "var": "forceRecord",
+        "val": recOn
+      }
+    })
+    
+  }  
   stillButton.onclick = () => {
     stopStream()
     view.src = `${baseHost}/capture?_cb=${Date.now()}`
     show(viewContainer)
   }
-
   closeButton.onclick = (e) => {
     stopStream()
     hide(viewContainer)
@@ -1328,7 +1392,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   sfile.onchange = () => {
     // build option list from json
     var sid = $('#sfile');
-    var selection = sid.val();
+    var selection = sid.val();    
+    $("*").css("cursor", "wait");
+    document.getElementById('download').value = selection; //Store file path for download
     document.getElementById('delete').value = selection; //Store file path for delete
     document.getElementById('upload').value = selection; //Store file path for ftp upload
     document.getElementById('uploadMove').value = selection; //Store file path for ftp upload move
@@ -1348,7 +1414,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
           listItems += '<option value="' + key + '">' + value + '</option>';
         });
         sid.append(listItems);
-      }
+        $("*").css("cursor", "default");
+      },
+      error: function (xhr, ajaxOptions, thrownError) {
+        $("*").css("cursor", "default");
+        console.log(xhr.status);
+      }         
     }); 
   }
 });
