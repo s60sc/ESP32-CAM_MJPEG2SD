@@ -333,6 +333,7 @@ void setupHost(){  //Mdns services
 }
 
 bool startWifi() {
+  
   //No config found. Setup AP to create one
   if (!loadConfig()) return setWifiAP();
   WiFi.persistent(false); //prevent the flash storage WiFi credentials

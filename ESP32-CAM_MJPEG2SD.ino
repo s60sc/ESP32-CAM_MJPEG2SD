@@ -17,8 +17,7 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.31b";
-
+const char* appVersion = "2.4";
 #define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
@@ -32,7 +31,7 @@ bool OTAlistener();
 bool startWifi();
 void checkConnection();  
 
-void setup() {  
+void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
@@ -113,7 +112,7 @@ void setup() {
   //initial sensors are flipped vertically and colors are a bit saturated
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1);//flip it back
-    s->set_brightness(s, 1);//up the blightness just a bit
+    s->set_brightness(s, 1);//up the brightness just a bit
     s->set_saturation(s, -2);//lower the saturation
   }
   //drop down frame size for higher initial frame rate
@@ -131,10 +130,10 @@ void setup() {
     ESP.restart();
   }
   //Disable telnet init without wifi
-  if(dbgMode==2) dbgMode =0;
-
+  if(dbgMode==2) dbgMode =0;                                    
+  
   if (!prepMjpeg()) {
-    ESP_LOGE(TAG, "Unable to continue,MJPEG capture fail, restart after 10 secs");    
+    ESP_LOGE(TAG, "Unable to continue, MJPEG capture fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }

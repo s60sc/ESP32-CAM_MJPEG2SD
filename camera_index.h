@@ -488,7 +488,7 @@ const char* index_ov2640_html = R"~(
                           <div class="input-group" id="quality-group">
                               <label for="quality">Quality</label>
                               <div class="range-min">10</div>
-                              <input title="Set the recording quiality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
+                              <input title="Set the recording quality" type="range" id="quality" min="10" max="63" value="10" class="default-action">
                               <output name="rangeVal">10</output>
                               <div class="range-max">63</div>
                           </div>                          
@@ -966,9 +966,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
     updateRemote = updateRemote == null ? true : updateRemote    
     let initialValue
     if (el.type === 'checkbox') {
-        initialValue = el.checked
-        value = !!value
-        el.checked = value
+      initialValue = el.checked
+      value = !!value
+      el.checked = value
     }else if (el.type === 'range') {
         initialValue = el.value
         el.value = value          
@@ -1183,7 +1183,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
     setTimeout(function () { location.reload(true); }, 10000);
   }
-
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
@@ -1347,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   dbgMode.onchange = () => {   
     var selection = dbgMode.value;
     if(selection==2){      
-      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")){
+      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")) {
         dbgMode.value=0;
         return false;
       }

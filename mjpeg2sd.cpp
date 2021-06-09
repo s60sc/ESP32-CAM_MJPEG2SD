@@ -33,7 +33,6 @@ bool useMotion  = true; // whether to use camera for motion detection (with moti
 bool dbgVerbose = false;
 bool dbgMotion  = false;
 bool forceRecord = false; //Recording enabled by rec button
-
 extern bool doRecording;// = true; // whether to capture to SD or not
 extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
 extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
@@ -164,6 +163,7 @@ void createScheduledUploadTask(const char* val);
 #define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
 #define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
 #define showDebug(format, ...) if (dbgVerbose) ESP_LOGD(TAG, format, ##__VA_ARGS__)
+
 /************************** NTP  **************************/
 
 static inline time_t getEpoch() {
@@ -381,7 +381,7 @@ bool checkFreeSpace() { //Check for sufficient space in card
 static bool closeMjpeg() {
   // closes and renames the file
   uint32_t captureTime = frameCnt / FPS;
-  showInfo("Capture time %lu, min seconds: %lu ", captureTime, minSeconds);
+  showInfo("Capture time %u, min seconds: %u ", captureTime, minSeconds);
   if (captureTime >= minSeconds) {
     cTime = millis();
     // add final boundary to buffer
@@ -443,7 +443,7 @@ static bool closeMjpeg() {
 static boolean processFrame() {
   // get camera frame
   static bool wasCapturing = false;
-  static bool wasRecording = false;
+  static bool wasRecording = false;                                 
   static bool captureMotion = false;
   bool capturePIR = false;
   bool res = true;
@@ -454,7 +454,7 @@ static boolean processFrame() {
   fb = esp_camera_fb_get();
   if (fb) {
     // determine if time to monitor, then get motion capture status
-    if(!forceRecord && useMotion) {      
+    if (!forceRecord && useMotion) { 
       if (dbgMotion) checkMotion(fb, false); // check each frame for debug
       else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
       nightTime = isNight(nightSwitch);
@@ -1033,9 +1033,7 @@ static void deleteTask(TaskHandle_t thisTaskHandle) {
 void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
-#if USE_DS18B20
   deleteTask(getDS18tempHandle);
-#endif
 }
 
 void OTAprereq() {
@@ -1045,13 +1043,7 @@ void OTAprereq() {
   endTasks();
   delay(100);
 }
-/*
-bool fetchMoveMapDummy(uint8_t **out, size_t *out_len) {
-  // dummy if motionDetect.cpp not used
-  *out_len = 0;
-  xSemaphoreGive(motionMutex);
-}
-*/
+
 
 String upTime() {
   String ret = "";

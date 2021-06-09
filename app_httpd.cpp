@@ -48,7 +48,7 @@ extern char ftp_wd[];
 
 // additions for mjpeg2sd.cpp
 extern bool forceRecord; //Recording enabled by rec button
-extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)
+extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)                                                        
 extern uint8_t fsizePtr;
 extern uint8_t minSeconds;
 extern uint8_t dbgMode;
@@ -270,7 +270,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         int r = remote_log_free();        
       }
       dbgMode = val;
-      int r = remote_log_init();          
+      int r = remote_log_init();                                            
     }else if(!strcmp(variable, "remote-log")) {
       bool rLog = (val) ? true : false;
       if(rLog){
@@ -282,6 +282,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         int r = remote_log_free();
       }
     }
+    
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -293,12 +294,12 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       lampVal = (val) ? true : false; 
       controlLamp(lampVal);
     }
-    else if(!strcmp(variable, "motion"))  motionVal = val;
+    else if(!strcmp(variable, "motion")) motionVal = val;
     else if(!strcmp(variable, "enableMotion")){
       //Turn on/off motion detection to save battery
       useMotion = (val) ? true : false; 
       if(useMotion) { ESP_LOGI(TAG, "Enabling motion detection"); }
-      else { ESP_LOGI(TAG, "Disabling motion detection"); }   
+      else { ESP_LOGI(TAG, "Disabling motion detection"); }
     }
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "aviOn")) aviOn = val;
@@ -307,7 +308,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
     else if(!strcmp(variable, "delete")) deleteFolderOrFile(value);
     else if(!strcmp(variable, "record")) doRecording = (val) ? true : false;   
-    else if(!strcmp(variable, "forceRecord")) forceRecord = (val) ? true : false;                                    
+    else if(!strcmp(variable, "forceRecord")) forceRecord = (val) ? true : false;                                       
     else if(!strcmp(variable, "dbgMotion")) {
       dbgMotion = (val) ? true : false;   
       doRecording = !dbgMotion;
@@ -385,8 +386,8 @@ static esp_err_t status_handler(httpd_req_t *req){
     if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
     else p+=sprintf(p, "\"atemp\":\"n/a\",");
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
-    p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");    
-    p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);   
+    p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
+    p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
     // end of additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
     p+=sprintf(p, "\"quality\":%d,", s->status.quality);
@@ -471,8 +472,7 @@ static esp_err_t jquery_handler(httpd_req_t *req){
 }
 
 extern void flush_log();
-extern char *log_file_name;
-
+extern char *log_file_name;                        
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
@@ -492,7 +492,7 @@ esp_err_t file_get_handler(httpd_req_t *req)
     // Get null terminated filename
     httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
     ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
-    
+
     if(!strcmp(filename, log_file_name)){
       flush_log();  
     }

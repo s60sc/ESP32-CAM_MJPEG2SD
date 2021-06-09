@@ -120,7 +120,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   for (int i=0; i<num_pixels; i++) {
     if (abs(rgb_buf[i] - prev_buf[i]) > CHANGE_THRESHOLD) {
       if (i > startPixel && i < endPixel) changeCount++; // number of changed pixels
-      if (dbgMotion) changeMap[i] = 192; // populate changeMap image as with with changed pixels in gray
+      if (dbgMotion) changeMap[i] = 192; // populate changeMap image with changed pixels in gray
     } else if (dbgMotion) changeMap[i] =  255; // set white 
     lux += rgb_buf[i]; // for calculating light level
   }
@@ -177,7 +177,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
 
 bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   // return change map jpeg for streaming
-  if(useMotion){  
+  if(useMotion){                    
     *out = jpgImg;
     *out_len = jpgImgSize;
     static size_t lastImgLen = 0;
@@ -190,6 +190,7 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
      // dummy if motionDetect.cpp not used
     *out_len = 0;
     xSemaphoreGive(motionMutex);
+    return false;
   }
 }
 
