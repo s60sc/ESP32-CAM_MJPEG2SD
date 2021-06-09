@@ -1,4 +1,6 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+ver 2.4
+* Merge branch 'master' of https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
 ver 2.31b
 * Fix range controls on load config.
