@@ -21,7 +21,7 @@
 #include <regex>
 #include <sys/time.h>
 
-static const char* TAG = "apphttpd";
+static const char* TAG = "app_httpd";
 #include "remote_log.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -45,6 +45,8 @@ extern char ftp_user[];
 extern char ftp_port[];
 extern char ftp_pass[];
 extern char ftp_wd[];
+void setupADC();
+float battVoltage();
 
 // additions for mjpeg2sd.cpp
 extern bool forceRecord; //Recording enabled by rec button
@@ -79,6 +81,8 @@ String upTime();
 
 void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val,bool move=false);
+bool isAVI(File &fh);
+size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize);
 void syncToBrowser(char *val);
 //Config file
 bool saveConfig();
@@ -92,7 +96,8 @@ extern bool aviOn;
 extern bool autoUpload;
 extern bool nightTime;
 extern uint8_t lightLevel;   
-extern uint8_t nightSwitch;                                  
+extern uint8_t nightSwitch;      
+static uint32_t awakeTime;
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -115,7 +120,7 @@ static esp_err_t capture_handler(httpd_req_t *req){
     res = httpd_resp_send(req, (const char *)fb->buf, fb->len); 
     esp_camera_fb_return(fb);
     int64_t fr_end = esp_timer_get_time();
-    Serial.printf("JPG: %uB %ums\n", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
+    ESP_LOGI(TAG, "JPG: %uB %ums", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
     return res;
 }
 
@@ -176,8 +181,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
         esp_camera_fb_return(fb);
         fb = NULL;
       } 
-      xSemaphoreGive(frameMutex);
-      xSemaphoreGive(motionMutex);
+      (dbgMotion) ? xSemaphoreGive(motionMutex) : xSemaphoreGive(frameMutex);
 
       if (res != ESP_OK) break;
       int64_t fr_end = esp_timer_get_time();
@@ -185,7 +189,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       last_frame = fr_end;
       frame_time /= 1000;
 
-      if (dbgVerbose) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
+      if (dbgVerbose) ESP_LOGI(TAG, "MJPG: %uB %ums (%.1ffps)", (uint32_t)(jpg_len),
          (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time);
     }
   }
@@ -386,6 +390,9 @@ static esp_err_t status_handler(httpd_req_t *req){
     float aTemp = readDStemp(true);
     if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
     else p+=sprintf(p, "\"atemp\":\"n/a\",");
+    float battV = battVoltage();
+    if (battV < 0) p+=sprintf(p, "\"battv\":\"n/a\",");
+    else p+=sprintf(p, "\"battv\":\"%0.1fV\",", battV);  
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
@@ -477,49 +484,58 @@ extern char *log_file_name;
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
-    /* Assuming that the sdcard has been initialized (formatted to FAT) and loaded with some files. */
-    const char *filepath_prefix = "/sdcard/";
-    char *filename = NULL;
-    size_t filename_len = httpd_req_get_url_query_len(req);
-
-    if (filename_len == 0) {
-        const char * resp_str = "Please specify a filename. eg. file?somefile.txt";
-        httpd_resp_send(req, resp_str, strlen(resp_str));
-        return ESP_OK;
+    size_t filename_len = httpd_req_get_url_query_len(req)+1;
+  
+    char filename[filename_len+1] = {0};
+    if (filename_len == 1) {
+      const char * resp_str = "Please specify a filename. eg. file?somefile.txt";
+      httpd_resp_send(req, resp_str, strlen(resp_str));
+      return ESP_OK;
     }
-    filename = (char *)malloc(strlen(filepath_prefix) + filename_len + 1); // extra 1 byte for null termination
-    strncpy(filename, filepath_prefix, strlen(filepath_prefix));
-
     // Get null terminated filename
-    httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
-    ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
+    httpd_req_get_url_query_str(req, filename, filename_len);
+       
+    File f = SD_MMC.open(filename);
+    if (!f) {
+      ESP_LOGE(TAG, "Failed to open: %s", filename);
+      f.close();
+      return ESP_FAIL;
+    }  
 
-    if(!strcmp(filename, log_file_name)){
-      flush_log();  
-    }
-    
-    FILE *f = fopen(filename, "r");
-    free(filename);
-    if (f == NULL) {
-        const char * resp_str = "File doesn't exist";
-        httpd_resp_send(req, resp_str, strlen(resp_str));
-        return ESP_OK;
-    }
+    std::string sfile(filename);
+    char *ptr = strstr(log_file_name, filename);
+    if (ptr != NULL) flush_log();  
+    // determine if file is suitable for conversion to AVI  
+    else {if (isAVI(f)) sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");}
+    ESP_LOGI(TAG, "Download file: %s, size: %0.1fMB", sfile.c_str(),(float)(f.size()/(1024*1024)));
 
     /* Read file in chunks (relaxes any constraint due to large file sizes)
      * and send HTTP response in chunked encoding */
-    char   chunk[1024];
+     
+    #define BUFF_EXT 100
+    #define BUFF_SIZE (32*1024)+BUFF_EXT // allow room for avi header
+    byte *chunk = (byte*)ps_malloc(BUFF_SIZE); 
+    if (chunk==NULL) {
+      ESP_LOGE(TAG, "Chunk allocation failed");
+      return ESP_FAIL;
+    }
+    // chnge downloaded file name
+    char newname[200] = {0};
+    snprintf(newname, 199, "attachment; filename=%s", sfile.c_str());
+    httpd_resp_set_hdr(req, "Content-Disposition", newname);
+
+    // copy content of file from SD to browser
     size_t chunksize;
     do {
-        chunksize = fread(chunk, 1, sizeof(chunk), f);
-        if (httpd_resp_send_chunk(req, chunk, chunksize) != ESP_OK) {
-            fclose(f);
-            return ESP_FAIL;
-        }
+      chunksize = readClientBuf(f, chunk, BUFF_SIZE-BUFF_EXT); // obtain formatted data to send 
+      if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) {
+        f.close();
+        return ESP_FAIL;
+      }
     } while (chunksize != 0);
-
+    free(chunk);
     httpd_resp_send_chunk(req, NULL, 0);
-    fclose(f);
+    f.close();
     return ESP_OK;
 }
 // end of additions for mjpeg2sd.cpp
@@ -576,7 +592,7 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    if (dbgVerbose) ESP_LOGI(TAG,"Starting web server on port: '%d'\n", config.server_port);
+    if (dbgVerbose) ESP_LOGI(TAG,"Starting web server on port: '%d'", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
         httpd_register_uri_handler(camera_httpd, &jquery_uri);
@@ -588,7 +604,7 @@ void startCameraServer(){
 
     config.server_port += 1;
     config.ctrl_port += 1;
-    if (dbgVerbose) ESP_LOGI(TAG, "Starting stream server on port: '%d'\n", config.server_port);
+    if (dbgVerbose) ESP_LOGI(TAG, "Starting stream server on port: '%d'", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
