@@ -5,6 +5,7 @@
 #include <DNSServer.h>  
 #include <Preferences.h>
 #include "remote_log.h"
+#include "esp_adc_cal.h"
 
 #define APP_NAME "ESP32-CAM_MJPEG"
 
@@ -103,7 +104,7 @@ bool saveConfig() {
   pref.putFloat("motion", motionVal);
   pref.putBool("lamp", lampVal);
   pref.putBool("aviOn", aviOn);
-  //pref.putUChar("dbgMode", dbgMode);                                    
+  pref.putUChar("dbgMode", dbgMode);                                    
   pref.putBool("autoUpload", autoUpload);  
   pref.putUChar("lswitch", nightSwitch);
 
@@ -139,17 +140,22 @@ bool loadConfig() {
     //No nvs prefs yet. Save them at end
     saveDefPrefs = true;
   }
-  strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
-  strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
+  if (strlen(pref.getString("ST_SSID").c_str()) > 0) {
+    // only used stored values if non blank SSID has been set
+    strcpy(ST_SSID, pref.getString("ST_SSID", String(ST_SSID)).c_str());
+    strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
+  }
 
   ESP_LOGI(TAG, "Loaded ssid: %s pass: %s", String(ST_SSID).c_str(), String(ST_Pass).c_str());
 
-  strcpy(ST_ip, pref.getString("ST_ip",ST_ip).c_str());
-  strcpy(ST_gw, pref.getString("ST_gw",ST_gw).c_str());
-  strcpy(ST_sn, pref.getString("ST_sn",ST_sn).c_str());
-  strcpy(ST_ns1, pref.getString("ST_ns1",ST_ns1).c_str());
-  strcpy(ST_ns2, pref.getString("ST_ns2",ST_ns2).c_str());
-
+  if (strlen(pref.getString("ST_ip").c_str()) > 0) {
+    // only used stored values if non blank static IP has been stored
+    strcpy(ST_ip, pref.getString("ST_ip",ST_ip).c_str());
+    strcpy(ST_gw, pref.getString("ST_gw",ST_gw).c_str());
+    strcpy(ST_sn, pref.getString("ST_sn",ST_sn).c_str());
+    strcpy(ST_ns1, pref.getString("ST_ns1",ST_ns1).c_str());
+    strcpy(ST_ns2, pref.getString("ST_ns2",ST_ns2).c_str());
+  }
   fsizePtr = pref.getUShort("framesize", fsizePtr);
   FPS = pref.getUChar("fps", FPS);
   
@@ -224,4 +230,41 @@ bool loadConfig() {
     saveConfig();
   }
   return true;
+}
+
+// if pin 33 used as input for battery voltage, set VOLTAGE_DIVIDER value to be divisor 
+// of input voltage from resistor divider, or 0 if battery voltage not being monitored
+#define VOLTAGE_DIVIDER 0
+#define BATT_PIN ADC1_CHANNEL_5 // ADC pin 33 for monitoring battery voltage
+#define DEFAULT_VREF 1100 // if eFuse or two point not available on old ESPs
+static esp_adc_cal_characteristics_t *adc_chars; // holds ADC characteristics
+static const adc_atten_t ADCatten = ADC_ATTEN_DB_11; // attenuation level
+static const adc_unit_t ADCunit = ADC_UNIT_1; // using ADC1
+static const adc_bits_width_t ADCbits = ADC_WIDTH_BIT_11; // ADC bit resolution
+
+void setupADC() {
+  // Characterise ADC to generate voltage curve for battery monitoring 
+  if (VOLTAGE_DIVIDER) {
+    adc1_config_width(ADCbits);
+    adc1_config_channel_atten(BATT_PIN, ADCatten);
+    adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
+    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADCunit, ADCatten, ADCbits, DEFAULT_VREF, adc_chars);
+    if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {ESP_LOGI(TAG, "ADC characterised using eFuse Two Point Value");}
+    else if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {ESP_LOGI(TAG, "ADC characterised using eFuse Vref");}
+    else {ESP_LOGI(TAG, "ADC characterised using Default Vref");}
+  }
+}
+
+float battVoltage() {
+  if (VOLTAGE_DIVIDER) {
+    // get multiple readings of battery voltage from ADC pin and average
+    // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
+    #define NO_OF_SAMPLES 16 // ADC multisampling
+    uint32_t ADCsample = 0;
+    for (int j = 0; j < NO_OF_SAMPLES; j++) ADCsample += adc1_get_raw(BATT_PIN); 
+    ADCsample /= NO_OF_SAMPLES;
+    // convert ADC averaged pin value to curve adjusted voltage in mV
+    if (ADCsample > 0) ADCsample = esp_adc_cal_raw_to_voltage(ADCsample, adc_chars);
+    return (float)ADCsample*VOLTAGE_DIVIDER/1000.0; // convert to battery volts
+  } else return -1.0;
 }
