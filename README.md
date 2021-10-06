@@ -1,7 +1,7 @@
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. 
 
-Files uploaded by FTP are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players.
+Files uploaded by FTP or downloaded from browser are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players.
 
 ## Purpose
 The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
@@ -36,7 +36,7 @@ The ESP32 time is set from an NTP server.
 
 ## Installation and Use
 
-Note: Needs `arduino-esp32` Stable Release v1.0.6 and Partition Scheme: `Minimal SPIFFS (...)` to compile.
+Note: Updated for `arduino-esp32` Stable Release v2.0.0, compile with Partition Scheme: `Minimal SPIFFS (...)`.
 
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
 The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
@@ -71,7 +71,7 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
 
-* Download selected MJPEG file from SD card to browser using __Download__ button.
+* Download selected MJPEG file from SD card to browser using __Download__ button. Can be downloaded in AVI format.
 
 * The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
 

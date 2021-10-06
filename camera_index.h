@@ -191,7 +191,7 @@ const char* index_ov2640_html = R"~(
             }
 
             button:active {
-                background: #f21c21
+                background: green
             }
 
             button.disabled {
@@ -464,18 +464,18 @@ const char* index_ov2640_html = R"~(
                               <select id="framesize" class="default-action">
                                   <option value="13">UXGA(1600x1200)</option>
                                   <option value="12">SXGA(1280x1024)</option>
-                                  <option value="11">*HD(1280x720)</option>
+                                  <option value="11">HD(1280x720)</option>
                                   <option value="10">XGA(1024x768)</option>
                                   <option value="9" selected="selected">SVGA(800x600)</option> 
                                   <option value="8">VGA(640x480)</option> 
-                                  <option value="7">*HVGA(480x320)</option>
+                                  <option value="7">HVGA(480x320)</option>
                                   <option value="6">CIF(400x296)</option> 
                                   <option value="5">QVGA(320x240)</option>
-                                  <option value="4">*240X240</option> 
+                                  <option value="4">240X240</option> 
                                   <option value="3">HQVGA(240x176)</option> 
-                                  <option value="2">*QCIF(176x144)</option> 
+                                  <option value="2">QCIF(176x144)</option> 
                                   <option value="1">QQVGA(160x120)</option> 
-                                  <option value="0">*96X96</option>
+                                  <option value="0">96X96</option>
                               </select>
                           </div>
                           <div class="input-group" id="fps-group">
@@ -528,10 +528,10 @@ const char* index_ov2640_html = R"~(
                               </div>
                           </div>                            
                           <div class="input-group" id="aviOn-group">
-                              <label for="aviOn">Upload avi</label>
+                              <label for="aviOn">Format as AVI</label>
                               <div class="switch">
                                   <input id="aviOn" type="checkbox" class="default-action">
-                                  <label  title="Convert file to avi format on upload"  class="slider" for="aviOn"></label>
+                                  <label  title="Convert file to avi format on upload or download"  class="slider" for="aviOn"></label>
                               </div>
                           </div>                            
                           <div class="input-group" id="lamp-group">
@@ -878,6 +878,10 @@ const char* index_ov2640_html = R"~(
                 <div class="info-group center" id="atemp-group">
                     <label for="atemp">Camera&nbsp;Temp</label>
                     <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
+                </div> 
+                <div class="info-group center" id="batt-group">
+                    <label for="battv">Battery&nbsp;Voltage</label>
+                    <div id="battv" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div> 
                 <div class="info-group center" id="clock-group">
                     <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>

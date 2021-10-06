@@ -42,7 +42,7 @@ static int log_sockfd = -1;
 static struct sockaddr_in log_serv_addr, log_cli_addr;
 static char fmt_buf[LOG_FORMAT_BUF_LEN];
 static vprintf_like_t orig_vprintf_cb;
-const char *log_file_name = "/sdcard/log.txt";
+const char *log_file_name = "/sdcard/Log/log.txt";
 FILE *_log_remote_fp = NULL;
 
 //Remote log to telnet 443
@@ -209,12 +209,13 @@ void flush_log(){
     //ESP_LOGI(TAG, "Flushing log file..");
     fsync(fileno(_log_remote_fp));  
     //fflush(_log_remote_fp);
+    delay(1000);
   }  
 }
 
 int remote_log_init()
 {
-    Serial.printf("Enabling logging, mode %d\n", dbgMode);
+    ESP_LOGI(TAG, "Enabling logging, mode %d", dbgMode);
     if(dbgMode==0)
       return 0;
     if(dbgMode==2)
@@ -222,9 +223,10 @@ int remote_log_init()
       
     //if(SD_MMC.exists(log_file_name)) SD_MMC.remove(log_file_name);
     /// Bind vprintf callback    
+    SD_MMC.mkdir("/Log");
     orig_vprintf_cb = esp_log_set_vprintf(&vprintf_into_spiffs_sync);
-    Serial.printf("Logger bind sdcard file: %d\n", (int)orig_vprintf_cb); 
-    ESP_LOGI(TAG, "Logger vprintf function bind successful!");
+    ESP_LOGV(TAG, "Logger bind sdcard file: %d", (int)orig_vprintf_cb); 
+    ESP_LOGV(TAG, "Logger vprintf function bind successful!");
     return dbgMode;
 }
 
@@ -235,7 +237,7 @@ int remote_log_free()
     if(dbgMode==2)
       return remote_log_free_telnet();
       
-    Serial.printf("Logger vprintf unbind sdcard file: %d\n", (int)orig_vprintf_cb); 
+    ESP_LOGV(TAG, "Logger vprintf unbind sdcard file: %d", (int)orig_vprintf_cb); 
     if(orig_vprintf_cb != NULL) {
         esp_log_set_vprintf(orig_vprintf_cb);
     }
@@ -248,7 +250,7 @@ int remote_log_free()
     return 0;
 }
 
-char *esp_log_system_timestamp(void)
+char *esp_log_system_timestamp2(void)
 {
     static char buffer[18] = {0};
     static _lock_t bufferLock = 0;
@@ -347,10 +349,10 @@ bool startWifi() {
   setupHost();
   //Disconnect if already connected
   if (WiFi.status() == WL_CONNECTED) {
-    ESP_LOGI(TAG, "Disconnecting from ssid: %s", (String(WiFi.SSID()).c_str()) );
+    ESP_LOGI(TAG, "Disconnecting from ssid: %s", WiFi.SSID().c_str() );
     WiFi.disconnect();
     delay(1000);
-    ESP_LOGV(TAG, "Disconnected from ssid: %s", (String(WiFi.SSID()).c_str()) );
+    ESP_LOGV(TAG, "Disconnected from ssid: %s", WiFi.SSID().c_str() );
   }
   //Set hostname
   ESP_LOGI(TAG, "Setting wifi hostname: %s", hostName);
@@ -405,7 +407,7 @@ bool startWifi() {
     ESP_LOGE(TAG, "wifi ST timeout on connect. Failed.");
     return setWifiAP();
   }
-  ESP_LOGI(TAG, "Connected! Got ip: '%s ", String(WiFi.localIP().toString()).c_str());
+  ESP_LOGI(TAG, "Connected! Got ip: '%s ", (WiFi.localIP()).toString().c_str());
   return true;
 }
 

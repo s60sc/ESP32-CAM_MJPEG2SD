@@ -211,8 +211,9 @@ bool ftpStoreFile(String file, File &fh, bool notExistingOnly=false){
      if(strcmp(tStr,"213")==0){
         tStr = strtok(NULL,"\n");
         uint32_t remoteSize = atol(tStr);
-        ESP_LOGV(TAG, "Server file: %s real local size: %u, server size: %u, dif: %u ", file.c_str(), fileSize, remoteSize, abs((int32_t)(fileSize - remoteSize)));
-        if(abs(fileSize - remoteSize) < 10000){ //File exists and have same size
+        uint32_t diff = abs((int64_t)fileSize - (int64_t)remoteSize);
+        ESP_LOGV(TAG, "Server file: %s real local size: %u, server size: %u, (diff: %u ", file.c_str(), fileSize, remoteSize, diff);
+        if (diff < 10000){ //File exists and have same size
             ESP_LOGV(TAG, "File already exists!");
             dclient.stop();
             return true;
@@ -351,7 +352,7 @@ bool uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
             }
             //Remove if ok
             if(removeAfterUpload && bUploadOK){
-              ESP_LOGI(TAG, "Removing file %s\n", sdName.c_str()); 
+              ESP_LOGI(TAG, "Removing file %s", sdName.c_str()); 
               SD_MMC.remove(sdName.c_str());
             } 
             delay(500); // allow other tasks to finish off
@@ -402,7 +403,7 @@ static void taskScheduledUpload(void * parameter) {
     delay(1000); // allow other tasks to finish off
 
     for(;;) {
-      ESP_LOGV(TAG, "Entering upload task with param: %s\n",fname.c_str());    
+      ESP_LOGV(TAG, "Entering upload task with param: %s",fname.c_str());    
       if(uploadFolderOrFileFtp(fname,false,0)) {
         ESP_LOGV(TAG, "Upload completed");
         break;
@@ -417,7 +418,7 @@ static void taskScheduledUpload(void * parameter) {
 void createScheduledUploadTask(const char* val) {
    static char fname[100];
     strcpy(fname, val); // else wont persist
-    ESP_LOGV(TAG, "Starting upload task with val: %s\n",val);
+    ESP_LOGV(TAG, "Starting upload task with val: %s",val);
     xTaskCreate(
         &taskScheduledUpload,       /* Task function. */
         "scheduledTaskUpload",     /* String with name of task. */

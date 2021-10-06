@@ -11,25 +11,20 @@
 
 #define USE_OTA true
 
-//#define SHOW_LOG // leave commented out
-
 #include <WebServer.h>
 #include <Update.h>
+#include "remote_log.h"
 #include "OTApage.h"
 
 WebServer ota(82); // listen on port 82
-
-#ifdef SHOW_LOG
-extern char* logBuff;
-void doMessageLog();
-#endif
+static const char* TAG = "OTAsetup";
 
 void OTAprereq();
-void doMessageLog();
+bool tryDS18();
 
 void OTAsetup() {
   if (USE_OTA) {
-    ESP_LOGI("OTAsetup","OTA on port 82");
+    ESP_LOGI(TAG,"OTA on port 82");
     ota.on("/", HTTP_GET, []() {
       // stop timer isrs, and free up heap space, or crashes esp32
       OTAprereq();
@@ -43,7 +38,7 @@ void OTAsetup() {
     }, []() {
       HTTPUpload& upload = ota.upload();      
       if (upload.status == UPLOAD_FILE_START) {
-        Serial.printf("Update: %s\n", upload.filename.c_str());
+        ESP_LOGI(TAG, "Update: %s", upload.filename.c_str());
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
           Update.printError(Serial);
         }
@@ -54,18 +49,11 @@ void OTAsetup() {
         }
       } else if (upload.status == UPLOAD_FILE_END) {
         if (Update.end(true)) { //true to set the size to the current progress
-          Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+          ESP_LOGI(TAG, "Update Success: %u, Rebooting...", upload.totalSize);
+          delay(1000);
         } else Update.printError(Serial);
       }
     });
-#ifdef SHOW_LOG
-    ota.on("/log", HTTP_GET, []() {
-      ota.sendHeader("Connection", "close");
-      doMessageLog(); // present message log for display (not part of ota)
-      ota.send(200, "text/plain", logBuff); // sends as download not display
-      free(logBuff);
-    }); 
-#endif
     ota.begin();
   }
 }

@@ -1,6 +1,6 @@
 #include "esp_camera.h"
 
-// current arduino-esp32 stable release is v1.0.6
+// built using arduino-esp32 stable release v2.0.0
 //
 // WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
 //            or another board which has PSRAM enabled
@@ -17,7 +17,7 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.4";
+const char* appVersion = "2.5";
 #define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
@@ -36,24 +36,20 @@ void setup() {
   Serial.setDebugOutput(true);
   Serial.println();
 
+  //ESP_LOG will not work if not set verbose
+  esp_log_level_set("*", ESP_LOG_VERBOSE);
+  ESP_LOGI(TAG, "=============== Starting ===============");
+  
   if(!prepSD_MMC()){
-    Serial.println("SD card initialization failed!!, Will restart after 10 secs");    
+    ESP_LOGE(TAG, "SD card initialization failed!!, Will restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
-  //Remove old log file
-  if(SD_MMC.exists("/log.txt")) SD_MMC.remove("/log.txt");
   
-  //ESP_LOG will not work if not set verbose
-  esp_log_level_set("*", ESP_LOG_VERBOSE);
-  //Telnet debug will need internet conection first
-  if(dbgMode!=2){ //Non telnet mode.
-    //Call remote log init to debug wifi connection on startup
-    //View the file from the access point http://192.168.4.1/file?log.txt
-    remote_log_init();  
-  }
+  //Remove old log file
+  if(SD_MMC.exists("/Log/log.txt")) SD_MMC.remove("/Log/log.txt");
 
-  ESP_LOGI(TAG, "\n==============================\nStarting..");
+  // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -128,6 +124,15 @@ void setup() {
     delay(10000);
     ESP.restart();
   }
+  
+  //Telnet debug will need internet conection first
+  if(dbgMode!=2){ //Non telnet mode.
+    //Call remote log init to debug wifi connection on startup
+    //View the file from the access point http://192.168.4.1/file?log.txt
+    remote_log_init();  
+  }
+  setupADC(); 
+  
   //Disable telnet init without wifi
   if(dbgMode==2) dbgMode =0;                                    
   
@@ -145,8 +150,8 @@ void setup() {
   else ESP_LOGI(TAG, "DS18B20 device not present");
 
   String wifiIP = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP) ? WiFi.localIP().toString(): WiFi.softAPIP().toString();
-  ESP_LOGI(TAG, "Camera Ready @ %uMHz, version %s. Use 'http://%s' to connect", XCLK_MHZ, appVersion, wifiIP.c_str());  
-
+  ESP_LOGI(TAG, "Use 'http://%s' to connect", wifiIP.c_str());  
+  ESP_LOGI(TAG, "Camera Ready @ %uMHz, version %s.", XCLK_MHZ, appVersion);  
 }
 
 void loop() {

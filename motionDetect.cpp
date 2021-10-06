@@ -33,12 +33,7 @@ using namespace std;
 #define RGB888_BYTES 3 // number of bytes per pixel
 
 #include "remote_log.h"
-/*
-// auto newline printf
-#define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
-#define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
-#define showDebug(format, ...) if (dbgVerbose) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
-*/
+
 static const char* TAG = "motionDetect";
 //Use ESP_LOG that can hanlde both, serial,file,telnet logging
 #define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
@@ -91,8 +86,10 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   int num_pixels = sampleWidth * sampleHeight;
 
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling))
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling)) {
     showError("motionDetect: fmt2rgb() failed");
+    return motionStatus;
+  }
 
 /*
   if (reducer > 1) 
@@ -118,7 +115,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   uint16_t endPixel = num_pixels*(END_BAND)/NUM_BANDS;
   int moveThreshold = (endPixel-startPixel) * (11-motionVal)/100; // number of changed pixels that constitute a movement
   for (int i=0; i<num_pixels; i++) {
-    if (abs(rgb_buf[i] - prev_buf[i]) > CHANGE_THRESHOLD) {
+    if (abs((int)rgb_buf[i] - (int)prev_buf[i]) > CHANGE_THRESHOLD) {
       if (i > startPixel && i < endPixel) changeCount++; // number of changed pixels
       if (dbgMotion) changeMap[i] = 192; // populate changeMap image with changed pixels in gray
     } else if (dbgMotion) changeMap[i] =  255; // set white 
@@ -189,7 +186,6 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   }else{
      // dummy if motionDetect.cpp not used
     *out_len = 0;
-    xSemaphoreGive(motionMutex);
     return false;
   }
 }

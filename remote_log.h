@@ -25,20 +25,20 @@
 #define LOG_COLOR_V
 #define LOG_RESET_COLOR
 #endif //CONFIG_LOG_COLORS
-char *esp_log_system_timestamp(void);
+char *esp_log_system_timestamp2(void);
 
 #define LOG_SYSTEM_TIME_FORMAT(letter, format)  LOG_COLOR_ ## letter #letter " (%s) %s: " format LOG_RESET_COLOR "\n\r"
 
 #undef ESP_LOGE
-#define ESP_LOGE( tag, format, ... )   esp_log_write(ESP_LOG_ERROR,   tag, LOG_SYSTEM_TIME_FORMAT(E, format), esp_log_system_timestamp(), tag, ##__VA_ARGS__);
+#define ESP_LOGE( tag, format, ... )   esp_log_write(ESP_LOG_ERROR,   tag, LOG_SYSTEM_TIME_FORMAT(E, format), esp_log_system_timestamp2(), tag, ##__VA_ARGS__);
 #undef ESP_LOGW
-#define ESP_LOGW( tag, format, ... )   esp_log_write(ESP_LOG_WARN,    tag, LOG_SYSTEM_TIME_FORMAT(W, format), esp_log_system_timestamp(), tag, ##__VA_ARGS__);
+#define ESP_LOGW( tag, format, ... )   esp_log_write(ESP_LOG_WARN,    tag, LOG_SYSTEM_TIME_FORMAT(W, format), esp_log_system_timestamp2(), tag, ##__VA_ARGS__);
 #undef ESP_LOGI
-#define ESP_LOGI( tag, format, ... )   esp_log_write(ESP_LOG_INFO,    tag, LOG_SYSTEM_TIME_FORMAT(I, format), esp_log_system_timestamp(), tag, ##__VA_ARGS__);
+#define ESP_LOGI( tag, format, ... )   esp_log_write(ESP_LOG_INFO,    tag, LOG_SYSTEM_TIME_FORMAT(I, format), esp_log_system_timestamp2(), tag, ##__VA_ARGS__);
 #undef ESP_LOGD
-#define ESP_LOGD( tag, format, ... )   esp_log_write(ESP_LOG_DEBUG,   tag, LOG_SYSTEM_TIME_FORMAT(D, format), esp_log_system_timestamp(), tag, ##__VA_ARGS__);
+#define ESP_LOGD( tag, format, ... )   esp_log_write(ESP_LOG_DEBUG,   tag, LOG_SYSTEM_TIME_FORMAT(D, format), esp_log_system_timestamp2(), tag, ##__VA_ARGS__);
 #undef ESP_LOGV
-#define ESP_LOGV( tag, format, ... )   esp_log_write(ESP_LOG_VERBOSE, tag, LOG_SYSTEM_TIME_FORMAT(V, format), esp_log_system_timestamp(), tag, ##__VA_ARGS__);
+#define ESP_LOGV( tag, format, ... )   esp_log_write(ESP_LOG_VERBOSE, tag, LOG_SYSTEM_TIME_FORMAT(V, format), esp_log_system_timestamp2(), tag, ##__VA_ARGS__);
 
 int remote_log_init();
 int remote_log_free();

@@ -50,6 +50,8 @@ footer:
 #include "SD_MMC.h"
 #include <regex>
 #include "driver/adc.h"
+static const char* TAG = "avi";
+#include "remote_log.h"
 
 // avi header data
 static const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
@@ -183,13 +185,12 @@ bool isAVI(File &fh) {
     doAVI = true;
     doAVIheader = true;   
     audSize = soundFile(fh); // get audio file size if present
-    Serial.print("Uploading as AVI");
-    if (audSize) Serial.println(" with audio");
-    else Serial.println("");
+    ESP_LOGI(TAG, "Formatting as AVI");
+    if (audSize) ESP_LOGI(TAG, " - with audio");
     return true;
   } else {
     doAVI = false;
-    Serial.println("Uploading as MJPEG");
+    ESP_LOGI(TAG, "Formatting as MJPEG");
     return false;
   }
 }
@@ -273,7 +274,8 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
     jEnd = 0; 
     iPtr = 0;
     hdrOffset = 0;
-    Serial.printf("\nProcessed %d of %d frames\n", framePtr, frameCnt);
+    Serial.println("");
+    ESP_LOGI(TAG, "Processed %d of %d frames", framePtr, frameCnt);
     return 0; 
   }
   if (doAVI) {
@@ -294,7 +296,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
       }
 
       // process video file
-      readLen = fh.available() ? fh.read(clientBuf, buffSize) : 0; // load 32k cluster from SD
+      readLen = fh.available() ? fh.read(clientBuf, buffSize) : 0; // load buffSize cluster from SD
       if (readLen == 0) {
         // reached end of file, append index data, loop until done
         size_t sendLen = buffSize;
@@ -345,7 +347,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
             mjpegHdrStr[10] = 0; // terminator
             size_t jpegSize = atoi(mjpegHdrStr); 
             if (jpegSize == 0) {
-              Serial.printf("\nERROR: AVI conversion failed on frame: %u\n", framePtr);
+              ESP_LOGE(TAG, "AVI conversion failed on frame: %u", framePtr);
               jStart = 0;
               jEnd = 0; 
               iPtr = 0;
@@ -491,7 +493,7 @@ void finishAudio(const char* mjpegName, bool isValid) {
       }
       wavFile.close();   
       wTime = millis() - wTime;
-      Serial.printf("\nSaved %s to SD in %u ms for %ukB\n", wfile.data(), wTime, written/1024);
+      ESP_LOGI(TAG, "Saved %s to SD in %u ms for %ukB", wfile.data(), wTime, written/1024);
     } 
     if (psramBuf) free(psramBuf);
     psramBuf = NULL;

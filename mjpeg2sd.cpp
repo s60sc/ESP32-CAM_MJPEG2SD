@@ -25,7 +25,7 @@ extern char timezone[]; // Defined in myConfig.h
 #include "time.h"
 #include "esp_camera.h"
 
-static const char* TAG = "mjped2sd";
+static const char* TAG = "mjpeg2sd";
 #include "remote_log.h"
 
 // user parameters
@@ -129,8 +129,8 @@ static TaskHandle_t playbackHandle = NULL;
 extern TaskHandle_t getDS18tempHandle;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
-SemaphoreHandle_t frameMutex;
-SemaphoreHandle_t motionMutex;
+SemaphoreHandle_t frameMutex = NULL;
+SemaphoreHandle_t motionMutex = NULL;
 static volatile bool isPlaying = false;
 bool isCapturing = false;
 uint8_t PIRpin;
@@ -151,12 +151,6 @@ void deleteFolderOrFile(const char* val);
 void createUploadTask(const char* val, bool move = false);                      
 void createScheduledUploadTask(const char* val);
 
-/*
-// auto newline printf
-#define showInfo(format, ...) Serial.printf(format "\n", ##__VA_ARGS__)
-#define showError(format, ...) Serial.printf("ERROR: " format "\n", ##__VA_ARGS__)
-#define showDebug(format, ...) if (dbgVerbose) Serial.printf("DEBUG: " format "\n", ##__VA_ARGS__)
-*/
 //Use ESP_LOG that can hanlde both, serial,file,telnet logging
 #define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
 #define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
@@ -200,7 +194,7 @@ void syncToBrowser(char *val) {
   if (timeSynchronized) return;
 
   //Synchronize to browser time, On access point connections with no internet
-  showInfo("Sync clock to: %s with tz:%s\n", val, timezone);
+  showInfo("Sync clock to: %s with tz:%s", val, timezone);
   struct tm now;
   getLocalTime(&now, 0);
 
@@ -328,7 +322,7 @@ static void saveFrame() {
   memcpy(SDbuffer+highPoint, part_buf, streamPartLen); // marker at start of each mjpeg frame
   highPoint += streamPartLen;
   memcpy(SDbuffer+highPoint, fb->buf, jpegSize);
-  highPoint += jpegSize;                                                        
+  highPoint += jpegSize;                                                    
   freeFrame(); 
   // only write to SD when at least RAMSIZE is available in buffer
   uint32_t wTime = millis();
@@ -358,7 +352,7 @@ static void saveFrame() {
 bool checkFreeSpace() { //Check for sufficient space in card
   if (freeSpaceMode < 1) return false;
   unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
-  showInfo("Card free space: %lu", freeSize);
+  showInfo("Card free space: %luMB", freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
     showInfo("Oldest dir to delete: %s", oldestDir.c_str());
@@ -375,6 +369,7 @@ bool checkFreeSpace() { //Check for sufficient space in card
 static bool closeMjpeg() {
   // closes and renames the file
   uint32_t captureTime = frameCnt / FPS;
+  Serial.println("");
   showInfo("Capture time %u, min seconds: %u ", captureTime, minSeconds);
   if (captureTime >= minSeconds) {
     cTime = millis();
@@ -400,7 +395,7 @@ static bool closeMjpeg() {
     insufficient = 0;
 
     // MJPEG stats
-    showInfo("\n******** MJPEG recording stats ********");
+    showInfo("******** MJPEG recording stats ********");
     showInfo("Recorded %s", mjpegName);
     showInfo("MJPEG duration: %0.1f secs", (float)vidDuration / 1000.0);
     showInfo("Number of frames: %u", frameCnt);
@@ -443,7 +438,7 @@ static boolean processFrame() {
   bool res = true;
   uint32_t dTime = millis();
   bool finishRecording = false;
-
+  bool savedFrame = false;
   xSemaphoreTake(frameMutex, portMAX_DELAY);
   fb = esp_camera_fb_get();
   if (fb) {
@@ -481,13 +476,14 @@ static boolean processFrame() {
         // capture is ongoing
         dTimeTot += millis() - dTime;
         saveFrame();
+        savedFrame = true;
         showProgress();
         if (frameCnt >= MAX_FRAMES) {
+          Serial.println("");
           showInfo("Auto closed recording after %u frames", MAX_FRAMES);
           finishRecording = true;
         }
       }
-      freeFrame();
       if (!isCapturing && wasCapturing) {
         // movement stopped
         finishRecording = true;
@@ -500,7 +496,7 @@ static boolean processFrame() {
     showError("Failed to get frame");
     res = false;
   }
-  freeFrame();
+  if (!savedFrame) freeFrame(); // to prevent mutex being given when already given
   if (finishRecording) {
     // cleanly finish recording (normal or forced)
     if (stopPlayback) {
@@ -662,12 +658,11 @@ void listDir(const char* fname, char* htmlBuff) {
       if (file.isDirectory() && returnDirs) {
         // build folder names into HTML response
         std::string str(file.name());
-        if (str.find("/System") == std::string::npos) { // ignore Sys Vol Info
-          sprintf(optionHtml, "\"%s\":\"%s\",", file.name(), file.name());
+        if (str.find("System") == std::string::npos) { // ignore Sys Vol Info
+          sprintf(optionHtml, "\"%s\":\"%s\",", file.path(), file.name());
           getFileDate(file, fileDate);
           mapFiles.insert(std::make_pair(fileDate, optionHtml));
-          if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen) 
-            strcat(htmlBuff, optionHtml);
+          if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
           else {
             showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
             break;
@@ -678,8 +673,8 @@ void listDir(const char* fname, char* htmlBuff) {
       if (!file.isDirectory() && !returnDirs) {
         // update existing html with file details
         std::string str(file.name());
-        if (str.find(MJPEGEXT) != std::string::npos) {
-          sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.name(), file.name(), (float)file.size() / ONEMEG);
+        if (str.find(MJPEGEXT) != std::string::npos || str.find("log.txt") != std::string::npos) {
+          sprintf(optionHtml, "\"%s\":\"%s %0.1fMB\",", file.path(), file.name(), (float)file.size() / ONEMEG);
           getFileDate(file, fileDate);
           mapFiles.insert(std::make_pair(fileDate, optionHtml));
           if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen)
@@ -828,7 +823,7 @@ size_t* getNextFrame() {
     } else {
       uint32_t playDuration = (millis() - sTime) / 1000;
       uint32_t totBusy = wTimeTot + fTimeTot + hTimeTot;
-      showInfo("\n******** MJPEG playback stats ********");
+      showInfo("******** MJPEG playback stats ********");
       showInfo("Playback %s", mjpegName);
       showInfo("Recorded FPS %u, duration %u secs", recFPS, recDuration);
       showInfo("Playback FPS %0.1f, duration %u secs", (float)frameCnt / playDuration, playDuration);
@@ -860,7 +855,7 @@ void stopPlaying() {
     uint32_t timeOut = millis();
     while (isPlaying && millis() - timeOut < 2000) delay(10);
     if (isPlaying) {
-      Serial.println();
+      Serial.println("");
       showInfo("Failed to cleanly close playback");
       doPlayback = false;
       setFPS(saveFPS);
