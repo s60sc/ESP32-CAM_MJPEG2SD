@@ -6,13 +6,15 @@
 * s60sc 2020
 */
 
+#include "Arduino.h"
+
 extern char timezone[]; // Defined in myConfig.h
 
 // user defined environmental setup
 #define USE_PIR false // whether to use PIR for motion detection
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 2 // secs between each check for stop, also determines post motion time
-#define RAMSIZE 8192 // set this to multiple of SD card sector size (512 or 1024 bytes)
+extern const uint32_t RAMSIZE = 8192; // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define MAX_FRAMES 20000 // maximum number of frames in video before auto close
 #define ONELINE true // MMC 1 line mode
 #define minCardFreeSpace 50 // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
@@ -908,7 +910,7 @@ bool prepSD_MMC() {
       D1          4
   */
   bool res = false;
-  if (ONELINE) {
+  if (ONELINE) {    
     // SD_MMC 1 line mode
     res = SD_MMC.begin("/sdcard", true, FORMAT_IF_MOUNT_FAILED );
   } else res = SD_MMC.begin(); // SD_MMC 4 line mode
@@ -939,13 +941,13 @@ void deleteFolderOrFile(const char * val) {
     File file = f.openNextFile();
     while (file) {
       if (file.isDirectory()) {
-        showInfo("  DIR : %s", file.name() );
+        showInfo("  DIR : %s", file.path() );
       } else {
         
-        if (SD_MMC.remove(file.name())) {
-          showInfo("  FILE : %s SIZE : %u Deleted", file.name(), file.size());
+        if (SD_MMC.remove(file.path())) {
+          showInfo("  FILE : %s SIZE : %u Deleted", file.path(), file.size());
         } else {
-          showInfo("  FILE : %s SIZE : %u Failed", file.name(), file.size());
+          showInfo("  FILE : %s SIZE : %u Failed", file.path(), file.size());
         }
       }
       file = f.openNextFile();
@@ -988,7 +990,6 @@ bool prepMjpeg() {
       frameMutex = xSemaphoreCreateMutex();
       motionMutex = xSemaphoreCreateMutex();
       if (!esp_camera_fb_get()) return false; // test & prime camera
-      showInfo("Sound recording is %s", useMicrophone() ? "On" : "Off");
       showInfo("To record new MJPEG, do one of:");
       if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
       if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);

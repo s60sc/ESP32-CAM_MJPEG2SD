@@ -317,7 +317,7 @@ bool uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
   }else{  //Upload a whole directory
       ESP_LOGI(TAG, "Uploading directory: %s", sdName.c_str()); 
       File fh = root.openNextFile();      
-      sdName = fh.name();
+      sdName = fh.path();
 
       if(!ftpCheckDirPath(sdName, ftpName)){
           ESP_LOGE(TAG, "Create ftp dir path %s failed", sdName.c_str());
@@ -327,7 +327,7 @@ bool uploadFolderOrFileFtp(String sdName, const bool removeAfterUpload, uint8_t 
           
       bool bUploadOK=false;
       while (fh) {
-          sdName = fh.name();
+          sdName = fh.path();
 
           bUploadOK = false;
           if (fh.isDirectory()) {
