@@ -533,7 +533,14 @@ const char* index_ov2640_html = R"~(
                                   <input id="aviOn" type="checkbox" class="default-action">
                                   <label  title="Convert file to avi format on upload or download"  class="slider" for="aviOn"></label>
                               </div>
-                          </div>                            
+                          </div>      
+                          <div class="input-group" id="micGain-group">
+                              <label for="micGain">Microphone Gain</label>
+                              <div class="range-min">0</div>
+                              <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">10</div>
+                          </div>                          
                           <div class="input-group" id="lamp-group">
                               <label for="enableMotion">Enable motion detect</label>
                               <div class="switch">

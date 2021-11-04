@@ -48,7 +48,8 @@ extern uint8_t FPS;
 extern bool aviOn;
 extern bool autoUpload;
 extern byte dbgMode;                    
-extern bool useMotion;                      
+extern bool useMotion;     
+extern int micGain;                 
 
 bool lampVal = false;
 void controlLamp(bool lampVal);
@@ -104,6 +105,7 @@ bool saveConfig() {
   pref.putFloat("motion", motionVal);
   pref.putBool("lamp", lampVal);
   pref.putBool("aviOn", aviOn);
+  pref.putUChar("micGain", micGain);  
   pref.putUChar("dbgMode", dbgMode);                                    
   pref.putBool("autoUpload", autoUpload);  
   pref.putUChar("lswitch", nightSwitch);
@@ -162,6 +164,7 @@ bool loadConfig() {
   minSeconds = pref.getUChar("minf", minSeconds );
   doRecording = pref.getBool("doRecording", doRecording);
   aviOn = pref.getBool("aviOn", aviOn);
+  micGain = pref.getUChar("micGain", micGain);  
   autoUpload = pref.getBool("autoUpload", autoUpload);
   dbgMode = pref.getUChar("dbgMode", dbgMode);                                                  
   useMotion = pref.getUChar("useMotion", useMotion);

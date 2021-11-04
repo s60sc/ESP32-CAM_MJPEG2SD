@@ -17,12 +17,13 @@ static const char* TAG = "ESP32-CAM";
 #include "camera_pins.h"
 #include "myConfig.h"
 
-const char* appVersion = "2.5";
+const char* appVersion = "3.0";
 #define XCLK_MHZ 20 // fastest clock rate
 
 //External functions
 void startCameraServer();
 bool prepMjpeg();
+void prepMic();               
 void startSDtasks();
 bool prepSD_MMC();
 bool prepDS18();
@@ -39,6 +40,11 @@ void setup() {
   //ESP_LOG will not work if not set verbose
   esp_log_level_set("*", ESP_LOG_VERBOSE);
   ESP_LOGI(TAG, "=============== Starting ===============");
+  if (!psramFound()) {
+    ESP_LOGE(TAG, "Need PSRAM to be enabled");
+    delay(10000);
+    ESP.restart();
+  }
   
   if(!prepSD_MMC()){
     ESP_LOGE(TAG, "SD card initialization failed!!, Will restart after 10 secs");    
@@ -144,6 +150,7 @@ void setup() {
         
   //Start httpd
   startCameraServer();
+  prepMic();        
   OTAsetup();
   startSDtasks();
   if (prepDS18()) {ESP_LOGI(TAG, "DS18B20 device available");}
