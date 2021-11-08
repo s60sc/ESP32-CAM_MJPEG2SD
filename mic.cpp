@@ -131,7 +131,7 @@ void micTask(void* parameter) {
 
 void prepMic() {
   ESP_LOGI(TAG, "Sound recording is %s", micGain ? "On" : "Off");
-  xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
+  if (micGain) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
 }
 
 void startAudio() {
