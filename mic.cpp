@@ -10,28 +10,21 @@
 
 // s60sc 2021
 
-#include "Arduino.h"
-#include <driver/i2s.h>
-#include "FS.h" 
-#include "SD_MMC.h"
-#include <regex>
-#include "remote_log.h"
+#include "myConfig.h"
 
 int micGain = 0;  // microphone gain 0 is off
 static int gainFactor; // 2 ^ microphone gain
-extern const uint32_t SAMPLE_RATE = 16000; // sample rate used
-extern const uint32_t RAMSIZE;
-extern const uint8_t BUFFER_WIDTH = sizeof(int16_t);
+const uint32_t SAMPLE_RATE = 16000; // sample rate used
+const uint8_t BUFFER_WIDTH = sizeof(int16_t);
 static File wavFile;
 static int totalSamples = 0;
 static const char* TEMPFILE = "/current.wav";
 static TaskHandle_t micHandle = NULL;
 static bool doMicCapture = false;
 static bool captureRunning = false;
-static const char* TAG = "mic";
 static int16_t* sampleBuffer;
 
-extern const uint32_t WAV_HEADER_LEN = 44; // WAV header length
+const uint32_t WAV_HEADER_LEN = 44; // WAV header length
 static uint8_t wavHeader[WAV_HEADER_LEN] = { // WAV header template
   0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
   0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x11, 0x2B, 0x00, 0x00, 0x11, 0x2B, 0x00, 0x00,
@@ -87,7 +80,7 @@ static void stopMic() {
   // stop the relevant I2S peripheral
   i2s_stop(I2S_NUM_1);
   i2s_driver_uninstall(I2S_NUM_1);
-  ESP_LOGI(TAG, "Stopped I2S_NUM_1 port");
+  LOG_DBG("Stopped I2S_NUM_1 port");
 }
 
 static void getRecording() {
@@ -130,7 +123,7 @@ void micTask(void* parameter) {
 }
 
 void prepMic() {
-  ESP_LOGI(TAG, "Sound recording is %s", micGain ? "On" : "Off");
+  LOG_INF("Sound recording is %s", micGain ? "On" : "Off");
   if (micGain) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
 }
 
@@ -167,8 +160,8 @@ void finishAudio(const char* mjpegName, bool isValid) {
       
       // rename file
       SD_MMC.rename(TEMPFILE, wfile.data());    
-      ESP_LOGI(TAG, "Captured %d audio samples with gain factor %i", totalSamples, gainFactor);
-      ESP_LOGI(TAG, "Saved %ukB to SD for %s", (dataBytes + WAV_HEADER_LEN) / 1024, wfile.data());
+      LOG_INF("Captured %d audio samples with gain factor %i", totalSamples, gainFactor);
+      LOG_INF("Saved %ukB to SD for %s", (dataBytes + WAV_HEADER_LEN) / 1024, wfile.data());
     } 
   }
   SD_MMC.remove(TEMPFILE);

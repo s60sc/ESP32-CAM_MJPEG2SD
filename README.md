@@ -3,6 +3,8 @@ ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to
 
 Files uploaded by FTP or downloaded from browser are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players, including the audio if available.
 
+ This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how build a WiFi Security Camera using this code.
+
 
 ## Purpose
 The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
@@ -37,14 +39,16 @@ The ESP32 time is set from an NTP server.
 
 ## Installation and Use
 
-Note: Updated for `arduino-esp32` Stable Release v2.0.0, compile with Partition Scheme: `Minimal SPIFFS (...)`.
+Note: Updated for `arduino-esp32` Stable Release v2.0.2, compile with Partition Scheme: `Minimal SPIFFS (...)`.  
 
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
-The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
-Additional code has been added to the original file `app_httpd.cpp` to handle the extra browser options, and an additional file`mjpeg2sd.cpp` contains the SD handling code. The web page content in `camera_index.h` has been updated to include additional functions. 
+The included sketch `ESP32-CAM_MJPEG2SD.ino` was originally derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
+Additional code has been added to the original file `app_httpd.cpp` to handle the extra browser options, and an additional file`mjpeg2sd.cpp` contains the SD handling code. Further features have been added in additional files. The web page content in `camera_index.h` has been updated to include additional functions. 
 The face detection code has been removed to reduce the sketch size to allow OTA updates.
 
-To set the recording parameters, additional options are provided on the camera index page, where:
+Select required ESP-CAM board using `CAMERA_MODEL_` in `myConfig.h`.
+
+To set the recording parameters, additional options are provided on the camera index web page, where:
 * `Frame Rate` is the required frames per second
 * `Min Frames` is the minimum number of frames to be captured or the file is deleted
 * `Verbose` if checked outputs additional logging to the serial monitor
@@ -74,24 +78,24 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Download selected MJPEG file from SD card to browser using __Download__ button. Can be downloaded in AVI format.
 
-* The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
+* The FTP, Wifi, and other parameters can be defined in file `myConfig.h`, but can also be defined via the browser under __Other Settings__ using the ESP in AP mode.
 
 * Check internet connection and automatically reconnect if needed on power loss.
 
-* Added mdns name services in order to use `http://[Host Name]` instead of ip address
+* Added mdns name services in order to use `http://[Host Name]` instead of ip address.
 
 * Delete or ftp upload and delete oldest folder when card free space is running out.  
-  See `minCardFreeSpace` and `freeSpaceMode` in `mjpeg2sd.cpp`
+  See `minCardFreeSpace` and `freeSpaceMode` in `myConfig.h`
   
-* Additional log viewing options via web page __Debug__ dropdown, in addition to serial port:
-  * To SD card, accessed via `http://[camera ip]/file?log.txt`
+* Additional log viewing options via web page __Log Mode__ dropdown, in addition to serial port:
+  * From SD card, accessed via `http://[camera ip]/log`, or using __Download__ button
   * From remote host using `telnet [camera ip] 443`
 
 
 Additional ancilliary functions:
 
-* Enable Over The Air (OTA) updates - see `ota.cpp`
-* Add temperature sensor - see `ds18b20.cpp`
+* Enable Over The Air (OTA) updates - see `USE_OTA` in `myConfig.h`
+* Add temperature sensor - see `USE_DS18B20` in `myConfig.h`
 
 Browser functions only tested on Chrome.
 

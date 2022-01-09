@@ -9,22 +9,14 @@
  s60sc 2020
  */
 
-#define USE_OTA true
-
-#include <WebServer.h>
-#include <Update.h>
-#include "remote_log.h"
+#include "myConfig.h"
 #include "OTApage.h"
 
 WebServer ota(82); // listen on port 82
-static const char* TAG = "OTAsetup";
-
-void OTAprereq();
-bool tryDS18();
 
 void OTAsetup() {
   if (USE_OTA) {
-    ESP_LOGI(TAG,"OTA on port 82");
+    LOG_INF("OTA on port 82");
     ota.on("/", HTTP_GET, []() {
       // stop timer isrs, and free up heap space, or crashes esp32
       OTAprereq();
@@ -38,7 +30,7 @@ void OTAsetup() {
     }, []() {
       HTTPUpload& upload = ota.upload();      
       if (upload.status == UPLOAD_FILE_START) {
-        ESP_LOGI(TAG, "Update: %s", upload.filename.c_str());
+        LOG_INF("Update: %s", upload.filename.c_str());
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
           Update.printError(Serial);
         }
@@ -49,7 +41,7 @@ void OTAsetup() {
         }
       } else if (upload.status == UPLOAD_FILE_END) {
         if (Update.end(true)) { //true to set the size to the current progress
-          ESP_LOGI(TAG, "Update Success: %u, Rebooting...", upload.totalSize);
+          LOG_INF("Update Success: %u, Rebooting...", upload.totalSize);
           delay(1000);
         } else Update.printError(Serial);
       }

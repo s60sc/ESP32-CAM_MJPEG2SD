@@ -6,40 +6,20 @@
 * s60sc 2020
 */
 
-#include "Arduino.h"
-
-extern char timezone[]; // Defined in myConfig.h
+#include "myConfig.h"
 
 // user defined environmental setup
-#define USE_PIR false // whether to use PIR for motion detection
 #define MOVE_START_CHECKS 5 // checks per second for start
 #define MOVE_STOP_SECS 2 // secs between each check for stop, also determines post motion time
-extern const uint32_t RAMSIZE = 8192; // set this to multiple of SD card sector size (512 or 1024 bytes)
-#define MAX_FRAMES 20000 // maximum number of frames in video before auto close
-#define ONELINE true // MMC 1 line mode
-#define minCardFreeSpace 50 // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
-#define freeSpaceMode 1 // 0 - No Check, 1 - Delete oldest dir, 2 - Move to ftp and then delete folder                                                                                                               
-#define FORMAT_IF_MOUNT_FAILED  true //Auto format the sd card if mount failed. Set to false to not auto format.
-
-#include <SD_MMC.h>
-#include <regex>
-#include <sys/time.h>
-#include "time.h"
-#include "esp_camera.h"
-
-static const char* TAG = "mjpeg2sd";
-#include "remote_log.h"
+#define MAX_FRAMES 20000 // maximum number of frames in video before auto close                                                                                                            
+#define FORMAT_IF_MOUNT_FAILED true //Auto format the sd card if mount failed. Set to false to not auto format.
 
 // user parameters
 bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool dbgVerbose = false;
 bool dbgMotion  = false;
 bool forceRecord = false; //Recording enabled by rec button
-extern bool doRecording;// = true; // whether to capture to SD or not
-extern uint8_t minSeconds;// = 5; // default min video length (includes MOVE_STOP_SECS time)
-extern uint8_t nightSwitch;// = 20; // initial white level % for night/day switching
-extern float motionVal;// = 8.0; // initial motion sensitivity setting
-bool timeSynchronized = false;
+
 // status & control fields
 uint8_t FPS;
 bool lampOn = false;
@@ -48,9 +28,14 @@ bool autoUpload = false;  // Automatically upload every created file to remote f
 uint8_t lightLevel; // Current ambient light level     
 uint16_t insufficient = 0;  
 
+uint8_t fsizePtr; // index to frameData[]
+uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
+bool doRecording = true; // whether to capture to SD or not        
+bool lampVal = false;
+uint8_t nightSwitch = 20; // initial white level % for night/day switching
+float motionVal = 8.0; // initial motion sensitivity setting
+
 // stream separator
-extern const char* _STREAM_BOUNDARY;
-extern const char* _STREAM_PART;
 static const size_t streamBoundaryLen = strlen(_STREAM_BOUNDARY);
 #define PART_BUF_LEN 64
 static char* part_buf[PART_BUF_LEN];
@@ -67,33 +52,6 @@ static uint32_t cTime; // file closing time
 static uint32_t sTime; // file streaming time
 static uint32_t vidDuration; // duration in secs of recorded file
 
-struct frameStruct {
-  const char* frameSizeStr;
-  const uint16_t frameWidth;
-  const uint16_t frameHeight;
-  const uint16_t defaultFPS;
-  const uint8_t scaleFactor; // (0..3)
-  const uint8_t sampleRate;  // (1..N)
-};
-
-// indexed by frame size - needs to be consistent with sensor.h framesize_t enum
-extern const frameStruct frameData[] = {
-  {"96X96", 96, 96, 30, 1, 1}, 
-  {"QQVGA", 160, 120, 30, 1, 1},
-  {"QCIF", 176, 144, 30, 1, 1}, 
-  {"HQVGA", 240, 176, 30, 2, 1}, 
-  {"240X240", 240, 240, 30, 2, 1}, 
-  {"QVGA", 320, 240, 30, 2, 1}, 
-  {"CIF", 400, 296, 30, 2, 1},  
-  {"HVGA", 480, 320, 30, 2, 1}, 
-  {"VGA", 640, 480, 20, 3, 1}, 
-  {"SVGA", 800, 600, 20, 3, 1}, 
-  {"XGA", 1024, 768, 5, 3, 1},   
-  {"HD", 1280, 720, 5, 3, 1}, 
-  {"SXGA", 1280, 1024, 5, 3, 1}, 
-  {"UXGA", 1600, 1200, 5, 3, 1}  
-};
-extern uint8_t fsizePtr; // index to frameData[] for record
 uint8_t ftypePtr; // index to frameData[] for ftp
 uint8_t frameDataRows = 14;                         
 static uint16_t frameInterval; // units of 0.1ms between frames
@@ -103,12 +61,13 @@ static uint16_t frameInterval; // units of 0.1ms between frames
 #define MAX_JPEG ONEMEG/2 // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MJPEGEXT "mjpeg"
 uint8_t* SDbuffer; // has to be dynamically allocated due to size
+const uint32_t RAMSIZE = 8192; // set this to multiple of SD card sector size (512 or 1024 bytes)
 uint8_t iSDbuffer[RAMSIZE];
 char* htmlBuff;
 static size_t htmlBuffLen = 20000; // set big enough to hold all file names in a folder
 static size_t highPoint;
 static File mjpegFile;
-static char mjpegName[100];
+static char mjpegName[150];
 char dayFolder[50];
 static const uint8_t zeroBuf[4] = {0x00, 0x00, 0x00, 0x00}; // 0000
 bool stopCheck = false;
@@ -128,7 +87,6 @@ bool doPlayback = false;
 // task control
 static TaskHandle_t captureHandle = NULL;
 static TaskHandle_t playbackHandle = NULL;
-extern TaskHandle_t getDS18tempHandle;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
 SemaphoreHandle_t frameMutex = NULL;
@@ -140,91 +98,13 @@ const uint8_t LAMPpin = 4;
 bool stopPlayback = false;
 static camera_fb_t* fb;
 
-bool isNight(uint8_t nightSwitch);
-bool checkMotion(camera_fb_t* fb, bool captureStatus);
-void stopPlaying();
-void readSD();
-void prepSound();
-void startAudio();
-void finishAudio(const char* mjpegName, bool isvalid);
-bool useMicrophone();
-String getOldestDir();
-void deleteFolderOrFile(const char* val);
-void createUploadTask(const char* val, bool move = false);                      
-void createScheduledUploadTask(const char* val);
-
-//Use ESP_LOG that can hanlde both, serial,file,telnet logging
-#define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
-#define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
-#define showDebug(format, ...) if (dbgVerbose) ESP_LOGD(TAG, format, ##__VA_ARGS__)
-
-/************************** NTP  **************************/
-
-static inline time_t getEpoch() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return tv.tv_sec;
-}
-
-void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder) {
-  // construct filename from date/time
-  time_t currEpoch = getEpoch();
-  if (isFolder) strftime(inBuff, inBuffLen, "/%Y%m%d", localtime(&currEpoch));
-  else strftime(inBuff, inBuffLen, "/%Y%m%d/%Y%m%d_%H%M%S", localtime(&currEpoch));
-}
-
-void getLocalNTP() {
-  // get current time from NTP server and apply to ESP32
-  const char* ntpServer = "pool.ntp.org";
-  int i = 0;
-  do {
-    configTzTime(timezone, ntpServer);
-    delay(1000);
-  } while (getEpoch() < 10000 && i++ < 5); // try up to 5 times
-  if (getEpoch() > 10000) {
-    time_t currEpoch = getEpoch();
-    char timeFormat[20];
-    strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
-    timeSynchronized = true;
-    showInfo("Got current time from NTP: %s", timeFormat);
-  }
-  else showError("Unable to sync with NTP");
-}
-
-//Synchronize clock to browser clock on AP connection
-void syncToBrowser(char *val) {
-  if (timeSynchronized) return;
-
-  //Synchronize to browser time, On access point connections with no internet
-  showInfo("Sync clock to: %s with tz:%s", val, timezone);
-  struct tm now;
-  getLocalTime(&now, 0);
-
-  int Year, Month, Day, Hour, Minute, Second ;
-  sscanf(val, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
-
-  struct tm t;
-  t.tm_year = Year - 1900;
-  t.tm_mon  = Month - 1;    // Month, 0 - jan
-  t.tm_mday = Day;          // Day of the month
-  t.tm_hour = Hour;
-  t.tm_min  = Minute;
-  t.tm_sec  = Second;
-
-  time_t t_of_day = mktime(&t);
-  timeval epoch = {t_of_day, 0};
-  struct timezone utc = {0, 0};
-  settimeofday(&epoch, &utc);
-  //setenv("TZ", timezone, 1);
-  Serial.print(&now, "Before sync: %B %d %Y %H:%M:%S (%A) ");
-  getLocalTime(&now, 0);
-  Serial.println(&now, "After sync: %B %d %Y %H:%M:%S (%A)");
-}
+static String getOldestDir();
+static void readSD();
 
 /*********************** Utility functions ****************************/
 
 void showProgress() {
-  // show progess if not verbose
+  // show progess as dots if not verbose
   static uint8_t dotCnt = 0;
   if (!dbgVerbose) {
     Serial.print("."); // progress marker
@@ -264,7 +144,7 @@ void controlFrameTimer(bool restartTimer) {
     // (re)start timer 3 interrupt per required framerate
     timer3 = timerBegin(3, 8000, true); // 0.1ms tick
     frameInterval = 10000 / FPS; // in units of 0.1ms 
-    showDebug("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
+    LOG_DBG("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
     timerAlarmWrite(timer3, frameInterval, true); 
     timerAlarmEnable(timer3);
     timerAttachInterrupt(timer3, &frameISR, true);
@@ -283,7 +163,7 @@ static void openMjpeg() {
   // open mjpeg file with temporary name
   mjpegFile  = SD_MMC.open(partName, FILE_WRITE);
   oTime = millis() - oTime;
-  showDebug("File opening time: %ums", oTime);
+  LOG_DBG("File opening time: %ums", oTime);
   startAudio();
   // initialisation of counters
   startMjpeg = millis();
@@ -344,20 +224,20 @@ static void saveFrame() {
   wTime = millis() - wTime;
   wTimeTot += wTime;
   vidSize += streamPartLen + jpegSize + filler + streamBoundaryLen;
-  showDebug("SD storage time %u ms", wTime);
+  LOG_DBG("SD storage time %u ms", wTime);
   frameCnt++;
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
-  showDebug("Frame processing time %u ms", fTime);
+  LOG_DBG("Frame processing time %u ms", fTime);
 }
 
 bool checkFreeSpace() { //Check for sufficient space in card
   if (freeSpaceMode < 1) return false;
   unsigned long freeSize = (unsigned long)( (SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1048576);
-  showInfo("Card free space: %luMB", freeSize);
+  LOG_INF("Card free space: %luMB", freeSize);
   if (freeSize < minCardFreeSpace) {
     String oldestDir = getOldestDir();
-    showInfo("Oldest dir to delete: %s", oldestDir.c_str());
+    LOG_INF("Oldest dir to delete: %s", oldestDir.c_str());
     if (freeSpaceMode == 1) { //Delete oldest folder
       deleteFolderOrFile(oldestDir.c_str());
     } else if (freeSpaceMode == 2) { //Upload and then delete oldest folder
@@ -372,7 +252,7 @@ static bool closeMjpeg() {
   // closes and renames the file
   uint32_t captureTime = frameCnt / FPS;
   Serial.println("");
-  showInfo("Capture time %u, min seconds: %u ", captureTime, minSeconds);
+  LOG_INF("Capture time %u, min seconds: %u ", captureTime, minSeconds);
   if (captureTime >= minSeconds) {
     cTime = millis();
     // add final boundary to buffer
@@ -380,7 +260,7 @@ static bool closeMjpeg() {
     highPoint += streamBoundaryLen;
     // write remaining frame content to SD
     mjpegFile.write(SDbuffer, highPoint); 
-    showDebug("Final SD storage time %lu ms", millis() - cTime); 
+    LOG_DBG("Final SD storage time %lu ms", millis() - cTime); 
 
     // finalise file on SD
     uint32_t hTime = millis();
@@ -392,29 +272,29 @@ static bool closeMjpeg() {
       partName, frameData[fsizePtr].frameSizeStr, lround(actualFPS), lround(vidDuration/1000.0), frameCnt, MJPEGEXT);
     SD_MMC.rename(partName, mjpegName);
     finishAudio(mjpegName, true);
-    showDebug("MJPEG close/rename time %lu ms", millis() - hTime); 
+    LOG_DBG("MJPEG close/rename time %lu ms", millis() - hTime); 
     cTime = millis() - cTime;
     insufficient = 0;
 
     // MJPEG stats
-    showInfo("******** MJPEG recording stats ********");
-    showInfo("Recorded %s", mjpegName);
-    showInfo("MJPEG duration: %0.1f secs", (float)vidDuration / 1000.0);
-    showInfo("Number of frames: %u", frameCnt);
-    showInfo("Required FPS: %u", FPS);
-    showInfo("Actual FPS: %0.1f", actualFPS);
-    showInfo("File size: %0.2f MB", (float)vidSize / ONEMEG);
+    LOG_INF("******** MJPEG recording stats ********");
+    LOG_INF("Recorded %s", mjpegName);
+    LOG_INF("MJPEG duration: %0.1f secs", (float)vidDuration / 1000.0);
+    LOG_INF("Number of frames: %u", frameCnt);
+    LOG_INF("Required FPS: %u", FPS);
+    LOG_INF("Actual FPS: %0.1f", actualFPS);
+    LOG_INF("File size: %0.2f MB", (float)vidSize / ONEMEG);
     if (frameCnt) {
-      showInfo("Average frame length: %u bytes", vidSize / frameCnt);
-      showInfo("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
-      showInfo("Average frame buffering time: %u ms", fTimeTot / frameCnt);
-      showInfo("Average frame storage time: %u ms", wTimeTot / frameCnt);
+      LOG_INF("Average frame length: %u bytes", vidSize / frameCnt);
+      LOG_INF("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
+      LOG_INF("Average frame buffering time: %u ms", fTimeTot / frameCnt);
+      LOG_INF("Average frame storage time: %u ms", wTimeTot / frameCnt);
     }
-    showInfo("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
-    showInfo("File open / completion times: %u ms / %u ms", oTime, cTime);
-    showInfo("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
-    showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
-    showInfo("*************************************");
+    LOG_INF("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
+    LOG_INF("File open / completion times: %u ms / %u ms", oTime, cTime);
+    LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
+    LOG_INF("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+    LOG_INF("*************************************");
     //Upload it to remote ftp server
     if(autoUpload) createScheduledUploadTask(mjpegName);
     checkFreeSpace();                     
@@ -424,7 +304,7 @@ static bool closeMjpeg() {
     mjpegFile.close();
     SD_MMC.remove(partName);
     finishAudio(partName, false);
-    showDebug("Insufficient capture duration: %u secs", captureTime);
+    LOG_DBG("Insufficient capture duration: %u secs", captureTime);
     insufficient++;
     checkFreeSpace();                     
     return false;
@@ -470,7 +350,7 @@ static boolean processFrame() {
         // movement has occurred, start recording, and switch on lamp if night time
         stopPlaying(); // terminate any playback
         stopPlayback  = true; // stop any subsequent playback
-        showInfo("Capture started by %s%s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "",forceRecord ? "Button" : "");
+        LOG_INF("Capture started by %s%s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "",forceRecord ? "Button" : "");
         openMjpeg();
         wasCapturing = true;
       }
@@ -482,7 +362,7 @@ static boolean processFrame() {
         showProgress();
         if (frameCnt >= MAX_FRAMES) {
           Serial.println("");
-          showInfo("Auto closed recording after %u frames", MAX_FRAMES);
+          LOG_INF("Auto closed recording after %u frames", MAX_FRAMES);
           finishRecording = true;
         }
       }
@@ -493,9 +373,9 @@ static boolean processFrame() {
       wasCapturing = isCapturing;
 
     }
-    showDebug("============================");
+    LOG_DBG("============================");
   } else {
-    showError("Failed to get frame");
+    LOG_ERR("Failed to get frame");
     res = false;
   }
   if (!savedFrame) freeFrame(); // to prevent mutex being given when already given
@@ -582,10 +462,10 @@ static void playbackFPS(const char* fname) {
 void openSDfile() {
   // open selected file on SD for streaming
   if (stopPlayback) {
-    showError("Playback refused - capture in progress");
+    LOG_WRN("Playback refused - capture in progress");
   }  else {
     stopPlaying(); // in case already running
-    showInfo("Playing %s", mjpegName);
+    LOG_INF("Playing %s", mjpegName);
     playbackFile = SD_MMC.open(mjpegName, FILE_READ);
     vidSize = playbackFile.size();
     playbackFPS(mjpegName);
@@ -597,7 +477,7 @@ void openSDfile() {
   }
 }
 
-String getOldestDir() {
+static String getOldestDir() {
   String oldName = "";
   File root = SD_MMC.open("/");
   File file = root.openNextFile();
@@ -648,9 +528,9 @@ void listDir(const char* fname, char* htmlBuff) {
 
     // open relevant folder to list contents
     File root = SD_MMC.open(decodedName.c_str());
-    if (!root) showError("Failed to open directory %s", decodedName.c_str());
-    if (!root.isDirectory()) showError("Not a directory %s", decodedName.c_str());
-    showDebug("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
+    if (!root) LOG_ERR("Failed to open directory %s", decodedName.c_str());
+    if (!root.isDirectory()) LOG_ERR("Not a directory %s", decodedName.c_str());
+    LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", decodedName.c_str());
 
     // build relevant option list
     if(returnDirs) strcpy(htmlBuff, "{"); 
@@ -666,7 +546,7 @@ void listDir(const char* fname, char* htmlBuff) {
           mapFiles.insert(std::make_pair(fileDate, optionHtml));
           if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen) strcat(htmlBuff, optionHtml);
           else {
-            showError("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+            LOG_ERR("Too many folders to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
             break;
           }
           noEntries = false;
@@ -682,7 +562,7 @@ void listDir(const char* fname, char* htmlBuff) {
           if (strlen(htmlBuff) + strlen(optionHtml) < htmlBuffLen)
             strcat(htmlBuff, optionHtml);
           else {
-            showError("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+            LOG_ERR("Too many files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
             break;
           }
           noEntries = false;
@@ -699,7 +579,7 @@ void listDir(const char* fname, char* htmlBuff) {
     for (const auto& m : mapFiles) {
       if (strlen(htmlBuff)+strlen(m.second.c_str()) < htmlBuffLen) strcat(htmlBuff, m.second.c_str());
       else {
-        showError("Too many folders/files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
+        LOG_ERR("Too many folders/files to list %u+%u in %u bytes", strlen(htmlBuff), strlen(optionHtml), htmlBuffLen);
         break;
       }
     }
@@ -707,7 +587,7 @@ void listDir(const char* fname, char* htmlBuff) {
   }
 }
 
-size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize) {
+static size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize) {
   // find a subarray (needle) in another array (haystack)
   size_t h = 0, n = 0; // Two pointers to traverse the arrays
   // Traverse both arrays simultaneously
@@ -727,7 +607,7 @@ size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize
   return 0; // not found
 }
 
-void readSD() {
+static void readSD() {
   // read next cluster from SD for playback
   uint32_t rTime = millis();
   readLen = 0;
@@ -736,7 +616,7 @@ void readSD() {
     readLen = playbackFile.read(iSDbuffer, RAMSIZE);
     memcpy(SDbuffer+RAMSIZE*2, iSDbuffer, RAMSIZE);
   }
-  showDebug("SD read time %lu ms", millis() - rTime);
+  LOG_DBG("SD read time %lu ms", millis() - rTime);
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready     
   delay(10);                     
@@ -764,18 +644,18 @@ size_t* getNextFrame() {
     buffLen = readLen;
   }  
   
-  showDebug("http send time %lu ms", millis() - hTime);
+  LOG_DBG("http send time %lu ms", millis() - hTime);
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
   if (buffLen && !stopPlayback) {
     if (!remaining) {
       mTime = millis();
       xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
-      showDebug("SD wait time %lu ms", millis()-mTime);
+      LOG_DBG("SD wait time %lu ms", millis()-mTime);
       wTimeTot += millis()-mTime;
       mTime = millis();                                 
       memcpy(SDbuffer, SDbuffer+RAMSIZE*2, readLen); // load new cluster from double buffer
-      showDebug("memcpy took %lu ms for %u bytes", millis()-mTime, readLen);
+      LOG_DBG("memcpy took %lu ms for %u bytes", millis()-mTime, readLen);
       buffLen = readLen;
       fTimeTot += millis() - mTime;
       remaining = true;
@@ -783,21 +663,21 @@ size_t* getNextFrame() {
     }
     mTime = millis();
     if (streamOffset + skipOver > buffLen) {
-      showError("streamOffset %u + skipOver %u > buffLen %u", streamOffset, skipOver, buffLen);
+      LOG_ERR("streamOffset %u + skipOver %u > buffLen %u", streamOffset, skipOver, buffLen);
       stopPlayback = true;
 
     } else {
       // search for next boundary in buffer
       boundary = isSubArray(SDbuffer + streamOffset + skipOver, (uint8_t*)needle, buffLen - streamOffset - skipOver, streamBoundaryLen);
       skipOver = 0;
-      showDebug("frame search time %lu ms", millis()-mTime);
+      LOG_DBG("frame search time %lu ms", millis()-mTime);
       fTimeTot += millis()-mTime;
       if (boundary) {
         // found image boundary
         mTime = millis();
         // wait on playbackSemaphore for rate control
         xSemaphoreTake(playbackSemaphore, portMAX_DELAY);
-        showDebug("frame timer wait %lu ms", millis()-mTime);
+        LOG_DBG("frame timer wait %lu ms", millis()-mTime);
         tTimeTot += millis()-mTime;
         frameCnt++;
         showProgress();
@@ -821,25 +701,25 @@ size_t* getNextFrame() {
     imgPtrs[0] = 0;
     imgPtrs[1] = 0;
     if (stopPlayback){
-      showInfo("Force close playback");
+      LOG_INF("Force close playback");
     } else {
       uint32_t playDuration = (millis() - sTime) / 1000;
       uint32_t totBusy = wTimeTot + fTimeTot + hTimeTot;
-      showInfo("******** MJPEG playback stats ********");
-      showInfo("Playback %s", mjpegName);
-      showInfo("Recorded FPS %u, duration %u secs", recFPS, recDuration);
-      showInfo("Playback FPS %0.1f, duration %u secs", (float)frameCnt / playDuration, playDuration);
-      showInfo("Number of frames: %u", frameCnt);
-      showInfo("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
+      LOG_INF("******** MJPEG playback stats ********");
+      LOG_INF("Playback %s", mjpegName);
+      LOG_INF("Recorded FPS %u, duration %u secs", recFPS, recDuration);
+      LOG_INF("Playback FPS %0.1f, duration %u secs", (float)frameCnt / playDuration, playDuration);
+      LOG_INF("Number of frames: %u", frameCnt);
+      LOG_INF("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       if (frameCnt) {
-        showInfo("Average frame SD read time: %u ms", wTimeTot / frameCnt);
-        showInfo("Average frame processing time: %u ms", fTimeTot / frameCnt);
-        showInfo("Average frame delay time: %u ms", tTimeTot / frameCnt);
-        showInfo("Average http send time: %u ms", hTimeTot / frameCnt);
-        showInfo("Busy: %u%%", std::min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
+        LOG_INF("Average frame SD read time: %u ms", wTimeTot / frameCnt);
+        LOG_INF("Average frame processing time: %u ms", fTimeTot / frameCnt);
+        LOG_INF("Average frame delay time: %u ms", tTimeTot / frameCnt);
+        LOG_INF("Average http send time: %u ms", hTimeTot / frameCnt);
+        LOG_INF("Busy: %u%%", std::min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
       }
-      showInfo("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
-      showInfo("*************************************\n");
+      LOG_INF("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+      LOG_INF("*************************************\n");
     }
     setFPS(saveFPS); // realign with browser
     stopPlayback = false;
@@ -858,7 +738,7 @@ void stopPlaying() {
     while (isPlaying && millis() - timeOut < 2000) delay(10);
     if (isPlaying) {
       Serial.println("");
-      showInfo("Failed to cleanly close playback");
+      LOG_INF("Failed to cleanly close playback");
       doPlayback = false;
       setFPS(saveFPS);
       xSemaphoreGive(playbackSemaphore);
@@ -883,7 +763,7 @@ static void playbackTask(void* parameter) {
 static void infoSD() {
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE){
-    showError("No SD card attached");
+    LOG_WRN("No SD card attached");
   } else {
     char typeStr[8] = "UNKNOWN";
     if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
@@ -894,10 +774,11 @@ static void infoSD() {
     cardSize = SD_MMC.cardSize() / ONEMEG;
     totBytes = SD_MMC.totalBytes() / ONEMEG;
     useBytes = SD_MMC.usedBytes() / ONEMEG;
-    showInfo("SD card type %s, Size: %lluMB, Used space: %lluMB, Total space: %lluMB",
+    LOG_INF("SD card type %s, Size: %lluMB, Used space: %lluMB, Total space: %lluMB",
              typeStr, cardSize, useBytes, totBytes);
   }
 }
+
 bool sdPrepared = false;
 bool prepSD_MMC() {
   /* open SD card in required mode: MMC 1 bit (1), MMC 4 bit (4)
@@ -915,12 +796,12 @@ bool prepSD_MMC() {
     res = SD_MMC.begin("/sdcard", true, FORMAT_IF_MOUNT_FAILED );
   } else res = SD_MMC.begin(); // SD_MMC 4 line mode
   if (res) {
-    showInfo("SD ready in %s mode ", ONELINE ? "1-line" : "4-line");
+    LOG_INF("SD ready in %s mode ", ONELINE ? "1-line" : "4-line");
     infoSD();
     sdPrepared = true;
     return true;
   } else {
-    showError("SD mount failed for %s mode", ONELINE ? "1-line" : "4-line");
+    LOG_ERR("SD mount failed for %s mode", ONELINE ? "1-line" : "4-line");
     sdPrepared = false;
     return false;
   }
@@ -928,26 +809,26 @@ bool prepSD_MMC() {
 
 void deleteFolderOrFile(const char * val) {
   // Function provided by user @gemi254
-  showInfo("Deleting : %s", val);
+  LOG_INF("Deleting : %s", val);
   File f = SD_MMC.open(val);
   if (!f) {
-    showError("Failed to open %s", val);
+    LOG_ERR("Failed to open %s", val);
     return;
   }
   stopPlayback = true;
   //Empty directory first
   if (f.isDirectory()) {
-    showInfo("Directory %s contents", val);
+    LOG_INF("Directory %s contents", val);
     File file = f.openNextFile();
     while (file) {
       if (file.isDirectory()) {
-        showInfo("  DIR : %s", file.path() );
+        LOG_INF("  DIR : %s", file.path() );
       } else {
         
         if (SD_MMC.remove(file.path())) {
-          showInfo("  FILE : %s SIZE : %u Deleted", file.path(), file.size());
+          LOG_INF("  FILE : %s SIZE : %u Deleted", file.path(), file.size());
         } else {
-          showInfo("  FILE : %s SIZE : %u Failed", file.path(), file.size());
+          LOG_INF("  FILE : %s SIZE : %u Failed", file.path(), file.size());
         }
       }
       file = f.openNextFile();
@@ -955,17 +836,17 @@ void deleteFolderOrFile(const char * val) {
     f.close();
     //Remove the dir
     if (SD_MMC.rmdir(val)) {
-      showInfo("Dir %s removed", val);
+      LOG_INF("Dir %s removed", val);
     } else {
-      showError("Remove directory failed");
+      LOG_ERR("Remove directory failed");
     }
 
   } else {
     //Remove the file
     if (SD_MMC.remove(val)) {
-      showInfo("File %s deleted", val);
+      LOG_INF("File %s deleted", val);
     } else {
-      showError("Delete failed");
+      LOG_ERR("Delete failed");
     }
   }
 }
@@ -974,43 +855,37 @@ void deleteFolderOrFile(const char * val) {
 
 bool prepMjpeg() {
   // initialisation & prep for MJPEG capture
-  if (psramFound()) {
-    if (sdPrepared) {
-      if (ONELINE) controlLamp(false); // set lamp fully off as sd_mmc library still initialises pin 4
-      getLocalNTP(); // get time from NTP
-      SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
-      htmlBuff = (char*)ps_malloc(htmlBuffLen);
-      if (USE_PIR) {
-        PIRpin = (ONELINE) ? 12 : 33;
-        pinMode(PIRpin, INPUT_PULLDOWN); // pulled high for active
-      }
-      pinMode(LAMPpin, OUTPUT);
-      readSemaphore = xSemaphoreCreateBinary();
-      playbackSemaphore = xSemaphoreCreateBinary();
-      frameMutex = xSemaphoreCreateMutex();
-      motionMutex = xSemaphoreCreateMutex();
-      if (!esp_camera_fb_get()) return false; // test & prime camera
-      showInfo("To record new MJPEG, do one of:");
-      if (USE_PIR) showInfo("- attach PIR to pin %u", PIRpin);
-      if (USE_PIR) showInfo("- raise pin %u to 3.3V", PIRpin);
-      if (useMotion) showInfo("- move in front of camera");
-      showInfo(" ");
-      return true;
-    } else {
-      showError("SD storage not available");
-      return false;
+  if (sdPrepared) {
+    if (ONELINE) controlLamp(false); // set lamp fully off as sd_mmc library still initialises pin 4
+    SDbuffer = (uint8_t*)ps_malloc(MAX_JPEG); // buffer frame to store in SD
+    htmlBuff = (char*)ps_malloc(htmlBuffLen);
+    if (USE_PIR) {
+      PIRpin = (ONELINE) ? 12 : 33;
+      pinMode(PIRpin, INPUT_PULLDOWN); // pulled high for active
     }
+    pinMode(LAMPpin, OUTPUT);
+    readSemaphore = xSemaphoreCreateBinary();
+    playbackSemaphore = xSemaphoreCreateBinary();
+    frameMutex = xSemaphoreCreateMutex();
+    motionMutex = xSemaphoreCreateMutex();
+    if (!esp_camera_fb_get()) return false; // test & prime camera
+    LOG_INF("To record new MJPEG, do one of:");
+    if (USE_PIR) LOG_INF("- attach PIR to pin %u", PIRpin);
+    if (USE_PIR) LOG_INF("- raise pin %u to 3.3V", PIRpin);
+    if (useMotion) LOG_INF("- move in front of camera");
+    LOG_INF(" ");
+    return true;
   } else {
-    showError("pSRAM must be enabled");
-    return false;\
-  }
+    LOG_WRN("SD storage not available");
+    return false;
+  } 
 }
 
 void startSDtasks() {
   // tasks to manage SD card operation
   xTaskCreate(&captureTask, "captureTask", 4096, NULL, 5, &captureHandle);
   if (xTaskCreate(&playbackTask, "playbackTask", 4096, NULL, 4, &playbackHandle) != pdPASS)
-    showError("Insufficient memory to create playbackTask");
+    LOG_ERR("Insufficient memory to create playbackTask");
   sensor_t * s = esp_camera_sensor_get();
   fsizePtr = s->status.framesize; 
   setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
@@ -1024,7 +899,7 @@ static void deleteTask(TaskHandle_t thisTaskHandle) {
 void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
-  deleteTask(getDS18tempHandle);
+  deleteTask(getDS18Handle);
 }
 
 void OTAprereq() {

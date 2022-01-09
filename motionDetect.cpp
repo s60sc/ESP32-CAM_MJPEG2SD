@@ -12,12 +12,10 @@
  makes the transition. These could be interpreted as spurious motion.
  
  s60sc 2020
-
 */
-#include "esp_camera.h"
-#include "esp_jpg_decode.h"
-#include <SD_MMC.h>
-#include <bits/stdc++.h> 
+
+#include "myConfig.h"
+
 using namespace std;
 
 // user configuration parameters for calibrating motion detection
@@ -31,35 +29,6 @@ using namespace std;
 #define CHANGE_THRESHOLD 15 // min difference in pixel comparison to indicate a change
 
 #define RGB888_BYTES 3 // number of bytes per pixel
-
-#include "remote_log.h"
-
-static const char* TAG = "motionDetect";
-//Use ESP_LOG that can hanlde both, serial,file,telnet logging
-#define showInfo(format, ...) ESP_LOGI(TAG, format, ##__VA_ARGS__)
-#define showError(format, ...) ESP_LOGE(TAG, format, ##__VA_ARGS__)
-#define showDebug(format, ...) if (dbgVerbose) ESP_LOGD(TAG, format, ##__VA_ARGS__)
-
-/********* the following must be declared and initialised elsewhere **********/
-extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)
-extern bool dbgVerbose;
-extern bool dbgMotion;
-extern uint8_t fsizePtr;
-extern uint8_t lightLevel; // Current ambient light level 
-extern SemaphoreHandle_t motionMutex;
-extern SemaphoreHandle_t frameMutex;
-extern float motionVal; // motion sensitivity setting - min percentage of changed pixels that constitute a movement
-extern uint16_t insufficient;
-
-struct frameStruct {
-  const char* frameSizeStr;
-  const uint16_t frameWidth;
-  const uint16_t frameHeight;
-  const uint16_t defaultFPS;
-  const uint8_t scaleFactor;
-  const uint8_t sampleRate;
-};
-extern const frameStruct frameData[];
 
 static uint8_t* jpgImg = NULL;
 static size_t jpgImgSize = 0;
@@ -87,7 +56,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   int num_pixels = sampleWidth * sampleHeight;
 
   if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling)) {
-    showError("motionDetect: fmt2rgb() failed");
+    LOG_DBG("motionDetect: fmt2rgb() failed");
     return motionStatus;
   }
 
@@ -98,7 +67,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
       for (int c=0; c<sampleWidth; c++)      
         rgb_buf[c+(r*sampleWidth)] = rgb_buf[(c+(r*sampleWidth))*reducer]; 
 */
-  showDebug("JPEG to greyscale conversion %u bytes in %lums", num_pixels, millis() - dTime);
+  LOG_DBG("JPEG to greyscale conversion %u bytes in %lums", num_pixels, millis() - dTime);
   dTime = millis();
 
   // allocate buffer space on heap
@@ -124,18 +93,18 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   lightLevel = (lux*100)/(num_pixels*255); // light value as a %
   memcpy(prev_buf, rgb_buf, num_pixels); // save image for next comparison 
   // esp32-cam issue #126
-  if (rgb_buf == NULL) showError("Memory leak, heap now: %u, pSRAM now: %u", ESP.getFreeHeap(), ESP.getFreePsram());
+  if (rgb_buf == NULL) LOG_ERR("Memory leak, heap now: %u, pSRAM now: %u", ESP.getFreeHeap(), ESP.getFreePsram());
   free(rgb_buf); 
   rgb_buf = NULL;
-  showDebug("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
+  LOG_DBG("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
   dTime = millis();
 
   if (changeCount > moveThreshold) {
-    showDebug("### Change detected");
+    LOG_DBG("### Change detected");
     motionCnt++; // number of consecutive changes
     // need minimum sequence of changes to signal valid movement
     if (!motionStatus && motionCnt >= MOTION_SEQUENCE) {
-      showDebug("***** Motion - START");
+      LOG_DBG("***** Motion - START");
       motionStatus = true; // motion started
     } 
     if (dbgMotion)
@@ -145,18 +114,18 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   } else {
     // insufficient change
     if (motionStatus) {
-      showDebug("***** Motion - STOP after %u frames", motionCnt);
+      LOG_DBG("***** Motion - STOP after %u frames", motionCnt);
       motionCnt = 0;
       motionStatus = false; // motion stopped
     }
   }
-  if (motionStatus) showDebug("*** Motion - ongoing %u frames", motionCnt);
+  if (motionStatus) LOG_DBG("*** Motion - ongoing %u frames", motionCnt);
 
   if (dbgMotion) { 
     // build jpeg of changeMap for debug streaming
     dTime = millis();
     if (!fmt2jpg(changeMap, num_pixels, sampleWidth, sampleHeight, PIXFORMAT_GRAYSCALE, 80, &jpg_buf, &jpg_len))
-      showError("motionDetect: fmt2jpg() failed");
+      LOG_ERR("motionDetect: fmt2jpg() failed");
     // prevent streaming from accessing jpeg while it is being updated
     xSemaphoreTake(motionMutex, portMAX_DELAY); 
     memcpy(jpgImg, jpg_buf, jpg_len);
@@ -164,10 +133,10 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
     xSemaphoreGive(motionMutex);
     free(jpg_buf);
     jpg_buf = NULL;
-    showDebug("Created changeMap JPEG %d bytes in %lums", jpg_len, millis() - dTime);
+    LOG_DBG("Created changeMap JPEG %d bytes in %lums", jpg_len, millis() - dTime);
   }
 
-  showDebug("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+  LOG_DBG("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
   // motionStatus indicates whether motion previously ongoing or not
   return motionStatus;
 }
@@ -200,14 +169,14 @@ bool isNight(uint8_t nightSwitch) {
     // only signal night time after given sequence of dark frames
     if (nightCnt > NIGHT_SEQUENCE) {
       nightTime = true;     
-      showInfo("Night time"); 
+      LOG_INF("Night time"); 
     }
   } 
   if (lightLevel > nightSwitch) {
     nightCnt = 0;
     if (nightTime) {
       nightTime = false;
-      showInfo("Day time");
+      LOG_INF("Day time");
     }
   }  
   return nightTime;

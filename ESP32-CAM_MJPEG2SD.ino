@@ -1,59 +1,34 @@
-#include "esp_camera.h"
+/*
+* Capture ESP32 Cam JPEG images into a MJPEG file and store on SD
+* MJPEG files stored on the SD card can also be selected and streamed to a browser as AVI.
+*
+* s60sc 2022, 2021, 2020
+*/
+// built using arduino-esp32 stable release v2.0.2
 
-// built using arduino-esp32 stable release v2.0.0
-//
-// WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
-//            or another board which has PSRAM enabled
-//
-// Select camera model
-//#define CAMERA_MODEL_WROVER_KIT
-//#define CAMERA_MODEL_ESP_EYE
-//#define CAMERA_MODEL_M5STACK_PSRAM
-//#define CAMERA_MODEL_M5STACK_WIDE
-#define CAMERA_MODEL_AI_THINKER
-
-static const char* TAG = "ESP32-CAM";
-
-#include "camera_pins.h"
 #include "myConfig.h"
+#include "camera_pins.h"
 
-const char* appVersion = "3.0";
-#define XCLK_MHZ 20 // fastest clock rate
-
-//External functions
-void startCameraServer();
-bool prepMjpeg();
-void prepMic();               
-void startSDtasks();
-bool prepSD_MMC();
-bool prepDS18();
-void OTAsetup();
-bool OTAlistener();
-bool startWifi();
-void checkConnection();  
+//#define DEV_ONLY // for app development only, leave commented out
+void devSetup();
 
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
 
-  //ESP_LOG will not work if not set verbose
-  esp_log_level_set("*", ESP_LOG_VERBOSE);
-  ESP_LOGI(TAG, "=============== Starting ===============");
+  LOG_INF("=============== Starting ===============");
   if (!psramFound()) {
-    ESP_LOGE(TAG, "Need PSRAM to be enabled");
+    LOG_WRN("Need PSRAM to be enabled");
     delay(10000);
     ESP.restart();
-  }
+  } 
   
   if(!prepSD_MMC()){
-    ESP_LOGE(TAG, "SD card initialization failed!!, Will restart after 10 secs");    
+    LOG_WRN("Insert SD card, will restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
-  
-  //Remove old log file
-  if(SD_MMC.exists("/Log/log.txt")) SD_MMC.remove("/Log/log.txt");
 
   // configure camera
   camera_config_t config;
@@ -77,8 +52,8 @@ void setup() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = XCLK_MHZ*1000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  //init with high specs to pre-allocate larger buffers
-  if (psramFound()){
+  // init with high specs to pre-allocate larger buffers
+  if (psramFound()) {
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
     config.fb_count = 4;
@@ -99,7 +74,7 @@ void setup() {
   while (retries && err != ESP_OK) {
     err = esp_camera_init(&config);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG,"Camera init failed with error 0x%x", err);
+      LOG_ERR("Camera init failed with error 0x%x", err);
       digitalWrite(PWDN_GPIO_NUM, 1);
       delay(100);
       digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
@@ -107,7 +82,7 @@ void setup() {
     }
   } 
   if (err != ESP_OK) ESP.restart();
-  else ESP_LOGI(TAG, "Camera init OK");
+  else LOG_INF("Camera init OK");
 
   sensor_t * s = esp_camera_sensor_get();
   //initial sensors are flipped vertically and colors are a bit saturated
@@ -124,47 +99,52 @@ void setup() {
   s->set_hmirror(s, 1);
 #endif
   
-  //Load config and connect wifi or start config AP if fail
-  if(!startWifi()){
-    ESP_LOGE(TAG, "Failed to start wifi, restart after 10 secs");
-    delay(10000);
-    ESP.restart();
-  }
-  
-  //Telnet debug will need internet conection first
-  if(dbgMode!=2){ //Non telnet mode.
-    //Call remote log init to debug wifi connection on startup
-    //View the file from the access point http://192.168.4.1/file?log.txt
-    remote_log_init();  
-  }
-  setupADC(); 
-  
-  //Disable telnet init without wifi
-  if(dbgMode==2) dbgMode =0;                                    
+  // Load saved user configuration
+  loadConfig(); 
+   
+  // connect wifi or start config AP if router details not available
+#ifdef DEV_ONLY
+  devSetup();
+#else
+  startWifi();
+#endif
   
   if (!prepMjpeg()) {
-    ESP_LOGE(TAG, "Unable to continue, MJPEG capture fail, restart after 10 secs");    
+    LOG_ERR("Unable to continue, MJPEG capture fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
-        
-  //Start httpd
+
+  // Show wifi AP or STA IP address
+  String wifiIP;
+  if (WiFi.getMode() == WIFI_STA) {
+    // if wifi station then wait for connection to be available
+    while (WiFi.status() != WL_CONNECTED) delay(1000);
+    Serial.println("");
+    wifiIP = WiFi.localIP().toString();
+  } else wifiIP = WiFi.softAPIP().toString();
+  LOG_INF("Use 'http://%s' to connect to %s", wifiIP.c_str(), WiFi.getMode() == WIFI_STA ? "Station" : "Access Point");
+  
+  // Start httpd
   startCameraServer();
   prepMic();        
   OTAsetup();
   startSDtasks();
-  if (prepDS18()) {ESP_LOGI(TAG, "DS18B20 device available");}
-  else ESP_LOGI(TAG, "DS18B20 device not present");
-
-  String wifiIP = (WiFi.status() == WL_CONNECTED && WiFi.getMode() != WIFI_AP) ? WiFi.localIP().toString(): WiFi.softAPIP().toString();
-  ESP_LOGI(TAG, "Use 'http://%s' to connect", wifiIP.c_str());  
-  ESP_LOGI(TAG, "Camera Ready @ %uMHz, version %s.", XCLK_MHZ, appVersion);  
+  prepDS18B20();
+  setupADC(); 
+  
+  LOG_INF("Camera Ready @ %uMHz, version %s.", XCLK_MHZ, APP_VER);  
 }
 
 void loop() {
-  //Check connection
-  checkConnection();
-  //USE_OTA
   if (!OTAlistener()) delay(100000);  
-  //else delay(2000);
 }
+
+// use with IDF
+/*
+extern "C" void app_main() {
+    initArduino();
+    setup();
+    loop(); 
+}
+*/

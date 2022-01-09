@@ -36,12 +36,7 @@ footer:
   4 byte pcm size
 */
 
-#include "Arduino.h"
-#include "FS.h" 
-#include "SD_MMC.h"
-#include <regex>
-#include "remote_log.h"
-static const char* TAG = "avi";
+#include "myConfig.h"
 
 // avi header data
 static const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
@@ -97,8 +92,6 @@ static const frameSizeStruct frameSizeData[] = {
   {{0x40, 0x06}, {0xB0, 0x04}}  // uxga 
 };
 
-extern const char* _STREAM_BOUNDARY; 
-extern const char* _STREAM_PART;
 static const size_t streamBoundaryLen = strlen(_STREAM_BOUNDARY);
 static const size_t streamPartLen = strlen(_STREAM_PART)+6;
 #define LENGTH_OFFSET 78 // from start of mjpeg boundary to Content-Length: value
@@ -117,17 +110,12 @@ static uint16_t framePtr = 0;
 static uint16_t idxPtr = 0;
 static uint32_t idxOffset;
 static uint8_t frameType;
-static uint8_t FPS;
 static size_t fileSize;
 static size_t audSize;
 static size_t indexLen;
 bool aviOn = true;  // set to false if do not want conversion to AVI  
 static File wavFile; 
-extern const uint32_t SAMPLE_RATE; // audio sample rate
-extern const uint32_t WAV_HEADER_LEN;
 
-int* extractMeta(const char* fname); 
-void showProgress(); 
 
 size_t soundFile(File &fh) {
   // derive audio file name from video file but with extension .wav
@@ -158,11 +146,11 @@ bool isAVI(File &fh) {
     doAVI = true;
     doAVIheader = true;  
     audSize = soundFile(fh); // get audio file size if present
-    ESP_LOGI(TAG, "Formatting as AVI %s", audSize ? " - with audio" : "");
+    LOG_INF("Formatting as AVI %s", audSize ? " - with audio" : "");
     return true;
   } else {
     doAVI = false;
-    ESP_LOGI(TAG, "Formatting as MJPEG");
+    LOG_INF("Formatting as MJPEG");
     return false;
   }
 }
@@ -251,7 +239,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
     iPtr = 0;
     hdrOffset = 0;
     Serial.println("");
-    ESP_LOGI(TAG, "Processed %d of %d frames", framePtr, frameCnt);
+    LOG_INF("Processed %d of %d frames", framePtr, frameCnt);
     return 0; 
   }
   if (doAVI) {
@@ -323,7 +311,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
             mjpegHdrStr[10] = 0; // terminator
             size_t jpegSize = atoi(mjpegHdrStr); 
             if (jpegSize == 0) {
-              ESP_LOGE(TAG, "AVI conversion failed on frame: %u", framePtr);
+              LOG_ERR("AVI conversion failed on frame: %u", framePtr);
               jStart = 0;
               jEnd = 0; 
               iPtr = 0;

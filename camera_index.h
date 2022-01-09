@@ -1,3 +1,5 @@
+#pragma once
+
 const char* index_ov2640_html = R"~(
 <!doctype html>                             
 <html>
@@ -493,8 +495,8 @@ const char* index_ov2640_html = R"~(
                               <div class="range-max">63</div>
                           </div>                          
                            <div class="input-group" id="debugging-group">
-                              <label for="dbgMode" title="Enable debugging via sd card file or remote host telnet on port 443">Debug</label>
-                              <select id="dbgMode" class="default-action">
+                              <label for="logMode" title="Enable debugging via sd card file or remote host telnet on port 443">Log Mode</label>
+                              <select id="logMode" class="default-action">
                                   <option value="0" title="Log on serial port only.">Serial</option>
                                   <option value="1" title="Log on a text file log.txt on sdcard root. On browser navigate to view-source:http://[camera ip]/file?log.txt to view the log">SD card log.txt</option>
                                   <option value="2" title="Log on a remote host running telnet command.Enble and type: telnet camera_ip 443">Telnet 443</option>
@@ -1352,20 +1354,20 @@ document.addEventListener('DOMContentLoaded', function (event) {
     awb.checked ? show(wb) : hide(wb)
   }
 
-  // Debug mode
-  const dbgMode = document.getElementById('dbgMode')
-  dbgMode.onchange = () => {   
-    var selection = dbgMode.value;
+  // Logging mode
+  const logMode = document.getElementById('logMode')
+  logMode.onchange = () => {   
+    var selection = logMode.value;
     if(selection==2){      
       if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")) {
-        dbgMode.value=0;
+        logMode.value=0;
         return false;
       }
     }
     $.ajax({
       url: baseHost + '/control',
       data: {
-        "var": "dbgMode",
+        "var": "logMode",
         "val": selection
       },   
       success: function(response) {
