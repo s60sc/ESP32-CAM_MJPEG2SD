@@ -128,7 +128,7 @@ bool startWifi() {
   LOG_INF("Setting wifi hostname: %s", hostName);
   WiFi.setHostname(hostName);
   if (strlen(ST_SSID) > 0) { 
-    LOG_INF("Got stored router credentials. Connecting to: %s with pass: %s", ST_SSID, ST_Pass);
+    LOG_INF("Got stored router credentials. Connecting to: %s", ST_SSID);
     if (strlen(ST_ip) > 1) {
       LOG_INF("Setting config static ip :%s, %s, %s, %s", ST_ip,ST_gw,ST_sn, ST_ns1);
       IPAddress _ip, _gw, _sn, _ns1, _ns2;
@@ -283,7 +283,7 @@ bool loadConfig() {
     strcpy(ST_Pass, pref.getString("ST_Pass", String(ST_Pass)).c_str());
   }
 
-  LOG_INF("Loaded ssid: %s pass: %s", String(ST_SSID).c_str(), String(ST_Pass).c_str());
+  LOG_INF("Loaded ssid: %s", String(ST_SSID).c_str());
 
   if (strlen(pref.getString("ST_ip").c_str()) > 0) {
     // only used stored values if non blank static IP has been stored
