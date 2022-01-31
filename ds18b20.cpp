@@ -11,29 +11,23 @@
  s60sc 2020
  */
 
-//#define USE_DS18B20 // uncomment to include DS18B20
+#include "myConfig.h"
 
 #ifdef USE_DS18B20
 #include <OneWire.h> 
 #include <DallasTemperature.h>
 #else
-#include "Arduino.h"
-//Use internal on chip temperature sensor
-#ifdef __cplusplus
 extern "C" {
-#endif
+// Use internal on chip temperature sensor (if present)
 uint8_t temprature_sens_read();
-#ifdef __cplusplus
 }
-#endif
-uint8_t temprature_sens_read();
 #endif
 
 // configuration
 static const uint8_t DS18Bpin = 3; // labelled U0R on ESP32-CAM board
 static const uint8_t retries = 10;
 static float dsTemp = -127;
-TaskHandle_t getDS18tempHandle = NULL;
+TaskHandle_t getDS18Handle = NULL;
 static bool DS18Bfound = false;
 
 static void getDS18tempTask(void* pvParameters) {
@@ -67,29 +61,29 @@ static void getDS18tempTask(void* pvParameters) {
 #endif
 }
 
-bool prepDS18() {
+void prepDS18B20() {
 #ifdef USE_DS18B20
-  xTaskCreatePinnedToCore(&getDS18tempTask, "getDS18tempTask", 1024, NULL, 1, &getDS18tempHandle, 1); 
+  xTaskCreatePinnedToCore(&getDS18tempTask, "getDS18tempTask", 1024, NULL, 1, &getDS18Handle, 1); 
   delay(1000);
-  return DS18Bfound;
-#else
-  return false;
+  if (DS18Bfound) {LOG_INF("DS18B20 device available");}
+  else {LOG_WRN("DS18B20 device not present");}
 #endif
 }
 
-bool tryDS18() {
+void tryDS18B20() {
   // retry for DS18B20 device connection
-  if (!DS18Bfound) xTaskNotifyGive(getDS18tempHandle); 
+  if (!DS18Bfound) xTaskNotifyGive(getDS18Handle); 
   delay(500); // give it time
-  return DS18Bfound;
+  if (DS18Bfound) {LOG_INF("DS18B20 available");}
+  else {LOG_WRN("DS18B20 device not found");} // in case not working 
 }
 
-float readDStemp(bool isCelsius) {
+float readDS18B20temp(bool isCelsius) {
 #ifdef USE_DS18B20
   // return latest read DS18B20 value in celsius (true) or fahrenheit (false), unless error
   return (dsTemp > -127) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 #else
   //Convert on chip raw temperature in F to Celsius degrees
-  return (temprature_sens_read() - 32) / 1.8;      
+  return (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present    
 #endif
 }

@@ -1,3 +1,5 @@
+#pragma once
+
 const char* index_ov2640_html = R"~(
 <!doctype html>                             
 <html>
@@ -191,7 +193,7 @@ const char* index_ov2640_html = R"~(
             }
 
             button:active {
-                background: #f21c21
+                background: green
             }
 
             button.disabled {
@@ -464,18 +466,18 @@ const char* index_ov2640_html = R"~(
                               <select id="framesize" class="default-action">
                                   <option value="13">UXGA(1600x1200)</option>
                                   <option value="12">SXGA(1280x1024)</option>
-                                  <option value="11">*HD(1280x720)</option>
+                                  <option value="11">HD(1280x720)</option>
                                   <option value="10">XGA(1024x768)</option>
                                   <option value="9" selected="selected">SVGA(800x600)</option> 
                                   <option value="8">VGA(640x480)</option> 
-                                  <option value="7">*HVGA(480x320)</option>
+                                  <option value="7">HVGA(480x320)</option>
                                   <option value="6">CIF(400x296)</option> 
                                   <option value="5">QVGA(320x240)</option>
-                                  <option value="4">*240X240</option> 
+                                  <option value="4">240X240</option> 
                                   <option value="3">HQVGA(240x176)</option> 
-                                  <option value="2">*QCIF(176x144)</option> 
+                                  <option value="2">QCIF(176x144)</option> 
                                   <option value="1">QQVGA(160x120)</option> 
-                                  <option value="0">*96X96</option>
+                                  <option value="0">96X96</option>
                               </select>
                           </div>
                           <div class="input-group" id="fps-group">
@@ -493,8 +495,8 @@ const char* index_ov2640_html = R"~(
                               <div class="range-max">63</div>
                           </div>                          
                            <div class="input-group" id="debugging-group">
-                              <label for="dbgMode" title="Enable debugging via sd card file or remote host telnet on port 443">Debug</label>
-                              <select id="dbgMode" class="default-action">
+                              <label for="logMode" title="Enable debugging via sd card file or remote host telnet on port 443">Log Mode</label>
+                              <select id="logMode" class="default-action">
                                   <option value="0" title="Log on serial port only.">Serial</option>
                                   <option value="1" title="Log on a text file log.txt on sdcard root. On browser navigate to view-source:http://[camera ip]/file?log.txt to view the log">SD card log.txt</option>
                                   <option value="2" title="Log on a remote host running telnet command.Enble and type: telnet camera_ip 443">Telnet 443</option>
@@ -528,12 +530,19 @@ const char* index_ov2640_html = R"~(
                               </div>
                           </div>                            
                           <div class="input-group" id="aviOn-group">
-                              <label for="aviOn">Upload avi</label>
+                              <label for="aviOn">Format as AVI</label>
                               <div class="switch">
                                   <input id="aviOn" type="checkbox" class="default-action">
-                                  <label  title="Convert file to avi format on upload"  class="slider" for="aviOn"></label>
+                                  <label  title="Convert file to avi format on upload or download"  class="slider" for="aviOn"></label>
                               </div>
-                          </div>                            
+                          </div>      
+                          <div class="input-group" id="micGain-group">
+                              <label for="micGain">Microphone Gain</label>
+                              <div class="range-min">0</div>
+                              <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0" class="default-action">
+                              <output name="rangeVal">0</output>
+                              <div class="range-max">10</div>
+                          </div>                          
                           <div class="input-group" id="lamp-group">
                               <label for="enableMotion">Enable motion detect</label>
                               <div class="switch">
@@ -878,6 +887,10 @@ const char* index_ov2640_html = R"~(
                 <div class="info-group center" id="atemp-group">
                     <label for="atemp">Camera&nbsp;Temp</label>
                     <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
+                </div> 
+                <div class="info-group center" id="batt-group">
+                    <label for="battv">Battery&nbsp;Voltage</label>
+                    <div id="battv" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div> 
                 <div class="info-group center" id="clock-group">
                     <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
@@ -1341,20 +1354,20 @@ document.addEventListener('DOMContentLoaded', function (event) {
     awb.checked ? show(wb) : hide(wb)
   }
 
-  // Debug mode
-  const dbgMode = document.getElementById('dbgMode')
-  dbgMode.onchange = () => {   
-    var selection = dbgMode.value;
+  // Logging mode
+  const logMode = document.getElementById('logMode')
+  logMode.onchange = () => {   
+    var selection = logMode.value;
     if(selection==2){      
       if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")) {
-        dbgMode.value=0;
+        logMode.value=0;
         return false;
       }
     }
     $.ajax({
       url: baseHost + '/control',
       data: {
-        "var": "dbgMode",
+        "var": "logMode",
         "val": selection
       },   
       success: function(response) {

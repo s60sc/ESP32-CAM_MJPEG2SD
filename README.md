@@ -1,4 +1,7 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+ver 4.0
+* Merge branch 'master' of https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+
 ver 2.4
 * Merge branch 'master' of https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
@@ -40,9 +43,12 @@ ver 1.9
 ![image1](extras/screenshot.png)
 
 # ESP32-CAM_MJPEG2SD
-ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. 
+ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. If a microphone is installed then a WAV file is also created - see  __Audio Recording__ section below.
 
-Files uploaded by FTP are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players.
+Files uploaded by FTP or downloaded from browser are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players, including the audio if available.
+
+ This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how build a WiFi Security Camera using this code.
+
 
 ## Purpose
 The MJPEG format contains the original JPEG images but displays them as a video. MJPEG playback is not inherently rate controlled, but the app attempts to play back at the MJPEG recording rate. MJPEG files can also be played on video apps or converted into rate controlled AVI or MKV files etc.
@@ -77,14 +83,16 @@ The ESP32 time is set from an NTP server.
 
 ## Installation and Use
 
-Note: Needs `arduino-esp32` Stable Release v1.0.6 and Partition Scheme: `Minimal SPIFFS (...)` to compile.
+Note: Updated for `arduino-esp32` Stable Release v2.0.2, compile with Partition Scheme: `Minimal SPIFFS (...)`.  
 
 Download files into the Arduino IDE sketch location, removing `-master` from the folder name.  
-The included sketch `ESP32-CAM_MJPEG2SD.ino` is derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
-Additional code has been added to the original file `app_httpd.cpp` to handle the extra browser options, and an additional file`mjpeg2sd.cpp` contains the SD handling code. The web page content in `camera_index.h` has been updated to include additional functions. 
+The included sketch `ESP32-CAM_MJPEG2SD.ino` was originally derived from the `CameraWebServer.ino` example sketch included in the Arduino ESP32 library. 
+Additional code has been added to the original file `app_httpd.cpp` to handle the extra browser options, and an additional file`mjpeg2sd.cpp` contains the SD handling code. Further features have been added in additional files. The web page content in `camera_index.h` has been updated to include additional functions. 
 The face detection code has been removed to reduce the sketch size to allow OTA updates.
 
-To set the recording parameters, additional options are provided on the camera index page, where:
+Select required ESP-CAM board using `CAMERA_MODEL_` in `myConfig.h`.
+
+To set the recording parameters, additional options are provided on the camera index web page, where:
 * `Frame Rate` is the required frames per second
 * `Min Frames` is the minimum number of frames to be captured or the file is deleted
 * `Verbose` if checked outputs additional logging to the serial monitor
@@ -112,27 +120,26 @@ The following functions are provided by [@gemi254](https://github.com/gemi254):
 
 * Entire folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the __FTP Upload__ button.
 
-* Download selected MJPEG file from SD card to browser using __Download__ button.
+* Download selected MJPEG file from SD card to browser using __Download__ button. Can be downloaded in AVI format.
 
-* The FTP, Wifi, and other parameters need to be defined in file `myConfig.h`, and can also be modified via the browser under __Other Settings__.
+* The FTP, Wifi, and other parameters can be defined in file `myConfig.h`, but can also be defined via the browser under __Other Settings__ using the ESP in AP mode.
 
 * Check internet connection and automatically reconnect if needed on power loss.
 
-* Added mdns name services in order to use `http://[Host Name]` instead of ip address
+* Added mdns name services in order to use `http://[Host Name]` instead of ip address.
 
 * Delete or ftp upload and delete oldest folder when card free space is running out.  
-  See `minCardFreeSpace` and `freeSpaceMode` in `mjpeg2sd.cpp`
+  See `minCardFreeSpace` and `freeSpaceMode` in `myConfig.h`
   
-* Additional log viewing options via web page __Debug__ dropdown, in addition to serial port:
-  * To SD card, accessed via `http://[camera ip]/file?log.txt`
+* Additional log viewing options via web page __Log Mode__ dropdown, in addition to serial port:
+  * From SD card, accessed via `http://[camera ip]/log`, or using __Download__ button
   * From remote host using `telnet [camera ip] 443`
 
 
 Additional ancilliary functions:
 
-* Enable Over The Air (OTA) updates - see `ota.cpp`
-* Add temperature sensor - see `ds18b20.cpp`
-* Add analog microphone support - see `avi.cpp`
+* Enable Over The Air (OTA) updates - see `USE_OTA` in `myConfig.h`
+* Add temperature sensor - see `USE_DS18B20` in `myConfig.h`
 
 Browser functions only tested on Chrome.
 
@@ -153,3 +160,15 @@ Additional options are provided on the camera index page, where:
 ![image1](extras/motion.png)
 
 The `motionDetect.cpp` file contains additional documented monitoring parameters that can be modified. 
+
+## Audio Recording
+
+An I2S microphone can be supported, such as INMP441. PDM and analog microphones cannot be used due to limitations of I2S_NUM_1 peripheral. I2S_NUM_0 is not available as it is used by the camera. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. The I2S microphone needs 3 free pins on the ESP32, selected from the following 4 pins (assuming __MMC 1 line__ mode selected):
+- pin 3: Labelled U0R. Only use as input pin, i.e for microphone SD pin, as also used for flashing. Default microphone SD pin.
+- pin 4: Also used for onboard lamp. Lamp can be disabled by removing its current limiting resistor. Default microphone SCK pin.
+- pin 12: Only use as output pin, i.e for microphone WS or SCK pin. Default microphone WS pin.
+- pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3 and the red LED current limiting resistor then running a wire between the VCC pin and the red LED resistor solder tab.
+
+The web page has a slider for __Microphone Gain__. The higher the value the higher the gain. Selecting 0 disables the microphone.
+
+Refer to the file `mic.cpp` to define microphone pin assignment and for further info.

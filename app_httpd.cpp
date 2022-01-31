@@ -11,87 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "esp_http_server.h"
-#include "SPIFFS.h"                  
-#include <SD_MMC.h>
-#include "WiFi.h"
-#include "esp_timer.h"
-#include "esp_camera.h"
-#include "camera_index.h"
-#include <regex>
-#include <sys/time.h>
 
-static const char* TAG = "apphttpd";
-#include "remote_log.h"
+#include "myConfig.h"
+#include "camera_index.h"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n";
 
-
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 
-extern bool timeSynchronized; //True if ntp was succesfull
-
-//Defined in custom config file myConfig.h
-extern char hostName[];
-extern char ST_SSID[];
-extern char ST_Pass[];
-extern char timezone[]; //Defined in myConfig.h  
-extern char ftp_server[];
-extern char ftp_user[];
-extern char ftp_port[];
-extern char ftp_pass[];
-extern char ftp_wd[];
-
-// additions for mjpeg2sd.cpp
-extern bool forceRecord; //Recording enabled by rec button
-extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)                                                        
-extern uint8_t fsizePtr;
-extern uint8_t minSeconds;
-extern uint8_t dbgMode;
-extern bool dbgVerbose;
-extern bool dbgMotion;
-extern bool doRecording;
-extern bool isCapturing;
-extern uint8_t* SDbuffer;
-extern char* htmlBuff; 
-extern bool doPlayback;
-extern bool stopPlayback;
-extern SemaphoreHandle_t frameMutex;
-extern SemaphoreHandle_t motionMutex;
-extern bool lampVal;
-extern char* appVersion;                        
-
-void listDir(const char* fname, char* htmlBuff);
-uint8_t setFPSlookup(uint8_t val);
-uint8_t setFPS(uint8_t val);
-void openSDfile();
-size_t* getNextFrame();
-bool fetchMoveMap(uint8_t **out, size_t *out_len);
-void stopPlaying();
-void controlLamp(bool lampVal);
-float readDStemp(bool isCelsius);
-String upTime();
-
-void deleteFolderOrFile(const char* val);
-void createUploadTask(const char* val,bool move=false);
-void syncToBrowser(char *val);
-//Config file
-bool saveConfig();
-void resetConfig();
-
-
-// status & control fields 
-extern bool lampOn;
-extern float motionVal;
-extern bool aviOn;
-extern bool autoUpload;
-extern bool nightTime;
-extern uint8_t lightLevel;   
-extern uint8_t nightSwitch;                                  
 // end additions for mjpeg2sd.cpp
 
 static esp_err_t capture_handler(httpd_req_t *req){
@@ -101,7 +32,7 @@ static esp_err_t capture_handler(httpd_req_t *req){
 
     fb = esp_camera_fb_get();
     if (!fb) {
-        Serial.println("Camera capture failed");
+        LOG_ERR("Camera capture failed");
         httpd_resp_send_500(req);
         return ESP_FAIL;
     }
@@ -114,7 +45,7 @@ static esp_err_t capture_handler(httpd_req_t *req){
     res = httpd_resp_send(req, (const char *)fb->buf, fb->len); 
     esp_camera_fb_return(fb);
     int64_t fr_end = esp_timer_get_time();
-    Serial.printf("JPG: %uB %ums\n", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
+    LOG_INF("JPG: %uB %ums", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
     return res;
 }
 
@@ -157,7 +88,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
         xSemaphoreTake(frameMutex, portMAX_DELAY); 
         fb = esp_camera_fb_get();
         if (!fb) {
-          Serial.println("Camera capture failed");
+          LOG_ERR("Camera capture failed");
           res = ESP_FAIL;
         } else {
           jpg_len = fb->len;
@@ -175,8 +106,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
         esp_camera_fb_return(fb);
         fb = NULL;
       } 
-      xSemaphoreGive(frameMutex);
-      xSemaphoreGive(motionMutex);
+      (dbgMotion) ? xSemaphoreGive(motionMutex) : xSemaphoreGive(frameMutex);
 
       if (res != ESP_OK) break;
       int64_t fr_end = esp_timer_get_time();
@@ -184,7 +114,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       last_frame = fr_end;
       frame_time /= 1000;
 
-      if (dbgVerbose) Serial.printf("MJPG: %uB %ums (%.1ffps)\n", (uint32_t)(jpg_len),
+      if (dbgVerbose) LOG_INF("MJPG: %uB %ums (%.1ffps)", (uint32_t)(jpg_len),
          (uint32_t)frame_time, 1000.0 / (uint32_t)frame_time);
     }
   }
@@ -238,7 +168,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
          
     free(buf);
     if (res != ESP_OK) {    
-      Serial.println("Failed to parse command query");    
+      LOG_ERR("Failed to parse command query");    
       httpd_resp_send_404(req);
       return ESP_FAIL;
     }
@@ -264,25 +194,11 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "dbgVerbose")) {
       dbgVerbose = (val) ? true : false;
       Serial.setDebugOutput(dbgVerbose);
-    }else if(!strcmp(variable, "dbgMode")) {      
-      //Was in debugging
-      if(dbgMode>0){
-        int r = remote_log_free();        
-      }
-      dbgMode = val;
-      int r = remote_log_init();                                            
-    }else if(!strcmp(variable, "remote-log")) {
-      bool rLog = (val) ? true : false;
-      if(rLog){
-        //esp_log_level_set("*", ESP_LOG_VERBOSE);
-        Serial.println("Enabling remote log..");
-        int r = remote_log_init();   
-      }else{
-        Serial.println("Disabling remote log..");
-        int r = remote_log_free();
-      }
-    }
-    
+    } 
+    else if(!strcmp(variable, "logMode")) {      
+      logMode = val;
+      if (logMode != 2) remote_log_init(); 
+    } 
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -298,11 +214,11 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else if(!strcmp(variable, "enableMotion")){
       //Turn on/off motion detection to save battery
       useMotion = (val) ? true : false; 
-      if(useMotion) { ESP_LOGI(TAG, "Enabling motion detection"); }
-      else { ESP_LOGI(TAG, "Disabling motion detection"); }
+      LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
     }
     else if(!strcmp(variable, "lswitch")) nightSwitch = val;
     else if(!strcmp(variable, "aviOn")) aviOn = val;
+    else if(!strcmp(variable, "micGain")) micGain = val;
     else if(!strcmp(variable, "autoUpload")) autoUpload = val;
     else if(!strcmp(variable, "upload")) createUploadTask(value);  
     else if(!strcmp(variable, "uploadMove")) createUploadTask(value,true);  
@@ -314,7 +230,11 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       doRecording = !dbgMotion;
     }
     // enter <ip>/control?var=reset&val=1 on browser to force reset
-    else if(!strcmp(variable, "reset")) { remote_log_free(); ESP.restart();  }
+    else if(!strcmp(variable, "reset")) { 
+      logMode = 0;
+      remote_log_init(); // close any open logging
+      ESP.restart();  
+    }
     else if(!strcmp(variable, "save")) saveConfig();
     else if(!strcmp(variable, "defaults")) resetConfig();
     // end of additions for mjpeg2sd.cpp
@@ -370,7 +290,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     // additions for mjpeg2sd.cpp
     p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
     p+=sprintf(p, "\"minf\":%u,", minSeconds);
-    p+=sprintf(p, "\"dbgMode\":%u,", dbgMode );
+    p+=sprintf(p, "\"logMode\":%u,", logMode );
     p+=sprintf(p, "\"dbgVerbose\":%u,", dbgVerbose ? 1 : 0);
     p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
     p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
@@ -379,12 +299,16 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
     p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
     p+=sprintf(p, "\"aviOn\":%u,", aviOn);
+    p+=sprintf(p, "\"micGain\":%u,", micGain);
     p+=sprintf(p, "\"autoUpload\":%u,", autoUpload);
     p+=sprintf(p, "\"llevel\":%u,", lightLevel);
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
-    float aTemp = readDStemp(true);
+    float aTemp = readDS18B20temp(true);
     if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
     else p+=sprintf(p, "\"atemp\":\"n/a\",");
+    float battV = battVoltage();
+    if (battV < 0) p+=sprintf(p, "\"battv\":\"n/a\",");
+    else p+=sprintf(p, "\"battv\":\"%0.1fV\",", battV);  
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
@@ -453,7 +377,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
     p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
     //p+=sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 
-    p+=sprintf(p, "\"fw_version\":\"%s\"", appVersion);  
+    p+=sprintf(p, "\"fw_version\":\"%s\"", APP_VER);  
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
@@ -471,56 +395,91 @@ static esp_err_t jquery_handler(httpd_req_t *req){
     return httpd_resp_send(req, jquery_min_js_html, strlen(jquery_min_js_html));
 }
 
-extern void flush_log();
-extern char *log_file_name;                        
+static bool sendChunks(File f, httpd_req_t *req, bool doLog = false) {   
+    /* Read file in chunks (relaxes any constraint due to large file sizes)
+     * and send HTTP response in chunked encoding */
+     
+    #define BUFF_EXT 100
+    #define BUFF_SIZE (32*1024)+BUFF_EXT // allow room for avi header
+    byte *chunk = (byte*)ps_malloc(BUFF_SIZE); 
+    if (chunk==NULL) {
+      LOG_ERR("Chunk allocation failed");
+      return false;
+    }
+
+    // copy content of file from SD to browser
+    if (doLog) httpd_resp_send_chunk(req, "<pre>", 5); // to format newlines
+    size_t chunksize;
+    do {
+      chunksize = doLog ? f.read(chunk, BUFF_SIZE) : // raw log data
+         readClientBuf(f, chunk, BUFF_SIZE-BUFF_EXT); // formatted image data 
+      if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) {
+        f.close();
+        return false;
+      }
+    } while (chunksize != 0);
+    free(chunk);
+    f.close();
+    if (doLog) httpd_resp_send_chunk(req, "</pre>", 6);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return true;
+}
+                       
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
-    /* Assuming that the sdcard has been initialized (formatted to FAT) and loaded with some files. */
-    const char *filepath_prefix = "/sdcard/";
-    char *filename = NULL;
-    size_t filename_len = httpd_req_get_url_query_len(req);
-
-    if (filename_len == 0) {
-        const char * resp_str = "Please specify a filename. eg. file?somefile.txt";
-        httpd_resp_send(req, resp_str, strlen(resp_str));
-        return ESP_OK;
+    size_t filename_len = httpd_req_get_url_query_len(req)+1;
+  
+    char filename[filename_len+1] = {0};
+    if (filename_len == 1) {
+      const char * resp_str = "Please specify a filename. eg. file?somefile.txt";
+      httpd_resp_send(req, resp_str, strlen(resp_str));
+      return ESP_OK;
     }
-    filename = (char *)malloc(strlen(filepath_prefix) + filename_len + 1); // extra 1 byte for null termination
-    strncpy(filename, filepath_prefix, strlen(filepath_prefix));
-
     // Get null terminated filename
-    httpd_req_get_url_query_str(req, filename + strlen(filepath_prefix), filename_len + 1);
-    ESP_LOGI(TAG, "Reading file : %s", filename + strlen(filepath_prefix));
+    httpd_req_get_url_query_str(req, filename, filename_len);
+       
+    File f = SD_MMC.open(filename);
+    if (!f) {
+      LOG_ERR("Failed to open: %s", filename);
+      f.close();
+      const char * resp_str = "File does not exist or cannot be opened";
+      httpd_resp_send(req, resp_str, strlen(resp_str));
+      return ESP_FAIL;
+    }  
 
-    if(!strcmp(filename, log_file_name)){
-      flush_log();  
+    if (strcmp(LOG_FILE_NAME, filename) == 0) flush_log();
+    else {
+      // determine if file is suitable for conversion to AVI 
+      std::string sfile(filename);   
+      if (isAVI(f)) sfile = std::regex_replace(sfile, std::regex("mjpeg"), "avi");
     }
+    LOG_INF("Download file: %s, size: %0.1fMB", filename, (float)(f.size()/(1024*1024)));
+
+    // change downloaded file name
+    char newname[200] = {0};
+    snprintf(newname, 199, "attachment; filename=%s", filename);
+    httpd_resp_set_hdr(req, "Content-Disposition", newname);
     
-    FILE *f = fopen(filename, "r");
-    free(filename);
-    if (f == NULL) {
-        const char * resp_str = "File doesn't exist";
-        httpd_resp_send(req, resp_str, strlen(resp_str));
-        return ESP_OK;
-    }
-
-    /* Read file in chunks (relaxes any constraint due to large file sizes)
-     * and send HTTP response in chunked encoding */
-    char   chunk[1024];
-    size_t chunksize;
-    do {
-        chunksize = fread(chunk, 1, sizeof(chunk), f);
-        if (httpd_resp_send_chunk(req, chunk, chunksize) != ESP_OK) {
-            fclose(f);
-            return ESP_FAIL;
-        }
-    } while (chunksize != 0);
-
-    httpd_resp_send_chunk(req, NULL, 0);
-    fclose(f);
-    return ESP_OK;
+    return sendChunks(f, req) ? ESP_OK : ESP_FAIL;
 }
+
+esp_err_t log_get_handler(httpd_req_t *req) {
+    File f = SD_MMC.open(LOG_FILE_NAME);
+    if (!f) {
+      LOG_ERR("Failed to open: %s", LOG_FILE_NAME);
+      f.close();
+      const char * resp_str = "Log file does not exist or cannot be opened";
+      httpd_resp_send(req, resp_str, strlen(resp_str));
+      return ESP_FAIL;
+    } else {
+      logMode = 0; // close open files / connections
+      remote_log_init();
+      LOG_INF("Display SD log file");
+    }
+    return sendChunks(f, req, true) ? ESP_OK : ESP_FAIL;
+}
+
 // end of additions for mjpeg2sd.cpp
 
 void startCameraServer(){
@@ -546,7 +505,14 @@ void startCameraServer(){
         .handler   = file_get_handler,
         .user_ctx  = NULL
     };
-      
+
+    httpd_uri_t log_serve = {
+        .uri       = "/log",
+        .method    = HTTP_GET,
+        .handler   = log_get_handler,
+        .user_ctx  = NULL
+    };
+    
     httpd_uri_t status_uri = {
         .uri       = "/status",
         .method    = HTTP_GET,
@@ -575,11 +541,12 @@ void startCameraServer(){
         .user_ctx  = NULL
     };
 
-    if (dbgVerbose) ESP_LOGI(TAG,"Starting web server on port: '%d'\n", config.server_port);
+    LOG_DBG("Starting web server on port: '%d'", config.server_port);
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(camera_httpd, &index_uri);
         httpd_register_uri_handler(camera_httpd, &jquery_uri);
         httpd_register_uri_handler(camera_httpd, &file_serve);
+        httpd_register_uri_handler(camera_httpd, &log_serve);
         httpd_register_uri_handler(camera_httpd, &cmd_uri);
         httpd_register_uri_handler(camera_httpd, &status_uri);
         httpd_register_uri_handler(camera_httpd, &capture_uri);
@@ -587,7 +554,7 @@ void startCameraServer(){
 
     config.server_port += 1;
     config.ctrl_port += 1;
-    if (dbgVerbose) ESP_LOGI(TAG, "Starting stream server on port: '%d'\n", config.server_port);
+    LOG_DBG("Starting stream server on port: '%d'", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
         httpd_register_uri_handler(stream_httpd, &stream_uri);
     }
