@@ -385,7 +385,7 @@ bool loadConfig() {
 
 #define LOG_FORMAT_BUF_LEN 512
 #define LOG_PORT 443 // Define telnet port
-#define WRITE_CACHE_CYCLE 5
+#define WRITE_CACHE_CYCLE 512
 #define LOG_FILE_PATH "/sdcard" LOG_FILE_NAME
 byte logMode = 0; // 0 - Disabled, log to serial port only, 1 - Internal log to sdcard file, 2 - Remote telnet on port 443
 static int log_serv_sockfd = -1;
@@ -477,23 +477,25 @@ static void remote_log_init_telnet() {
 
 void flush_log(bool andClose) {
   if (log_remote_fp != NULL) {
+    counter_write=0;
+    fflush(log_remote_fp);
     fsync(fileno(log_remote_fp));  
     if (andClose) {
-      LOG_INF("Closed SD file for logging");
-      fflush(log_remote_fp);
+      LOG_INF("Closing log SD file");
+      //fflush(log_remote_fp);
       fclose(log_remote_fp);
       log_remote_fp = NULL;
-    } else delay(1000);
+    } else delay(500);
   }  
 }
 
 static void remote_log_init_SD() {
   SD_MMC.mkdir(LOG_DIR);
-  // delete old log
-  if (SD_MMC.exists(LOG_FILE_NAME)) SD_MMC.remove(LOG_FILE_NAME); 
+  // Don't delete old log.. It will be overwritten..
+  //if(false && SD_MMC.exists(LOG_FILE_NAME)) SD_MMC.remove(LOG_FILE_NAME); 
   // Open remote file
   log_remote_fp = NULL;
-  log_remote_fp = fopen(LOG_FILE_PATH, "wb");
+  log_remote_fp = fopen(LOG_FILE_PATH, "wb"); // a=append t=textmode "wb");
   if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
   else {LOG_INF("Opened SD file for logging");}
 }
@@ -514,8 +516,9 @@ void logPrint(const char *fmtStr, ...) {
   vprintf(fmtStr, arglist); // serial monitor
   if (log_remote_fp != NULL) { // log.txt
     vfprintf(log_remote_fp, fmtStr, arglist);
-    // periodic sync to SD
-    if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
+    /////printf("fsync'ing log file on SPIFFS (WRITE_CACHE_PERIOD=%u)\n", WRITE_CACHE_CYCLE);
+    // periodic sync to SD ! *** NOT WORKING AT ALL , TRUNCHATES FILE!!
+    //if (counter_write++ % WRITE_CACHE_CYCLE == 0) { fflush(log_remote_fp); fsync(fileno(log_remote_fp)); delay(500); }
   }
   if (log_sockfd != -1) { // telnet
     int len = vsprintf((char*)fmt_buf, fmtStr, arglist);
