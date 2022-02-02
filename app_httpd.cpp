@@ -232,6 +232,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) { 
       logMode = 0;
+      LOG_INF("Reset");
       remote_log_init(); // close any open logging
       ESP.restart();  
     }
@@ -407,24 +408,37 @@ static bool sendChunks(File f, httpd_req_t *req, bool doLog = false) {
       return false;
     }
 
+    if (doLog){ //Header
+      httpd_resp_send_chunk(req, "<html>\n", 7); // to enable html
+      httpd_resp_send_chunk(req, "<body>\n", 7); 
+      httpd_resp_send_chunk(req, "<pre>\n", 6); // to pretty format log lines
+      httpd_resp_send_chunk(req, "<a name='top'></a>\n", 19); // top anchor
+      httpd_resp_send_chunk(req, " <a href='#bottom'>Go to Bottom</a>\n\n", 37); // Go to the bottom of the page link        
+    }
     // copy content of file from SD to browser
-    if (doLog) httpd_resp_send_chunk(req, "<pre>", 5); // to format newlines
     size_t chunksize;
     do {
       chunksize = doLog ? f.read(chunk, BUFF_SIZE) : // raw log data
-         readClientBuf(f, chunk, BUFF_SIZE-BUFF_EXT); // formatted image data 
-      if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) {
-        f.close();
+                          readClientBuf(f, chunk, BUFF_SIZE - BUFF_EXT); // formatted image data 
+      if (chunksize > 0 && httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) { //Don't send zero chunks as this will terminate httpd response
+        f.close();        
         return false;
       }
     } while (chunksize != 0);
     free(chunk);
     f.close();
-    if (doLog) httpd_resp_send_chunk(req, "</pre>", 6);
+    if (doLog){ //Footer
+      httpd_resp_send_chunk(req, "<a name='bottom'></a>\n", 22);
+      httpd_resp_send_chunk(req, " <a href='#top'>Go to top</a>   <a onClick='window.location.reload' href=''>Refresh</a>\n", 88);
+      httpd_resp_send_chunk(req, "<script>window.addEventListener('load',function(){setTimeout(function(){window.location.hash='#bottom';},1000);});</script>\n", 124);
+      httpd_resp_send_chunk(req, "</pre>\n", 7); //to pretty format log lines
+      httpd_resp_send_chunk(req, "</body>\n", 8);
+      httpd_resp_send_chunk(req, "</html>\n", 8);          
+    }
     httpd_resp_send_chunk(req, NULL, 0);
     return true;
 }
-                       
+          
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
@@ -448,7 +462,7 @@ esp_err_t file_get_handler(httpd_req_t *req)
       return ESP_FAIL;
     }  
 
-    if (strcmp(LOG_FILE_NAME, filename) == 0) flush_log();
+    if (strcmp(LOG_FILE_NAME, filename) == 0) flush_log(false);
     else {
       // determine if file is suitable for conversion to AVI 
       std::string sfile(filename);   
@@ -465,6 +479,9 @@ esp_err_t file_get_handler(httpd_req_t *req)
 }
 
 esp_err_t log_get_handler(httpd_req_t *req) {
+    
+    flush_log(false); //Flush log
+    
     File f = SD_MMC.open(LOG_FILE_NAME);
     if (!f) {
       LOG_ERR("Failed to open: %s", LOG_FILE_NAME);
@@ -472,10 +489,6 @@ esp_err_t log_get_handler(httpd_req_t *req) {
       const char * resp_str = "Log file does not exist or cannot be opened";
       httpd_resp_send(req, resp_str, strlen(resp_str));
       return ESP_FAIL;
-    } else {
-      logMode = 0; // close open files / connections
-      remote_log_init();
-      LOG_INF("Display SD log file");
     }
     return sendChunks(f, req, true) ? ESP_OK : ESP_FAIL;
 }
