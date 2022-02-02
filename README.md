@@ -1,5 +1,4 @@
 This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
-
 ver 4.0
 * Merge branch 'master' of https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
