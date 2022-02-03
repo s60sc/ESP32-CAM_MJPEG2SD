@@ -50,7 +50,7 @@
 #define LOG_PRT(buff, bufflen) if (dbgVerbose) log_print_buf((const uint8_t*)buff, bufflen)
  
 #define APP_NAME "ESP32-CAM_MJPEG"
-#define APP_VER "4.1"
+#define APP_VER "4.1a"
 
 #define LOG_DIR "/Log"
 #define LOG_FILE_NAME LOG_DIR "/log.txt"
@@ -102,6 +102,7 @@ int* extractMeta(const char* fname);
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void finishAudio(const char* mjpegName, bool isvalid);
 void flush_log(bool andClose = false);
+void reset_log();
 void getLocalNTP();
 size_t* getNextFrame();
 bool isAVI(File &fh);

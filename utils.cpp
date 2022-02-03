@@ -385,7 +385,7 @@ bool loadConfig() {
 
 #define LOG_FORMAT_BUF_LEN 512
 #define LOG_PORT 443 // Define telnet port
-#define WRITE_CACHE_CYCLE 512
+#define WRITE_CACHE_CYCLE 128 //Auto resync log, On show log command it wll be auto sync
 #define LOG_FILE_PATH "/sdcard" LOG_FILE_NAME
 byte logMode = 0; // 0 - Disabled, log to serial port only, 1 - Internal log to sdcard file, 2 - Remote telnet on port 443
 static int log_serv_sockfd = -1;
@@ -488,6 +488,13 @@ void flush_log(bool andClose) {
     } else delay(500);
   }  
 }
+void reset_log(){
+    flush_log(true); //Close log file
+    if(SD_MMC.exists(LOG_FILE_NAME)) SD_MMC.remove(LOG_FILE_NAME);
+    log_remote_fp = fopen(LOG_FILE_PATH, "wt"); // a=append t=textmode "wb");
+    if (log_remote_fp == NULL) LOG_ERR("Failed to reopen SD log file %s", LOG_FILE_PATH);
+    else LOG_INF("Reseted log file..");    
+}
 
 static void remote_log_init_SD() {
   SD_MMC.mkdir(LOG_DIR);
@@ -495,7 +502,7 @@ static void remote_log_init_SD() {
   //if(false && SD_MMC.exists(LOG_FILE_NAME)) SD_MMC.remove(LOG_FILE_NAME); 
   // Open remote file
   log_remote_fp = NULL;
-  log_remote_fp = fopen(LOG_FILE_PATH, "wb"); // a=append t=textmode "wb");
+  log_remote_fp = fopen(LOG_FILE_PATH, "at"); // a=append t=textmode "wb");
   if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
   else {LOG_INF("Opened SD file for logging");}
 }
@@ -517,8 +524,8 @@ void logPrint(const char *fmtStr, ...) {
   if (log_remote_fp != NULL) { // log.txt
     vfprintf(log_remote_fp, fmtStr, arglist);
     /////printf("fsync'ing log file on SPIFFS (WRITE_CACHE_PERIOD=%u)\n", WRITE_CACHE_CYCLE);
-    // periodic sync to SD ! *** NOT WORKING AT ALL , TRUNCHATES FILE!!
-    //if (counter_write++ % WRITE_CACHE_CYCLE == 0) { fflush(log_remote_fp); fsync(fileno(log_remote_fp)); delay(500); }
+    // periodic sync to SD !
+    if (counter_write++ % WRITE_CACHE_CYCLE == 0) { fsync(fileno(log_remote_fp)); }
   }
   if (log_sockfd != -1) { // telnet
     int len = vsprintf((char*)fmt_buf, fmtStr, arglist);
