@@ -199,6 +199,9 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       logMode = val;
       if (logMode != 2) remote_log_init(); 
     } 
+    else if(!strcmp(variable, "resetLog")) {            
+      if (logMode == 1) reset_log(); 
+    } 
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -413,7 +416,8 @@ static bool sendChunks(File f, httpd_req_t *req, bool doLog = false) {
       httpd_resp_send_chunk(req, "<body>\n", 7); 
       httpd_resp_send_chunk(req, "<pre>\n", 6); // to pretty format log lines
       httpd_resp_send_chunk(req, "<a name='top'></a>\n", 19); // top anchor
-      httpd_resp_send_chunk(req, " <a href='#bottom'>Go to Bottom</a>\n\n", 37); // Go to the bottom of the page link        
+      sprintf((char*)chunk, " <a href='#bottom'>Go to Bottom</a>  <a onClick=\"if(!window.confirm('This will delete all log entries. Are you sure ?')) return false; fetch(`/control?var=resetLog&val=1`).then(response => { window.location.href='/log'; }); return false; \" href=''>Reset log</a>\n\n");
+      httpd_resp_send_chunk(req, (char*)chunk, strlen((char*)chunk) );
     }
     // copy content of file from SD to browser
     size_t chunksize;
@@ -430,7 +434,7 @@ static bool sendChunks(File f, httpd_req_t *req, bool doLog = false) {
     if (doLog){ //Footer
       httpd_resp_send_chunk(req, "<a name='bottom'></a>\n", 22);
       httpd_resp_send_chunk(req, " <a href='#top'>Go to top</a>   <a onClick='window.location.reload' href=''>Refresh</a>\n", 88);
-      httpd_resp_send_chunk(req, "<script>window.addEventListener('load',function(){setTimeout(function(){window.location.hash='#bottom';},1000);});</script>\n", 124);
+      httpd_resp_send_chunk(req, "<script>window.addEventListener('load',function(){setTimeout(function(){window.location.hash='#bottom';},200);});</script>\n", 123);
       httpd_resp_send_chunk(req, "</pre>\n", 7); //to pretty format log lines
       httpd_resp_send_chunk(req, "</body>\n", 8);
       httpd_resp_send_chunk(req, "</html>\n", 8);          
