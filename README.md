@@ -2,6 +2,9 @@ This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
 
 
 ver 4.1b
+* Auto update information bar on the bottom of the page with get requests
+
+ver 4.1a
 * Added option to reset log file from the /log page
 
 ver 4.1
