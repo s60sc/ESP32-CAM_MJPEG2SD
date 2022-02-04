@@ -957,7 +957,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   var baseHost = document.location.origin
   var streamUrl = baseHost + ':81'
-
+  var timer = null;
+  
   const hide = el => {
     el.classList.add('hidden')
   }
@@ -1021,8 +1022,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
         var now = new Date();
         var nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
         var timeDiff = Math.abs(nowUTC - uClock.getTime());        
-        console.log("Now: " + now.toISOString() + " browser: " + uClock.toISOString() + " Local time diff to browser: " + timeDiff/100 +" sec");
-        if(timeDiff > 2000){ //2 sec
+        //console.log("Camera: " + now.toISOString() + " Browser: " + uClock.toISOString() + 
+        console.log("Camera time diff to browser: " + timeDiff/100 + " sec");
+        if(timeDiff > 2000){ //20 sec
           now = new Date();
           var value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
           console.log("Sync to time: " + value );
@@ -1042,7 +1044,47 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     }
   }
-
+  function refresh_status_quick() {
+    // read initial values
+    clearTimeout(timer);
+    timer = null;
+    fetch(`${baseHost}/status?q`)
+      .then(function (response) {     
+        return response.json()
+      })
+      .then(function (state) {
+        document
+          .querySelectorAll('#footer .default-action, #clockUTC')
+          .forEach(el => {
+            updateValue(el, state[el.id], false)
+          })
+          if(state['isrecord']=='Yes')  updateValue(document.getElementById('forceRecord'), 1, false)
+          else updateValue(document.getElementById('forceRecord'), 0, false)
+          timer = setTimeout(refresh_status_quick, 5000);
+      })
+      .catch((e) => {
+        console.log('Error: ', e);
+        timer = setTimeout(refresh_status_quick, 5000);
+      });
+  }
+  
+  function refresh_status() {
+    // read initial values
+    fetch(`${baseHost}/status`)
+      .then(function (response) {        
+        return response.json()
+      })
+      .then(function (state) {
+        document
+          .querySelectorAll('.default-action')
+          .forEach(el => {
+            updateValue(el, state[el.id], false)
+          })
+      })
+      .catch((e) => {
+        console.error('Error: ', e);
+      });
+  }
   function updateConfig (el) {
     let value
     switch (el.type) {
@@ -1085,19 +1127,11 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
 
-  // read initial values
-  fetch(`${baseHost}/status`)
-    .then(function (response) {
-      return response.json()
-    })
-    .then(function (state) {
-      document
-        .querySelectorAll('.default-action')
-        .forEach(el => {
-          updateValue(el, state[el.id], false)
-        })
-    })
-
+  refresh_status();
+  if(timer == null){
+    setTimeout(refresh_status_quick,5000);
+  }  
+              
   const view = document.getElementById('stream')
   const viewContainer = document.getElementById('stream-container')
   const forceRecord = document.getElementById('forceRecord')
