@@ -50,7 +50,7 @@
 #define LOG_PRT(buff, bufflen) if (dbgVerbose) log_print_buf((const uint8_t*)buff, bufflen)
  
 #define APP_NAME "ESP32-CAM_MJPEG"
-#define APP_VER "4.1a"
+#define APP_VER "4.1b"
 
 #define LOG_DIR "/Log"
 #define LOG_FILE_NAME LOG_DIR "/log.txt"
