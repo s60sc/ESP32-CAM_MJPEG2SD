@@ -197,7 +197,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     } 
     else if(!strcmp(variable, "logMode")) {      
       logMode = val;
-      if (logMode != 2) remote_log_init(); 
+      if (!(logMode == 2 && WiFi.status() != WL_CONNECTED)) remote_log_init();
     } 
     else if(!strcmp(variable, "resetLog")) {            
       if (logMode == 1) reset_log(); 
