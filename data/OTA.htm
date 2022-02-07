@@ -1,0 +1,46 @@
+
+<script src='jquery.min.js'></script>
+<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>
+  <input type='file' name='update'>
+  <input type='submit' value='Upload'>
+</form>
+<div id='prg'>progress: 0%</div>
+<script>
+  var baseHost = document.location.origin
+  var otaUrl = baseHost + ':82/upload'
+  $('form').submit(function(e){
+  e.preventDefault();
+  var form = $('#upload_form')[0];
+  var data = new FormData(form); 
+  var filename = $('input[type=file]').val().split('\\').pop();
+  $.ajax({
+    url: otaUrl,
+    type: 'POST',
+    crossDomain: true,
+    data: data,
+    contentType: false,
+    processData: false,
+    headers: { 'filename': filename },
+    xhr: function() {
+      var xhr = new window.XMLHttpRequest();
+      xhr.upload.addEventListener('progress', function(evt) {
+        if (evt.lengthComputable) {
+          var per = evt.loaded / evt.total;
+          $('#prg').html('progress: ' + Math.round(per*100) + '%');
+          if (evt.loaded == evt.total) {
+            $('#prg').html('Uploaded, wait for completion result');
+          }
+        }
+      }, false);
+      return xhr;
+    },
+    success: function(data,status,xhr){
+      $('#prg').html(xhr.responseText);
+    },
+    error: function(xhr, status, error) {
+      $('#prg').html('Error: ' + xhr.responseText);
+    }
+   });
+  });
+</script>
+
