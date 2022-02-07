@@ -1056,8 +1056,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
           .forEach(el => {
             updateValue(el, state[el.id], false)
           })
-          if(state['isrecord']=='Yes')  updateValue(document.getElementById('forceRecord'), 1, false)
-          else updateValue(document.getElementById('forceRecord'), 0, false)
+          if(state['isrecord']=='Yes' && document.getElementById("forceRecord").innerHTML=='Record')  updateValue(document.getElementById('forceRecord'), 1, false)
+          if(state['isrecord']=='No' && document.getElementById("forceRecord").innerHTML=='Stop Recording')  updateValue(document.getElementById('forceRecord'), 0, false)          
           timer = setTimeout(refresh_status_quick, 5000);
       })
       .catch((e) => {
