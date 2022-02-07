@@ -301,7 +301,9 @@ bool loadConfig() {
   micGain = pref.getUChar("micGain", micGain);  
   autoUpload = pref.getBool("autoUpload", autoUpload);
   logMode = pref.getUChar("logMode", logMode);
-  remote_log_init();                                                  
+  //On telnet mode enable serial as wifi is not connected yet
+  if(logMode == 2) logMode = 0;
+  else remote_log_init();
   useMotion = pref.getUChar("useMotion", useMotion);
   motionVal = pref.getFloat("motion", motionVal);
   lampVal = pref.getBool("lamp", lampVal);
@@ -491,7 +493,7 @@ void flush_log(bool andClose) {
 void reset_log(){
     flush_log(true); //Close log file
     if(SD_MMC.exists(LOG_FILE_NAME)) SD_MMC.remove(LOG_FILE_NAME);
-    log_remote_fp = fopen(LOG_FILE_PATH, "wt"); // a=append t=textmode "wb");
+    log_remote_fp = fopen(LOG_FILE_PATH, "at"); // a=append t=textmode "wb");
     if (log_remote_fp == NULL) LOG_ERR("Failed to reopen SD log file %s", LOG_FILE_PATH);
     else LOG_INF("Reseted log file..");    
 }
