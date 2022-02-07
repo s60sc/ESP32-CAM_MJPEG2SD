@@ -1,3 +1,58 @@
+This is a modified version from https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+
+
+ver 4.1b
+* Auto update information bar on the bottom of the page with get requests
+
+ver 4.1a
+* Added option to reset log file from the /log page
+
+ver 4.1
+* Fixed logging to sdcard issues..Added controls to log page..
+
+ver 4.0
+* Merge branch 'master' of https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+
+ver 2.4
+* Merge branch 'master' of https://github.com/s60sc/ESP32-CAM_MJPEG2SD
+
+ver 2.31b
+* Fix range controls on load config.
+* Flush log file when download.
+
+ver 2.31a
+* Fix debug mode telnet. Send exit string to telnet to quit on change debug mode.
+
+ver 2.31
+* Enable/Disable motion detection by button to save power.
+* Record button to force record to sd card even if no motion detection
+
+ver 2.3
+* Download button added to download a mjpeg recording from browser.
+* Turn on wait cursor when selecting files from sd card to wait for responce and avoid errors.
+
+vet 2.2
+* Debug mode select in user interface: 0-Serial, 1-log.txt, 2-telnet
+  Added local sdcard logging (/log.txt) or telnet on port 443. Set debug mode by drop list in menu.
+  Uncomment //remote_log_init(); on line 53 on file ESP32-CAM_MJPEG2SD to enable wifi connection debugging (remote_log_mode 1 - sdcard file only)
+  You can use view-source:http://[camera ip]/file?log.txt to view the log generated.
+  You can run `telnet 192.168.4.1 443` on a remote host to debug
+* Use internal onChip temperature sensor if no ds18b20 external temperature sensor is present
+* Added normal / maximize / maximize_no_strech, button for full screen video playback. 
+* Fixed set station static IP from config.
+* Fixed remote telnet debug.
+* compile with arduino-esp32 stable release is v1.0.6
+
+ver 1.9
+* format the sd card if mount failed 
+* Remote logging/debugging via telnet on camera ip and port 443.
+* Automatic ftp upload new recordings on motion detection.
+* Check if file exists on upload a folder and ignore it. Incremental  upload
+* Fixed save / restore camera settings on boot
+* Reload page on reboot
+
+![image1](extras/screenshot.png)
+
 # ESP32-CAM_MJPEG2SD
 ESP32 Camera extension to record JPEGs to SD card as MJPEG files and playback to browser. If a microphone is installed then a WAV file is also created - see  __Audio Recording__ section below.
 

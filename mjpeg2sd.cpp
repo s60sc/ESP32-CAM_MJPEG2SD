@@ -314,7 +314,7 @@ static bool closeMjpeg() {
 static boolean processFrame() {
   // get camera frame
   static bool wasCapturing = false;
-  static bool wasRecording = false;                                 
+  static bool wasRecording = false;
   static bool captureMotion = false;
   bool capturePIR = false;
   bool res = true;
@@ -325,7 +325,7 @@ static boolean processFrame() {
   fb = esp_camera_fb_get();
   if (fb) {
     // determine if time to monitor, then get motion capture status
-    if (!forceRecord && useMotion) { 
+    if(!forceRecord && useMotion) {      
       if (dbgMotion) checkMotion(fb, false); // check each frame for debug
       else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
       nightTime = isNight(nightSwitch);
@@ -371,7 +371,6 @@ static boolean processFrame() {
         finishRecording = true;
       }
       wasCapturing = isCapturing;
-
     }
     LOG_DBG("============================");
   } else {

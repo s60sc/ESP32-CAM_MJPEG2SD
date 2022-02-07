@@ -143,7 +143,7 @@ bool formatMMC(){
     }else{
       Serial.println("\nError formatting card");
     }
-    return formatted;
+    return formatted;    
 }                
 */
 static esp_err_t cmd_handler(httpd_req_t *req){
@@ -199,6 +199,9 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       logMode = val;
       if (!(logMode == 2 && WiFi.status() != WL_CONNECTED)) remote_log_init();
     } 
+    else if(!strcmp(variable, "resetLog")) {            
+      if (logMode == 1) reset_log(); 
+    } 
     else if(!strcmp(variable, "updateFPS")) {
       fsizePtr = val;
       sprintf(htmlBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
@@ -232,6 +235,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     // enter <ip>/control?var=reset&val=1 on browser to force reset
     else if(!strcmp(variable, "reset")) { 
       logMode = 0;
+      LOG_INF("Reset");
       remote_log_init(); // close any open logging
       ESP.restart();  
     }
@@ -283,25 +287,31 @@ static esp_err_t cmd_handler(httpd_req_t *req){
 
 static esp_err_t status_handler(httpd_req_t *req){
     static char json_response[1024];
-
+    
+    //if a url query specified go to fast mode
+    size_t quick = httpd_req_get_url_query_len(req); 
+    //if(quick > 0) LOG_INF("Quick mode..");    
+    
     sensor_t * s = esp_camera_sensor_get();
     char * p = json_response;
     *p++ = '{';
     // additions for mjpeg2sd.cpp
-    p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
-    p+=sprintf(p, "\"minf\":%u,", minSeconds);
-    p+=sprintf(p, "\"logMode\":%u,", logMode );
-    p+=sprintf(p, "\"dbgVerbose\":%u,", dbgVerbose ? 1 : 0);
-    p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
-    p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
-    p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
-    p+=sprintf(p, "\"enableMotion\":%u,", useMotion ? 1 : 0);
-    p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
-    p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
-    p+=sprintf(p, "\"aviOn\":%u,", aviOn);
-    p+=sprintf(p, "\"micGain\":%u,", micGain);
-    p+=sprintf(p, "\"autoUpload\":%u,", autoUpload);
-    p+=sprintf(p, "\"llevel\":%u,", lightLevel);
+    if(quick == 0){ //Detailed mode
+      p+=sprintf(p, "\"fps\":%u,", setFPS(0)); // get FPS value
+      p+=sprintf(p, "\"minf\":%u,", minSeconds);
+      p+=sprintf(p, "\"logMode\":%u,", logMode );
+      p+=sprintf(p, "\"dbgVerbose\":%u,", dbgVerbose ? 1 : 0);
+      p+=sprintf(p, "\"dbgMotion\":%u,", dbgMotion ? 1 : 0);
+      p+=sprintf(p, "\"sfile\":%s,", "\"None\"");
+      p+=sprintf(p, "\"lamp\":%u,", lampVal ? 1 : 0);
+      p+=sprintf(p, "\"enableMotion\":%u,", useMotion ? 1 : 0);
+      p+=sprintf(p, "\"motion\":%u,", (uint8_t)motionVal);
+      p+=sprintf(p, "\"lswitch\":%u,", nightSwitch);
+      p+=sprintf(p, "\"aviOn\":%u,", aviOn);
+      p+=sprintf(p, "\"micGain\":%u,", micGain);
+      p+=sprintf(p, "\"autoUpload\":%u,", autoUpload);
+    }
+    p+=sprintf(p, "\"llevel\":%u,", lightLevel);    
     p+=sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
     float aTemp = readDS18B20temp(true);
     if (aTemp > -127.0) p+=sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
@@ -312,32 +322,35 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"record\":%u,", doRecording ? 1 : 0);   
     p+=sprintf(p, "\"isrecord\":%s,", isCapturing ? "\"Yes\"" : "\"No\"");                                                              
     p+=sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
+    
     // end of additions for mjpeg2sd.cpp
-    p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
-    p+=sprintf(p, "\"quality\":%d,", s->status.quality);
-    p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
-    p+=sprintf(p, "\"contrast\":%d,", s->status.contrast);
-    p+=sprintf(p, "\"saturation\":%d,", s->status.saturation);
-    p+=sprintf(p, "\"sharpness\":%d,", s->status.sharpness);
-    p+=sprintf(p, "\"special_effect\":%u,", s->status.special_effect);
-    p+=sprintf(p, "\"wb_mode\":%u,", s->status.wb_mode);
-    p+=sprintf(p, "\"awb\":%u,", s->status.awb);
-    p+=sprintf(p, "\"awb_gain\":%u,", s->status.awb_gain);
-    p+=sprintf(p, "\"aec\":%u,", s->status.aec);
-    p+=sprintf(p, "\"aec2\":%u,", s->status.aec2);
-    p+=sprintf(p, "\"ae_level\":%d,", s->status.ae_level);
-    p+=sprintf(p, "\"aec_value\":%u,", s->status.aec_value);
-    p+=sprintf(p, "\"agc\":%u,", s->status.agc);
-    p+=sprintf(p, "\"agc_gain\":%u,", s->status.agc_gain);
-    p+=sprintf(p, "\"gainceiling\":%u,", s->status.gainceiling);
-    p+=sprintf(p, "\"bpc\":%u,", s->status.bpc);
-    p+=sprintf(p, "\"wpc\":%u,", s->status.wpc);
-    p+=sprintf(p, "\"raw_gma\":%u,", s->status.raw_gma);
-    p+=sprintf(p, "\"lenc\":%u,", s->status.lenc);
-    p+=sprintf(p, "\"vflip\":%u,", s->status.vflip);
-    p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
-    p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
-    p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
+    if(quick == 0){ //Detailed mode
+      p+=sprintf(p, "\"framesize\":%u,",fsizePtr);
+      p+=sprintf(p, "\"quality\":%d,", s->status.quality);
+      p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
+      p+=sprintf(p, "\"contrast\":%d,", s->status.contrast);
+      p+=sprintf(p, "\"saturation\":%d,", s->status.saturation);
+      p+=sprintf(p, "\"sharpness\":%d,", s->status.sharpness);
+      p+=sprintf(p, "\"special_effect\":%u,", s->status.special_effect);
+      p+=sprintf(p, "\"wb_mode\":%u,", s->status.wb_mode);
+      p+=sprintf(p, "\"awb\":%u,", s->status.awb);
+      p+=sprintf(p, "\"awb_gain\":%u,", s->status.awb_gain);
+      p+=sprintf(p, "\"aec\":%u,", s->status.aec);
+      p+=sprintf(p, "\"aec2\":%u,", s->status.aec2);
+      p+=sprintf(p, "\"ae_level\":%d,", s->status.ae_level);
+      p+=sprintf(p, "\"aec_value\":%u,", s->status.aec_value);
+      p+=sprintf(p, "\"agc\":%u,", s->status.agc);
+      p+=sprintf(p, "\"agc_gain\":%u,", s->status.agc_gain);
+      p+=sprintf(p, "\"gainceiling\":%u,", s->status.gainceiling);
+      p+=sprintf(p, "\"bpc\":%u,", s->status.bpc);
+      p+=sprintf(p, "\"wpc\":%u,", s->status.wpc);
+      p+=sprintf(p, "\"raw_gma\":%u,", s->status.raw_gma);
+      p+=sprintf(p, "\"lenc\":%u,", s->status.lenc);
+      p+=sprintf(p, "\"vflip\":%u,", s->status.vflip);
+      p+=sprintf(p, "\"hmirror\":%u,", s->status.hmirror);
+      p+=sprintf(p, "\"dcw\":%u,", s->status.dcw);
+      p+=sprintf(p, "\"colorbar\":%u,", s->status.colorbar);
+    }
     //Other settings 
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -347,37 +360,44 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"clock\":\"%s\",", buff);
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", gmtime(&currEpoch));
     p+=sprintf(p, "\"clockUTC\":\"%s\",", buff);    
-    p+=sprintf(p, "\"timezone\":\"%s\",", timezone);
-    p+=sprintf(p, "\"hostName\":\"%s\",", hostName);
-    p+=sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
-    p+=sprintf(p, "\"ST_Pass\":\"%s\",", ST_Pass);
-    p+=sprintf(p, "\"ftp_server\":\"%s\",", ftp_server);
-    p+=sprintf(p, "\"ftp_port\":\"%s\",", ftp_port);
-    p+=sprintf(p, "\"ftp_user\":\"%s\",", ftp_user);
-    p+=sprintf(p, "\"ftp_pass\":\"%s\",", ftp_pass);
-    p+=sprintf(p, "\"ftp_wd\":\"%s\",", ftp_wd);
-    
-    //Extend info
+    if(quick == 0){ //On detailed mode
+      p+=sprintf(p, "\"timezone\":\"%s\",", timezone);
+      p+=sprintf(p, "\"hostName\":\"%s\",", hostName);
+      p+=sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
+      p+=sprintf(p, "\"ST_Pass\":\"%s\",", ST_Pass);
+      p+=sprintf(p, "\"ftp_server\":\"%s\",", ftp_server);
+      p+=sprintf(p, "\"ftp_port\":\"%s\",", ftp_port);
+      p+=sprintf(p, "\"ftp_user\":\"%s\",", ftp_user);
+      p+=sprintf(p, "\"ftp_pass\":\"%s\",", ftp_pass);
+      p+=sprintf(p, "\"ftp_wd\":\"%s\",", ftp_wd);
+    }    
+    //Extended info
     uint8_t cardType = SD_MMC.cardType();
     if (cardType == CARD_NONE) p+=sprintf(p, "\"card\":\"%s\",", "NO card");
     else{    
-      if (cardType == CARD_MMC) p+=sprintf(p, "\"card\":\"%s\",", "MMC"); 
-      else if (cardType == CARD_SD) p+=sprintf(p, "\"card\":\"%s\",", "SDSC");
-      else if (cardType == CARD_SDHC) p+=sprintf(p, "\"card\":\"%s\",", "SDHC"); 
+      if(quick == 0){
+        if (cardType == CARD_MMC) p+=sprintf(p, "\"card\":\"%s\",", "MMC"); 
+        else if (cardType == CARD_SD) p+=sprintf(p, "\"card\":\"%s\",", "SDSC");
+        else if (cardType == CARD_SDHC) p+=sprintf(p, "\"card\":\"%s\",", "SDHC"); 
+      }      
       uint64_t cardSize, totBytes, useBytes = 0;
       cardSize = SD_MMC.cardSize() / 1048576;
       totBytes = SD_MMC.totalBytes() / 1048576;
       useBytes = SD_MMC.usedBytes() / 1048576;
-      p+=sprintf(p, "\"card_size\":\"%llu MB\",", cardSize);
+      if(quick == 0) p+=sprintf(p, "\"card_size\":\"%llu MB\",", cardSize);
       p+=sprintf(p, "\"used_bytes\":\"%llu MB\",", useBytes);
       p+=sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
       p+=sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
     }
+    //p+=sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 
     p+=sprintf(p, "\"up_time\":\"%s\",", upTime().c_str());   
     p+=sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
-    p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
-    //p+=sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 
-    p+=sprintf(p, "\"fw_version\":\"%s\"", APP_VER);  
+    if(quick == 0){
+      p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
+      p+=sprintf(p, "\"fw_version\":\"%s\"", APP_VER);  
+    }else{
+      p+=sprintf(p, "\"wifi_rssi\":\"%i dBm\"", WiFi.RSSI() );  
+    }
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
@@ -407,24 +427,38 @@ static bool sendChunks(File f, httpd_req_t *req, bool doLog = false) {
       return false;
     }
 
+    if (doLog){ //Header
+      httpd_resp_send_chunk(req, "<html>\n", 7); // to enable html
+      httpd_resp_send_chunk(req, "<body>\n", 7); 
+      httpd_resp_send_chunk(req, "<pre>\n", 6); // to pretty format log lines
+      httpd_resp_send_chunk(req, "<a name='top'></a>\n", 19); // top anchor
+      sprintf((char*)chunk, " <a href='#bottom'>Go to Bottom</a>  <a onClick=\"if(!window.confirm('This will delete all log entries. Are you sure ?')) return false; fetch(`/control?var=resetLog&val=1`).then(response => { window.location.href='/log'; }); return false; \" href=''>Reset log</a>\n\n");
+      httpd_resp_send_chunk(req, (char*)chunk, strlen((char*)chunk) );
+    }
     // copy content of file from SD to browser
-    if (doLog) httpd_resp_send_chunk(req, "<pre>", 5); // to format newlines
     size_t chunksize;
     do {
       chunksize = doLog ? f.read(chunk, BUFF_SIZE) : // raw log data
-         readClientBuf(f, chunk, BUFF_SIZE-BUFF_EXT); // formatted image data 
-      if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) {
-        f.close();
+                          readClientBuf(f, chunk, BUFF_SIZE - BUFF_EXT); // formatted image data 
+      if (chunksize > 0 && httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) { //Don't send zero chunks as this will terminate httpd response
+        f.close();        
         return false;
       }
     } while (chunksize != 0);
     free(chunk);
     f.close();
-    if (doLog) httpd_resp_send_chunk(req, "</pre>", 6);
+    if (doLog){ //Footer
+      httpd_resp_send_chunk(req, "<a name='bottom'></a>\n", 22);
+      httpd_resp_send_chunk(req, " <a href='#top'>Go to top</a>   <a onClick='window.location.reload' href=''>Refresh</a>\n", 88);
+      httpd_resp_send_chunk(req, "<script>window.addEventListener('load',function(){setTimeout(function(){window.location.hash='#bottom';},200);});</script>\n", 123);
+      httpd_resp_send_chunk(req, "</pre>\n", 7); //to pretty format log lines
+      httpd_resp_send_chunk(req, "</body>\n", 8);
+      httpd_resp_send_chunk(req, "</html>\n", 8);          
+    }
     httpd_resp_send_chunk(req, NULL, 0);
     return true;
 }
-                       
+          
 // HTTP GET handler for downloading files 
 esp_err_t file_get_handler(httpd_req_t *req)
 {
@@ -448,7 +482,7 @@ esp_err_t file_get_handler(httpd_req_t *req)
       return ESP_FAIL;
     }  
 
-    if (strcmp(LOG_FILE_NAME, filename) == 0) flush_log();
+    if (strcmp(LOG_FILE_NAME, filename) == 0) flush_log(false);
     else {
       // determine if file is suitable for conversion to AVI 
       std::string sfile(filename);   
@@ -465,6 +499,9 @@ esp_err_t file_get_handler(httpd_req_t *req)
 }
 
 esp_err_t log_get_handler(httpd_req_t *req) {
+    
+    flush_log(false); //Flush log
+    
     File f = SD_MMC.open(LOG_FILE_NAME);
     if (!f) {
       LOG_ERR("Failed to open: %s", LOG_FILE_NAME);
@@ -472,10 +509,6 @@ esp_err_t log_get_handler(httpd_req_t *req) {
       const char * resp_str = "Log file does not exist or cannot be opened";
       httpd_resp_send(req, resp_str, strlen(resp_str));
       return ESP_FAIL;
-    } else {
-      logMode = 0; // close open files / connections
-      remote_log_init();
-      LOG_INF("Display SD log file");
     }
     return sendChunks(f, req, true) ? ESP_OK : ESP_FAIL;
 }
