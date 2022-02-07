@@ -2,8 +2,6 @@
 /* 
 On the fly convert MJPEG file to AVI format when uploaded via FTP.
 Allows recordings to replay at correct frame rate on media players.
-The file names must include the frame count to be converted, 
-so older style files will still be uploaded as MJPEGs.
 
 s60sc 2020
 */
@@ -92,14 +90,13 @@ static const frameSizeStruct frameSizeData[] = {
   {{0x40, 0x06}, {0xB0, 0x04}}  // uxga 
 };
 
-static const size_t streamBoundaryLen = strlen(_STREAM_BOUNDARY);
-static const size_t streamPartLen = strlen(_STREAM_PART)+6;
+static const size_t streamBoundaryLen = strlen(JPEG_BOUNDARY);
+static const size_t streamTypeLen = strlen(JPEG_TYPE)+6;
 #define LENGTH_OFFSET 78 // from start of mjpeg boundary to Content-Length: value
 #define REMAINDER_OFFSET 14 // from LENGTH_OFFSET to start of jpeg data
 #define MJPEG_HDR (LENGTH_OFFSET + REMAINDER_OFFSET)
 #define CHUNK_HDR 8 // bytes per jpeg hdr in AVI 
 #define IDX_ENTRY 16 // bytes per index entry
-#define MAX_FRAMES 20000
 
 static char mjpegHdrStr[MJPEG_HDR];
 static bool doAVI = false;
@@ -113,18 +110,19 @@ static uint8_t frameType;
 static size_t fileSize;
 static size_t audSize;
 static size_t indexLen;
-bool aviOn = true;  // set to false if do not want conversion to AVI  
+bool aviOn = true;  // set to false if do not want conversion to AVI 
 static File wavFile; 
 
 
-size_t soundFile(File &fh) {
+static size_t soundFile(const char* filename) {
   // derive audio file name from video file but with extension .wav
-  std::string wfile(fh.path());
-  wfile = std::regex_replace(wfile, std::regex("mjpeg"), "wav");
-
-  // check if wave file exists and get its size
+  char wavFileName[FILE_NAME_LEN];
+  changeExtension(wavFileName, filename, "wav");
+  // check if wave file exists
+  if (!SD_MMC.exists(wavFileName)) return 0; 
+  // open it and get its size
   size_t fileSize = 0;
-  wavFile = SD_MMC.open(wfile.data(), FILE_READ);
+  wavFile = SD_MMC.open(wavFileName, FILE_READ);
   if (wavFile) {
     fileSize = wavFile.size() - WAV_HEADER_LEN; 
     wavFile.seek(WAV_HEADER_LEN, SeekSet); // skip over header
@@ -145,7 +143,7 @@ bool isAVI(File &fh) {
     fileSize = fh.size();
     doAVI = true;
     doAVIheader = true;  
-    audSize = soundFile(fh); // get audio file size if present
+    audSize = soundFile(fh.path()); // get audio file size if present
     LOG_INF("Formatting as AVI %s", audSize ? " - with audio" : "");
     return true;
   } else {
@@ -163,9 +161,9 @@ static inline void littleEndian(uint8_t* inBuff, uint32_t in) {
   }
 }
 
-static size_t buildAVIhdr(byte* &clientBuf) {
+static size_t buildAVIhdr(byte* clientBuf) {
   // first call on file, update AVI header template with file specific details
-  size_t moviSize = audSize + (fileSize - (streamBoundaryLen+streamPartLen)*frameCnt - streamBoundaryLen); 
+  size_t moviSize = audSize + (fileSize - (streamBoundaryLen+streamTypeLen)*frameCnt - streamBoundaryLen); 
   size_t aviSize = moviSize + AVI_HEADER_LEN + ((CHUNK_HDR+IDX_ENTRY) * (frameCnt+(haveSoundFile?1:0))); // AVI content size 
   // update aviHeader with relevant stats
   littleEndian(aviHeader+4, aviSize);
@@ -222,7 +220,7 @@ static void buildIdx(size_t dataSize) {
   idxPtr += IDX_ENTRY; 
 }
 
-size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
+size_t readClientBuf(File &fh, byte* clientBuf, size_t buffSize) {
   static int32_t readLen = 0; 
   static int jStart = 0; // start of current jpeg
   static int jEnd = 0; // end of current jpeg
@@ -258,7 +256,6 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
           wavFile.close();
         }
       }
-
       // process video file
       readLen = fh.available() ? fh.read(clientBuf, buffSize) : 0; // load buffSize cluster from SD
       if (readLen == 0) {
@@ -288,8 +285,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
               memcpy(clientBuf, mjpegHdrStr, hdrOffset); 
               readLen += hdrOffset;
               hdrOffset = jEnd = 0;
-            }
-            
+            }           
             if (MJPEG_HDR > (readLen-jEnd)) {
               // remaining buffer content less than mjpeg header block, so postpone to next buffer
               hdrOffset = (readLen-jEnd);
@@ -299,7 +295,6 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
                 break;     
               } // else ignore     
             }
-
             jStart = jEnd + LENGTH_OFFSET; // offset from end of previous jpeg    
             if (jStart > readLen) {
                 jEnd = readLen - jStart; // set -ve as offset to next buffer
@@ -307,19 +302,16 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
                 break;
             }
             // extract jpeg size
-            memcpy(mjpegHdrStr, clientBuf+jStart, 10); // string containing jpeg size
+            memcpy(mjpegHdrStr, clientBuf+jStart, 10); // string containing jpeg size     
             mjpegHdrStr[10] = 0; // terminator
             size_t jpegSize = atoi(mjpegHdrStr); 
             if (jpegSize == 0) {
               LOG_ERR("AVI conversion failed on frame: %u", framePtr);
-              jStart = 0;
-              jEnd = 0; 
-              iPtr = 0;
-              hdrOffset = 0;
-              readLen = 0;
+              jStart = jEnd = iPtr = hdrOffset = readLen = 0;
+              doAVI = false;
               break;
             }
-            jStart += REMAINDER_OFFSET;                                        
+            jStart += REMAINDER_OFFSET;                                     
             // create AVI header for jpeg
             memcpy(clientBuf+jEnd, dcBuf, 4); 
             littleEndian(clientBuf+jEnd+4, jpegSize);
@@ -333,8 +325,7 @@ size_t readClientBuf(File &fh, byte* &clientBuf, size_t buffSize) {
             jEnd += CHUNK_HDR + jpegSize;      
             if (jEnd > readLen) {
               jEnd -= readLen; // adjust for next buffer 
-              break; 
-              
+              break;   
             }
           } else {
             // for jpeg bigger than buffer

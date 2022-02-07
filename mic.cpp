@@ -6,6 +6,8 @@
 // The following device has been tested with this application:
 // - I2S microphone: INMP441
 //
+// Still needs work due to quality of recording and impact on frame rate
+//
 // I2S_NUM_1 does not support PDM or ADC microphones
 
 // s60sc 2021
@@ -23,6 +25,8 @@ static TaskHandle_t micHandle = NULL;
 static bool doMicCapture = false;
 static bool captureRunning = false;
 static int16_t* sampleBuffer;
+static QueueHandle_t i2s_queue = NULL;
+static i2s_event_t event;
 
 const uint32_t WAV_HEADER_LEN = 44; // WAV header length
 static uint8_t wavHeader[WAV_HEADER_LEN] = { // WAV header template
@@ -32,12 +36,6 @@ static uint8_t wavHeader[WAV_HEADER_LEN] = { // WAV header template
 };
 
 /**********************************/
-
-// I2S Microphone pins
-// INMP441 I2S microphone pinout, connect L/R to GND for left channel
-#define MIC_SCK_IO GPIO_NUM_4  // I2S SCK
-#define MIC_WS_IO  GPIO_NUM_12 // I2S WS
-#define MIC_SD_IO  GPIO_NUM_3 // I2S SD
 
 // i2s config for microphone
 static i2s_config_t i2s_mic_config = {
@@ -71,7 +69,9 @@ static inline void IRAM_ATTR wakeTask(TaskHandle_t thisTask) {
 
 static void startMic() {
   // install & start up the I2S peripheral as microphone when activated
-  i2s_driver_install(I2S_NUM_1, &i2s_mic_config, 0, NULL);
+  int queueSize = 4;
+  i2s_queue = xQueueCreate(queueSize, sizeof(i2s_event_t));
+  i2s_driver_install(I2S_NUM_1, &i2s_mic_config, queueSize, &i2s_queue);
   i2s_set_pin(I2S_NUM_1, &i2s_mic_pins);
   i2s_zero_dma_buffer(I2S_NUM_1);
 }
@@ -88,14 +88,19 @@ static void getRecording() {
   size_t bytesRead = totalSamples = 0;
   captureRunning = true;
   while (doMicCapture) {
-    i2s_read(I2S_NUM_1, sampleBuffer, RAMSIZE, &bytesRead, portMAX_DELAY);
-    int samplesRead = bytesRead / BUFFER_WIDTH;
-    // process each sample, 
-    for (int i = 0; i < samplesRead; i++) {
-      sampleBuffer[i] = constrain(sampleBuffer[i] * gainFactor, SHRT_MIN, SHRT_MAX);
-    }
-    wavFile.write((uint8_t*)sampleBuffer, bytesRead);
-    totalSamples += samplesRead;
+    // wait for i2s buffer to be ready
+    if (xQueueReceive(i2s_queue, &event, (2 * SAMPLE_RATE) /  portTICK_PERIOD_MS) == pdPASS) {
+      if (event.type == I2S_EVENT_RX_DONE) {
+        i2s_read(I2S_NUM_1, sampleBuffer, 1024, &bytesRead, portMAX_DELAY);
+        int samplesRead = bytesRead / BUFFER_WIDTH;
+        // process each sample, 
+        for (int i = 0; i < samplesRead; i++) {
+          sampleBuffer[i] = constrain(sampleBuffer[i] * gainFactor, SHRT_MIN, SHRT_MAX);
+        }
+        wavFile.write((uint8_t*)sampleBuffer, bytesRead);
+        totalSamples += samplesRead;
+      }
+    }  
   }
   captureRunning = false;
 }
@@ -108,7 +113,7 @@ static inline void littleEndian(uint8_t* inBuff, uint32_t in) {
   }
 }
 
-void micTask(void* parameter) {
+static void micTask(void* parameter) {
   startMic();
   sampleBuffer = (int16_t*)malloc(RAMSIZE);
   while (true) {
@@ -123,31 +128,27 @@ void micTask(void* parameter) {
 }
 
 void prepMic() {
-  LOG_INF("Sound recording is %s", micGain ? "On" : "Off");
-  if (micGain) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
+  LOG_INF("Sound recording is %s", USE_MIC ? "On" : "Off");
+  if (USE_MIC) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
 }
 
 void startAudio() {
   // start audio recording and write recorded audio to SD card as WAV file 
   // combined into AVI file as PCM channel on FTP upload or browser download
   // so can read by media players
-  if (micGain) {
+  if (USE_MIC && micGain) {
     wavFile = SD_MMC.open(TEMPFILE, FILE_WRITE);
     wavFile.write(wavHeader, WAV_HEADER_LEN); 
     wakeTask(micHandle);
   } 
 }
 
-void finishAudio(const char* mjpegName, bool isValid) {
+void finishAudio(const char* filename, bool isValid) {
   if (doMicCapture) {
     // finish a recording and save if valid
     doMicCapture = false; 
     while (captureRunning) delay(100); // wait for getRecording() to complete
     if (isValid) {
-      // build wav file name
-      std::string wfile(mjpegName);
-      wfile = std::regex_replace(wfile, std::regex("mjpeg"), "wav");
-
       // update wav header
       int dataBytes = totalSamples * BUFFER_WIDTH;
       littleEndian(wavHeader+4,  dataBytes + WAV_HEADER_LEN - 8); // wav file size excluding chunk header
@@ -159,9 +160,11 @@ void finishAudio(const char* mjpegName, bool isValid) {
       wavFile.close();   
       
       // rename file
-      SD_MMC.rename(TEMPFILE, wfile.data());    
+      char wavFileName[FILE_NAME_LEN];
+      changeExtension(wavFileName, filename, "wav");
+      SD_MMC.rename(TEMPFILE, wavFileName);    
       LOG_INF("Captured %d audio samples with gain factor %i", totalSamples, gainFactor);
-      LOG_INF("Saved %ukB to SD for %s", (dataBytes + WAV_HEADER_LEN) / 1024, wfile.data());
+      LOG_INF("Saved %ukB to SD for %s", (dataBytes + WAV_HEADER_LEN) / 1024, wavFileName);
     } 
   }
   SD_MMC.remove(TEMPFILE);

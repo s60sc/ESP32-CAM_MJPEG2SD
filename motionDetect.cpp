@@ -18,24 +18,41 @@
 
 using namespace std;
 
-// user configuration parameters for calibrating motion detection
-#define MOTION_SEQUENCE 5 // min sequence of changed frames to confirm motion 
-#define NIGHT_SEQUENCE 10 // frames of sequential darkness to avoid spurious day / night switching
-// define region of interest, ie exclude top and bottom of image from movement detection if required
-// divide image into NUM_BANDS horizontal bands, define start and end bands of interest, 1 = top
-#define START_BAND 3
-#define END_BAND 8 // inclusive
-#define NUM_BANDS 10
-#define CHANGE_THRESHOLD 15 // min difference in pixel comparison to indicate a change
-
 #define RGB888_BYTES 3 // number of bytes per pixel
 
+uint8_t lightLevel; // Current ambient light level 
+uint8_t nightSwitch = 20; // initial white level % for night/day switching
+float motionVal = 8.0; // initial motion sensitivity setting
 static uint8_t* jpgImg = NULL;
 static size_t jpgImgSize = 0;
 
 /**********************************************************************************/
 
 static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, uint8_t scale);
+
+static bool isNight(uint8_t nightSwitch) {
+  // check if night time for suspending recording
+  // or for switching on lamp if enabled
+  static bool nightTime = false;
+  static uint16_t nightCnt = 0;
+  if (!nightTime && lightLevel < nightSwitch) {
+    // dark image
+    nightCnt += 1;
+    // only signal night time after given sequence of dark frames
+    if (nightCnt > NIGHT_SEQUENCE) {
+      nightTime = true;     
+      LOG_INF("Night time"); 
+    }
+  } 
+  if (lightLevel > nightSwitch) {
+    nightCnt = 0;
+    if (nightTime) {
+      nightTime = false;
+      LOG_INF("Day time");
+    }
+  }  
+  return nightTime;
+}
 
 bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   // check difference between current and previous image (subtract background)
@@ -56,7 +73,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   int num_pixels = sampleWidth * sampleHeight;
 
   if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling)) {
-    LOG_DBG("motionDetect: fmt2rgb() failed");
+    LOG_DBG("motionDetect: jpg2rgb() failed");
     return motionStatus;
   }
 
@@ -91,6 +108,7 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
     lux += rgb_buf[i]; // for calculating light level
   }
   lightLevel = (lux*100)/(num_pixels*255); // light value as a %
+  nightTime = isNight(nightSwitch);
   memcpy(prev_buf, rgb_buf, num_pixels); // save image for next comparison 
   // esp32-cam issue #126
   if (rgb_buf == NULL) LOG_ERR("Memory leak, heap now: %u, pSRAM now: %u", ESP.getFreeHeap(), ESP.getFreePsram());
@@ -136,14 +154,14 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
     LOG_DBG("Created changeMap JPEG %d bytes in %lums", jpg_len, millis() - dTime);
   }
 
-  LOG_DBG("Free heap: %u, free pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+  if (dbgVerbose) checkMemory();  
   // motionStatus indicates whether motion previously ongoing or not
-  return motionStatus;
+  return nightTime ? false : motionStatus;
 }
 
 bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   // return change map jpeg for streaming
-  if(useMotion){                    
+  if (useMotion){                    
     *out = jpgImg;
     *out_len = jpgImgSize;
     static size_t lastImgLen = 0;
@@ -157,29 +175,6 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
     *out_len = 0;
     return false;
   }
-}
-
-bool isNight(uint8_t nightSwitch) {
-  // check if night time for switching on lamp during recording
-  static bool nightTime = false;
-  static uint16_t nightCnt = 0;
-  if (!nightTime && lightLevel < nightSwitch) {
-    // dark image
-    nightCnt += 1;
-    // only signal night time after given sequence of dark frames
-    if (nightCnt > NIGHT_SEQUENCE) {
-      nightTime = true;     
-      LOG_INF("Night time"); 
-    }
-  } 
-  if (lightLevel > nightSwitch) {
-    nightCnt = 0;
-    if (nightTime) {
-      nightTime = false;
-      LOG_INF("Day time");
-    }
-  }  
-  return nightTime;
 }
 
 /************* copied and modified from esp32-camera/to_bmp.c to access jpg_scale_t *****************/

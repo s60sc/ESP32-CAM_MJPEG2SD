@@ -13,7 +13,7 @@
 
 #include "myConfig.h"
 
-#ifdef USE_DS18B20
+#ifdef INCLUDE_DS18B20
 #include <OneWire.h> 
 #include <DallasTemperature.h>
 #else
@@ -24,7 +24,6 @@ uint8_t temprature_sens_read();
 #endif
 
 // configuration
-static const uint8_t DS18Bpin = 3; // labelled U0R on ESP32-CAM board
 static const uint8_t retries = 10;
 static float dsTemp = -127;
 TaskHandle_t getDS18Handle = NULL;
@@ -32,8 +31,8 @@ static bool DS18Bfound = false;
 
 static void getDS18tempTask(void* pvParameters) {
   // get current temperature from DS18B20 device
-#ifdef USE_DS18B20
-  OneWire oneWire(DS18Bpin);
+#ifdef INCLUDE_DS18B20
+  OneWire oneWire(DS18B_PIN);
   DallasTemperature sensors(&oneWire);
   while (true) {
     sensors.begin();
@@ -62,7 +61,7 @@ static void getDS18tempTask(void* pvParameters) {
 }
 
 void prepDS18B20() {
-#ifdef USE_DS18B20
+#ifdef INCLUDE_DS18B20
   xTaskCreatePinnedToCore(&getDS18tempTask, "getDS18tempTask", 1024, NULL, 1, &getDS18Handle, 1); 
   delay(1000);
   if (DS18Bfound) {LOG_INF("DS18B20 device available");}
@@ -79,7 +78,7 @@ void tryDS18B20() {
 }
 
 float readDS18B20temp(bool isCelsius) {
-#ifdef USE_DS18B20
+#ifdef INCLUDE_DS18B20
   // return latest read DS18B20 value in celsius (true) or fahrenheit (false), unless error
   return (dsTemp > -127) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 #else
