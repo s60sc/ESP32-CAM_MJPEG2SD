@@ -1,8 +1,8 @@
 /*
-* Capture ESP32 Cam JPEG images into a MJPEG file and store on SD
-* MJPEG files stored on the SD card can also be selected and streamed to a browser as AVI.
-*
-* s60sc 2022, 2021, 2020
+  Capture ESP32 Cam JPEG images into a MJPEG file and store on SD
+  MJPEG files stored on the SD card can also be selected and streamed to a browser as AVI.
+
+  s60sc 2022, 2021, 2020
 */
 // built using arduino-esp32 stable release v2.0.2
 
@@ -22,11 +22,19 @@ void setup() {
     LOG_WRN("Need PSRAM to be enabled");
     delay(10000);
     ESP.restart();
-  } 
-  
-  if(!prepSD_MMC()){
-    LOG_WRN("Insert SD card, will restart after 10 secs");    
+  }
+
+  if (!prepSD_MMC()) {
+    LOG_WRN("Insert SD card, will restart after 10 secs");
     delay(10000);
+    ESP.restart();
+  }
+
+  //Put an empty file on sdcard root so it's possible to force reset the settings..
+  if (SD_MMC.exists("/forcereset")) {
+    LOG_WRN("Forcing reset config..");
+    SD_MMC.remove("/forcereset");
+    resetConfig();
     ESP.restart();
   }
 
@@ -50,7 +58,7 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = XCLK_MHZ*1000000;
+  config.xclk_freq_hz = XCLK_MHZ * 1000000;
   config.pixel_format = PIXFORMAT_JPEG;
   // init with high specs to pre-allocate larger buffers
   if (psramFound()) {
@@ -80,7 +88,7 @@ void setup() {
       digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
       retries--;
     }
-  } 
+  }
   if (err != ESP_OK) ESP.restart();
   else LOG_INF("Camera init OK");
 
@@ -98,19 +106,19 @@ void setup() {
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
-  
+
   // Load saved user configuration
-  loadConfig(); 
-   
+  loadConfig();
+
   // connect wifi or start config AP if router details not available
 #ifdef DEV_ONLY
   devSetup();
 #else
   startWifi();
 #endif
-  
+
   if (!prepMjpeg()) {
-    LOG_ERR("Unable to continue, MJPEG capture fail, restart after 10 secs");    
+    LOG_ERR("Unable to continue, MJPEG capture fail, restart after 10 secs");
     delay(10000);
     ESP.restart();
   }
@@ -124,27 +132,27 @@ void setup() {
     wifiIP = WiFi.localIP().toString();
   } else wifiIP = WiFi.softAPIP().toString();
   LOG_INF("Use 'http://%s' to connect to %s", wifiIP.c_str(), WiFi.getMode() == WIFI_STA ? "Station" : "Access Point");
-  
+
   // Start httpd
   startCameraServer();
-  prepMic();        
+  prepMic();
   OTAsetup();
   startSDtasks();
   prepDS18B20();
-  setupADC(); 
-  
-  LOG_INF("Camera Ready @ %uMHz, version %s.", XCLK_MHZ, APP_VER);  
+  setupADC();
+
+  LOG_INF("Camera Ready @ %uMHz, version %s.", XCLK_MHZ, APP_VER);
 }
 
 void loop() {
-  if (!OTAlistener()) delay(100000);  
+  if (!OTAlistener()) delay(100000);
 }
 
 // use with IDF
 /*
-extern "C" void app_main() {
+  extern "C" void app_main() {
     initArduino();
     setup();
-    loop(); 
-}
+    loop();
+  }
 */
