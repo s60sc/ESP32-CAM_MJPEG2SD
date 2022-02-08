@@ -5,7 +5,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>ESP32-CAM_MJPEG</title>
-        <script src="jquery.min.js"></script>
+        <script src="/jquery.min.js"></script>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -1230,23 +1230,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
-    
-    const bPlaying = (streamButton.innerHTML == 'Stop Stream')
-    if(bPlaying){
-      stopStream();
-      window.stop();
-    }
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "defaults": "1"
-      },
-      success: function(response) {
-        if(bPlaying) startStream()
-      }
-    })
-    setTimeout(function () { location.reload(true); }, 10000);
-  }
+  
   const stopStream = () => {
     window.stop();
     streamButton.innerHTML = 'Start Stream'
