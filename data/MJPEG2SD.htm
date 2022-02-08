@@ -31,13 +31,20 @@
             }
             
            .center{
-              text-align: center; 
+                text-align: center; 
            }
-           
+           .navtop{
+                list-style: none;
+           }
+           .navtop li {
+             float: left;
+             position: relative;
+           }
            nav#maintoolbar {
               display: flex;
               flex-wrap: nowrap;
               justify-content: flex-end;
+              overflow: auto;
            }
                         
            section#main {
@@ -45,7 +52,7 @@
               flex-direction: column;
            }
             
-            section#header {
+           section#header {
               min-width: 332px;
               background-color: #363636;
               margin-bottom: 3px;
@@ -185,6 +192,7 @@
             }
 
             button {
+            		min-height: 35px;
                 display: block;
                 margin: 5px;
                 padding: 0 6px;
@@ -453,12 +461,14 @@
                 <h6 id="fw_version" class="default-action displayonly"></h6>
               </section>
               <nav id="maintoolbar">
-                  <button id="showLog" value="1">Show Log</button>
-                  <button id="showConfig" value="1">Show Config</button>
-                  <button id="OTAupload" value="1">OTA Upload</button>
-                  <button id="forceRecord" class="default-action" style="float:right;">Record</button>
-                  <button id="get-still" style="float:right;">Get Still</button>
-                  <button id="toggle-stream" style="float:right;">Start Stream</button>  
+              	<ul class="navtop">
+                  <li><button id="showLog" value="1">Show Log</button></li>
+                  <li><button id="showConfig" value="1">Show Config</button></li>
+                  <li><button id="OTAupload" value="1">OTA Upload</button></li>
+                  <li><button id="forceRecord" class="default-action" style="float:right;">Record</button></li>
+                  <li><button id="get-still" style="float:right;">Get Still</button></li>
+                  <li><button id="toggle-stream" style="float:right;">Start Stream</button></li>
+                </ul>  
               </nav>
             </section>          
             <div id="content">
@@ -1204,7 +1214,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   rebootButton.onclick = () => {
     stopStream();
-    window.stop();
     $.ajax({
       url: baseHost + '/control',
       data: {
@@ -1218,7 +1227,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
     const bPlaying = (streamButton.innerHTML == 'Stop Stream')
     if(bPlaying){
       stopStream();
-      window.stop();
     }
     $.ajax({
       url: baseHost + '/control',
@@ -1231,8 +1239,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
   }
   
+	var srcSize; 
   const stopStream = () => {
     window.stop();
+    $("#stream-container").css("width",srcSize.width);
+    $("#stream-container").css("height", srcSize.height);
+    $("#stream").css("width", srcSize.width);
+    $("#stream").css("height", srcSize.height);
     streamButton.innerHTML = 'Start Stream'
     $.ajax({
       url: baseHost + '/control',
@@ -1241,11 +1254,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
       }
     })
   }
+
   const startStream = () => {
-    view.src = `${streamUrl}/stream`
     show(viewContainer)
+    view.src = `${streamUrl}/stream`
+		
     streamButton.innerHTML = 'Stop Stream'
   }
+  view.onload = function () { srcSize = { width: view.width, height: view.height } };
 
   forceRecord.onclick = () => {    
     var recOn = 0;
@@ -1298,7 +1314,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
   
   //Maximize - Minimize player window  
-  var srcSize;  
   function toggleFullScreen(){        
    if (fullScreen.innerHTML === '+') {     //Maximize
       srcSize = { width: $("#stream-container").width(), height: $("#stream-container").height() }
