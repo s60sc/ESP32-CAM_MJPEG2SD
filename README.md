@@ -4,7 +4,7 @@ ESP32 Camera application to record JPEGs to SD card as MJPEG files and playback 
 
 Files uploaded by FTP or downloaded from browser are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players, including the audio if available.
 
- This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how build a WiFi Security Camera using this code.
+ This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how build a WiFi Security Camera using an earlier version of this code.
  
  Version 5 of  this application has structural changes from the previous versions - see **Installation and Use** section.
 
