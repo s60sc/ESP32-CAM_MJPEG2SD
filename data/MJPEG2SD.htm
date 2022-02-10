@@ -1239,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
   }
   
-	var srcSize; 
+	var srcSize = { width: 0, height: 0 };
   const stopStream = () => {
     window.stop();
     $("#stream-container").css("width",srcSize.width);
