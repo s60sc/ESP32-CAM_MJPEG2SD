@@ -92,8 +92,14 @@ bool startWifi() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ST_SSID, ST_Pass);
     uint32_t startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {
-      Serial.print(".");
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {      
+      //Stop waiting on failure.. Will reconnect later by keep alive
+      if(WiFi.status()==WL_CONNECT_FAILED){
+        LOG_ERR("Connect FAILED to: %s. ", ST_SSID);
+        create_keepWiFiAliveTask();        
+        return false;
+      }
+      Serial.print(".");      
       delay(500);
       Serial.flush();
     }
@@ -124,6 +130,8 @@ static void keepWiFiAliveTask(void * parameters) {
     } else {
       // not connected, so retry
       LOG_DBG("Reconnecting to: %s in Station mode", ST_SSID);
+      WiFi.disconnect();
+      delay(1000);
       WiFi.begin(ST_SSID, ST_Pass);
       uint32_t startAttemptTime = millis();
       while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {
