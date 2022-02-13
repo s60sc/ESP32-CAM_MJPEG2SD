@@ -111,7 +111,7 @@ static bool savePrefs() {
     return false;
   }
   prefs.putString("ftp_pass", ftp_pass);
-  prefs.putString("ST_pass", ST_Pass);
+  prefs.putString("st_pass", ST_Pass);
   prefs.end();
   return true;
 }
@@ -122,7 +122,7 @@ static bool loadPrefs() {
     savePrefs(); // if prefs do not yet exist
     return false;
   }
-  prefs.getString("ST_Pass", ST_Pass, MAX_PWD_LEN);
+  prefs.getString("st_pass", ST_Pass, MAX_PWD_LEN);
   prefs.getString("ftp_pass", ftp_pass, MAX_PWD_LEN);
   prefs.end();
   return true;
