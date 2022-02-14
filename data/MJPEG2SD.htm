@@ -1242,10 +1242,10 @@ document.addEventListener('DOMContentLoaded', function (event) {
 	var srcSize = { width: 0, height: 0 };
   const stopStream = () => {
     window.stop();
-    $("#stream-container").css("width",srcSize.width);
-    $("#stream-container").css("height", srcSize.height);
-    $("#stream").css("width", srcSize.width);
-    $("#stream").css("height", srcSize.height);
+//    $("#stream-container").css("width",srcSize.width);
+//    $("#stream-container").css("height", srcSize.height);
+//    $("#stream").css("width", srcSize.width);
+//    $("#stream").css("height", srcSize.height);
     streamButton.innerHTML = 'Start Stream'
     $.ajax({
       url: baseHost + '/control',
