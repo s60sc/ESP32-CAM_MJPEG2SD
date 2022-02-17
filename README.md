@@ -4,7 +4,7 @@ ESP32 Camera application to record JPEGs to SD card as MJPEG files and playback 
 
 Files uploaded by FTP or downloaded from browser are optionally converted to AVI format to allow recordings to replay at correct frame rate on media players, including the audio if available.
 
- This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how build a WiFi Security Camera using an earlier version of this code.
+ This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code.
  
  Version 5 of  this application has structural changes from the previous versions - see **Installation and Use** section.
 
@@ -45,6 +45,9 @@ The ESP32 time is set from an NTP server or connected browser client.
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
 Configure the application using the `#define` statements in `myConfig.h`, in particular select the required ESP-CAM board using `CAMERA_MODEL_` 
 Compile with Partition Scheme: `Minimal SPIFFS (...)`.  and with PSRAM enabled.
+
+**NOTE: If you get compilation errors you need to update your `arduino-esp32` library in the IDE 
+using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
 The application web pages and configuration data file (except passwords) are stored in the **/data** folder which needs to be copied as a folder to the SD card.
 This reduces the size of the application on flash and reduces wear as well as making updates easier.
