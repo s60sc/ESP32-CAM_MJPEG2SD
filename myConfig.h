@@ -112,7 +112,8 @@
 #include <Update.h>
 #include <WebServer.h>
 #include <WiFi.h>
-
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 /******************** Function declarations *******************/
 
 // global app specific functions
@@ -171,8 +172,7 @@ bool startWifi();
 void syncToBrowser(const char *val);
 void getUpTime(char* timeVal);
 void urlDecode(char* inVal);
-
-
+void wgetFile(String url, String dir);
 /******************** Global utility declarations *******************/
 
 extern String AP_SSID;
