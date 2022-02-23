@@ -50,7 +50,7 @@ Compile with Partition Scheme: `Minimal SPIFFS (...)`.  and with PSRAM enabled.
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
 The application web pages and configuration data file (except passwords) are stored in the **/data** folder which needs to be copied as a folder to the SD card.
-This reduces the size of the application on flash and reduces wear as well as making updates easier.
+This reduces the size of the application on flash and reduces wear as well as making updates easier. The web pages will be downloaded **automatically** to the SD card on first run if a valid wifi connection is set (with access to the internet).
 Subsequent updates to the application, or to the **/data** folder contents, can be made using the **OTA Upload** button on the web page.
 
 On first use, the application will start in wifi AP mode to allow router and other details to be entered via the web page, unless default values have been entered for the `ST_*` variables in `utils.cpp`.
