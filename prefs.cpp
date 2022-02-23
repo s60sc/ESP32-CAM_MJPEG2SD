@@ -104,14 +104,20 @@ static void loadConfigMap() {
   file.close();
 }
 
-static bool savePrefs() {
+static bool savePrefs(bool bClear=false) {
   // use preferences for passwords
   if (!prefs.begin(APP_NAME, false)) {  
     LOG_ERR("Failed to save preferences");
     return false;
   }
+  if(bClear) { 
+    prefs.clear(); 
+    LOG_ERR("Cleared preferences");
+    return true;
+  }
   prefs.putString("ftp_pass", ftp_pass);
   prefs.putString("st_pass", ST_Pass);
+  prefs.putString("st_ssid", ST_SSID);
   prefs.end();
   return true;
 }
@@ -122,6 +128,7 @@ static bool loadPrefs() {
     savePrefs(); // if prefs do not yet exist
     return false;
   }
+  prefs.getString("st_ssid", ST_SSID, 32);
   prefs.getString("st_pass", ST_Pass, MAX_PWD_LEN);
   prefs.getString("ftp_pass", ftp_pass, MAX_PWD_LEN);
   prefs.end();
@@ -184,6 +191,7 @@ esp_err_t updateStatus(const char* variable, const char* value) {
     doRecording = !dbgMotion;
   }
   else if(!strcmp(variable, "reset")) doRestart();
+  else if(!strcmp(variable, "clear")) savePrefs(true);
   else if(!strcmp(variable, "save")) {
     saveConfigMap();
     savePrefs();
@@ -296,30 +304,30 @@ bool loadConfig() {
   jsonBuff = (char*)ps_malloc(JSON_BUFF_LEN); 
   loadPrefs();
   loadConfigMap();
-
+  
   // set default hostname if config is null
   AP_SSID.toUpperCase();
   retrieveConfigMap("hostName", hostName);
-  if (!strcmp(hostName, "null")) {
+  if (!strcmp(hostName, "null") || strlen(hostName)==0) {
     strcpy(hostName, AP_SSID.c_str());
     updateStatus("hostName", hostName);
   }
-
+  // retrieveConfigMap("ST_SSID", jsonBuff);
   // use wifi defaults if config is null 
-  retrieveConfigMap("ST_SSID", jsonBuff);
   if (!strcmp(jsonBuff, "null")) {
-    updateConfigMap("ST_SSID", ST_SSID);
     updateConfigMap("ST_ip", ST_ip);
     updateConfigMap("ST_gw", ST_gw);
     updateConfigMap("ST_sn", ST_sn);
     updateConfigMap("ST_ns1", ST_ns1);
     updateConfigMap("ST_ns1", ST_ns2);
   }
-
+  //Update nvm value
+  updateConfigMap("ST_SSID", ST_SSID);
   // load variables from stored config map
   char variable[32] = {0,};
   char value[FILE_NAME_LEN] = {0,};
   while(getNextKeyVal(variable, value)) updateStatus(variable, value);
+  if (!strcmp(ST_SSID, "null")) ST_SSID[0]='\0';
   if (strlen(ST_SSID)) LOG_INF("Using ssid: %s%s %s", ST_SSID, !strlen(ST_ip) ? " " : " with static ip ", ST_ip);
 
   return true;
