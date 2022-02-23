@@ -69,7 +69,58 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download = false) {
   return ESP_OK;
 }
 
+const char* defaultPage_html = R"~(
+<!doctype html>                             
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ESP32-CAM_MJPEG setup</title> 
+</head>
+<script>
+function Config(){
+  if(!window.confirm('This will reboot the device to activate new settings.'))  return false; 
+  fetch('/control?ST_SSID=' + encodeURI(document.getElementById('ST_SSID').value))
+  .then(r => { console.log(r); return fetch('/control?ST_Pass=' + encodeURI(document.getElementById('ST_Pass').value)) })
+  .then(r => { console.log(r); return fetch('/control?save=1') })     
+  .then(r => { console.log(r); return fetch('/control?reset=1') })
+  .then(r => { console.log(r); }); 
+  return false;
+}
+</script>
+<body style="font-size:18px">
+<br>
+<center>
+  <table border="0">
+    <tr><th colspan="3">ESP32-CAM_MJPEG2SD Wifi setup..</th></tr>
+    <tr><td colspan="3"></td></tr>
+    <tr>
+    <td>SSID</td>
+    <td>&nbsp;</td>
+    <td><input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID" class="input"></td>
+  </tr>
+    <tr>
+    <td>Password</td>
+    <td>&nbsp;</td>
+    <td><input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="input"></td>
+  </tr>
+  <tr><td colspan="3"></td></tr>
+    <tr><td colspan="3" align="center">
+        <button type="button" onClick="return Config()">Connect</button>&nbsp;<button type="button" onclick="window.location.reload;">Cancel</button>
+    </td></tr>
+  </table>
+</center>      
+</body>
+</html>
+)~";
+
 static esp_err_t indexHandler(httpd_req_t* req) {
+  //Show wifi wizard if not setup and access point mode..  
+  if( !SD_MMC.exists(WEB_PAGE_PATH) && WiFi.status() != WL_CONNECTED ){
+      //Redir to a simple wifi setup page
+      httpd_resp_set_type(req, "text/html");                              
+      return httpd_resp_send(req, defaultPage_html, strlen(defaultPage_html));
+  }
   strcpy(inFileName, WEB_PAGE_PATH);
   return fileHandler(req);
 }
