@@ -1,4 +1,3 @@
-ST_SSID:null
 ae_level:0
 aec:1
 aec2:1
