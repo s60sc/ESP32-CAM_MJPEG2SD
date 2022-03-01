@@ -12,7 +12,7 @@
 #define WIFI_TIMEOUT_MS (30 * 1000)
 bool dbgVerbose = false;
 bool timeSynchronized = false;
-
+bool sdFilesChecked = true;
 /************************** Wifi **************************/
 
 // Wifi Station parameters
@@ -38,6 +38,7 @@ char   AP_sn[16]  = "";
 char   AP_gw[16]  = "";
 
 static void create_keepWiFiAliveTask();
+void checkSDFiles();
 
 static void setupMndsHost() {  //Mdns services   
   if (MDNS.begin(hostName) ) {
@@ -105,6 +106,7 @@ bool startWifi() {
     }
     if (WiFi.status() == WL_CONNECTED) {
       create_keepWiFiAliveTask();
+      checkSDFiles();
       LOG_INF("Use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
     } else {
       LOG_INF("Unable to connect to router, start Access Point");
@@ -150,6 +152,7 @@ static void keepWiFiAliveTask(void * parameters) {
         LOG_INF("WIFI Station connected to %s with status: %d", ST_SSID,  WiFi.status());
         LOG_INF("Use 'http://%s' to connect", WiFi.localIP().toString().c_str());
         setupMndsHost();
+        if(!sdFilesChecked) checkSDFiles();
       }
     }
   }
@@ -248,14 +251,15 @@ bool changeExtension(char* outName, const char* inName, const char* newExt) {
   return (inNamePtr > 1) ? true : false;
 }
 void checkSDFiles(){
+    if(WiFi.status() != WL_CONNECTED) return;
     //Check and download missing sd card files
     if(!SD_MMC.exists(DATA_DIR)) SD_MMC.mkdir(DATA_DIR);
     //No config map.. Download it
     File f = SD_MMC.open("/data/configs.txt",FILE_READ);
     bool bConfigOK = f && f.size()>0 ;
     f.close();
-    if( !bConfigOK && WiFi.status() == WL_CONNECTED ){
-      LOG_INF("Invalid config file");
+    if( !bConfigOK ){
+      LOG_ERR("Invalid config file");
       wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/configs.txt", DATA_DIR);
       doRestart();
     }
@@ -267,14 +271,13 @@ void checkSDFiles(){
       wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/OTA.htm", DATA_DIR);
     if(!SD_MMC.exists("/data/LOG.htm"))
       wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/LOG.htm", DATA_DIR);
+    sdFilesChecked = true;
 }
 bool startSpiffs() {
   if( !SPIFFS.begin(true)) {
     LOG_ERR("SPIFFS not mounted");
     return false;
   } else {
-    checkSDFiles();
-    
     // list details of files on SPIFFS
     File root = SPIFFS.open("/");
     File file = root.openNextFile();
