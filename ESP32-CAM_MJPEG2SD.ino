@@ -1,6 +1,6 @@
 /*
-* Capture ESP32 Cam JPEG images into a MJPEG file and store on SD
-* MJPEG files stored on the SD card can also be selected and streamed to a browser as AVI.
+* Capture ESP32 Cam JPEG images into a AVI file and store on SD
+* AVI files stored on the SD card can also be selected and streamed to a browser as MJPEG.
 *
 * s60sc 2020, 2021, 2022
 */
@@ -20,8 +20,9 @@ void setup() {
     delay(10000);
     ESP.restart();
   } 
-
-  if(!prepSD_MMC()){
+  
+  if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs();
+  else if (!prepSD_MMC()) {
     LOG_WRN("Insert SD card, will restart after 10 secs");    
     delay(10000);
     ESP.restart();
@@ -102,21 +103,23 @@ void setup() {
   // connect wifi or start config AP if router details not available
 #ifdef DEV_ONLY
   devSetup();
+  updateStatus("ST_SSID", ST_SSID);
 #endif
   startWifi();
   
-  if (!prepMjpeg()) {
-    LOG_ERR("Unable to continue, MJPEG capture fail, restart after 10 secs");    
+  if (!prepRecording()) {
+    LOG_ERR("Unable to continue, AVI capture fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
 
   // start rest of services
-  startSpiffs();
   startWebServer();
+  startStreamServer();
   prepMic(); 
   startSDtasks();
   startFTPtask();
+  prepSMTP();
   prepDS18B20();
   setupADC(); 
   checkMemory();
@@ -125,12 +128,3 @@ void setup() {
 
 void loop() {
 }
-
-// use with IDF
-/*
-extern "C" void app_main() {
-    initArduino();
-    setup();
-    loop(); 
-}
-*/

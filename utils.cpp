@@ -3,21 +3,17 @@
 // - wifi
 // - NTP
 // - remote logging
+// - base64 encoding
 // - battery voltage
 //
 // s60sc 2021, some functions based on code contributed by gemi254
 
 #include "myConfig.h"
 
-#define WIFI_TIMEOUT_MS (30 * 1000)
 bool dbgVerbose = false;
 bool timeSynchronized = false;
-bool sdFilesChecked = true;
-/************************** Wifi **************************/
 
-// Wifi Station parameters
-// If no default SSID value defined here
-// and no saved value found will start an access point instead
+/************************** Wifi **************************/
 
 char hostName[32] = ""; // Default Host name
 char ST_SSID[32]  = ""; //Default router ssid
@@ -37,8 +33,8 @@ char   AP_ip[16]  = ""; //Leave blank to use 192.168.4.1
 char   AP_sn[16]  = "";
 char   AP_gw[16]  = "";
 
-static void create_keepWiFiAliveTask();
-void checkSDFiles();
+static esp_ping_handle_t pingHandle = NULL;
+static void startPing();
 
 static void setupMndsHost() {  //Mdns services   
   if (MDNS.begin(hostName) ) {
@@ -71,7 +67,8 @@ static bool setWifiAP() {
 }
 
 bool startWifi() {
-  WiFi.persistent(false); //prevent the flash storage WiFi credentials
+  WiFi.disconnect();
+  WiFi.persistent(false); // prevent the flash storage WiFi credentials
   WiFi.setAutoReconnect(false); //Set whether module will attempt to reconnect to an access point in case it is disconnected
   WiFi.setAutoConnect(false);
   LOG_INF("Setting wifi hostname: %s", hostName);
@@ -90,28 +87,31 @@ bool startWifi() {
       // set static ip
       WiFi.config(_ip, _gw, _sn, _ns1); // need DNS for SNTP
     } else {LOG_INF("Getting ip from dhcp ...");}
+    
     WiFi.mode(WIFI_STA);
     WiFi.begin(ST_SSID, ST_Pass);
     uint32_t startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {      
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {
       //Stop waiting on failure.. Will reconnect later by keep alive
-      if(WiFi.status()==WL_CONNECT_FAILED){
+      if (WiFi.status() == WL_CONNECT_FAILED){
         LOG_ERR("Connect FAILED to: %s. ", ST_SSID);
-        create_keepWiFiAliveTask();        
+        startPing();      
         return false;
       }
-      Serial.print(".");      
+      Serial.print(".");
       delay(500);
       Serial.flush();
     }
     if (WiFi.status() == WL_CONNECTED) {
-      create_keepWiFiAliveTask();
-      checkSDFiles();
+      startPing();
       LOG_INF("Use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
     } else {
-      LOG_INF("Unable to connect to router, start Access Point");
-      // Start AP config portal
-      return setWifiAP();
+      if (ALLOW_AP) {
+        LOG_INF("Unable to connect to router, start Access Point");
+        // Start AP config portal
+        return setWifiAP();
+      } 
+      return false;
     }
   } else {
     // Start AP config portal
@@ -121,47 +121,42 @@ bool startWifi() {
   return true;
 }
 
-static void keepWiFiAliveTask(void * parameters) {
-  // Keep wifi station conection alive 
-  for (;;) {
-    if (WiFi.status() == WL_CONNECTED) {
-      LOG_DBG("WIFI still connected to: %s, IP: %s, status: %d, AP clients: %d", ST_SSID, (WiFi.localIP()).toString().c_str(), WiFi.status(), WiFi.softAPgetStationNum() );
-      delay(1000);
-      if (!timeSynchronized) getLocalNTP();
-      delay(WIFI_TIMEOUT_MS);
-    } else {
-      // not connected, so retry
-      LOG_DBG("Reconnecting to: %s in Station mode", ST_SSID);
-      WiFi.disconnect();
-      delay(1000);
-      WiFi.begin(ST_SSID, ST_Pass);
-      uint32_t startAttemptTime = millis();
-      while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {
-        showProgress();
-        delay(500);
-      }
-      Serial.println(".");
-      if (WiFi.status() != WL_CONNECTED) {
-        LOG_WRN("Failed to connect to %s in Station mode, retry in %i secs", ST_SSID, WIFI_TIMEOUT_MS / 1000);
-        if (ALLOW_AP) {
-          // Start AP config portal instead in case router details incorrect
-          setWifiAP();
-          vTaskDelete(NULL);
-        } else delay(WIFI_TIMEOUT_MS);
-      } else {
-        LOG_INF("WIFI Station connected to %s with status: %d", ST_SSID,  WiFi.status());
-        LOG_INF("Use 'http://%s' to connect", WiFi.localIP().toString().c_str());
-        setupMndsHost();
-        if(!sdFilesChecked) checkSDFiles();
-      }
-    }
-  }
+static void pingSuccess(esp_ping_handle_t hdl, void *args) {
+  static bool sdFilesChecked = false;
+  if (!timeSynchronized) getLocalNTP();
+  if (!sdFilesChecked) sdFilesChecked = checkSDFiles();
+  LOG_DBG("ping successful");
 }
 
-static void create_keepWiFiAliveTask() {
-  xTaskCreate(keepWiFiAliveTask, "keepWiFiAlive", 4096, NULL, 1, NULL);
+static void pingTimeout(esp_ping_handle_t hdl, void *args) {
+  LOG_WRN("Failed to ping gateway, restart wifi ...");
+  esp_ping_stop(pingHandle);
+  esp_ping_delete_session(pingHandle);
+  startWifi();
 }
 
+static void startPing() {
+  pingHandle = NULL;
+  IPAddress ipAddr = WiFi.gatewayIP();
+  ip_addr_t pingDest; 
+  IP_ADDR4(&pingDest, ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
+  esp_ping_config_t pingConfig = ESP_PING_DEFAULT_CONFIG();
+  pingConfig.target_addr = pingDest;  
+  pingConfig.count = ESP_PING_COUNT_INFINITE;
+  pingConfig.interval_ms = WIFI_TIMEOUT_MS;
+  pingConfig.timeout_ms = 5000;
+  pingConfig.task_stack_size = 4096 * 2;
+  pingConfig.task_prio = 1;
+  // set ping task callback functions 
+  esp_ping_callbacks_t cbs;
+  cbs.on_ping_success = pingSuccess;
+  cbs.on_ping_timeout = pingTimeout;
+  cbs.on_ping_end = NULL; 
+  cbs.cb_args = NULL;
+  esp_ping_new_session(&pingConfig, &cbs, &pingHandle);
+  esp_ping_start(pingHandle);
+  LOG_INF("Started ping monitoring ");
+}
 
 
 /************************** NTP  **************************/
@@ -180,7 +175,7 @@ void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder) {
   else strftime(inBuff, inBuffLen, "/%Y%m%d/%Y%m%d_%H%M%S", localtime(&currEpoch));
 }
 
-void getLocalNTP() {
+bool getLocalNTP() {
   // get current time from NTP server and apply to ESP32
   const char* ntpServer = "pool.ntp.org";
   configTzTime(timezone, ntpServer);
@@ -190,8 +185,12 @@ void getLocalNTP() {
     strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
     timeSynchronized = true;
     LOG_INF("Got current time from NTP: %s", timeFormat);
+    return true;
   }
-  else LOG_WRN("Not yet synced with NTP");
+  else {
+    LOG_WRN("Not yet synced with NTP");
+    return false;
+  }
 }
 
 void syncToBrowser(const char *val) {
@@ -238,6 +237,25 @@ void getUpTime(char* timeVal) {
 
 /********************** misc functions ************************/
 
+bool startSpiffs() {
+  if( !SPIFFS.begin(true)) {
+    LOG_ERR("SPIFFS not mounted");
+    return false;
+  } else {
+    LOG_INF("SPIFFS: Total bytes %d, Used bytes %d", SPIFFS.totalBytes(), SPIFFS.usedBytes());
+    
+    // list details of files on SPIFFS
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+    while(file) {
+      LOG_INF("File: %s, size: %u", file.path(), file.size());
+      file = root.openNextFile();
+    }
+    LOG_INF("Sketch size %d kB", ESP.getSketchSize() / 1024);
+    return true;
+  }
+}
+
 bool changeExtension(char* outName, const char* inName, const char* newExt) {
   // replace original file extension with supplied extension
   size_t inNamePtr = strlen(inName);
@@ -249,46 +267,6 @@ bool changeExtension(char* outName, const char* inName, const char* newExt) {
   memcpy(outName + inNamePtr, newExt, extLen);
   outName[inNamePtr + extLen] = 0;
   return (inNamePtr > 1) ? true : false;
-}
-void checkSDFiles(){
-    if(WiFi.status() != WL_CONNECTED) return;
-    //Check and download missing sd card files
-    if(!SD_MMC.exists(DATA_DIR)) SD_MMC.mkdir(DATA_DIR);
-    //No config map.. Download it
-    File f = SD_MMC.open("/data/configs.txt",FILE_READ);
-    bool bConfigOK = f && f.size()>0 ;
-    f.close();
-    if( !bConfigOK ){
-      LOG_ERR("Invalid config file");
-      wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/configs.txt", DATA_DIR);
-      doRestart();
-    }
-    if(!SD_MMC.exists("/data/MJPEG2SD.htm"))
-      wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/MJPEG2SD.htm", DATA_DIR);      
-    if(!SD_MMC.exists("/data/jquery.min.js"))
-      wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/jquery.min.js", DATA_DIR);
-    if(!SD_MMC.exists("/data/OTA.htm"))
-      wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/OTA.htm", DATA_DIR);
-    if(!SD_MMC.exists("/data/LOG.htm"))
-      wgetFile("https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master/data/LOG.htm", DATA_DIR);
-    sdFilesChecked = true;
-}
-bool startSpiffs() {
-  if( !SPIFFS.begin(true)) {
-    LOG_ERR("SPIFFS not mounted");
-    return false;
-  } else {
-    // list details of files on SPIFFS
-    File root = SPIFFS.open("/");
-    File file = root.openNextFile();
-    while(file) {
-      LOG_INF("File: %s, size: %u", file.path(), file.size());
-      file = root.openNextFile();
-    }
-    LOG_INF("SPIFFS: Total bytes %d, Used bytes %d", SPIFFS.totalBytes(), SPIFFS.usedBytes());
-    LOG_INF("Sketch size %d kB", ESP.getSketchSize() / 1024);
-    return true;
-  }
 }
 
 void showProgress() {
@@ -317,63 +295,6 @@ void urlDecode(char* inVal) {
   strcpy(inVal, replaceVal.c_str());
 }
 
-const char* git_rootCACertificate = \
-"-----BEGIN CERTIFICATE-----\n" \
-"MIIEsTCCA5mgAwIBAgIQBOHnpNxc8vNtwCtCuF0VnzANBgkqhkiG9w0BAQsFADBs\n" \
-"MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n" \
-"d3cuZGlnaWNlcnQuY29tMSswKQYDVQQDEyJEaWdpQ2VydCBIaWdoIEFzc3VyYW5j\n" \
-"ZSBFViBSb290IENBMB4XDTEzMTAyMjEyMDAwMFoXDTI4MTAyMjEyMDAwMFowcDEL\n" \
-"MAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3\n" \
-"LmRpZ2ljZXJ0LmNvbTEvMC0GA1UEAxMmRGlnaUNlcnQgU0hBMiBIaWdoIEFzc3Vy\n" \
-"YW5jZSBTZXJ2ZXIgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2\n" \
-"4C/CJAbIbQRf1+8KZAayfSImZRauQkCbztyfn3YHPsMwVYcZuU+UDlqUH1VWtMIC\n" \
-"Kq/QmO4LQNfE0DtyyBSe75CxEamu0si4QzrZCwvV1ZX1QK/IHe1NnF9Xt4ZQaJn1\n" \
-"itrSxwUfqJfJ3KSxgoQtxq2lnMcZgqaFD15EWCo3j/018QsIJzJa9buLnqS9UdAn\n" \
-"4t07QjOjBSjEuyjMmqwrIw14xnvmXnG3Sj4I+4G3FhahnSMSTeXXkgisdaScus0X\n" \
-"sh5ENWV/UyU50RwKmmMbGZJ0aAo3wsJSSMs5WqK24V3B3aAguCGikyZvFEohQcft\n" \
-"bZvySC/zA/WiaJJTL17jAgMBAAGjggFJMIIBRTASBgNVHRMBAf8ECDAGAQH/AgEA\n" \
-"MA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIw\n" \
-"NAYIKwYBBQUHAQEEKDAmMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2Vy\n" \
-"dC5jb20wSwYDVR0fBEQwQjBAoD6gPIY6aHR0cDovL2NybDQuZGlnaWNlcnQuY29t\n" \
-"L0RpZ2lDZXJ0SGlnaEFzc3VyYW5jZUVWUm9vdENBLmNybDA9BgNVHSAENjA0MDIG\n" \
-"BFUdIAAwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQ\n" \
-"UzAdBgNVHQ4EFgQUUWj/kK8CB3U8zNllZGKiErhZcjswHwYDVR0jBBgwFoAUsT7D\n" \
-"aQP4v0cB1JgmGggC72NkK8MwDQYJKoZIhvcNAQELBQADggEBABiKlYkD5m3fXPwd\n" \
-"aOpKj4PWUS+Na0QWnqxj9dJubISZi6qBcYRb7TROsLd5kinMLYBq8I4g4Xmk/gNH\n" \
-"E+r1hspZcX30BJZr01lYPf7TMSVcGDiEo+afgv2MW5gxTs14nhr9hctJqvIni5ly\n" \
-"/D6q1UEL2tU2ob8cbkdJf17ZSHwD2f2LSaCYJkJA69aSEaRkCldUxPUd1gJea6zu\n" \
-"xICaEnL6VpPX/78whQYwvwt/Tv9XBZ0k7YXDK/umdaisLRbvfXknsuvCnQsH6qqF\n" \
-"0wGjIChBWUMo0oHjqvbsezt3tkBigAVBRQHvFwY+3sAzm2fTYS5yh+Rp/BIAV0Ae\n" \
-"cPUeybQ=\n" \
-"-----END CERTIFICATE-----\n";
-  
-void wgetFile(String url, String dir){
-  if (WiFi.status() != WL_CONNECTED) return;  
-  String file_name=url.substring(url.lastIndexOf('/'));
-  String ff = "" + dir + "" + file_name;
-  //LOG_INF("Downloading %s",ff.c_str());
-  File f = SD_MMC.open(ff, "w+");
-  if( f ){
-    HTTPClient https;
-    WiFiClientSecure wclient;
-    wclient.setCACert(git_rootCACertificate);
-    https.begin(wclient, url);
-    LOG_INF("Downloading %s",ff.c_str());    
-    int httpCode = https.GET();
-    if (httpCode > 0 && httpCode == HTTP_CODE_OK) {
-        https.writeToStream(&f);
-        f.close();
-        LOG_INF("Downloaded %s", ff.c_str());        
-    }else{
-        f.close();
-        SD_MMC.remove(ff);
-        LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());        
-    }    
-    https.end();
-  }else{
-    LOG_ERR("Open failed: %s ", ff.c_str());
-  }
-}
 void listBuff (const uint8_t* b, size_t len) {
   // output buffer content as hex, 16 bytes per line
   if (!len || !b) LOG_WRN("Nothing to print");
@@ -406,8 +327,18 @@ size_t isSubArray(uint8_t* haystack, uint8_t* needle, size_t hSize, size_t nSize
   return 0; // not found
 }
 
+void removeChar(char *s, char c) {
+  // remove specified character from string
+  int writer = 0, reader = 0;
+  while (s[reader]) {
+    if (s[reader] != c) s[writer++] = s[reader];
+    reader++;       
+  }
+  s[writer] = 0;
+}
+
 void checkMemory() {
-  LOG_INF("Free: heap: %u, pSRAM %u", ESP.getFreeHeap(), ESP.getFreePsram());
+  LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
 
 void doRestart() {
@@ -436,7 +367,7 @@ static int log_serv_sockfd = -1;
 static int log_sockfd = -1;
 static struct sockaddr_in log_serv_addr, log_cli_addr;
 static char fmt_buf[LOG_FORMAT_BUF_LEN];
-FILE* log_remote_fp = NULL;
+static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
 static void remote_log_free_telnet() {
@@ -573,11 +504,44 @@ void logPrint(const char *fmtStr, ...) {
     if (send(log_sockfd, fmt_buf, len, 0) < 0) remote_log_free_telnet();
   }
   va_end(arglist);
+  delay(FLUSH_DELAY);
+}
+
+
+/****************** base 64 ******************/
+
+#define BASE64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+const uint8_t* encode64chunk(const uint8_t* inp, int rem) {
+  // receive 3 byte input buffer and return 4 byte base64 buffer
+  rem = 3 - rem; // last chunk may be less than 3 bytes 
+  uint32_t buff = 0; // hold 3 bytes as shifted 24 bits
+  static uint8_t b64[4];
+  // shift input into buffer
+  for (int i = 0; i < 3 - rem; i++) buff |= inp[i] << (8*(2-i)); 
+  // shift 6 bit output from buffer and encode
+  for (int i = 0; i < 4 - rem; i++) b64[i] = BASE64[buff >> (6*(3-i)) & 0x3F]; 
+  // filler for last chunk if less than 3 bytes
+  for (int i = 0; i < rem; i++) b64[3-i] = '='; 
+  return b64;
+}
+
+const char* encode64(const char* inp) {
+  // helper to base64 encode strings up to 90 chars long
+  static char encoded[121]; // space for 4/3 expansion + terminator
+  encoded[0] = 0;
+  int len = strlen(inp);
+  if (len > 90) {
+    LOG_WRN("Input string too long: %u chars", len);
+    len = 90;
+  }
+  for (int i = 0; i < len; i += 3) 
+    strncat(encoded, (char*)encode64chunk((uint8_t*)inp + i, min(len - i, 3)), 4);
+  return encoded;
 }
 
 /******************* battery monitoring *********************/
 
-// s60sc
 // if pin 33 used as input for battery voltage, set VOLTAGE_DIVIDER value to be divisor 
 // of input voltage from resistor divider, or 0 if battery voltage not being monitored
 #define BATT_PIN ADC1_CHANNEL_5 // ADC pin 33 for monitoring battery voltage
@@ -586,6 +550,36 @@ static esp_adc_cal_characteristics_t *adc_chars; // holds ADC characteristics
 static const adc_atten_t ADCatten = ADC_ATTEN_DB_11; // attenuation level
 static const adc_unit_t ADCunit = ADC_UNIT_1; // using ADC1
 static const adc_bits_width_t ADCbits = ADC_WIDTH_BIT_11; // ADC bit resolution
+float currentVoltage = -1.0; // no monitoring
+
+static void battVoltage() {
+  // get multiple readings of battery voltage from ADC pin and average
+  // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
+  #define NO_OF_SAMPLES 16 // ADC multisampling
+  uint32_t ADCsample = 0;
+  static bool sentEmailAlert = false;
+  for (int j = 0; j < NO_OF_SAMPLES; j++) ADCsample += adc1_get_raw(BATT_PIN); 
+  ADCsample /= NO_OF_SAMPLES;
+  // convert ADC averaged pin value to curve adjusted voltage in mV
+  if (ADCsample > 0) ADCsample = esp_adc_cal_raw_to_voltage(ADCsample, adc_chars);
+  currentVoltage = ADCsample*VOLTAGE_DIVIDER/1000.0; // convert to battery volts
+  if (currentVoltage < LOW_VOLTAGE && !sentEmailAlert) {
+    sentEmailAlert = true; // only sent once per esp32 session
+    smtpBufferSize = 0; // no attachment
+    char battMsg[20];
+    sprintf(battMsg, "Voltage is %0.1fV", currentVoltage);
+    if (USE_SMTP) emailAlert("Low battery", battMsg);
+  }
+}
+
+static void battTask(void* parameter) {
+  delay(20 * 1000); // allow time for esp32 to start up
+  while (true) {
+    battVoltage();
+    delay(BATT_INTERVAL * 60 * 1000); // mins
+  }
+  vTaskDelete(NULL);
+}
 
 void setupADC() {
   // Characterise ADC to generate voltage curve for battery monitoring 
@@ -597,21 +591,6 @@ void setupADC() {
     if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {LOG_INF("ADC characterised using eFuse Two Point Value");}
     else if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {LOG_INF("ADC characterised using eFuse Vref");}
     else {LOG_INF("ADC characterised using Default Vref");}
+    xTaskCreate(&battTask, "battTask", 2048, NULL, 1, NULL);
   }
 }
-
-float battVoltage() {
-  if (VOLTAGE_DIVIDER) {
-    // get multiple readings of battery voltage from ADC pin and average
-    // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
-    #define NO_OF_SAMPLES 16 // ADC multisampling
-    uint32_t ADCsample = 0;
-    for (int j = 0; j < NO_OF_SAMPLES; j++) ADCsample += adc1_get_raw(BATT_PIN); 
-    ADCsample /= NO_OF_SAMPLES;
-    // convert ADC averaged pin value to curve adjusted voltage in mV
-    if (ADCsample > 0) ADCsample = esp_adc_cal_raw_to_voltage(ADCsample, adc_chars);
-    return (float)ADCsample*VOLTAGE_DIVIDER/1000.0; // convert to battery volts
-  } else return -1.0;
-}
-
- 

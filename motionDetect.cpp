@@ -1,6 +1,6 @@
 
 /* 
- Extension to detect movement in sequential images using background subtraction.
+ Detect movement in sequential images using background subtraction.
  
  Very small bitmaps are used both to provide image smoothing to reduce spurious motion changes 
  and to enable rapid processing
@@ -54,7 +54,7 @@ static bool isNight(uint8_t nightSwitch) {
   return nightTime;
 }
 
-bool checkMotion(camera_fb_t * fb, bool motionStatus) {
+bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   // check difference between current and previous image (subtract background)
   // convert image from JPEG to downscaled RGB888 bitmap to 8 bit grayscale
   uint32_t dTime = millis();
@@ -71,9 +71,10 @@ bool checkMotion(camera_fb_t * fb, bool motionStatus) {
   int sampleWidth = frameData[fsizePtr].frameWidth / downsize;
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   int num_pixels = sampleWidth * sampleHeight;
-
   if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling)) {
-    LOG_DBG("motionDetect: jpg2rgb() failed");
+    LOG_ERR("motionDetect: jpg2rgb() failed");
+    free(rgb_buf);
+    rgb_buf = NULL;
     return motionStatus;
   }
 

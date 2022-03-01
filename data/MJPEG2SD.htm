@@ -4,8 +4,8 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>ESP32-CAM_MJPEG</title>
-        <script src="/jquery.min.js"></script>
+        <title>ESP32-CAM_AVI2SD</title>
+        <script src='/web?jquery.min.js'></script>
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
@@ -33,6 +33,7 @@
            .center{
                 text-align: center; 
            }
+           
            .navtop{
                 list-style: none;
            }
@@ -40,6 +41,7 @@
              float: left;
              position: relative;
            }
+             
            nav#maintoolbar {
               display: flex;
               flex-wrap: nowrap;
@@ -457,7 +459,7 @@
         <section id="main">
             <section id="header">
               <section id="title">
-                <h2 id="page-title">ESP32 Camera</h2>&nbsp;
+                <h2 id="page-title">ESP32-CAM_AVI2SD</h2>&nbsp;
                 <h6 id="fw_version" class="default-action displayonly"></h6>
               </section>
               <nav id="maintoolbar">
@@ -544,14 +546,7 @@
                                   <input id="autoUpload" type="checkbox" class="default-action">
                                   <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
                               </div>
-                          </div>                            
-                          <div class="input-group" id="aviOn-group">
-                              <label for="aviOn">Format as AVI</label>
-                              <div class="switch">
-                                  <input id="aviOn" type="checkbox" class="default-action">
-                                  <label  title="Convert file to avi format on upload or download"  class="slider" for="aviOn"></label>
-                              </div>
-                          </div>      
+                          </div>                              
                           <div class="input-group" id="micGain-group">
                               <label for="micGain">Microphone Gain</label>
                               <div class="range-min">0</div>
@@ -875,6 +870,28 @@
                               <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory" class="default-action">
                           </div>                          
                           <br>
+                          <h3>SMTP settings</h3>
+                          <div class="input-group" id="smtp-group">
+                              <label for "smtp_server">SMTP server</label>
+                              <input id="smtp_server" name="smtp_server" length=32 placeholder="smtp server name" class="default-action">
+                          </div>
+                          <div class="input-group" id="smtp-group">
+                              <label for "smtp_port">SMTP port</label>
+                              <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port" class="default-action">
+                          </div>                          
+                          <div class="input-group" id="smtp-group">
+                              <label for="smtp_login">SMTP login</label>
+                              <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email" class="default-action">
+                          </div>
+                          <div class="input-group" id="smtp-group">
+                              <label for="smtp_pass">SMTP password</label>
+                              <input id="smtp_pass" name="smtp_pass" length=32 placeholder="smtp password" class="default-action">
+                          </div>
+                          <div class="input-group" id="ftp-group">
+                              <label for="smtp_email">SMTP email</label>
+                              <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to" class="default-action">
+                          </div>                          
+                          <br>
                           <div>
                             <section id="buttons">
                               <button id="reboot" style="float:right;">Reboot</button>
@@ -894,10 +911,6 @@
                 </figure>
             </div>
             <section id="footer">
-                <div class="info-group center" id="isrecord">
-                    <label for="isrecord">Recording?</label>
-                    <div id="isrecord" class="default-action info displayonly">&nbsp;</div>
-                </div>
                 <div class="info-group center" id="llevel-group">
                     <label for="llevel">Ambient&nbsp;Light</label>
                     <div id="llevel" class="default-action info displayonly">&nbsp;</div>
@@ -929,7 +942,11 @@
                 <div class="info-group center" id="heap-group">
                     <label for="free_heap">Free&nbsp;heap</label>
                     <div id="free_heap" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div>                
+                </div>  
+                <div class="info-group center" id="heap-group">
+                    <label for="free_psram">Free&nbsp;PSRAM</label>
+                    <div id="free_psram" class="default-action info displayonly" name="textonly">&nbsp;</div>
+                </div>                 
                 <div class="info-group center" id="total-group">
                     <label for="total_bytes">Total&nbsp;space</label>
                     <div id="total_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
@@ -1180,13 +1197,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
   //const formatButton = document.getElementById('format')
   
   configButton.onclick = () => {
-    window.location.href='/control?config=1';
+    window.location.href='/web?configs.txt';
   }
   logButton.onclick = () => {
-    window.location.href='/control?log=1';
+    window.location.href='/web?LOG.htm';
   }
   otaButton.onclick = () => {
-    window.location.href='/control?ota=1';
+    window.location.href='/web?OTA.htm';
   }
   
   uploadButton.onclick = () => {
@@ -1209,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     
     var sid = $('#sfile');
     sid.find('option:not(:first)').remove(); // remove all except first option
-    sid.append('<option value="/">Get Folders</option>');    
+    sid.append('<option value="/">Get Folders</option>'); 
   }
 
   rebootButton.onclick = () => {
@@ -1261,7 +1278,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
 		
     streamButton.innerHTML = 'Stop Stream'
   }
-  view.onload = function () { srcSize = { width: view.width, height: view.height } };
+  view.onload = function () {srcSize = { width: view.width, height: view.height } };
 
   forceRecord.onclick = () => {    
     var recOn = 0;
@@ -1472,7 +1489,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         $.each(response, function(key, value){
           listItems += '<option value="' + key + '">' + value + '</option>';
         });
-        sid.append(listItems);
+        sid.append(listItems); // small bug - keeps appending Get Folders each time file selected in same folder
         $("*").css("cursor", "default");
       },
       error: function (xhr, ajaxOptions, thrownError) {

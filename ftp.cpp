@@ -1,24 +1,23 @@
-// Store SD card content on a remote server using FTP
+// Store SD card or SPIFFS content on a remote server using FTP
 //
 // s60sc 2022, based on code contributed by gemi254
 
 #include "myConfig.h"
 
-// Ftp server params
-char ftp_server[32] = "";
-char ftp_port[6]    = "";
-char ftp_user[32]   = "";
-char ftp_pass[MAX_PWD_LEN] = "";
-char ftp_wd[64]     = "";
-
-#define RESPONSE_TIMEOUT 10000  
+// Ftp server params, setup via web page
+char ftp_server[32];
+uint16_t ftp_port = 21;
+char ftp_user[32];
+char ftp_pass[MAX_PWD_LEN];
+char ftp_wd[64]; 
 
 // FTP control
 static char rspBuf[256]; // Ftp response buffer
 static char respCodeRx[4]; // ftp response code                        
-static TaskHandle_t FTPtaskHandle = NULL;
-static char sdPathName[FILE_NAME_LEN];
+TaskHandle_t FTPtaskHandle = NULL;
+static char storedPathName[FILE_NAME_LEN];
 static bool uploadInProgress = false;
+static fs::FS fp = STORAGE;
 
 // WiFi Clients
 WiFiClient client;
@@ -36,7 +35,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   uint32_t start = millis();
   while (!client.available() && millis() < start + RESPONSE_TIMEOUT) delay(1);
   if (!client.available()) {
-    LOG_ERR("Timed out waiting for client response");
+    LOG_ERR("FTP server response timeout");
     return false;
   }
   // read in response code and message
@@ -50,7 +49,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   LOG_DBG("Rx code: %s, resp: %s", respCodeRx, rspBuf);
   if (strcmp(respCode, "999") == 0) return true; // response code not checked
   if (strcmp(respCodeRx, respCode) != 0) {
-    // response code wrong
+    // incorrect response code
     LOG_ERR("Command %s got wrong response: %s", cmd, rspBuf);
     return false;
   }
@@ -59,10 +58,10 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
 
 static bool ftpConnect(){
   // Connect to ftp and change to root dir
-  if (client.connect(ftp_server, atoi(ftp_port))) {
-    LOG_DBG("FTP connected at %s:%s", ftp_server, ftp_port);
+  if (client.connect(ftp_server, ftp_port)) {
+    LOG_DBG("FTP connected at %s:%u", ftp_server, ftp_port);
   } else {
-    LOG_ERR("Error opening ftp connection to %s:%s", ftp_server, ftp_port);
+    LOG_ERR("Error opening ftp connection to %s:%u", ftp_server, ftp_port);
     return false;
   }
   if (!sendFtpCommand("", "", "220")) return false;
@@ -123,10 +122,8 @@ static bool openDataPort() {
 static bool ftpStoreFile(File &fh) {
   // Upload individual file to current folder, overwrite any existing file  
   if (strstr(fh.name(), FILE_EXT) == NULL) return false; // folder, or not valid file type    
-  // determine if file is suitable for conversion to AVI
   char ftpSaveName[FILE_NAME_LEN];
-  if (isAVI(fh)) changeExtension(ftpSaveName, fh.name(), "avi");
-  else strcpy(ftpSaveName, fh.name());
+  strcpy(ftpSaveName, fh.name());
   size_t fileSize = fh.size();
   LOG_INF("Upload file: %s, size: %0.1fMB", ftpSaveName, (float)(fileSize)/ONEMEG);    
 
@@ -138,7 +135,7 @@ static bool ftpStoreFile(File &fh) {
   if (!sendFtpCommand("STOR ", ftpSaveName, "150")) return false; 
   do {
     // upload file in chunks
-    readLen = readClientBuf(fh, chunk, RAMSIZE); // obtain modified data to send 
+    readLen = fh.read(chunk, RAMSIZE);  // generic
     if (readLen) {
       writeLen = dclient.write((const uint8_t*)chunk, readLen);
       writeBytes += writeLen;
@@ -159,17 +156,17 @@ static bool ftpStoreFile(File &fh) {
 static void uploadFolderOrFileFtp() {
   // Upload a single file or whole folder using ftp 
   // folder is uploaded file by file
-  if (strlen(sdPathName) < 2){
-    LOG_DBG("Root or null is not allowed %s", sdPathName);  
+  if (strlen(storedPathName) < 2){
+    LOG_DBG("Root or null is not allowed %s", storedPathName);  
     return;  
   }
   if (!ftpConnect()) {
     LOG_ERR("Unable to make ftp connection");
     return; 
   }
-  File root = SD_MMC.open(sdPathName);
+  File root = fp.open(storedPathName);
   if (!root) {
-    LOG_ERR("Failed to open: %s", sdPathName);
+    LOG_ERR("Failed to open: %s", storedPathName);
     return;
   }  
    
@@ -208,14 +205,14 @@ static void FTPtask(void* parameter) {
 
 void startFTPtask() {
   // create task on startup
-  xTaskCreate(&FTPtask, "FTPtask", 4096*2, NULL, 1, &FTPtaskHandle);    
+  xTaskCreate(&FTPtask, "FTPtask", 4096, NULL, 1, &FTPtaskHandle);    
 }
 
 bool ftpFileOrFolder(const char* fileFolder) {
   // called from other functions to commence FTP upload
   if (!uploadInProgress) {
     uploadInProgress = true;
-    strcpy(sdPathName, fileFolder);
+    strcpy(storedPathName, fileFolder);
     xTaskNotifyGive(FTPtaskHandle);
     return true;
   } else LOG_ERR("Unable to upload %s as another upload in progress", fileFolder);

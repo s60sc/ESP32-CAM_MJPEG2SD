@@ -20,11 +20,10 @@ const uint32_t SAMPLE_RATE = 16000; // sample rate used
 const uint8_t BUFFER_WIDTH = sizeof(int16_t);
 static File wavFile;
 static int totalSamples = 0;
-static const char* TEMPFILE = "/current.wav";
 static TaskHandle_t micHandle = NULL;
 static bool doMicCapture = false;
 static bool captureRunning = false;
-static int16_t* sampleBuffer;
+static int16_t* sampleBuffer = NULL;
 static QueueHandle_t i2s_queue = NULL;
 static i2s_event_t event;
 
@@ -46,7 +45,7 @@ static i2s_config_t i2s_mic_config = {
   .communication_format = I2S_COMM_FORMAT_STAND_I2S,
   .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
   .dma_buf_count = 4,
-  .dma_buf_len = 1024,
+  .dma_buf_len = 256,
   .use_apll = false,
   .tx_desc_auto_clear = false,
   .fixed_mclk = 0
@@ -56,7 +55,7 @@ static i2s_config_t i2s_mic_config = {
 static i2s_pin_config_t i2s_mic_pins = {
   .bck_io_num = MIC_SCK_IO,
   .ws_io_num = MIC_WS_IO,
-  .data_out_num = I2S_PIN_NO_CHANGE,
+  .data_out_num = -1,
   .data_in_num = MIC_SD_IO
 };
 
@@ -71,6 +70,7 @@ static void startMic() {
   // install & start up the I2S peripheral as microphone when activated
   int queueSize = 4;
   i2s_queue = xQueueCreate(queueSize, sizeof(i2s_event_t));
+  // installing the driver kills esp_camera_fb_get() performance - why?
   i2s_driver_install(I2S_NUM_1, &i2s_mic_config, queueSize, &i2s_queue);
   i2s_set_pin(I2S_NUM_1, &i2s_mic_pins);
   i2s_zero_dma_buffer(I2S_NUM_1);
@@ -105,17 +105,9 @@ static void getRecording() {
   captureRunning = false;
 }
 
-static inline void littleEndian(uint8_t* inBuff, uint32_t in) {
-  // arrange bits in little endian order
-  for (int i=0; i<4; i++) {
-    inBuff[i] = in % 0x100;
-    in = in >> 8;  
-  }
-}
-
 static void micTask(void* parameter) {
   startMic();
-  sampleBuffer = (int16_t*)malloc(RAMSIZE);
+  if (sampleBuffer == NULL) sampleBuffer = (int16_t*)malloc(RAMSIZE);
   while (true) {
     // wait for recording request
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -135,37 +127,34 @@ void prepMic() {
 void startAudio() {
   // start audio recording and write recorded audio to SD card as WAV file 
   // combined into AVI file as PCM channel on FTP upload or browser download
-  // so can read by media players
+  // so can be read by media players
   if (USE_MIC && micGain) {
-    wavFile = SD_MMC.open(TEMPFILE, FILE_WRITE);
+    wavFile = SD_MMC.open(WAVTEMP, FILE_WRITE);
     wavFile.write(wavHeader, WAV_HEADER_LEN); 
     wakeTask(micHandle);
   } 
 }
 
-void finishAudio(const char* filename, bool isValid) {
+void finishAudio(bool isValid) {
   if (doMicCapture) {
     // finish a recording and save if valid
     doMicCapture = false; 
     while (captureRunning) delay(100); // wait for getRecording() to complete
     if (isValid) {
       // update wav header
-      int dataBytes = totalSamples * BUFFER_WIDTH;
-      littleEndian(wavHeader+4,  dataBytes + WAV_HEADER_LEN - 8); // wav file size excluding chunk header
-      littleEndian(wavHeader+24, SAMPLE_RATE); // sample rate
-      littleEndian(wavHeader+28, SAMPLE_RATE * BUFFER_WIDTH); // byte rate (SampleRate * NumChannels * BitsPerSample/8)
-      littleEndian(wavHeader+WAV_HEADER_LEN-4, dataBytes); // wav data size
+      uint32_t dataBytes = totalSamples * BUFFER_WIDTH;
+      uint32_t wavFileSize = dataBytes + WAV_HEADER_LEN - 8; // wav file size excluding chunk header
+      memcpy(wavHeader+4, &wavFileSize, 4);
+      memcpy(wavHeader+24, &SAMPLE_RATE, 4); // sample rate
+      uint32_t byteRate = SAMPLE_RATE * BUFFER_WIDTH; // byte rate (SampleRate * NumChannels * BitsPerSample/8)
+      memcpy(wavHeader+28, &byteRate, 4); 
+      memcpy(wavHeader+WAV_HEADER_LEN-4, &dataBytes, 4); // wav data size
       wavFile.seek(0, SeekSet); // start of file
       wavFile.write(wavHeader, WAV_HEADER_LEN); // overwrite default header
       wavFile.close();   
-      
-      // rename file
-      char wavFileName[FILE_NAME_LEN];
-      changeExtension(wavFileName, filename, "wav");
-      SD_MMC.rename(TEMPFILE, wavFileName);    
+         
       LOG_INF("Captured %d audio samples with gain factor %i", totalSamples, gainFactor);
-      LOG_INF("Saved %ukB to SD for %s", (dataBytes + WAV_HEADER_LEN) / 1024, wavFileName);
-    } 
+      LOG_INF("Saved %ukB to SD for %s", (dataBytes + WAV_HEADER_LEN) / 1024, WAVTEMP);
+    }
   }
-  SD_MMC.remove(TEMPFILE);
 }
