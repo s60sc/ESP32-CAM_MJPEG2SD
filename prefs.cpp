@@ -245,6 +245,7 @@ void buildJsonString(bool quick) {
     buildConfigJson(); // build initial string from configuration map
     p+= strlen(jsonBuff);
   }
+  p += sprintf(p, "\"ST_SSID\":\"%s\",", ST_SSID);
   p += sprintf(p, "\"llevel\":%u,", lightLevel);
   p += sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
   float aTemp = readDS18B20temp(true);
@@ -321,8 +322,6 @@ bool loadConfig() {
     updateConfigMap("ST_ns1", ST_ns1);
     updateConfigMap("ST_ns1", ST_ns2);
   }
-  //Update nvm value
-  updateConfigMap("ST_SSID", ST_SSID);
   // load variables from stored config map
   char variable[32] = {0,};
   char value[FILE_NAME_LEN] = {0,};
