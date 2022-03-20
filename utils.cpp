@@ -122,9 +122,9 @@ bool startWifi() {
 }
 
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
-  static bool sdFilesChecked = false;
+  static bool dataFilesChecked = false;
   if (!timeSynchronized) getLocalNTP();
-  if (!sdFilesChecked) sdFilesChecked = checkSDFiles();
+    if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
   LOG_DBG("ping successful");
 }
 
@@ -237,20 +237,23 @@ void getUpTime(char* timeVal) {
 
 /********************** misc functions ************************/
 
-bool startSpiffs() {
-  if( !SPIFFS.begin(true)) {
+bool startSpiffs(bool deleteAll) {
+  if (!SPIFFS.begin(true)) {
     LOG_ERR("SPIFFS not mounted");
     return false;
-  } else {
-    LOG_INF("SPIFFS: Total bytes %d, Used bytes %d", SPIFFS.totalBytes(), SPIFFS.usedBytes());
-    
+  } else {    
     // list details of files on SPIFFS
     File root = SPIFFS.open("/");
     File file = root.openNextFile();
     while(file) {
       LOG_INF("File: %s, size: %u", file.path(), file.size());
+      if (deleteAll) {
+        SPIFFS.remove(file.path());
+        LOG_WRN("Deleted %s", file.path());
+      }
       file = root.openNextFile();
     }
+    LOG_INF("SPIFFS: Total bytes %d, Used bytes %d", SPIFFS.totalBytes(), SPIFFS.usedBytes());
     LOG_INF("Sketch size %d kB", ESP.getSketchSize() / 1024);
     return true;
   }
@@ -568,7 +571,9 @@ static void battVoltage() {
     smtpBufferSize = 0; // no attachment
     char battMsg[20];
     sprintf(battMsg, "Voltage is %0.1fV", currentVoltage);
+#ifdef INCLUDE_SMTP
     if (USE_SMTP) emailAlert("Low battery", battMsg);
+#endif
   }
 }
 
