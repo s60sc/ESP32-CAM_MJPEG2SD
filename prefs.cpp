@@ -247,8 +247,12 @@ static bool savePrefs(bool bClear = false) {
   prefs.putString("st_ssid", ST_SSID);
   prefs.putString("st_pass", ST_Pass);
   prefs.putString("ap_pass", AP_Pass); 
+#ifdef INCLUDE_FTP          
   prefs.putString("ftp_pass", ftp_pass);
+#endif
+#ifdef INCLUDE_SMTP
   prefs.putString("smtp_pass", smtp_pass);
+#endif
   prefs.end();
   return true;
 }
@@ -262,34 +266,40 @@ static bool loadPrefs() {
   prefs.getString("st_ssid", ST_SSID, 32);
   prefs.getString("st_pass", ST_Pass, MAX_PWD_LEN);
   prefs.getString("ap_pass", AP_Pass, MAX_PWD_LEN); 
+#ifdef INCLUDE_FTP
   prefs.getString("ftp_pass", ftp_pass, MAX_PWD_LEN);
+#endif
+#ifdef INCLUDE_SMTP
   prefs.getString("smtp_pass", smtp_pass, MAX_PWD_LEN);
+#endif
   prefs.end();
   return true;
 }
 
-esp_err_t updateStatus(const char* variable, const char* value) {
+bool updateStatus(const char* variable, const char* value) {
   // called from controlHandler() to update app status from changes made on browser
   // or from loadConfig() to update app status from stored preferences
-  esp_err_t res = ESP_OK; 
   int intVal = atoi(value);
   int fltVal = atof(value);
   updateConfigMap(variable, value); // update config map
-  res = updateAppStatus(variable, value); 
+  updateAppStatus(variable, value); 
   if (!strcmp(variable, "hostName")) strcpy(hostName, value);
   else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID, value);
   else if(!strcmp(variable, "ST_Pass")) strcpy(ST_Pass, value);
+#ifdef INCLUDE_FTP
   else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server, value);
   else if(!strcmp(variable, "ftp_port")) ftp_port = intVal;
   else if(!strcmp(variable, "ftp_user")) strcpy(ftp_user, value);
   else if(!strcmp(variable, "ftp_pass")) strcpy(ftp_pass, value);
-  else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server, value);
   else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd, value);
+#endif
+#ifdef INCLUDE_SMTP
   else if(!strcmp(variable, "smtp_port")) smtp_port = intVal;
   else if(!strcmp(variable, "smtp_login")) strcpy(smtp_login, value);
   else if(!strcmp(variable, "smtp_server")) strcpy(smtp_server, value);
   else if(!strcmp(variable, "smtp_email")) strcpy(smtp_email, value);
   else if(!strcmp(variable, "smtp_pass")) strcpy(smtp_pass, value);
+#endif
   else if(!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
@@ -300,13 +310,19 @@ esp_err_t updateStatus(const char* variable, const char* value) {
     else logMode = 0;
   }
   else if(!strcmp(variable, "resetLog")) reset_log(); 
-  else if(!strcmp(variable, "reset")) doRestart();
+  else if(!strcmp(variable, "reset")) return false;
   else if(!strcmp(variable, "clear")) savePrefs(true);
+  else if(!strcmp(variable, "deldata")) {  
+    // /control?deldata=1
+    if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs(true);
+    else deleteFolderOrFile(DATA_DIR);
+    return false;
+  }
   else if(!strcmp(variable, "save")) {
     saveConfigMap();
     savePrefs();
-  } else res = ESP_FAIL;
-  return res;
+  } 
+  return true;
 }
 
 void buildJsonString(bool quick) {
@@ -322,8 +338,12 @@ void buildJsonString(bool quick) {
     // stored on NVS 
     p += sprintf(p, "\"ST_Pass\":\"%.*s\",",strlen(ST_Pass), FILLSTAR);
     p += sprintf(p, "\"AP_Pass\":\"%.*s\",",strlen(AP_Pass), FILLSTAR);
+#ifdef INCLUDE_FTP 
     p += sprintf(p, "\"ftp_pass\":\"%.*s\",",strlen(ftp_pass), FILLSTAR);
+#endif
+#ifdef INCLUDE_SMTP
     p += sprintf(p, "\"smtp_pass\":\"%.*s\",",strlen(smtp_pass), FILLSTAR);
+#endif
     // other
     p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
   }

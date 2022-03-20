@@ -205,7 +205,7 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
 static esp_err_t indexHandler(httpd_req_t* req) {
   strcpy(inFileName, INDEX_PAGE_PATH);
   // Show wifi wizard if not setup and access point mode  
-  if (!SD_MMC.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
+  if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, defaultPage_html, HTTPD_RESP_USE_STRLEN);
@@ -258,10 +258,13 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   // obtain key from query string
   extractQueryKey(req, variable);
   strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
-  updateStatus(variable, value);
+  if (!updateStatus(variable, value)) {
+    httpd_resp_send(req, NULL, 0);  
+    doRestart(); 
+  }
   // handler for downloading selected file, required file name in inFileName
   appSpecificHandler(req, variable, value); 
-  if (!strcmp(variable, "download")) return fileHandler(req, true);
+  if (!strcmp(variable, "download") && atoi(value) == 1) return fileHandler(req, true);
   httpd_resp_send(req, NULL, 0); 
   return ESP_OK;
 }

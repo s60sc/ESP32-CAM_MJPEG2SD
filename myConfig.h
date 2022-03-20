@@ -28,7 +28,7 @@
 #define MIC_SCK_IO 4  // I2S SCK
 #define MIC_WS_IO 12  // I2S WS
 #define MIC_SD_IO  3  // I2S SD
-#define INCLUDE_DS18B20 // uncomment to include DS18B20 temp sensor if fitted
+#//define INCLUDE_DS18B20 // uncomment to include DS18B20 temp sensor if fitted
 #define DS18B_PIN 3 // if USE_DS18B20 uncommented, labelled U0R on ESP32-CAM board
 
 // motion recording parameters - motionDetect.cpp
@@ -82,7 +82,7 @@
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "6.1"
+#define APP_VER "6.2"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -95,6 +95,7 @@
 #define ONEMEG (1024 * 1024)
 #define MAX_PWD_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
+#define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
 
 #define FILE_EXT "avi"
 #define BOUNDARY_VAL "123456789000000000000987654321"
@@ -103,10 +104,12 @@
 #define CHUNK_HDR 8 // bytes per jpeg hdr in AVI 
 #define WAVTEMP "/current.wav"
 #define AVITEMP "/current.avi"
+#define TLTEMP "/current.tl"
 #define FILLSTAR "****************************************************************"
 
 #define FLUSH_DELAY 0 // for debugging crashes
 #define INCLUDE_FTP 
+#define INCLUDE_SMTP
 //#define DEV_ONLY // leave commented out
 
 /******************** Libraries *******************/
@@ -167,12 +170,12 @@ void startAudio();
 void startSDtasks();
 void startStreamServer();
 void stopPlaying();
-void wgetFile(String url, String dir);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
 // global general utility functions in utils.cpp / utilsSD.cpp
 void buildJsonString(bool quick); 
+bool checkDataFiles();
 bool checkFreeSpace();
 void checkMemory();
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
@@ -204,12 +207,12 @@ void showProgress();
 void startFTPtask();
 void startOTAtask();
 void startSecTimer(bool startTimer);
-bool startSpiffs();
+bool startSpiffs(bool deleteAll = false);
 void startWebServer();
 bool startWifi();
 void syncToBrowser(const char *val);
 void tryDS18B20();
-esp_err_t updateStatus(const char* variable, const char* value);
+bool updateStatus(const char* variable, const char* value);
 void urlDecode(char* inVal);
 
 
@@ -231,19 +234,23 @@ extern char ST_gw[];
 extern char ST_ns1[];
 extern char ST_ns2[];
 
+#ifdef INCLUDE_FTP    
 // ftp server
 extern char ftp_server[];
 extern char ftp_user[];
 extern uint16_t ftp_port;
 extern char ftp_pass[];
 extern char ftp_wd[];
+#endif 
 
+#ifdef INCLUDE_SMTP
 //  SMTP server
 extern char smtp_login[];
 extern char smtp_pass[];
 extern char smtp_email[];
 extern char smtp_server[];
 extern uint16_t smtp_port;
+#endif
 extern size_t smtpBufferSize;
 extern byte* SMTPbuffer;
 
@@ -252,6 +259,7 @@ extern char* jsonBuff;
 extern bool dbgVerbose;
 extern byte logMode;
 extern bool timeSynchronized;
+extern const char* defaultPage_html;
 
 
 /******************** Global app declarations *******************/
@@ -295,7 +303,6 @@ extern TaskHandle_t emailHandle;
 extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
 
-extern const char* defaultPage_html;
 
 /************************** structures ********************************/
 

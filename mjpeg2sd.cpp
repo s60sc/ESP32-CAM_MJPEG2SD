@@ -132,6 +132,7 @@ static void timeLapse(camera_fb_t* fb) {
   static int frameCntTL, requiredFrames, intervalCnt = 0;
   static int intervalMark = SECS_BETWEEN_FRAMES * saveFPS;
   static File tlFile;
+  static char TLname[FILE_NAME_LEN];
   if (timeSynchronized) {
     if (!frameCntTL) {
       // initialise time lapse avi
@@ -139,12 +140,13 @@ static void timeLapse(camera_fb_t* fb) {
       dateFormat(partName, sizeof(partName), true);
       SD_MMC.mkdir(partName); // make date folder if not present
       dateFormat(partName, sizeof(partName), false);
-      snprintf(aviFileName, sizeof(aviFileName)-1, "%s_%s_%u_%u_%u_T.%s", 
+      snprintf(TLname, sizeof(TLname)-1, "%s_%s_%u_%u_%u_T.%s", 
         partName, frameData[fsizePtr].frameSizeStr, PLAYBACK_FPS, MINUTES_DURATION, requiredFrames, FILE_EXT);
-      tlFile = SD_MMC.open(aviFileName, FILE_WRITE);
+      if (SD_MMC.exists(TLTEMP)) SD_MMC.remove(TLTEMP);
+      tlFile = SD_MMC.open(TLTEMP, FILE_WRITE);
       tlFile.write(aviHeader, AVI_HEADER_LEN); // space for header
       prepAviIndex(true);
-      LOG_INF("Started time lapse file %s, interval %u, for %u frames", aviFileName, intervalMark, requiredFrames);
+      LOG_INF("Started time lapse file %s, duration %u mins, for %u frames", TLname, MINUTES_DURATION, requiredFrames);
       frameCntTL++; // to stop re-entering
     }
     if (intervalCnt > intervalMark) {
@@ -179,6 +181,7 @@ static void timeLapse(camera_fb_t* fb) {
       tlFile.seek(0, SeekSet); // start of file
       tlFile.write(aviHeader, AVI_HEADER_LEN);
       tlFile.close(); 
+      SD_MMC.rename(TLTEMP, TLname);
       frameCntTL = intervalCnt = 0;
       LOG_DBG("Finished time lapse");
     }
