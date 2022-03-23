@@ -103,7 +103,7 @@
 
             figure {
                 padding: 0px;
-                margin: 0;
+                margin: 0;               
                 width: 100%;
                 height: auto;
                -webkit-margin-before: 0;
@@ -134,27 +134,7 @@
                 }
                #sidebar{
                   width: auto;
-               }
-               figure img {
-                    display: block;
-                    width: 100%;
-                    height: auto
-                }
-
-                figure {
-                    padding: 0 0 0 0px;
-                    margin: 0;
-                    width: 100%;
-                    height: 100%; 
-                    -webkit-margin-before: 0;
-                    margin-block-start: 0;
-                    -webkit-margin-after: 0;
-                    margin-block-end: 0;
-                    -webkit-margin-start: 0;
-                    margin-inline-start: 0;
-                    -webkit-margin-end: 0;
-                    margin-inline-end: 0
-                }
+               }               
             }
 
             section#buttons {
@@ -603,7 +583,7 @@
                                   <label title="Control onboard led" class="slider" for="lamp"></label>
                               </div>
                            </div>
-                           <div class="input-group" id="lamp-group">
+                           <div class="input-group" id="tlapse-group">
                               <label for="timeLapseOn">Time Lapse</label>
                               <div class="switch">
                                   <input id="timeLapseOn" type="checkbox" class="default-action">
@@ -801,6 +781,7 @@
                               <label for="ST_Pass">Password</label>
                               <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
                           </div>
+                          <br>
                           <h3>Clock settings</h3>
                           <div class="input-group" id="time-group">
                              <label for="timezone">Time zone</label>
@@ -847,7 +828,8 @@
                           <div class="input-group extras" id="time-group">
                               <label for="clockUTC">Camera UTC</label>
                               <input id="clockUTC" name="clockUTC" length=20 style="max-width:124px" class="default-action">
-                          </div>                          
+                          </div>
+                          <br>                          
                           <h3>Ftp settings</h3>
                           <div class="input-group" id="ftp-group">
                               <label for "ftp_server">Ftp Server</label>
@@ -905,7 +887,7 @@
                 <figure>
                     <div id="stream-container" class="image-container hidden">
                         <div class="close" id="close-stream">×</div>
-                        <div class="maximize" id="full-screen">+</div>
+                        <div class="maximize" id="full-screen">#</div>
                         <img id="stream" src="">
                     </div>
                 </figure>
@@ -961,7 +943,7 @@
                 </div>   
             </section>                         
         </section>       
-      <script>
+<script>
 //Menu accordion
 $('.menu-action').each(function () {
   this.addEventListener('click', function(e) {    
@@ -971,7 +953,6 @@ $('.menu-action').each(function () {
     });
   }); 
 });
-
 
 $('input[type="range"]').on('input', function () {
 
@@ -1259,10 +1240,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
 	var srcSize = { width: 0, height: 0 };
   const stopStream = () => {
     window.stop();
-//    $("#stream-container").css("width",srcSize.width);
-//    $("#stream-container").css("height", srcSize.height);
-//    $("#stream").css("width", srcSize.width);
-//    $("#stream").css("height", srcSize.height);
+    hide(viewContainer)
+    $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
     streamButton.innerHTML = 'Start Stream'
     $.ajax({
       url: baseHost + '/control',
@@ -1273,12 +1252,15 @@ document.addEventListener('DOMContentLoaded', function (event) {
   }
 
   const startStream = () => {
-    show(viewContainer)
     view.src = `${streamUrl}/stream`
-		
     streamButton.innerHTML = 'Stop Stream'
   }
-  view.onload = function () {srcSize = { width: view.width, height: view.height } };
+  
+  view.onload = function () {  	
+    srcSize = { width: view.width, height: view.height } 
+    $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
+    show(viewContainer)
+  };
 
   forceRecord.onclick = () => {    
     var recOn = 0;
@@ -1330,35 +1312,27 @@ document.addEventListener('DOMContentLoaded', function (event) {
     return { width: srcWidth*ratio, height: srcHeight*ratio };
   }
   
-  //Maximize - Minimize player window  
+  //Resize player window,  #1. Original - &curren;2. Maximized - %3. Fullscreen aspect - &reg;4. Fullscreen 
   function toggleFullScreen(){        
-   if (fullScreen.innerHTML === '+') {     //Maximize
-      srcSize = { width: $("#stream-container").width(), height: $("#stream-container").height() }
-      viewContainer.requestFullscreen()
-      fullScreen.innerHTML = '#' 
-      $("#stream-container").css("width", window.screen.availWidth);
-      $("#stream-container").css("height", window.screen.availHeight);
-      $("#stream").css("width", $("#stream-container").width());
-      $("#stream").css("height", $("#stream-container").height());      
-      //console.log("Max",window.screen.availWidth,window.screen.availHeight);
-   }else  if (fullScreen.innerHTML === '-') {     //Maximized
+   if (fullScreen.innerHTML === '#') {            //Original -> Maximize
+      $("#stream-container").css("width", "100%").css("height", "auto");
+      fullScreen.innerHTML = '&curren;' 
+   }else if (encodeURI(fullScreen.innerHTML) === '%C2%A4') {     //Maximized -> Fullscreen aspect
+   		viewContainer.requestFullscreen()
+   	  var r = calculateAspectRatioFit(srcSize.width, srcSize.height, window.screen.availWidth, window.screen.availHeight)
+      $("#stream-container").css("width",r.width).css("height", r.height);
+      fullScreen.innerHTML = '%'
+   }else  if (fullScreen.innerHTML === '%') {    //Fullscreen aspect -> Fullscreen       
+      $("#stream-container").css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+      $("#stream").css("width","100%").css("height","100%")
+      fullScreen.innerHTML = '&reg;'
+    }else{ 																			//Fullscreen -> Original
       document.exitFullscreen()
-      fullScreen.innerHTML = '+'
-      $("#stream-container").css("width", "auto");
-      $("#stream-container").css("height", "auto");   
-      $("#stream").css("width", "100%");
-      $("#stream").css("height", "auto");  
-    }else{ //Maximize with aspect ratio
-      fullScreen.innerHTML = '-' 
-      var r = calculateAspectRatioFit(srcSize.width,srcSize.height, window.screen.availWidth, window.screen.availHeight)
-      $("#stream-container").css("width",r.width);
-      $("#stream-container").css("height", r.height);
-      $("#stream").css("width", r.width);
-      $("#stream").css("height", r.height);      
-      //console.log("Max asp",srcSize,r);
+      $("#stream-container").css("width", srcSize.width).css("height", srcSize.height);
+      $("#stream").css("width","100%").css("height","auto");
+      fullScreen.innerHTML = '#'
     }
-
-}
+  }
 
  //Maximize - Minimize video on click
   viewContainer.onclick = () => {
@@ -1499,7 +1473,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }); 
   }
 });
-        </script>        
+</script>
     </body>
 </html>
 
