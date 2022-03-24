@@ -122,7 +122,7 @@
             figure img {
                 display: block;
                 width: 100%;
-                height: auto;
+                height: 100%;
                 border-radius: 4px;
             }
 
@@ -132,9 +132,9 @@
                     flex-wrap: nowrap;
                     align-items: stretch
                 }
-               #sidebar{
+                #sidebar{
                   width: auto;
-               }               
+                }               
             }
 
             section#buttons {
@@ -1237,11 +1237,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
   }
   
-	var srcSize = { width: 0, height: 0 };
+	var srcSize = { width: 0, height: 0 };	
   const stopStream = () => {
+    const curSize = {width: view.width, height: view.height}
     window.stop();
-    hide(viewContainer)
-    $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
+    //Reset to view size
+    $("#stream-container").css("width",curSize.width).css("height", curSize.height);
     streamButton.innerHTML = 'Start Stream'
     $.ajax({
       url: baseHost + '/control',
@@ -1258,8 +1259,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
   
   view.onload = function () {  	
     srcSize = { width: view.width, height: view.height } 
-    $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
-    show(viewContainer)
+    if(fullScreen.innerHTML !== '#')
+       $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
+    show(viewContainer)    
   };
 
   forceRecord.onclick = () => {    
@@ -1312,24 +1314,24 @@ document.addEventListener('DOMContentLoaded', function (event) {
     return { width: srcWidth*ratio, height: srcHeight*ratio };
   }
   
-  //Resize player window,  #1. Original - &curren;2. Maximized - %3. Fullscreen aspect - &reg;4. Fullscreen 
+  //Resize player window,  #. Maximized - 2. Original - 3. Fullscreen aspect - 4. Fullscreen 
   function toggleFullScreen(){        
-   if (fullScreen.innerHTML === '#') {            //Original -> Maximize
-      $("#stream-container").css("width", "100%").css("height", "auto");
-      fullScreen.innerHTML = '&curren;' 
-   }else if (encodeURI(fullScreen.innerHTML) === '%C2%A4') {     //Maximized -> Fullscreen aspect
-   		viewContainer.requestFullscreen()
-   	  var r = calculateAspectRatioFit(srcSize.width, srcSize.height, window.screen.availWidth, window.screen.availHeight)
+   if (fullScreen.innerHTML === '#') { //Maximized -> Original 
+      $("#stream-container").css("width", srcSize.width).css("height", srcSize.height);
+      fullScreen.innerHTML = '&curren;'
+   }else if (encodeURI(fullScreen.innerHTML) === '%C2%A4') { //Original -> Fullscreen aspect
+      viewContainer.requestFullscreen()
+      var r = calculateAspectRatioFit(srcSize.width, srcSize.height, window.screen.availWidth, window.screen.availHeight)
       $("#stream-container").css("width",r.width).css("height", r.height);
-      fullScreen.innerHTML = '%'
-   }else  if (fullScreen.innerHTML === '%') {    //Fullscreen aspect -> Fullscreen       
+      $("#stream").css("width","100%").css("height","auto")
+      fullScreen.innerHTML = '&rect;'
+   }else  if (encodeURI(fullScreen.innerHTML) === '%E2%96%AD') { //Fullscreen aspect -> Fullscreen       
       $("#stream-container").css("width", window.screen.availWidth).css("height", window.screen.availHeight);
       $("#stream").css("width","100%").css("height","100%")
-      fullScreen.innerHTML = '&reg;'
-    }else{ 																			//Fullscreen -> Original
+      fullScreen.innerHTML = '-'
+    }else{ //Fullscreen -> Maximized
       document.exitFullscreen()
-      $("#stream-container").css("width", srcSize.width).css("height", srcSize.height);
-      $("#stream").css("width","100%").css("height","auto");
+      $("#stream-container").css("width", "100%").css("height", "auto");
       fullScreen.innerHTML = '#'
     }
   }
