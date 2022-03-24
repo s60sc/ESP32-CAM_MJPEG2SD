@@ -23,12 +23,14 @@
 #define USE_LAMP false // true to use lamp
 #define AUTO_LAMP true // if true in conjunction with USE_PIR & USE_LAMP, switch on lamp when PIR activated
 #define LAMP_PIN 4 // if USE_LAMP is true
+
 #define USE_MIC false // true to use external I2S microphone on following pins
 // INMP441 I2S microphone pinout, connect L/R to GND for left channel
 #define MIC_SCK_IO 4  // I2S SCK
 #define MIC_WS_IO 12  // I2S WS
 #define MIC_SD_IO  3  // I2S SD
-#//define INCLUDE_DS18B20 // uncomment to include DS18B20 temp sensor if fitted
+
+//#define INCLUDE_DS18B20 // uncomment to include DS18B20 temp sensor if fitted
 #define DS18B_PIN 3 // if USE_DS18B20 uncommented, labelled U0R on ESP32-CAM board
 
 // motion recording parameters - motionDetect.cpp
