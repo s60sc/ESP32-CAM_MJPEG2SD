@@ -1092,7 +1092,12 @@ document.addEventListener('DOMContentLoaded', function (event) {
       default:
         return
     }
-    
+    if(el.id === "framesize"){ 
+      r = el.options[el.selectedIndex].text.split('(')[1].replace(')','').split('x')
+      srcSize = { width: parseInt(r[0]), height: parseInt(r[1]) } 
+      if (encodeURI(fullScreen.innerHTML) === '%C2%A4') 
+      	$("#stream-container").css("width", srcSize.width).css("height", srcSize.height );
+    }
     const query = `${baseHost}/control?${el.id}=${value}`
     const encoded = encodeURI(query);
     //console.log(`Encoded request ${query}`)
@@ -1237,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     })
   }
   
-	var srcSize = { width: 0, height: 0 };	
+  var srcSize = { width: 0, height: 0 };
   const stopStream = () => {
     const curSize = {width: view.width, height: view.height}
     window.stop();
