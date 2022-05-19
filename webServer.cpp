@@ -187,8 +187,11 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
     LOG_INF("Download file: %s, size: %0.1fMB", inFileName, (float)(df.size()/ONEMEG));
     httpd_resp_set_type(req, "application/octet");
     char contentDisp[FILE_NAME_LEN + 50];
+    char contentLength[sizeof(uint32_t)];
     sprintf(contentDisp, "attachment; filename=%s", inFileName);
     httpd_resp_set_hdr(req, "Content-Disposition", contentDisp);
+    sprintf(contentLength, "%d", df.size());
+    httpd_resp_set_hdr(req, "Content-Length", contentLength);
   } 
   
   if (sendChunks(df, req)) LOG_INF("Sent %s to browser", inFileName);
