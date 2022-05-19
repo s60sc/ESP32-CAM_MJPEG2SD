@@ -585,6 +585,7 @@ void stopPlaying() {
   if (isPlaying) {
     // force stop any currently running playback
     stopPlayback = true;
+    controlFrameTimer(true);
     // wait till stopped cleanly, but prevent infinite loop
     uint32_t timeOut = millis();
     while (isPlaying && millis() - timeOut < 2000) delay(10);
