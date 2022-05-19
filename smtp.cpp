@@ -124,13 +124,14 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
       client.println(content);
       client.println("Content-Transfer-Encoding: base64");
       sprintf(content, "Content-Disposition: attachment; filename=\"%s\"", fileName); 
-      client.println(content); 
+      client.println(content);
+      client.println("\n"); // two lines to finish header
       // base64 encode attachment and send out in chunks
       size_t chunk = 3;
       for (size_t i = 0; i < smtpBufferSize; i += chunk) 
         client.write(encode64chunk(SMTPbuffer + i, min(smtpBufferSize - i, chunk)), 4);
     } 
-    client.println("\n"); // two lines to finish header
+    client.println();
     
     // close message data and quit
     if (!sendSmtpCommand(client, ".", "250")) break;
