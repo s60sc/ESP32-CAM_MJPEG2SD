@@ -84,7 +84,7 @@
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "6.2"
+#define APP_VER "6.2.1"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -183,7 +183,7 @@ void checkMemory();
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
 void deleteFolderOrFile(const char* deleteThis);
 void devSetup();
-void doRestart();
+void doRestart(String restartStr);
 void emailAlert(const char* _subject, const char* _message);
 const char* encode64(const char* inp);
 const uint8_t* encode64chunk(const uint8_t* inp, int rem);

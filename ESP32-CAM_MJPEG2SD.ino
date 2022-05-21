@@ -4,7 +4,7 @@
 *
 * s60sc 2020, 2021, 2022
 */
-// built using arduino-esp32 stable release v2.0.2
+// built using arduino-esp32 stable release v2.0.3
 
 #include "myConfig.h"
 #include "camera_pins.h"
@@ -103,7 +103,6 @@ void setup() {
   // connect wifi or start config AP if router details not available
 #ifdef DEV_ONLY
   devSetup();
-  updateStatus("ST_SSID", ST_SSID);
 #endif
   startWifi();
   

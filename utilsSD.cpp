@@ -165,7 +165,7 @@ void deleteFolderOrFile(const char* deleteThis) {
     return;
   }
   if (df.isDirectory() && (strstr(deleteThis, "System") != NULL 
-      || strstr(DATA_DIR, deleteThis) != NULL || strstr("/", deleteThis) != NULL)) {
+      || strstr("/", deleteThis) != NULL)) {
     df.close();   
     LOG_ERR("Deletion of %s not permitted", deleteThis);
     return;

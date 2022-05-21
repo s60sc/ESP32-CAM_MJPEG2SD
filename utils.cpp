@@ -124,7 +124,7 @@ bool startWifi() {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   static bool dataFilesChecked = false;
   if (!timeSynchronized) getLocalNTP();
-    if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
+  if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
   LOG_DBG("ping successful");
 }
 
@@ -162,6 +162,7 @@ static void startPing() {
 /************************** NTP  **************************/
 
 char timezone[64] = "GMT0BST,M3.5.0/01,M10.5.0/02"; 
+
 static inline time_t getEpoch() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -224,13 +225,13 @@ void syncToBrowser(const char *val) {
 }
 
 void getUpTime(char* timeVal) {
-  uint32_t secs = millis() / 1000; //convect milliseconds to seconds
+  uint32_t secs = millis() / 1000; //convert milliseconds to seconds
   uint32_t mins = secs / 60; //convert seconds to minutes
   uint32_t hours = mins / 60; //convert minutes to hours
   uint32_t days = hours / 24; //convert hours to days
-  secs = secs - (mins * 60); //subtract the coverted seconds to minutes in order to display 59 secs max
-  mins = mins - (hours * 60); //subtract the coverted minutes to hours in order to display 59 minutes max
-  hours = hours - (days * 24); //subtract the coverted hours to days in order to display 23 hours max
+  secs = secs - (mins * 60); //subtract the converted seconds to minutes in order to display 59 secs max
+  mins = mins - (hours * 60); //subtract the converted minutes to hours in order to display 59 minutes max
+  hours = hours - (days * 24); //subtract the converted hours to days in order to display 23 hours max
   sprintf(timeVal, "%u-%02u:%02u:%02u", days, hours, mins, secs);
 }
 
@@ -344,9 +345,11 @@ void checkMemory() {
   LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
 
-void doRestart() {
+void doRestart(String restartStr) {
   flush_log(true);
-  LOG_WRN("Controlled restart");
+  LOG_WRN("Controlled restart: %s", restartStr.c_str());
+  updateStatus("restart", restartStr.c_str());
+  updateStatus("save", "1");
   delay(2000);
   ESP.restart();
 }
