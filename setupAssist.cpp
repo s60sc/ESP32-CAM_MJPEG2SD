@@ -69,7 +69,7 @@ static void wgetFile(const char* filePath, bool restart = false) {
         else fp.remove(filePath);
       } else LOG_ERR("Open failed: %s", filePath);
     } 
-    if (restart) doRestart();
+    if (restart) doRestart("config file downloaded");
   } 
 }
 
