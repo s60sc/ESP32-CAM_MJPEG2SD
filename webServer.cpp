@@ -187,9 +187,12 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
     LOG_INF("Download file: %s, size: %0.1fMB", inFileName, (float)(df.size()/ONEMEG));
     httpd_resp_set_type(req, "application/octet");
     char contentDisp[FILE_NAME_LEN + 50];
+    char contentLength[10];
     sprintf(contentDisp, "attachment; filename=%s", inFileName);
     httpd_resp_set_hdr(req, "Content-Disposition", contentDisp);
-  } 
+    sprintf(contentLength, "%i", df.size());
+    httpd_resp_set_hdr(req, "Content-Length", contentLength);
+  }
   
   if (sendChunks(df, req)) LOG_INF("Sent %s to browser", inFileName);
   else {
@@ -260,7 +263,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
   if (!updateStatus(variable, value)) {
     httpd_resp_send(req, NULL, 0);  
-    doRestart(); 
+    doRestart("delete data folder requested"); 
   }
   // handler for downloading selected file, required file name in inFileName
   appSpecificHandler(req, variable, value); 
@@ -376,7 +379,7 @@ static void otaFinish() {
   otaServer.sendHeader("Connection", "close");
   otaServer.sendHeader("Access-Control-Allow-Origin", "*");
   otaServer.send(200, "text/plain", (Update.hasError()) ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");
-  doRestart();
+  doRestart("ota update");
 }
 
 static void OTAtask(void* parameter) {
