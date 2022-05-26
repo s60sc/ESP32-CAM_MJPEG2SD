@@ -84,7 +84,7 @@
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "6.2.1"
+#define APP_VER "6.2.2"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -97,7 +97,7 @@
 #define ONEMEG (1024 * 1024)
 #define MAX_PWD_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
+#define MJPEG2SD_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
 
 #define FILE_EXT "avi"
 #define BOUNDARY_VAL "123456789000000000000987654321"

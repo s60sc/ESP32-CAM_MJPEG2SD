@@ -263,7 +263,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
   if (!updateStatus(variable, value)) {
     httpd_resp_send(req, NULL, 0);  
-    doRestart("delete data folder requested"); 
+    doRestart("user requested restart"); 
   }
   // handler for downloading selected file, required file name in inFileName
   appSpecificHandler(req, variable, value); 

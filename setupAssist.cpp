@@ -39,11 +39,11 @@ cPUeybQ=
 
 static fs::FS fp = STORAGE;
 
-static void wgetFile(const char* filePath, bool restart = false) {
+static void wgetFile(const char* githubURL, const char* filePath, bool restart = false) {
   if (!fp.exists(filePath)) {
     if (WiFi.status() != WL_CONNECTED) return;  
     char downloadURL[150];
-    sprintf(downloadURL, "%s%s", GITHUB_URL, filePath);
+    sprintf(downloadURL, "%s%s", githubURL, filePath);
     for (int i = 0; i < 2; i++) {
       // try secure then insecure
       File f = fp.open(filePath, FILE_WRITE);
@@ -69,18 +69,21 @@ static void wgetFile(const char* filePath, bool restart = false) {
         else fp.remove(filePath);
       } else LOG_ERR("Open failed: %s", filePath);
     } 
-    if (restart) doRestart("config file downloaded");
+    if (restart) {
+      loadConfig();
+      doRestart("config file downloaded");
+    }
   } 
 }
 
 bool checkDataFiles() {
   // Download missing data files
   if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
-  wgetFile(CONFIG_FILE_PATH, true);
-  wgetFile(INDEX_PAGE_PATH);      
-  wgetFile(DATA_DIR "/OTA.htm");
-  wgetFile(DATA_DIR "/LOG.htm");
-  wgetFile(DATA_DIR "/jquery.min.js");
+  wgetFile(MJPEG2SD_URL, CONFIG_FILE_PATH, true);
+  wgetFile(MJPEG2SD_URL, INDEX_PAGE_PATH);      
+  wgetFile(MJPEG2SD_URL, DATA_DIR "/OTA.htm");
+  wgetFile(MJPEG2SD_URL, DATA_DIR "/LOG.htm");
+  wgetFile(MJPEG2SD_URL, DATA_DIR "/jquery.min.js");
   return true;
 }
 
@@ -90,7 +93,7 @@ const char* defaultPage_html = R"~(
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>ESP32-CAM_MJPEG2SD setup</title> 
+    <title>Application setup</title> 
 </head>
 <script>
 function Config(){
@@ -107,7 +110,7 @@ function Config(){
 <br>
 <center>
   <table border="0">
-    <tr><th colspan="3">ESP32-CAM_MJPEG2SD Wifi setup..</th></tr>
+    <tr><th colspan="3">Wifi setup..</th></tr>
     <tr><td colspan="3"></td></tr>
     <tr>
     <td>SSID</td>
