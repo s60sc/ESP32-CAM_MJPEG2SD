@@ -98,6 +98,8 @@ static esp_err_t updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "special_effect")) res = s->set_special_effect(s, intVal);
   else if(!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, intVal);
   else if(!strcmp(variable, "ae_level")) res = s->set_ae_level(s, intVal);
+  else if(!strcmp(variable, "camPan")) updateCamPan(intVal);
+  else if(!strcmp(variable, "camTilt")) updateCamTilt(intVal);
   else res = ESP_FAIL;
   return res;
 }
@@ -311,7 +313,7 @@ bool updateStatus(const char* variable, const char* value) {
   }
   else if(!strcmp(variable, "resetLog")) reset_log(); 
   else if(!strcmp(variable, "reset")) return false;
-  else if(!strcmp(variable, "clear")) savePrefs(true);
+  else if(!strcmp(variable, "clear")) savePrefs(true); // /control?clear=1
   else if(!strcmp(variable, "deldata")) {  
     // /control?deldata=1
     if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs(true);

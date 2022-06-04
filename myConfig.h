@@ -52,6 +52,11 @@
 #define MINUTES_DURATION (60 * 12) // a new file starts when previous ends
 #define PLAYBACK_FPS 1  // rate to playback the timelapse, min 1 
 
+// Pan / Tilt Servos (untested)
+//#define INCLUDE_PANTILT // uncomment to include pan / tilt servo control
+#define SERVO_PAN_PIN 4 // define pin to use
+#define SERVO_TILT_PIN 12 // define pin to use
+
 // Storage - utilsSD.cpp
 #define STORAGE SD_MMC // use of SPIFFS or SD_MMC 
 #define MIN_CARD_FREE_SPACE 100 // Minimum amount of card free Megabytes before FREE_SPACE_MODE action is enabled
@@ -84,7 +89,7 @@
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "6.2.2"
+#define APP_VER "6.2.3"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -164,6 +169,7 @@ mjpegStruct getNextFrame(bool firstCall = false);
 bool haveWavFile(bool isTL = false);
 void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
+void prepPanTilt();
 bool prepRecording();
 void prepMic();
 uint8_t setFPS(uint8_t val);
@@ -172,6 +178,8 @@ void startAudio();
 void startSDtasks();
 void startStreamServer();
 void stopPlaying();
+void updateCamPan(int panVal);
+void updateCamTilt(int tiltVal);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 

@@ -120,6 +120,7 @@ void setup() {
   startFTPtask();
   prepSMTP();
   prepDS18B20();
+  prepPanTilt();
   setupADC(); 
   checkMemory();
   LOG_INF("Camera Ready @ %uMHz, version %s", XCLK_MHZ, APP_VER); 
