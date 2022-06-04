@@ -44,3 +44,4 @@ timezone:GMT0BST,M3.5.0/1,M10.5.0
 vflip:0
 wb_mode:0
 wpc:1
+restart:null
