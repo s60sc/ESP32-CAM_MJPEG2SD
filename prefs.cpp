@@ -227,7 +227,7 @@ static void loadConfigMap() {
     // populate configs map from configs file
     while (true) {
       String kvPairStr = file.readStringUntil('\n');
-      if (!ALLOW_SPACES) keyValPair = std::regex_replace(kvPairStr.c_str(), std::regex("\\s+"), "");
+      keyValPair = ALLOW_SPACES ? kvPairStr.c_str() : std::regex_replace(kvPairStr.c_str(), std::regex("\\s+"), "");
       if (!keyValPair.length()) break;
       loadKeyVal(keyValPair);
     } 
