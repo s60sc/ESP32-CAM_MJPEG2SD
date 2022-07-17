@@ -6,12 +6,22 @@
 * s60sc 2020, 2022
 */
 
-#include "myConfig.h"
+#include "globals.h"
 
 // user parameters set from web
 bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool dbgMotion  = false;
 bool forceRecord = false; // Recording enabled by rec button
+
+// motion detection parameters
+int moveStartChecks = 5; // checks per second for start motion
+int moveStopSecs = 2; // secs between each check for stop, also determines post motion time
+int maxFrames = 20000; // maximum number of frames in video before auto close 
+
+// record timelapse avi independently of motion capture, file name has same format as avi except ends with T
+int tlSecsBetweenFrames; // too short interval will interfere with other activities
+int tlDurationMins; // a new file starts when previous ends
+int tlPlaybackFPS;  // rate to playback the timelapse, min 1 
 
 // status & control fields
 uint8_t FPS;
@@ -20,7 +30,6 @@ bool autoUpload = false;  // Automatically upload every created file to remote f
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not        
-bool lampOn = false;
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -119,7 +128,7 @@ static inline bool doMonitor(bool capturing) {
   // monitor incoming frames for motion 
   static uint8_t motionCnt = 0;
   // ratio for monitoring stop during capture / movement prior to capture
-  uint8_t checkRate = (capturing) ? FPS*MOVE_STOP_SECS : FPS/MOVE_START_CHECKS;
+  uint8_t checkRate = (capturing) ? FPS*moveStopSecs : FPS/moveStartChecks;
   if (!checkRate) checkRate = 1;
   if (++motionCnt/checkRate) motionCnt = 0; // time to check for motion
   return !(bool)motionCnt;
@@ -130,23 +139,23 @@ static void timeLapse(camera_fb_t* fb) {
   // Note that if FPS changed during time lapse recording, 
   //  the time lapse counters wont be modified
   static int frameCntTL, requiredFrames, intervalCnt = 0;
-  static int intervalMark = SECS_BETWEEN_FRAMES * saveFPS;
+  static int intervalMark = tlSecsBetweenFrames * saveFPS;
   static File tlFile;
   static char TLname[FILE_NAME_LEN];
   if (timeSynchronized) {
     if (!frameCntTL) {
       // initialise time lapse avi
-      requiredFrames = MINUTES_DURATION * 60 / SECS_BETWEEN_FRAMES;
+      requiredFrames = tlDurationMins * 60 / tlSecsBetweenFrames;
       dateFormat(partName, sizeof(partName), true);
       SD_MMC.mkdir(partName); // make date folder if not present
       dateFormat(partName, sizeof(partName), false);
       snprintf(TLname, sizeof(TLname)-1, "%s_%s_%u_%u_%u_T.%s", 
-        partName, frameData[fsizePtr].frameSizeStr, PLAYBACK_FPS, MINUTES_DURATION, requiredFrames, FILE_EXT);
+        partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, FILE_EXT);
       if (SD_MMC.exists(TLTEMP)) SD_MMC.remove(TLTEMP);
       tlFile = SD_MMC.open(TLTEMP, FILE_WRITE);
       tlFile.write(aviHeader, AVI_HEADER_LEN); // space for header
       prepAviIndex(true);
-      LOG_INF("Started time lapse file %s, duration %u mins, for %u frames", TLname, MINUTES_DURATION, requiredFrames);
+      LOG_INF("Started time lapse file %s, duration %u mins, for %u frames",  TLname, tlDurationMins, requiredFrames);
       frameCntTL++; // to stop re-entering
     }
     if (intervalCnt > intervalMark) {
@@ -162,13 +171,13 @@ static void timeLapse(camera_fb_t* fb) {
       buildAviIdx(jpegSize, true, true); // save avi index for frame
       frameCntTL++;
       intervalCnt = 0;   
-      intervalMark = SECS_BETWEEN_FRAMES * saveFPS;  // recalc in case FPS changed                                       
+      intervalMark = tlSecsBetweenFrames * saveFPS;  // recalc in case FPS changed                                       
     }
     intervalCnt++;
     if (frameCntTL > requiredFrames) {
       // finish timelapse recording
       xSemaphoreTake(aviMutex, portMAX_DELAY);
-      buildAviHdr(PLAYBACK_FPS, fsizePtr, --frameCntTL, true);
+      buildAviHdr(tlPlaybackFPS, fsizePtr, --frameCntTL, true);
       xSemaphoreGive(aviMutex);
       // add index
       finalizeAviIndex(frameCntTL, true);
@@ -222,11 +231,11 @@ static void saveFrame(camera_fb_t* fb) {
   memcpy(iSDbuffer+highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
   
-  if (USE_SMTP) {
-    if (frameCnt == SMTP_FRAME) {
+  if (smtpUse) {
+    if (frameCnt == smtpFrame) {
       // save required frame for email alert
       smtpBufferSize = fb->len;
-      if (fb->len < MAX_JPEG) memcpy(SMTPbuffer, fb->buf, fb->len);
+      if (fb->len < MAX_JPEG && SMTPbuffer != NULL) memcpy(SMTPbuffer, fb->buf, fb->len);
     }
   }
   buildAviIdx(jpegSize); // save avi index for frame
@@ -304,7 +313,7 @@ static bool closeAvi() {
     if (autoUpload) ftpFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
     checkFreeSpace();
     char subjectMsg[50];
-    sprintf(subjectMsg, "Frame %u attached", SMTP_FRAME);
+    sprintf(subjectMsg, "Frame %u attached", smtpFrame);
     emailAlert("Motion Alert", subjectMsg);
     return true; 
   } else {
@@ -320,12 +329,12 @@ static boolean processFrame() {
   static bool wasCapturing = false;
   static bool wasRecording = false;                                 
   static bool captureMotion = false;
-  bool capturePIR = false;
   bool res = true;
   uint32_t dTime = millis();
   bool finishRecording = false;
   bool savedFrame = false;
   camera_fb_t* fb = esp_camera_fb_get();
+
   if (fb == NULL) return false;
   if (timeLapseOn) timeLapse(fb);
   // determine if time to monitor, then get motion capture status
@@ -333,23 +342,23 @@ static boolean processFrame() {
     if (dbgMotion) checkMotion(fb, false); // check each frame for debug
     else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
   }
-  if (USE_PIR) {
-    capturePIR = digitalRead(PIR_PIN);
-    if (!capturePIR && !isCapturing && !useMotion) checkMotion(fb, isCapturing); // to update light level
+  if (pirUse) {
+    pirVal = getPIRval();
+    if (!pirVal && !isCapturing && !useMotion) checkMotion(fb, isCapturing); // to update light level
   }
   
   // either active PIR, Motion, or force start button will start capture, neither active will stop capture
-  isCapturing = forceRecord | captureMotion | capturePIR;
+  isCapturing = forceRecord | captureMotion | pirVal;
   if (forceRecord || wasRecording || doRecording) {
     if (forceRecord && !wasRecording) wasRecording = true;
     else if (!forceRecord && wasRecording) wasRecording = false;
     
     if (isCapturing && !wasCapturing) {
       // movement has occurred, start recording, and switch on lamp if night time
-      if (AUTO_LAMP && nightTime) controlLamp(true); // switch on lamp
+      if (lampAuto && nightTime) setLamp(true); // switch on lamp
       stopPlaying(); // terminate any playback
-      stopPlayback  = true; // stop any subsequent playback
-      LOG_INF("Capture started by %s%s%s", captureMotion ? "Motion " : "", capturePIR ? "PIR" : "",forceRecord ? "Button" : "");
+      stopPlayback = true; // stop any subsequent playback
+      LOG_INF("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
       openAvi();
       wasCapturing = true;
     }
@@ -359,16 +368,16 @@ static boolean processFrame() {
       saveFrame(fb);
       savedFrame = true;
       showProgress();
-      if (frameCnt >= MAX_FRAMES) {
+      if (frameCnt >= maxFrames) {
         Serial.println("");
-        LOG_INF("Auto closed recording after %u frames", MAX_FRAMES);
+        LOG_INF("Auto closed recording after %u frames", maxFrames);
         forceRecord = false;
       }
     }
     if (!isCapturing && wasCapturing) {
       // movement stopped
       finishRecording = true;
-      if (AUTO_LAMP) controlLamp(false); // switch off lamp
+      if (lampAuto) setLamp(false); // switch off lamp
     }
     wasCapturing = isCapturing;
     LOG_DBG("============================");
@@ -390,7 +399,9 @@ static void captureTask(void* parameter) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (ulNotifiedValue > 5) ulNotifiedValue = 5; // prevent too big queue if FPS excessive
     // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
-    while (ulNotifiedValue-- > 0) processFrame();
+    while (ulNotifiedValue-- > 0) {
+      processFrame();
+    }
   }
   vTaskDelete(NULL);
 }
@@ -616,8 +627,6 @@ bool prepRecording() {
   // initialisation & prep for AVI capture
   pinMode(4, OUTPUT);
   digitalWrite(4, 0); // set pin 4 fully off as sd_mmc library still initialises pin 4 in 1 line mode
-  if (USE_PIR) pinMode(PIR_PIN, INPUT_PULLDOWN); // pulled high for active
-  if (USE_LAMP) pinMode(LAMP_PIN, OUTPUT);
   readSemaphore = xSemaphoreCreateBinary();
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
@@ -629,8 +638,11 @@ bool prepRecording() {
     fb = NULL;
   }
   LOG_INF("To record new AVI, do one of:");
-  if (USE_PIR) LOG_INF("- attach PIR to pin %u", PIR_PIN);
-  if (USE_PIR) LOG_INF("- raise pin %u to 3.3V", PIR_PIN);
+  if (pirUse) {
+    String extStr = (pirPin >= EXTPIN) ? "IO extender" : "";
+    LOG_INF("- attach PIR to %s pin %u", extStr, pirPin);
+    LOG_INF("- raise %s pin %u to 3.3V", extStr, pirPin);
+  }
   if (useMotion) LOG_INF("- move in front of camera");
   Serial.println();
   return true;
@@ -653,14 +665,11 @@ static void deleteTask(TaskHandle_t thisTaskHandle) {
 void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
-  deleteTask(getDS18Handle);
+  deleteTask(DS18B20handle);
+  deleteTask(servoHandle);
   deleteTask(emailHandle);
-}
-
-void controlLamp(bool lampVal) {
-  // switch lamp on / off
-  lampOn = lampVal;
-  digitalWrite(LAMP_PIN, lampVal);
+  deleteTask(ftpHandle);
+  deleteTask(uartClientHandle);
 }
 
 void OTAprereq() {

@@ -14,11 +14,21 @@
  s60sc 2020
 */
 
-#include "myConfig.h"
+#include "globals.h"
 
 using namespace std;
 
 #define RGB888_BYTES 3 // number of bytes per pixel
+
+// motion recording parameters
+int detectMotionFrames = 5; // min sequence of changed frames to confirm motion 
+int detectNightFrames = 10; // frames of sequential darkness to avoid spurious day / night switching
+// define region of interest, ie exclude top and bottom of image from movement detection if required
+// divide image into detectNumBands horizontal bands, define start and end bands of interest, 1 = top
+int detectNumBands = 10;
+int detectStartBand = 3;
+int detectEndBand = 8; // inclusive
+int detectChangeThreshold = 15; // min difference in pixel comparison to indicate a change
 
 uint8_t lightLevel; // Current ambient light level 
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
@@ -39,7 +49,8 @@ static bool isNight(uint8_t nightSwitch) {
     // dark image
     nightCnt += 1;
     // only signal night time after given sequence of dark frames
-    if (nightCnt > NIGHT_SEQUENCE) {
+    if (nightCnt > detectNightFrames
+  ) {
       nightTime = true;     
       LOG_INF("Night time"); 
     }
@@ -98,11 +109,11 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   // compare each pixel in current frame with previous frame 
   int changeCount = 0;
   // set horizontal region of interest in image 
-  uint16_t startPixel = num_pixels*(START_BAND-1)/NUM_BANDS;
-  uint16_t endPixel = num_pixels*(END_BAND)/NUM_BANDS;
+  uint16_t startPixel = num_pixels*(detectStartBand-1)/detectNumBands;
+  uint16_t endPixel = num_pixels*(detectEndBand)/detectNumBands;
   int moveThreshold = (endPixel-startPixel) * (11-motionVal)/100; // number of changed pixels that constitute a movement
   for (int i=0; i<num_pixels; i++) {
-    if (abs((int)rgb_buf[i] - (int)prev_buf[i]) > CHANGE_THRESHOLD) {
+    if (abs((int)rgb_buf[i] - (int)prev_buf[i]) > detectChangeThreshold) {
       if (i > startPixel && i < endPixel) changeCount++; // number of changed pixels
       if (dbgMotion) changeMap[i] = 192; // populate changeMap image with changed pixels in gray
     } else if (dbgMotion) changeMap[i] =  255; // set white 
@@ -122,7 +133,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     LOG_DBG("### Change detected");
     motionCnt++; // number of consecutive changes
     // need minimum sequence of changes to signal valid movement
-    if (!motionStatus && motionCnt >= MOTION_SEQUENCE) {
+    if (!motionStatus && motionCnt >= detectMotionFrames) {
       LOG_DBG("***** Motion - START");
       motionStatus = true; // motion started
     } 

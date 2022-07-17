@@ -12,7 +12,7 @@
 
 // s60sc 2021
 
-#include "myConfig.h"
+#include "globals.h"
 
 int micGain = 0;  // microphone gain 0 is off
 static int gainFactor; // 2 ^ microphone gain
@@ -53,10 +53,10 @@ static i2s_config_t i2s_mic_config = {
 
 // i2s microphone pins
 static i2s_pin_config_t i2s_mic_pins = {
-  .bck_io_num = MIC_SCK_IO,
-  .ws_io_num = MIC_WS_IO,
+  .bck_io_num = micSckPin,
+  .ws_io_num = micWsPin,
   .data_out_num = -1,
-  .data_in_num = MIC_SD_IO
+  .data_in_num = micSdPin
 };
 
 static inline void IRAM_ATTR wakeTask(TaskHandle_t thisTask) {
@@ -120,15 +120,15 @@ static void micTask(void* parameter) {
 }
 
 void prepMic() {
-  LOG_INF("Sound recording is %s", USE_MIC ? "On" : "Off");
-  if (USE_MIC) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
+  LOG_INF("Sound recording is %s", micUse ? "On" : "Off");
+  if (micUse) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
 }
 
 void startAudio() {
   // start audio recording and write recorded audio to SD card as WAV file 
   // combined into AVI file as PCM channel on FTP upload or browser download
   // so can be read by media players
-  if (USE_MIC && micGain) {
+  if (micUse && micGain) {
     wavFile = SD_MMC.open(WAVTEMP, FILE_WRITE);
     wavFile.write(wavHeader, WAV_HEADER_LEN); 
     wakeTask(micHandle);

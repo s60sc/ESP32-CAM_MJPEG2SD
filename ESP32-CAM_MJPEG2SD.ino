@@ -4,15 +4,15 @@
 *
 * s60sc 2020, 2021, 2022
 */
-// built using arduino-esp32 stable release v2.0.3
+// built using arduino-esp32 stable release v2.0.4
 
-#include "myConfig.h"
+#include "globals.h"
 #include "camera_pins.h"
 
 void setup() {
   Serial.begin(115200);
-  Serial.setDebugOutput(true);
-  Serial.println();
+  Serial.setDebugOutput(false);
+  Serial.println(); 
   
   LOG_INF("=============== Starting ===============");
   if (!psramFound()) {
@@ -27,7 +27,6 @@ void setup() {
     delay(10000);
     ESP.restart();
   }
-
   // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -96,35 +95,31 @@ void setup() {
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
-  
+
   // Load saved user configuration
-  loadConfig(); 
-   
+  loadConfig();
+
   // connect wifi or start config AP if router details not available
 #ifdef DEV_ONLY
   devSetup();
 #endif
   startWifi();
-  
+ 
   if (!prepRecording()) {
     LOG_ERR("Unable to continue, AVI capture fail, restart after 10 secs");    
     delay(10000);
     ESP.restart();
   }
-
   // start rest of services
   startWebServer();
   startStreamServer();
   prepMic(); 
+  prepSMTP(); 
+  setupADC();
+  prepPeripherals();
   startSDtasks();
-  startFTPtask();
-  prepSMTP();
-  prepDS18B20();
-  prepPanTilt();
-  setupADC(); 
-  checkMemory();
   LOG_INF("Camera Ready @ %uMHz, version %s", XCLK_MHZ, APP_VER); 
+  checkMemory();
 }
 
-void loop() {
-}
+void loop() {}

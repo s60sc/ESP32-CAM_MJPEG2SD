@@ -2,7 +2,12 @@
 //
 // s60sc 2021, 2022
 
-# include "myConfig.h"
+#include "globals.h"
+
+// Storage settings
+int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sdFreeSpaceMode action is enabled
+int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload to ftp and then delete folder on SD 
+bool sdFormatIfMountFailed = false; // Auto format the sd card if mount failed. Set to false to not auto format.
 
 // hold sorted list of filenames/folders names in order of newest first
 static std::vector<std::string> fileVec;
@@ -40,7 +45,7 @@ bool prepSD_MMC() {
   fileVec.reserve(1000);
   heap_caps_malloc_extmem_enable(50000);
   
-  res = SD_MMC.begin("/sdcard", true, FORMAT_IF_MOUNT_FAILED);
+  res = SD_MMC.begin("/sdcard", true, sdFormatIfMountFailed);
   if (res) {
     SD_MMC.mkdir(DATA_DIR);
     infoSD();
@@ -77,15 +82,15 @@ void inline getFileDate(File file, char* fileDate) {
 
 bool checkFreeSpace() { 
   // Check for sufficient space on SD card
-  if (FREE_SPACE_MODE < 1) return false;
+  if (sdFreeSpaceMode < 1) return false;
   size_t freeSize = (size_t)((SD_MMC.totalBytes() - SD_MMC.usedBytes()) / ONEMEG);
   LOG_INF("Card free space: %uMB", freeSize);
-  if (freeSize < MIN_CARD_FREE_SPACE) {
+  if (freeSize < sdMinCardFreeSpace) {
     char oldestDir[FILE_NAME_LEN];
     getOldestDir(oldestDir);
-    LOG_WRN("Deleting oldest folder: %s %s", oldestDir, FREE_SPACE_MODE == 2 ? "after uploading" : "");
-    if (FREE_SPACE_MODE == 1) deleteFolderOrFile(oldestDir); // Delete oldest folder
-    if (FREE_SPACE_MODE == 2) {
+    LOG_WRN("Deleting oldest folder: %s %s", oldestDir, sdFreeSpaceMode == 2 ? "after uploading" : "");
+    if (sdFreeSpaceMode == 1) deleteFolderOrFile(oldestDir); // Delete oldest folder
+    if (sdFreeSpaceMode == 2) {
 #ifdef INCLUDE_FTP 
       ftpFileOrFolder(oldestDir); // Upload and then delete oldest folder
 #endif

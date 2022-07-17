@@ -6,19 +6,23 @@
 // Prereqs for Gmail sender account:
 // - recommended to create a dedicated email account
 // - create an app password - https://support.google.com/accounts/answer/185833
-// - if above not working, change settings to use less secure apps - https://support.google.com/accounts/answer/6010255?hl=en
-// - set USE_SMTP in myConfig.h to true, and enter account details on web page
+// - set smtpUse in web config page to true, and enter account details on web page
 //
 // s60sc 2022
 
-#include "myConfig.h"
+#include "globals.h"
+
+// control sending emails 
+bool smtpUse; // whether or not to send email alerts
+int smtpFrame = 5; // which captured frame number to use for email image
+int smtpMaxEmails = 10; // too many could cause account suspension
 
 // SMTP connection params, setup via web page
 char smtp_login[32]; // sender email account 
 char smtp_pass[MAX_PWD_LEN]; // 16 digit app password, not account password
 char smtp_email[32]; // receiver, can be same as smtp_login, or be any other email account
-char smtp_server[32] = "smtp.gmail.com"; // the email service provider
-uint16_t smtp_port = 465; 
+char smtp_server[32]; // the email service provider, eg smtp.gmail.com"
+uint16_t smtp_port; // gmail SSL port 465; 
 
 #define MIME_TYPE "image/jpg"
 #define ATTACH_NAME "frame.jpg"
@@ -43,7 +47,7 @@ static bool sendSmtpCommand(WiFiClientSecure& client, const char* cmd, const cha
   if (strlen(cmd)) client.println(cmd);
   
 	uint32_t start = millis();
-  while (!client.available() && millis() < start + RESPONSE_TIMEOUT) delay(1);
+  while (!client.available() && millis() < start + (responseTimeoutSecs * 1000)) delay(1);
   if (!client.available()) {
     LOG_ERR("SMTP server response timeout");
     return false;
@@ -75,7 +79,13 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
 
   // connect to smtp account and authenticate
   if (!client.connect(smtp_server, smtp_port)) {
-	  LOG_ERR("Could not connect to mail server %s on port %u", smtp_server, smtp_port);
+    // if failure reports 'SSL - Memory allocation failed', 
+    // this indicates lack of heap space
+    char errBuf[100];
+    client.lastError(errBuf, 100);
+    checkMemory();
+	  LOG_ERR("Could not connect to mail server %s on port %u: %s", 
+	    smtp_server, smtp_port, errBuf);
 	  return false;
   }
   bool res = false;
@@ -131,7 +141,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
         client.write(encode64chunk(SMTPbuffer + i, min(smtpBufferSize - i, chunk)), 4);
     } 
     client.println("\n"); // two lines to finish header
-    
+        
     // close message data and quit
     if (!sendSmtpCommand(client, ".", "250")) break;
     if (!sendSmtpCommand(client, "QUIT", "221")) break;
@@ -153,31 +163,31 @@ static void emailTask(void* parameter) {
     dayStart = millis();
     LOG_INF("Reset daily email allowance");
   }
-  if (emailCount < MAX_DAILY_EMAILS) { 
+  if (emailCount < smtpMaxEmails) { 
     // send email if under daily limit
     if (emailSend())
       LOG_INF("Sent daily email %u", emailCount + 1);
     else LOG_WRN("Failed to send email");
   }
-  if (++emailCount == MAX_DAILY_EMAILS) LOG_WRN("Daily email limit %u reached", MAX_DAILY_EMAILS);
+  if (++emailCount == smtpMaxEmails) LOG_WRN("Daily email limit %u reached", smtpMaxEmails);
   emailHandle = NULL;
   vTaskDelete(NULL);
 }
 
 void emailAlert(const char* _subject, const char* _message) {
   // send email to alert on required event
-  if (USE_SMTP) {
+  if (smtpUse) {
     if (emailHandle == NULL) {
       strncpy(subject, _subject, 20);
       snprintf(subject+strlen(subject), 30, " from %s", hostName);
       strncpy(message, _message, 100);
-      xTaskCreate(&emailTask, "emailTask", 4096 * 2, NULL, 1, &emailHandle);
+      xTaskCreate(&emailTask, "emailTask", 1024 * 6, NULL, 1, &emailHandle);
     } else LOG_WRN("Email alert already in progress");
   }
 }
 
 void prepSMTP() {
-  if (USE_SMTP) {
+  if (smtpUse) {
     dayStart = millis();
     emailCount = 0;
     if (SMTPbuffer == NULL) SMTPbuffer = (byte*)ps_malloc(ONEMEG/2); 

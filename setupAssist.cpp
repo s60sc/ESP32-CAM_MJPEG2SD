@@ -2,38 +2,41 @@
 // Assist setup for new app installations
 // original provided by gemi254
 
-#include "myConfig.h"
+#include "globals.h"
 #include <HTTPClient.h>
 
 // DigiCert valid till 22/10/2028
-static const char* git_rootCACertificate = R"~(
+const char* git_rootCACertificate = R"~(
 -----BEGIN CERTIFICATE-----
-MIIEsTCCA5mgAwIBAgIQBOHnpNxc8vNtwCtCuF0VnzANBgkqhkiG9w0BAQsFADBs
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSswKQYDVQQDEyJEaWdpQ2VydCBIaWdoIEFzc3VyYW5j
-ZSBFViBSb290IENBMB4XDTEzMTAyMjEyMDAwMFoXDTI4MTAyMjEyMDAwMFowcDEL
-MAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3
-LmRpZ2ljZXJ0LmNvbTEvMC0GA1UEAxMmRGlnaUNlcnQgU0hBMiBIaWdoIEFzc3Vy
-YW5jZSBTZXJ2ZXIgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC2
-4C/CJAbIbQRf1+8KZAayfSImZRauQkCbztyfn3YHPsMwVYcZuU+UDlqUH1VWtMIC
-Kq/QmO4LQNfE0DtyyBSe75CxEamu0si4QzrZCwvV1ZX1QK/IHe1NnF9Xt4ZQaJn1
-itrSxwUfqJfJ3KSxgoQtxq2lnMcZgqaFD15EWCo3j/018QsIJzJa9buLnqS9UdAn
-4t07QjOjBSjEuyjMmqwrIw14xnvmXnG3Sj4I+4G3FhahnSMSTeXXkgisdaScus0X
-sh5ENWV/UyU50RwKmmMbGZJ0aAo3wsJSSMs5WqK24V3B3aAguCGikyZvFEohQcft
-bZvySC/zA/WiaJJTL17jAgMBAAGjggFJMIIBRTASBgNVHRMBAf8ECDAGAQH/AgEA
-MA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIw
-NAYIKwYBBQUHAQEEKDAmMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2Vy
-dC5jb20wSwYDVR0fBEQwQjBAoD6gPIY6aHR0cDovL2NybDQuZGlnaWNlcnQuY29t
-L0RpZ2lDZXJ0SGlnaEFzc3VyYW5jZUVWUm9vdENBLmNybDA9BgNVHSAENjA0MDIG
-BFUdIAAwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQ
-UzAdBgNVHQ4EFgQUUWj/kK8CB3U8zNllZGKiErhZcjswHwYDVR0jBBgwFoAUsT7D
-aQP4v0cB1JgmGggC72NkK8MwDQYJKoZIhvcNAQELBQADggEBABiKlYkD5m3fXPwd
-aOpKj4PWUS+Na0QWnqxj9dJubISZi6qBcYRb7TROsLd5kinMLYBq8I4g4Xmk/gNH
-E+r1hspZcX30BJZr01lYPf7TMSVcGDiEo+afgv2MW5gxTs14nhr9hctJqvIni5ly
-/D6q1UEL2tU2ob8cbkdJf17ZSHwD2f2LSaCYJkJA69aSEaRkCldUxPUd1gJea6zu
-xICaEnL6VpPX/78whQYwvwt/Tv9XBZ0k7YXDK/umdaisLRbvfXknsuvCnQsH6qqF
-0wGjIChBWUMo0oHjqvbsezt3tkBigAVBRQHvFwY+3sAzm2fTYS5yh+Rp/BIAV0Ae
-cPUeybQ=
+MIIFYDCCBEigAwIBAgIQQAF3ITfU6UK47naqPGQKtzANBgkqhkiG9w0BAQsFADA/
+MSQwIgYDVQQKExtEaWdpdGFsIFNpZ25hdHVyZSBUcnVzdCBDby4xFzAVBgNVBAMT
+DkRTVCBSb290IENBIFgzMB4XDTIxMDEyMDE5MTQwM1oXDTI0MDkzMDE4MTQwM1ow
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwggIiMA0GCSqGSIb3DQEB
+AQUAA4ICDwAwggIKAoICAQCt6CRz9BQ385ueK1coHIe+3LffOJCMbjzmV6B493XC
+ov71am72AE8o295ohmxEk7axY/0UEmu/H9LqMZshftEzPLpI9d1537O4/xLxIZpL
+wYqGcWlKZmZsj348cL+tKSIG8+TA5oCu4kuPt5l+lAOf00eXfJlII1PoOK5PCm+D
+LtFJV4yAdLbaL9A4jXsDcCEbdfIwPPqPrt3aY6vrFk/CjhFLfs8L6P+1dy70sntK
+4EwSJQxwjQMpoOFTJOwT2e4ZvxCzSow/iaNhUd6shweU9GNx7C7ib1uYgeGJXDR5
+bHbvO5BieebbpJovJsXQEOEO3tkQjhb7t/eo98flAgeYjzYIlefiN5YNNnWe+w5y
+sR2bvAP5SQXYgd0FtCrWQemsAXaVCg/Y39W9Eh81LygXbNKYwagJZHduRze6zqxZ
+Xmidf3LWicUGQSk+WT7dJvUkyRGnWqNMQB9GoZm1pzpRboY7nn1ypxIFeFntPlF4
+FQsDj43QLwWyPntKHEtzBRL8xurgUBN8Q5N0s8p0544fAQjQMNRbcTa0B7rBMDBc
+SLeCO5imfWCKoqMpgsy6vYMEG6KDA0Gh1gXxG8K28Kh8hjtGqEgqiNx2mna/H2ql
+PRmP6zjzZN7IKw0KKP/32+IVQtQi0Cdd4Xn+GOdwiK1O5tmLOsbdJ1Fu/7xk9TND
+TwIDAQABo4IBRjCCAUIwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYw
+SwYIKwYBBQUHAQEEPzA9MDsGCCsGAQUFBzAChi9odHRwOi8vYXBwcy5pZGVudHJ1
+c3QuY29tL3Jvb3RzL2RzdHJvb3RjYXgzLnA3YzAfBgNVHSMEGDAWgBTEp7Gkeyxx
++tvhS5B1/8QVYIWJEDBUBgNVHSAETTBLMAgGBmeBDAECATA/BgsrBgEEAYLfEwEB
+ATAwMC4GCCsGAQUFBwIBFiJodHRwOi8vY3BzLnJvb3QteDEubGV0c2VuY3J5cHQu
+b3JnMDwGA1UdHwQ1MDMwMaAvoC2GK2h0dHA6Ly9jcmwuaWRlbnRydXN0LmNvbS9E
+U1RST09UQ0FYM0NSTC5jcmwwHQYDVR0OBBYEFHm0WeZ7tuXkAXOACIjIGlj26Ztu
+MA0GCSqGSIb3DQEBCwUAA4IBAQAKcwBslm7/DlLQrt2M51oGrS+o44+/yQoDFVDC
+5WxCu2+b9LRPwkSICHXM6webFGJueN7sJ7o5XPWioW5WlHAQU7G75K/QosMrAdSW
+9MUgNTP52GE24HGNtLi1qoJFlcDyqSMo59ahy2cI2qBDLKobkx/J3vWraV0T9VuG
+WCLKTVXkcGdtwlfFRjlBz4pYg1htmf5X6DYO8A4jqv2Il9DjXA6USbW1FzXSLr9O
+he8Y4IWS6wY7bCkjCWDcRQJMEhg76fsO3txE+FiYruq9RUWhiF1myv4Q6W+CyBFC
+Dfvp7OOGAN6dEOM4+qR9sdjoSYKEBpsr6GtPAQw4dy753ec5
 -----END CERTIFICATE-----
 )~";
 
@@ -44,7 +47,8 @@ static void wgetFile(const char* githubURL, const char* filePath, bool restart =
     if (WiFi.status() != WL_CONNECTED) return;  
     char downloadURL[150];
     sprintf(downloadURL, "%s%s", githubURL, filePath);
-    for (int i = 0; i < 2; i++) {
+////    for (int i = 0; i < 2; i++) { // secure not working
+      for (int i = 1; i < 2; i++) { 
       // try secure then insecure
       File f = fp.open(filePath, FILE_WRITE);
       if (f) {
@@ -52,21 +56,27 @@ static void wgetFile(const char* githubURL, const char* filePath, bool restart =
         WiFiClientSecure wclient;
         if (!i) wclient.setCACert(git_rootCACertificate);
         else wclient.setInsecure(); // not SSL      
-        https.begin(wclient, downloadURL);
-        LOG_INF("Downloading %s from %s", filePath, downloadURL);    
-        int httpCode = https.GET();
-        int fileSize = 0;
-        if (httpCode == HTTP_CODE_OK) {
-          fileSize = https.writeToStream(&f);
-          if (fileSize <= 0) {
-            httpCode = 0;
-            LOG_ERR("Download failed: writeToStream");
-          } else LOG_INF("Downloaded %s, size %d bytes", filePath, fileSize);       
-        } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
-        https.end();
-        f.close();
-        if (httpCode == HTTP_CODE_OK) break;
-        else fp.remove(filePath);
+        if (!https.begin(wclient, downloadURL)) {
+          char errBuf[100];
+          wclient.lastError(errBuf, 100);
+          checkMemory();
+          LOG_ERR("Could not connect to github server, err: %s", errBuf);
+        } else {
+          LOG_INF("Downloading %s from %s", filePath, downloadURL);    
+          int httpCode = https.GET();
+          int fileSize = 0;
+          if (httpCode == HTTP_CODE_OK) {
+            fileSize = https.writeToStream(&f);
+            if (fileSize <= 0) {
+              httpCode = 0;
+              LOG_ERR("Download failed: writeToStream");
+            } else LOG_INF("Downloaded %s, size %d bytes", filePath, fileSize);       
+          } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
+          https.end();
+          f.close();
+          if (httpCode == HTTP_CODE_OK) break;
+          else fp.remove(filePath);
+        }
       } else LOG_ERR("Open failed: %s", filePath);
     } 
     if (restart) {
@@ -77,13 +87,20 @@ static void wgetFile(const char* githubURL, const char* filePath, bool restart =
 }
 
 bool checkDataFiles() {
-  // Download missing data files
+  // Download any missing data files
   if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
-  wgetFile(MJPEG2SD_URL, CONFIG_FILE_PATH, true);
-  wgetFile(MJPEG2SD_URL, INDEX_PAGE_PATH);      
-  wgetFile(MJPEG2SD_URL, DATA_DIR "/OTA.htm");
-  wgetFile(MJPEG2SD_URL, DATA_DIR "/LOG.htm");
-  wgetFile(MJPEG2SD_URL, DATA_DIR "/jquery.min.js");
+  wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
+  wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
+  wgetFile(GITHUB_URL, DATA_DIR "/OTA.htm");
+  if (USE_LOG) wgetFile(GITHUB_URL, DATA_DIR "/LOG.htm");
+  if (USE_WSL) wgetFile(GITHUB_URL, DATA_DIR "/WSL.htm");
+  if (USE_JQUERY) wgetFile(GITHUB_URL, DATA_DIR "/jquery.min.js");
+  if (USE_COMMON) wgetFile(GITHUB_URL, DATA_DIR "/common.js");
+  if (USE_CONFIG) {
+    wgetFile(GITHUB_URL, DATA_DIR "/CONFIG.htm");
+    wgetFile(GITHUB_URL, DATA_DIR "/configs.js");
+  }
+  wgetFile(GITHUB_URL, DATA_DIR "/favicon.ico");
   return true;
 }
 

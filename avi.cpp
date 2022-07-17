@@ -33,7 +33,7 @@ footer:
   4 byte pcm size
 */
 
-#include "myConfig.h"
+#include "globals.h"
 
 // avi header data
 const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
@@ -102,7 +102,7 @@ bool haveSoundFile = false;
 
 void prepAviIndex(bool isTL) {
   // prep buffer to store index data, gets appended to end of file
-  if (idxBuf[isTL] == NULL) idxBuf[isTL] = (uint8_t*)ps_malloc((MAX_FRAMES+1)*IDX_ENTRY); // include some space for audio index
+  if (idxBuf[isTL] == NULL) idxBuf[isTL] = (uint8_t*)ps_malloc((maxFrames+1)*IDX_ENTRY); // include some space for audio index
   memcpy(idxBuf[isTL], idx1Buf, 4); // index header
   idxPtr[isTL] = CHUNK_HDR;  // leave 4 bytes for index size
   moviSize[isTL] = indexLen[isTL] = 0;

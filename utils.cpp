@@ -4,14 +4,15 @@
 // - NTP
 // - remote logging
 // - base64 encoding
-// - battery voltage
+// - device sleep
 //
 // s60sc 2021, some functions based on code contributed by gemi254
 
-#include "myConfig.h"
+#include "globals.h"
 
 bool dbgVerbose = false;
 bool timeSynchronized = false;
+bool monitorOpen = true;
 
 /************************** Wifi **************************/
 
@@ -28,21 +29,29 @@ char ST_ns2[16] = ""; // alternative DNS Server, can be blank
 
 // Access point Config Portal SSID and Pass
 String AP_SSID = String(APP_NAME) + "_" + String((uint32_t)ESP.getEfuseMac(),HEX); 
-char   AP_Pass[MAX_PWD_LEN] = AP_PASSWD;
+char   AP_Pass[MAX_PWD_LEN] = "";
 char   AP_ip[16]  = ""; //Leave blank to use 192.168.4.1
 char   AP_sn[16]  = "";
 char   AP_gw[16]  = "";
+
+// basic HTTP Authentication access to web page
+char Auth_User[16] = ""; 
+char Auth_Pass[MAX_PWD_LEN] = "";
+
+int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
+bool allowAP = true;  // set to true to allow AP to startup if cannot reconnect to STA (router)
+int wifiTimeoutSecs = 30; // how often to check wifi status
 
 static esp_ping_handle_t pingHandle = NULL;
 static void startPing();
 
 static void setupMndsHost() {  //Mdns services   
-  if (MDNS.begin(hostName) ) {
+  if (MDNS.begin(hostName)) {
     // Add service to MDNS-SD
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("ws", "udp", 81);
     // MDNS.addService("ftp", "tcp", 21);    
-    LOG_INF("mDNS service: http://%s.local", hostName );
+    LOG_INF("mDNS service: http://%s.local", hostName);
   } else {LOG_ERR("mDNS host name: %s Failed", hostName);}
 }
 
@@ -91,7 +100,7 @@ bool startWifi() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ST_SSID, ST_Pass);
     uint32_t startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)  {
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < wifiTimeoutSecs * 1000)  {
       //Stop waiting on failure.. Will reconnect later by keep alive
       if (WiFi.status() == WL_CONNECT_FAILED){
         LOG_ERR("Connect FAILED to: %s. ", ST_SSID);
@@ -106,7 +115,7 @@ bool startWifi() {
       startPing();
       LOG_INF("Use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
     } else {
-      if (ALLOW_AP) {
+      if (allowAP) {
         LOG_INF("Unable to connect to router, start Access Point");
         // Start AP config portal
         return setWifiAP();
@@ -125,13 +134,12 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   static bool dataFilesChecked = false;
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
-  LOG_DBG("ping successful");
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
-  LOG_WRN("Failed to ping gateway, restart wifi ...");
   esp_ping_stop(pingHandle);
   esp_ping_delete_session(pingHandle);
+  LOG_WRN("Failed to ping gateway, restart wifi ...");
   startWifi();
 }
 
@@ -143,9 +151,9 @@ static void startPing() {
   esp_ping_config_t pingConfig = ESP_PING_DEFAULT_CONFIG();
   pingConfig.target_addr = pingDest;  
   pingConfig.count = ESP_PING_COUNT_INFINITE;
-  pingConfig.interval_ms = WIFI_TIMEOUT_MS;
+  pingConfig.interval_ms = wifiTimeoutSecs * 1000;
   pingConfig.timeout_ms = 5000;
-  pingConfig.task_stack_size = 4096 * 2;
+  pingConfig.task_stack_size = 1024 * 6;
   pingConfig.task_prio = 1;
   // set ping task callback functions 
   esp_ping_callbacks_t cbs;
@@ -348,119 +356,32 @@ void checkMemory() {
 void doRestart(String restartStr) {
   flush_log(true);
   LOG_WRN("Controlled restart: %s", restartStr.c_str());
-  updateStatus("restart", restartStr.c_str());
-  updateStatus("save", "1");
   delay(2000);
   ESP.restart();
 }
 
 /*********************** Remote loggging ***********************/
 /*
- * Log mode selection in user interface: 0-Serial, 1-log.txt, 2-telnet
- * 0 : log to serial monitor only
- * 1 : saves log on SD card. To download the log generated, either:
- *     - To view the log, press Show Log button on the browser
-  *     - To clear the log file contents, on log web page press Clear Log link
- * 2 : run telnet <ip address> 443 on a remote host eg PuTTY
- * To close an SD or Telnet connection, select log mode 0
+ * Log mode selection in user interface: 
+ * false : log to serial / web monitor only
+ * true  : also saves log on SD card. To download the log generated, either:
+ *  - To view the log, press Show Log button on the browser
+ * - To clear the log file contents, on log web page press Clear Log link
  */
 
 #define LOG_FORMAT_BUF_LEN 512
-#define LOG_PORT 443 // Define telnet port
 #define WRITE_CACHE_CYCLE 5
-byte logMode = 0; // 0 - Disabled, log to serial port only, 1 - Internal log to sdcard file, 2 - Remote telnet on port 443
-static int log_serv_sockfd = -1;
-static int log_sockfd = -1;
-static struct sockaddr_in log_serv_addr, log_cli_addr;
+bool logMode = false; // 
 static char fmt_buf[LOG_FORMAT_BUF_LEN];
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
-static void remote_log_free_telnet() {
-  if (log_sockfd != -1) {
-    LOG_DBG("Sending telnet quit string Ctrl ]"); 
-    send(log_sockfd, "^]\n\rquit\n\r", 10, 0);
-    delay(100);
-    close(log_sockfd);
-    log_sockfd = -1;
-  }
-      
-  if (log_serv_sockfd != -1) {
-    if (close(log_serv_sockfd) != 0) LOG_ERR("Cannot close the socket");        
-    log_serv_sockfd = -1;    
-    LOG_INF("Closed telnet connection");
-  }
-}
-
-static void remote_log_init_telnet() {
-  LOG_DBG("Initialize telnet remote log");
-  memset(&log_serv_addr, 0, sizeof(log_serv_addr));
-  memset(&log_cli_addr, 0, sizeof(log_cli_addr));
-
-  log_serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  log_serv_addr.sin_family = AF_INET;
-  log_serv_addr.sin_port = htons(LOG_PORT);
-
-  if ((log_serv_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0) {
-    LOG_ERR("Failed to create socket, fd value: %d", log_serv_sockfd);
-    return;
-  }
-  LOG_DBG("Socket FD is %d", log_serv_sockfd);
-
-  int reuse_option = 1;
-  if (setsockopt(log_serv_sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse_option, sizeof(reuse_option)) < 0) {
-    LOG_ERR("Failed to set reuse, returned %s", strerror(errno));
-    remote_log_free_telnet();
-    return;
-  }
-
-  if (bind(log_serv_sockfd, (struct sockaddr *)&log_serv_addr, sizeof(log_serv_addr)) < 0) {
-    LOG_ERR("Failed to bind the port, reason: %s", strerror(errno));
-    remote_log_free_telnet();
-    return;
-  }
-
-  if (listen(log_serv_sockfd, 1) != 0) {
-    LOG_ERR("Server failed to listen");
-    return;
-  }
-
-  // Set timeout
-  struct timeval timeout = {
-    .tv_sec = 30,
-    .tv_usec = 0
-  };
-
-  // Set receive timeout
-  if (setsockopt(log_serv_sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
-      LOG_ERR("Setting receive timeout failed");
-      remote_log_free_telnet();
-      return;
-  }
-
-  // Set send timeout
-  if (setsockopt(log_serv_sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
-    LOG_ERR("Setting send timeout failed");
-    remote_log_free_telnet();
-    return;
-  }
-  LOG_INF("Server created, make telnet connection within 30 seconds");
-
-  size_t cli_addr_len = sizeof(log_cli_addr);
-  if ((log_sockfd = accept(log_serv_sockfd, (struct sockaddr *)&log_cli_addr, &cli_addr_len)) < 0) {
-      LOG_WRN("Failed to accept, returned: %s", strerror(errno));
-      remote_log_free_telnet();
-      return;
-  }
-  LOG_INF("Established telnet connection");
-}
-
 void flush_log(bool andClose) {
   if (log_remote_fp != NULL) {
     fsync(fileno(log_remote_fp));  
+    fflush(log_remote_fp);
     if (andClose) {
       LOG_INF("Closed SD file for logging");
-      fflush(log_remote_fp);
       fclose(log_remote_fp);
       log_remote_fp = NULL;
     } else delay(1000);
@@ -468,51 +389,58 @@ void flush_log(bool andClose) {
 }
 
 static void remote_log_init_SD() {
+#ifndef IS_ESP32_C3
   SD_MMC.mkdir(DATA_DIR);
   // Open remote file
   log_remote_fp = NULL;
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
   if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
-  else {LOG_INF("Ospened SD file for logging");}
+  else {LOG_INF("\nOpened SD file for logging");}
+#endif
 }
 
-void reset_log(){
+void reset_log() {
+#ifndef IS_ESP32_C3
   flush_log(true); // Close log file
   SD_MMC.remove(LOG_FILE_PATH);
   LOG_INF("Cleared log file");
-  if (logMode == 1) remote_log_init_SD();    
+  if (logMode) remote_log_init_SD();   
+#endif
 }
 
 void remote_log_init() {
-  LOG_INF("Enabling logging mode %d", logMode);
-  // close off any existing remote logging
-  if (logMode == 1) flush_log(false);
-  else flush_log(true);
-  remote_log_free_telnet();
-  // setup required mode
-  if (logMode == 1) remote_log_init_SD();
-  if (logMode == 2) remote_log_init_telnet();
+  // setup required log mode
+  if (logMode) {
+    flush_log(false);
+    remote_log_init_SD();
+  } else flush_log(true);
 }
 
 void logPrint(const char *fmtStr, ...) {  
   va_list arglist;
   va_start(arglist, fmtStr);
-  vprintf(fmtStr, arglist); // serial monitor
+  if (monitorOpen) vprintf(fmtStr, arglist); // serial monitor
   if (log_remote_fp != NULL) { // log.txt
     vfprintf(log_remote_fp, fmtStr, arglist);
     // periodic sync to SD
     if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
   }
-  if (log_sockfd != -1) { // telnet
-    int len = vsprintf((char*)fmt_buf, fmtStr, arglist);
-    fmt_buf[len++] = '\r'; // in case terminal expects carriage return
-    // Send the log message, or terminate connection if unsuccessful
-    if (send(log_sockfd, fmt_buf, len, 0) < 0) remote_log_free_telnet();
-  }
+  // web monitoring
+  int len = vsprintf((char*)fmt_buf, fmtStr, arglist);
+  fmt_buf[len-1] = 0; // lose \n
+  // Send the log message
+  wsAsyncSend(fmt_buf);
   va_end(arglist);
   delay(FLUSH_DELAY);
 }
 
+void formatHex(const char* inData, size_t inLen) {
+  // format data as hex bytes for output
+  char formatted[(inLen * 3) + 1];
+  for (int i=0; i<inLen; i++) sprintf(formatted + (i*3), "%02x ", inData[i]);
+  formatted[(inLen * 3)] = 0; // terminator
+  LOG_WRN("Hex: %s", formatted);
+}
 
 /****************** base 64 ******************/
 
@@ -546,59 +474,30 @@ const char* encode64(const char* inp) {
   return encoded;
 }
 
-/******************* battery monitoring *********************/
 
-// if pin 33 used as input for battery voltage, set VOLTAGE_DIVIDER value to be divisor 
-// of input voltage from resistor divider, or 0 if battery voltage not being monitored
-#define BATT_PIN ADC1_CHANNEL_5 // ADC pin 33 for monitoring battery voltage
-#define DEFAULT_VREF 1100 // if eFuse or two point not available on old ESPs
-static esp_adc_cal_characteristics_t *adc_chars; // holds ADC characteristics
-static const adc_atten_t ADCatten = ADC_ATTEN_DB_11; // attenuation level
-static const adc_unit_t ADCunit = ADC_UNIT_1; // using ADC1
-static const adc_bits_width_t ADCbits = ADC_WIDTH_BIT_11; // ADC bit resolution
-float currentVoltage = -1.0; // no monitoring
+/****************** send device to sleep (light or deep) ******************/
 
-static void battVoltage() {
-  // get multiple readings of battery voltage from ADC pin and average
-  // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
-  #define NO_OF_SAMPLES 16 // ADC multisampling
-  uint32_t ADCsample = 0;
-  static bool sentEmailAlert = false;
-  for (int j = 0; j < NO_OF_SAMPLES; j++) ADCsample += adc1_get_raw(BATT_PIN); 
-  ADCsample /= NO_OF_SAMPLES;
-  // convert ADC averaged pin value to curve adjusted voltage in mV
-  if (ADCsample > 0) ADCsample = esp_adc_cal_raw_to_voltage(ADCsample, adc_chars);
-  currentVoltage = ADCsample*VOLTAGE_DIVIDER/1000.0; // convert to battery volts
-  if (currentVoltage < LOW_VOLTAGE && !sentEmailAlert) {
-    sentEmailAlert = true; // only sent once per esp32 session
-    smtpBufferSize = 0; // no attachment
-    char battMsg[20];
-    sprintf(battMsg, "Voltage is %0.1fV", currentVoltage);
-#ifdef INCLUDE_SMTP
-    if (USE_SMTP) emailAlert("Low battery", battMsg);
+#include <esp_wifi.h>
+
+void goToSleep(int wakeupPin, bool deepSleep) {
+#ifndef IS_ESP32_C3
+  // if deep sleep, restarts with reset
+  // if light sleep, restarts by continuing this function
+  LOG_INF("Going into %s sleep", deepSleep ? "deep" : "light");
+  delay(100);
+  if (deepSleep) {
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 1); // wakeup on pin high
+    esp_deep_sleep_start();
+  } else {
+    // light sleep
+    esp_wifi_stop();
+    gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // wakeup on pin high
+    esp_light_sleep_start();
+  }
+  // light sleep restarts here
+  LOG_INF("Light sleep wakeup");
+  esp_wifi_start();
+#else
+  LOG_WRN("This function not compatible with ESP32-C3");
 #endif
-  }
-}
-
-static void battTask(void* parameter) {
-  delay(20 * 1000); // allow time for esp32 to start up
-  while (true) {
-    battVoltage();
-    delay(BATT_INTERVAL * 60 * 1000); // mins
-  }
-  vTaskDelete(NULL);
-}
-
-void setupADC() {
-  // Characterise ADC to generate voltage curve for battery monitoring 
-  if (VOLTAGE_DIVIDER) {
-    adc1_config_width(ADCbits);
-    adc1_config_channel_atten(BATT_PIN, ADCatten);
-    adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
-    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADCunit, ADCatten, ADCbits, DEFAULT_VREF, adc_chars);
-    if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {LOG_INF("ADC characterised using eFuse Two Point Value");}
-    else if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {LOG_INF("ADC characterised using eFuse Vref");}
-    else {LOG_INF("ADC characterised using Default Vref");}
-    xTaskCreate(&battTask, "battTask", 2048, NULL, 1, NULL);
-  }
 }

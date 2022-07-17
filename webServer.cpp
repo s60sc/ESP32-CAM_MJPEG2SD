@@ -1,164 +1,36 @@
 // Provides web server for user control of app
 // httpServer handles browser requests 
-// streamServer handles streaming and stills
 // otaServer does file uploads
 //
 // s60sc 2022
 
-#include "myConfig.h"
+#include "globals.h"
+
+#define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 
 static esp_err_t fileHandler(httpd_req_t* req, bool download = false);
 static void OTAtask(void* parameter);
 
-static char inFileName[FILE_NAME_LEN];
+char inFileName[FILE_NAME_LEN];
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN]; 
-
-/********************* mjpeg2sd specific function **********************/
-
-// stream separator
-#define STREAM_CONTENT_TYPE "multipart/x-mixed-replace;boundary=" BOUNDARY_VAL
-#define JPEG_BOUNDARY "\r\n--" BOUNDARY_VAL "\r\n"
-#define JPEG_TYPE "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n"
-#define HDR_BUF_LEN 64
-static const size_t boundaryLen = strlen(JPEG_BOUNDARY);
-static char hdrBuf[HDR_BUF_LEN];
-
-static httpd_handle_t streamServer = NULL; // streamer listens on port 81
-
-static esp_err_t appSpecificHandler(httpd_req_t *req, const char* variable, const char* value) {
-  // update handling specific to mjpeg2sd
-  int intVal = atoi(value);
-  if (!strcmp(variable, "sfile")) {
-    // get folders / files on SD, save received filename if has required extension
-    strcpy(inFileName, value);
-    doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, FILE_EXT); // browser control
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-  } 
-  else if (!strcmp(variable, "updateFPS")) {
-    sprintf(jsonBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-  } 
-  else if (!strcmp(variable, "fps")) setFPS(intVal);
-  else if (!strcmp(variable, "framesize")) setFPSlookup(fsizePtr);
-  return ESP_OK;
-}
-
-static esp_err_t streamHandler(httpd_req_t* req) {
-  // send mjpeg stream or single frame
-  esp_err_t res = ESP_OK;
-  // if query string present, then single frame required
-  bool singleFrame = (bool)httpd_req_get_url_query_len(req);                                       
-  size_t jpgLen = 0;
-  uint8_t* jpgBuf = NULL;
-  char hdrBuf[HDR_BUF_LEN];
-  uint32_t startTime = millis();
-  uint32_t frameCnt = 0;
-  uint32_t mjpegKB = 0;
-  mjpegStruct mjpegData;
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  // output header if streaming request
-  if (!singleFrame) httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
-
-  if (doPlayback) {
-    // playback mjpeg from SD
-    openSDfile(inFileName);
-    mjpegData = getNextFrame(true);
-    while (doPlayback) {
-      jpgLen = mjpegData.buffLen;
-      size_t buffOffset = mjpegData.buffOffset;
-      if (!jpgLen && !buffOffset) {
-        // complete mjpeg streaming
-        res = httpd_resp_send(req, JPEG_BOUNDARY, boundaryLen);
-        doPlayback = false; 
-      } else {
-        if (jpgLen) {
-          if (mjpegData.jpegSize) { // start of frame
-            // send mjpeg header 
-            res = httpd_resp_send_chunk(req, JPEG_BOUNDARY, boundaryLen);
-            size_t hdrLen = snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, mjpegData.jpegSize);
-            res = httpd_resp_send_chunk(req, hdrBuf, hdrLen);   
-            frameCnt++;
-          } 
-          // send buffer 
-          res = httpd_resp_send_chunk(req, (const char*)iSDbuffer+buffOffset, jpgLen);
-        }
-        mjpegData = getNextFrame(); 
-      }
-    }
-  } else { 
-    // live images
-    do {
-      camera_fb_t* fb;
-      if (dbgMotion) {
-        // motion tracking stream, wait for new move mapping image
-        xSemaphoreTake(motionMutex, portMAX_DELAY);
-        fetchMoveMap(&jpgBuf, &jpgLen);
-        if (!jpgLen) res = ESP_FAIL;
-      } else {
-        // stream from camera
-        fb = esp_camera_fb_get();
-        if (fb == NULL) return ESP_FAIL;
-        jpgLen = fb->len;
-        jpgBuf = fb->buf;
-      }
-      if (res == ESP_OK) {
-        if (singleFrame) {
-           httpd_resp_set_type(req, "image/jpeg");
-           httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-           // send single jpeg to browser
-           res = httpd_resp_send(req, (const char*)jpgBuf, jpgLen); 
-        } else {
-          // send next frame in stream
-          res = httpd_resp_send_chunk(req, JPEG_BOUNDARY, boundaryLen);    
-          size_t hdrLen = snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, jpgLen);
-          if (res == ESP_OK) res = httpd_resp_send_chunk(req, hdrBuf, hdrLen);
-          if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
-        }
-        frameCnt++;
-      }
-      xSemaphoreGive(motionMutex);
-      if (fb != NULL) esp_camera_fb_return(fb);
-      fb = NULL;  
-      mjpegKB += jpgLen / 1024;
-      if (res != ESP_OK) break;
-    } while (!singleFrame);
-    uint32_t mjpegTime = millis() - startTime;
-    float mjpegTimeF = float(mjpegTime) / 1000; // secs
-    if (singleFrame) LOG_INF("JPEG: %uB in %ums", jpgLen, mjpegTime);
-    else LOG_INF("MJPEG: %u frames, total %ukB in %0.1fs @ %0.1ffps", frameCnt, mjpegKB, mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
-  }
-  return res;
-}
-
-void startStreamServer() {
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  httpd_uri_t streamUri = {.uri = "/stream", .method = HTTP_GET, .handler = streamHandler, .user_ctx = NULL};
-  config.server_port += 1;
-  config.ctrl_port += 1;
-  if (httpd_start(&streamServer, &config) == ESP_OK) {
-    httpd_register_uri_handler(streamServer, &streamUri);
-    LOG_INF("Starting streaming server on port: %u", config.server_port);
-  } else LOG_ERR("Failed to start streaming server");
-}
+int refreshVal = 5000; // msecs
 
 /********************* generic Web Server functions **********************/
 
 #define OTAport 82
 static WebServer otaServer(OTAport); 
 static httpd_handle_t httpServer = NULL; // web server listens on port 80
+static int fdWs = -1; // for websockets
 static fs::FS fp = STORAGE;
-byte chunk[RAMSIZE];
+byte chunk[CHUNKSIZE];
+uint8_t wsMsg[1024];
 
 static bool sendChunks(File df, httpd_req_t *req) {   
   // use chunked encoding to send large content to browser
   size_t chunksize;
   do {
-    chunksize = df.read(chunk, RAMSIZE); 
+    chunksize = df.read(chunk, CHUNKSIZE); 
     if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) {
       df.close();
       return false;
@@ -212,6 +84,27 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, defaultPage_html, HTTPD_RESP_USE_STRLEN);
+  } else {
+    // first check if authentication is required
+    if (strlen(Auth_User)) {
+      // authentication required
+      size_t credLen = strlen(Auth_User) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
+      char credentials[credLen];
+      sprintf(credentials, "%s:%s", Auth_User, Auth_Pass);
+      size_t authLen = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
+      if (authLen) {
+        // check credentials supplied are valid
+        char auth[authLen];
+        httpd_req_get_hdr_value_str(req, "Authorization", auth, authLen);
+        if (!strstr(auth, encode64(credentials))) authLen = 0; // credentials not valid
+      }
+      if (!authLen) {
+        // not authenticated
+        httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
+        httpd_resp_set_status(req, "401 Unauthorised");
+        return httpd_resp_send(req, NULL, 0);
+      }
+    }
   }
   return fileHandler(req);
 }
@@ -242,6 +135,8 @@ static esp_err_t webHandler(httpd_req_t* req) {
   if (!strcmp(variable, "OTA.htm")) {
     // special case for OTA
     xTaskCreate(&OTAtask, "OTAtask", 4096, NULL, 1, NULL);  
+  } else if (!strcmp(variable, "LOG.htm")) {
+    flush_log(false);
   } else if (!strcmp(HTML_EXT, variable+(strlen(variable)-strlen(HTML_EXT)))) {
     // any html file
     httpd_resp_set_type(req, "text/html");
@@ -251,8 +146,11 @@ static esp_err_t webHandler(httpd_req_t* req) {
   } else if (!strcmp(TEXT_EXT, variable+(strlen(variable)-strlen(TEXT_EXT)))) {
     // any text file
     httpd_resp_set_type(req, "text/plain");
-  } else LOG_WRN("Unknown file type %s", variable);
-  sprintf(inFileName, "%s/%s", DATA_DIR, variable);         
+  } else if (!strcmp(ICO_EXT, variable+(strlen(variable)-strlen(ICO_EXT)))) {
+    // any icon file
+    httpd_resp_set_type(req, "image/x-icon");
+  } else LOG_WRN("Unknown file type %s", variable);  
+  sprintf(inFileName, "%s/%s", DATA_DIR, variable);               
   return fileHandler(req);
 }
 
@@ -266,22 +164,109 @@ static esp_err_t controlHandler(httpd_req_t *req) {
     doRestart("user requested restart"); 
   }
   // handler for downloading selected file, required file name in inFileName
-  appSpecificHandler(req, variable, value); 
+  webAppSpecificHandler(req, variable, value); 
   if (!strcmp(variable, "download") && atoi(value) == 1) return fileHandler(req, true);
   httpd_resp_send(req, NULL, 0); 
   return ESP_OK;
 }
 
 static esp_err_t statusHandler(httpd_req_t *req) {
-  bool quick = (bool)httpd_req_get_url_query_len(req); 
-  buildJsonString(quick);
+  uint8_t filter = (uint8_t)httpd_req_get_url_query_len(req); 
+  buildJsonString(filter);
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
   return ESP_OK;
 }
 
+static esp_err_t updateHandler(httpd_req_t *req) {
+  // extract key pairs from received json string
+  size_t rxSize = min(req->content_len, (size_t)JSON_BUFF_LEN);
+  char retainAction[2];
+  int ret = 0;
+  // obtain json payload
+  do {
+    ret = httpd_req_recv(req, jsonBuff, rxSize);
+    if (ret < 0) {  
+      if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+      else {
+        LOG_ERR("Post request failed with status %i", ret);
+        return ESP_FAIL;
+      }
+    }
+  } while (ret > 0);
+  jsonBuff[rxSize - 1] = ','; // replace final '}' 
+
+  // process json to extract key value pairs  
+  char* ptr = jsonBuff + 1; 
+  size_t itemLen = 0; 
+  do {
+    char* endItem = strchr(ptr += itemLen, ':');
+    itemLen = endItem - ptr;
+    memcpy(variable, ptr, itemLen);
+    variable[itemLen] = 0;
+    removeChar(variable, '"');
+    ptr++;
+    endItem = strchr(ptr += itemLen, ',');
+    itemLen = endItem - ptr;
+    memcpy(value, ptr, itemLen);
+    value[itemLen] = 0;
+    removeChar(value, '"');
+    ptr++;
+    if (!strcmp(variable, "action")) strcpy(retainAction, value);
+    else {
+      if (!updateStatus(variable, value)) {
+        httpd_resp_send(req, NULL, 0);  
+        doRestart("user requested restart after data deletion");  
+      } 
+    }
+  } while (ptr + itemLen - jsonBuff < rxSize);
+  webAppSpecificHandler(req, "action", retainAction);
+  httpd_resp_send(req, NULL, 0); 
+  return ESP_OK;
+}
+
+void wsAsyncSend(char* wsData) {
+  // websockets async send function, usedb for logging
+  if (fdWs >=0) {
+    httpd_ws_frame_t wsPkt;
+    wsPkt.payload = (uint8_t*)wsData;
+    wsPkt.len = strlen(wsData);
+    wsPkt.type = HTTPD_WS_TYPE_TEXT;
+    httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
+  }
+}
+
+static esp_err_t wsHandler(httpd_req_t *req) {
+  // receive websocket data and determine response
+  fdWs = httpd_req_to_sockfd(req);
+  if (req->method == HTTP_GET) LOG_INF("Websocket connection: %d", fdWs);
+  else {
+    // data content received
+    httpd_ws_frame_t wsPkt;
+    memset(&wsPkt, 0, sizeof(httpd_ws_frame_t));
+    wsPkt.type = HTTPD_WS_TYPE_TEXT;
+    /* Set max_len = 0 to get the frame len */
+    esp_err_t ret = httpd_ws_recv_frame(req, &wsPkt, 0);
+    if (ret != ESP_OK) {
+      LOG_ERR("websocket failed to get frame len with %d", ret);
+      return ret;
+    }
+    if (wsPkt.len) {
+      wsPkt.payload = wsMsg;
+      ret = httpd_ws_recv_frame(req, &wsPkt, wsPkt.len);
+      if (ret != ESP_OK) {
+        LOG_ERR("websocket receive failed with %d", ret);
+        return ret;
+      }
+      wsMsg[wsPkt.len] = 0; // terminator
+      processAppWSmsg(wsMsg);
+    }
+  }
+  return ESP_OK;
+}
+
 static void sendCrossOriginHeader() {
-  // prevent CORS blocking request
+  // prevent CORS from blocking request
   otaServer.sendHeader("Access-Control-Allow-Origin", "*");
   otaServer.sendHeader("Access-Control-Max-Age", "600");
   otaServer.sendHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
@@ -294,14 +279,18 @@ void startWebServer() {
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
   httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
   httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
+  httpd_uri_t updateUri = {.uri = "/update", .method = HTTP_POST, .handler = updateHandler, .user_ctx = NULL};
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
+  httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
 
   config.max_open_sockets = MAX_CLIENTS; 
   if (httpd_start(&httpServer, &config) == ESP_OK) {
     httpd_register_uri_handler(httpServer, &indexUri);
     httpd_register_uri_handler(httpServer, &webUri);
     httpd_register_uri_handler(httpServer, &controlUri);
+    httpd_register_uri_handler(httpServer, &updateUri);
     httpd_register_uri_handler(httpServer, &statusUri);
+    httpd_register_uri_handler(httpServer, &wsUri);
     LOG_INF("Starting web server on port: %u", config.server_port);
   } else LOG_ERR("Failed to start web server");
 }
@@ -379,7 +368,7 @@ static void otaFinish() {
   otaServer.sendHeader("Connection", "close");
   otaServer.sendHeader("Access-Control-Allow-Origin", "*");
   otaServer.send(200, "text/plain", (Update.hasError()) ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");
-  doRestart("ota update");
+  doRestart("OTA completed");
 }
 
 static void OTAtask(void* parameter) {

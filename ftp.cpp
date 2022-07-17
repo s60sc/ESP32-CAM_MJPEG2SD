@@ -2,7 +2,7 @@
 //
 // s60sc 2022, based on code contributed by gemi254
 
-#include "myConfig.h"
+#include "globals.h"
 
 // Ftp server params, setup via web page
 char ftp_server[32];
@@ -10,11 +10,12 @@ uint16_t ftp_port = 21;
 char ftp_user[32];
 char ftp_pass[MAX_PWD_LEN];
 char ftp_wd[64]; 
+uint8_t percentLoaded = 0;
 
 // FTP control
 static char rspBuf[256]; // Ftp response buffer
 static char respCodeRx[4]; // ftp response code                        
-TaskHandle_t FTPtaskHandle = NULL;
+TaskHandle_t ftpHandle = NULL;
 static char storedPathName[FILE_NAME_LEN];
 static bool uploadInProgress = false;
 static fs::FS fp = STORAGE;
@@ -33,7 +34,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   
   // wait for ftp server response
   uint32_t start = millis();
-  while (!client.available() && millis() < start + RESPONSE_TIMEOUT) delay(1);
+  while (!client.available() && millis() < start + (responseTimeoutSecs * 1000)) delay(1);
   if (!client.available()) {
     LOG_ERR("FTP server response timeout");
     return false;
@@ -132,10 +133,12 @@ static bool ftpStoreFile(File &fh) {
   uint32_t writeBytes = 0, progCnt = 0;                       
   uint32_t uploadStart = millis();
   size_t readLen, writeLen;
-  if (!sendFtpCommand("STOR ", ftpSaveName, "150")) return false; 
+  if (!sendFtpCommand("STOR ", ftpSaveName, "150")) return false;
+  int saveRefreshVal = refreshVal;
+  refreshVal = 1000;
   do {
     // upload file in chunks
-    readLen = fh.read(chunk, RAMSIZE);  // generic
+    readLen = fh.read(chunk, CHUNKSIZE);  
     if (readLen) {
       writeLen = dclient.write((const uint8_t*)chunk, readLen);
       writeBytes += writeLen;
@@ -144,10 +147,13 @@ static bool ftpStoreFile(File &fh) {
         return false;
       }
       progCnt++;
-      if (progCnt % 50 == 0) LOG_INF("Uploaded %u%%", writeBytes * 100 / fileSize);      
+      percentLoaded = writeBytes * 100 / fileSize;
+      if (progCnt % 50 == 0) LOG_INF("Uploaded %u%%", percentLoaded);      
     }
   } while (readLen > 0);
   dclient.stop();
+  percentLoaded = 100;
+  refreshVal = saveRefreshVal;
   if (sendFtpCommand("", "", "226")) LOG_INF("Uploaded %0.1fMB in %u sec", (float)(writeBytes) / ONEMEG, (millis() - uploadStart) / 1000); 
   else LOG_ERR("File transfer not successful");
   return true;
@@ -189,23 +195,15 @@ static void uploadFolderOrFileFtp() {
 }
 
 static void FTPtask(void* parameter) {
-  // wait for wake up to process an FTP request
-  while (true) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    doPlayback = false; // close any current playback
-    uploadFolderOrFileFtp();
-    // Disconnect from ftp server
-    client.println("QUIT");
-    dclient.stop();
-    client.stop();
-    uploadInProgress = false;
-  }
+  // process an FTP request
+  doPlayback = false; // close any current playback
+  uploadFolderOrFileFtp();
+  // Disconnect from ftp server
+  client.println("QUIT");
+  dclient.stop();
+  client.stop();
+  uploadInProgress = false;
   vTaskDelete(NULL);
-}
-
-void startFTPtask() {
-  // create task on startup
-  xTaskCreate(&FTPtask, "FTPtask", 4096, NULL, 1, &FTPtaskHandle);    
 }
 
 bool ftpFileOrFolder(const char* fileFolder) {
@@ -213,7 +211,7 @@ bool ftpFileOrFolder(const char* fileFolder) {
   if (!uploadInProgress) {
     uploadInProgress = true;
     strcpy(storedPathName, fileFolder);
-    xTaskNotifyGive(FTPtaskHandle);
+    xTaskCreate(&FTPtask, "FTPtask", 4096, NULL, 1, &ftpHandle);    
     return true;
   } else LOG_ERR("Unable to upload %s as another upload in progress", fileFolder);
   return false;

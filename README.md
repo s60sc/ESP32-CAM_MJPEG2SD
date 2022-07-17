@@ -1,11 +1,12 @@
 # ESP32-CAM_MJPEG2SD
 
-ESP32 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file - see  **Audio Recording** section below.
+ESP32 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
  
-Changes from previous verson 5:
-* Recordings now in AVI rather than MJPEG format
-* SMTP function provided to allow email alerts to be sent, eg when motion detected - see `smtp.cpp` for more info.
-* Ping function used to monitor WiFi connection.
+Changes from previous version 6:
+* Configuration changed dynamically via browser instead of compile time defines.
+* Remote logging via web page rather than telnet.
+* Peripherals can be hosted on a separate ESP.
+* Optional login for main web page.
 
 ## Purpose
 
@@ -42,18 +43,16 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
-Configure the application using the `#define` statements in `myConfig.h`, in particular select the required ESP-CAM board using `CAMERA_MODEL_` 
+Select the required ESP-CAM board using `CAMERA_MODEL_` in `globals.h` 
 Compile with Partition Scheme: `Minimal SPIFFS (...)`.  and with PSRAM enabled.
 
 **NOTE: If you get compilation errors you need to update your `arduino-esp32` library in the IDE 
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
-The application web pages and configuration data file (except passwords) are stored in the **/data** folder which needs to be copied as a folder to the SD card.
-This reduces the size of the application on flash and reduces wear as well as making updates easier.
-Subsequent updates to the application, or to the **/data** folder contents, can be made using the **OTA Upload** button on the web page.
+The application web pages and configuration data file (except passwords) are stored in the **/data** folder which needs to be copied as a folder to the SD card, or automatically downloaded from GitHub on app startup. This reduces the size of the application on flash and reduces wear as well as making updates easier.
 
-On first use, the application will start in wifi AP mode to allow router and other details to be entered via the web page, unless default values have been entered for the `ST_*` variables in `utils.cpp`.
-Alternatively, if the **/data** folder is not present on the SD card, a basic web page allows a wifi connection to be defined, which then downloads the **/data** folder from GitHub.
+On first use, the application will start in wifi AP mode to allow router and other details to be entered via the web page. If the **/data** folder is not present on the SD card, it is downloaded from GitHub.
+Subsequent updates to the application, or to the **/data** folder contents, can be made using the **OTA Upload** button on the main web page. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the configuration web page accessed via the **Edit Config** button.
 
 Browser functions only tested on Chrome.
 
@@ -61,7 +60,7 @@ Browser functions only tested on Chrome.
 ## Main Function
 
 A recording is generated either by the camera itself detecting motion as given in the **Motion detection by Camera** section below, or
-by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR. The default is pin 12.
+by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
 In addition a recording can be requested manually using the **Record** button on the web page.
 
 To play back a recording, select the file using **Select folder / file** on the browser to select the day folder then the required AVI file.
@@ -77,21 +76,11 @@ A time lapse feature is also available which can run in parallel with motion cap
 
 ## Other Functions and Configuration
 
-Other functions of the application can be statically set using the `#define` statements in `myConfig.h`:
-* Select if a PIR is to be used (which can also be used in parallel with camera motion detection).
-* Auto switch the lamp on for nightime PIR detection.
-* Connect an external I2S microphone
-* Connect a DS18B20 temperature sensor
-* Monitor voltage of battery supply  
-
-Note that there are not enough free pins to allow all external sensors to be used. Pins that can be used (with some limitations) are: 4, 12, 3, 33.
-
-The operation of the application can be modified dynamically as below, by using the web page, which should mostly be self explanatory.
+The operation of the application can be modified dynamically as below, by using the main web page, which should mostly be self explanatory.
 
 Connections:
 * The FTP, Wifi, SMTP, and time zone parameters can be defined on the web page under **Other Settings**. 
 * To make the changes persistent, press the **Save** button
-* Press **Show Config** button to check that changes have been made.
 * mdns name services in order to use `http://[Host Name]` instead of ip address.
 
 To change the recording parameters:
@@ -104,11 +93,35 @@ SD storage management:
 * Folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the **FTP Upload** button. Can be uploaded in AVI format.
 * Download selected AVI file from SD card to browser using **Download** button. Can be downloaded in AVI format.
 * Delete, or upload and delete oldest folder when card free space is running out.  
-  See `minCardFreeSpace` and `freeSpaceMode` in `myConfig.h`
   
-* Log viewing options via web page **Log Mode** dropdown, in addition to serial port:
-  * From SD card, view using **Show Log** button.
-  * From remote host using `telnet [camera ip] 443` on remote client eg PuTTY
+* Log viewing options via web page **Log to SD** slider, displayed using **Show Log** button, in addition to serial port:
+  * On: log is saved on SD card 
+  * Off: log is dynamically output via websocket.
+
+## Configuration Web Page
+
+More configuration details accessed via **Edit Config** button, which displays further buttons:
+
+**Wifi**:
+Additional WiFi and webserver settings.
+
+**Motion**: 
+See **Motion detection by Camera** section
+
+**Peripherals** eg:
+* Select if a PIR is to be used (which can also be used in parallel with camera motion detection).
+* Auto switch the lamp on for nightime PIR detection.
+* Connect an external I2S microphone
+* Connect a DS18B20 temperature sensor
+* Monitor voltage of battery supply
+
+Note that there are not enough free pins on the camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 4, 12, 3, 33.
+Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.
+
+**Other**:
+SD and email management.
+
+When a feature is enable or disabled, the ESP should be rebooted.
 
 
 ## Motion detection by Camera
@@ -126,8 +139,7 @@ Additional options are provided on the camera index page, where:
 * `Min Frames` is the minimum number of frames to be captured or the file is deleted
 
 ![image1](extras/motion.png)
-
-The `myConfig.h` file contains additional `#define` parameters that can be modified. 
+ 
 
 ## Audio Recording
 
@@ -139,6 +151,5 @@ An I2S microphone can be supported, such as INMP441. PDM and analog microphones 
 - pin 12: Only use as output pin, i.e for microphone WS or SCK pin. Default microphone WS pin.
 - pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3 and the red LED current limiting resistor then running a wire between the VCC pin and the red LED resistor solder tab.
 
-The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting 0 cancels the microphone.
+The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting 0 cancels the microphone. Other settings under **Peripherals** button on the configuration web page.
 
-Refer to the file `myConfig.h` to define microphone pin assignment and for further info.
