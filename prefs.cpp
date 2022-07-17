@@ -309,9 +309,11 @@ bool loadConfig() {
   if (jsonBuff == NULL) {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
-  loadPrefs();
-  if (!loadConfigVect()) return false;
-  
+
+  if (!loadConfigVect()) {
+    loadPrefs();
+    return false;
+  }
   // set default hostname if config is null
   AP_SSID.toUpperCase();
   retrieveConfigVal("hostName", hostName);
@@ -339,6 +341,7 @@ bool loadConfig() {
   char variable[32] = {0,};
   char value[FILE_NAME_LEN] = {0,};
   while (getNextKeyVal(variable, value)) updateStatus(variable, value);
+  loadPrefs();
   if (strlen(ST_SSID)) LOG_INF("Using ssid: %s%s %s", ST_SSID, !strlen(ST_ip) ? " " : " with static ip ", ST_ip);
   return true;
 }
