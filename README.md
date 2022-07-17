@@ -7,6 +7,7 @@ Changes from previous version 6:
 * Remote logging via web page rather than telnet.
 * Peripherals can be hosted on a separate ESP.
 * Optional login for main web page.
+* /data folder needs to be reloaded
 
 ## Purpose
 
