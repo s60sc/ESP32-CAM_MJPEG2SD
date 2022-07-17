@@ -4,7 +4,7 @@
     <a onClick="if(!window.confirm('This will delete all log entries. Are you sure ?')) 
      return false;     
      fetch('/control?resetLog=1')
-     .then(response => { window.location.href='/control?log=1'; }); 
+     .then(response => { window.location.href='/web?log.txt'; }); 
      return false;"
      href=''>Clear Log</a>
     <a onClick='window.location.reload' href=''>Refresh</a>

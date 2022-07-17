@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Monitor Log</title>
+  </head> 
+  <body>
+    <h3>Monitor Log<h3>
+    <pre id='log' style="height:90%;width:90%;border:5px solid #ccc;font:16px Arial;overflow:auto;"></pre>
+    <script>
+      // websocket handling
+      var ip = document.location.host;
+      var wsServer = "ws://" + ip + ":80/ws";
+      var ws = new WebSocket(wsServer);
+
+      add_log_line("Connect to: " + wsServer);
+      connect();
+
+      // add received line to log element
+      function add_log_line(text) {
+        var log = document.getElementById('log');
+        var new_node = document.createTextNode(text + "\n");
+        log.append(new_node);
+      }
+
+      // connect to websocket server
+      function connect() {
+        ws.onopen = function() {
+          add_log_line("Connected");
+        }
+        ws.onmessage = function(messageEvent) {
+          add_log_line(messageEvent.data);
+        }
+      }
+    </script>
+  </body>
+</html> 

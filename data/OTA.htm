@@ -1,46 +1,55 @@
+<html>
+  <head>
+  </head>
+  <body>
+    <br></br>
+    <form id="upload_form" enctype="multipart/form-data" method="post">
+      <input type="file" name="file1" id="file1" onchange="uploadFile()"><br>
+      <br></br>
+      <progress id="progressBar" value="0" max="100" style="width:300px;"></progress>
+      <h3 id="status"></h3>
+      <p id="loaded_n_total"></p>
+    </form>
+    <script>
+      var baseHost = document.location.origin;
+      var otaUrl = baseHost + ':82/upload';
+      
+      function _(el) {
+        return document.getElementById(el);
+      }
+      
+      function uploadFile() {
+        var file = _("file1").files[0];
+        var formdata = new FormData();
+        formdata.append("file1", file);
+        var ajax = new XMLHttpRequest();
+        ajax.upload.addEventListener("progress", progressHandler, false);
+        ajax.addEventListener("load", completeHandler, false);
+        ajax.addEventListener("error", errorHandler, false);
+        ajax.addEventListener("abort", abortHandler, false);
+        ajax.open("POST", otaUrl);
+        ajax.send(formdata);
+      }
 
-<script src='/web?jquery.min.js'></script>
-<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>
-  <input type='file' name='update'>
-  <input type='submit' value='Upload'>
-</form>
-<div id='prg'>progress: 0%</div>
-<script>
-  var baseHost = document.location.origin
-  var otaUrl = baseHost + ':82/upload'
-  $('form').submit(function(e){
-  e.preventDefault();
-  var form = $('#upload_form')[0];
-  var data = new FormData(form); 
-  var filename = $('input[type=file]').val().split('\\').pop();
-  $.ajax({
-    url: otaUrl,
-    type: 'POST',
-    crossDomain: true,
-    data: data,
-    contentType: false,
-    processData: false,
-    headers: { 'filename': filename },
-    xhr: function() {
-      var xhr = new window.XMLHttpRequest();
-      xhr.upload.addEventListener('progress', function(evt) {
-        if (evt.lengthComputable) {
-          var per = evt.loaded / evt.total;
-          $('#prg').html('progress: ' + Math.round(per*100) + '%');
-          if (evt.loaded == evt.total) {
-            $('#prg').html('Uploaded, wait for completion result');
-          }
-        }
-      }, false);
-      return xhr;
-    },
-    success: function(data,status,xhr){
-      $('#prg').html(xhr.responseText);
-    },
-    error: function(xhr, status, error) {
-      $('#prg').html('Error: ' + xhr.responseText);
-    }
-   });
-  });
-</script>
+      function progressHandler(event) {
+        _("loaded_n_total").innerHTML = "Uploaded " + event.loaded + " of " + event.total + " bytes";
+        var percent = (event.loaded / event.total) * 100;
+        _("progressBar").value = Math.round(percent);
+        _("status").innerHTML = Math.round(percent) + "% transferred";
+        if (event.loaded  == event.total) _("status").innerHTML = 'Uploaded, wait for completion result';
+      }
 
+      function completeHandler(event) {
+        _("status").innerHTML = event.target.responseText;
+      }
+
+      function errorHandler(event) {
+        _("status").innerHTML = "Upload Failed";
+      }
+
+      function abortHandler(event) {
+        _("status").innerHTML = "Upload Aborted";
+      }
+    </script>
+  </body>
+</html>

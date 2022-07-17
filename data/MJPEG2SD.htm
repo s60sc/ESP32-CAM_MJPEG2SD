@@ -465,7 +465,7 @@
               <nav id="maintoolbar">
               	<ul class="navtop">
                   <li><button id="showLog" value="1">Show Log</button></li>
-                  <li><button id="showConfig" value="1">Show Config</button></li>
+                  <li><button id="showConfig" value="1">Edit Config</button></li>
                   <li><button id="OTAupload" value="1">OTA Upload</button></li>
                   <li><button id="forceRecord" class="default-action" style="float:right;">Record</button></li>
                   <li><button id="get-still" style="float:right;">Get Still</button></li>
@@ -513,13 +513,12 @@
                               <div class="range-max">63</div>
                           </div>                          
                            <div class="input-group" id="debugging-group">
-                              <label for="logMode" title="Enable debugging via sd card file or remote host telnet on port 443">Log Mode</label>
-                              <select id="logMode" class="default-action">
-                                  <option value="0" title="Log to serial port only.">Serial</option>
-                                  <option value="1" title="Log to a text file log.txt on sdcard root. On browser press Show Log button to view the log">SD card log.txt</option>
-                                  <option value="2" title="Log to a remote terminal session by typing: telnet <camera_ip> 443">Telnet 443</option>
-                              </select>
-                          </div>                          
+                              <label for="logMode" title="Enable looging to sd card">Log to SD</label>
+                              <div class="switch">
+                                  <input id="logMode" type="checkbox" class="default-action">
+                                  <label title="Output log to SD" class="slider" for="logMode"></label>
+                              </div>   
+                           </div>                                 
                            <div class="input-group" id="dbg-group">
                               <label for="dbgVerbose">Verbose</label>
                               <div class="switch">
@@ -534,6 +533,7 @@
                               <option value="/">Get Folders</option>
                             </select>
                           </div>
+                          <progress id="progressBar" value='0' max='100' class="default-action info"></progress>%
                           <section id="buttons"><br>
                             <button title="Download selected file from sd card" id="download" style="float:right; " value="1">Download</button>
                             <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
@@ -901,10 +901,20 @@
                               <label for="smtp_pass">SMTP password</label>
                               <input id="smtp_pass" name="smtp_pass" length=32 placeholder="smtp password" class="default-action">
                           </div>
-                          <div class="input-group" id="ftp-group">
+                          <div class="input-group" id="smtp-group">
                               <label for="smtp_email">SMTP email</label>
                               <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to" class="default-action">
                           </div>                          
+                          <br>
+                          <h3>Authentication settings</h3>
+                          <div class="input-group" id="auth-group">
+                              <label for="Auth_User">Web login</label>
+                              <input id="Auth_User" name="Auth_User" length=32 placeholder="Authentication user" class="default-action">
+                          </div>
+                          <div class="input-group" id="auth-group">
+                              <label for="Auth_Pass">Web password</label>
+                              <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password" class="default-action">
+                          </div>                         
                           <br>
                           <div>
                             <section id="buttons">
@@ -1008,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
   var baseHost = document.location.origin
   var streamUrl = baseHost + ':81'
   var timer = null;                  
+  var refreshVal = 5000;
 
   const hide = el => {
     el.classList.add('hidden')
@@ -1146,7 +1157,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
     
   refresh_status();
   if(timer == null){
-    setTimeout(refresh_status_quick,5000);
+    setTimeout(refresh_status_quick,refreshVal);
   } 
    
   function refresh_status_quick() {
@@ -1165,18 +1176,20 @@ document.addEventListener('DOMContentLoaded', function (event) {
           })
           if(state['isrecord']=='Yes' && document.getElementById("forceRecord").innerHTML=='Record')  updateValue(document.getElementById('forceRecord'), 1, false)
           if(state['isrecord']=='No' && document.getElementById("forceRecord").innerHTML=='Stop Recording')  updateValue(document.getElementById('forceRecord'), 0, false)
-          timer = setTimeout(refresh_status_quick, 5000);
+          refreshVal = state['refreshVal'];
+          timer = setTimeout(refresh_status_quick, refreshVal);
+          document.getElementById('progressBar').value = state['progressBar'];
       })
       .catch((e) => {
         console.log('Error: ', e);
-        timer = setTimeout(refresh_status_quick, 5000);
+        timer = setTimeout(refresh_status_quick, refreshVal);
       });
   }
 
 
   function refresh_status() {
   // read initial values
-  fetch(`${baseHost}/status`)
+  fetch(`${baseHost}/status?`)
     .then(function (response) {
       return response.json()
     })
@@ -1211,11 +1224,18 @@ document.addEventListener('DOMContentLoaded', function (event) {
   //const formatButton = document.getElementById('format')
   
   configButton.onclick = () => {
-    window.location.href='/web?configs.txt';
+    window.location.href='/web?CONFIG.htm';
   }
+  
   logButton.onclick = () => {
-    window.location.href='/web?LOG.htm';
+    const logMode = document.getElementById('logMode');
+    if (logMode.checked){ 
+      window.location.href='/web?LOG.htm';
+    } else {
+      window.location.href='/web?WSL.htm';
+    }
   }
+  
   otaButton.onclick = () => {
     window.location.href='/web?OTA.htm';
   }
@@ -1436,22 +1456,13 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   // Logging mode
   const logMode = document.getElementById('logMode')
-  logMode.onchange = () => {   
-    var selection = logMode.value;
-    if(selection==2){      
-      if(!confirm("Press ok and within 30 seconds go to remote host and type: telnet camera_ip 443")) {
-        logMode.value=0;
-        return false;
-      }
-    }
+    logMode.onchange = () => { 
+    let lm = logMode.checked ? 1 : 0
     $.ajax({
       url: baseHost + '/control',
       data: {
-        "logMode": selection
+        "logMode": lm
       },   
-      success: function(response) {
-        console.log('Set debug mode',selection);
-      }
     }); 
   }
 
