@@ -110,10 +110,12 @@ static void saveConfigVect() {
   }
 }
 
-static void loadConfigVect() {
+static bool loadConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_READ);
-  if (!file) LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
-  else {
+  if (!file) {
+    LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
+    return false;
+  } else {
     // force vector into psram if available
     if (psramFound()) heap_caps_malloc_extmem_enable(0); 
     configs.reserve(MAX_CONFIGS);
@@ -133,6 +135,7 @@ static void loadConfigVect() {
     if (psramFound()) heap_caps_malloc_extmem_enable(4096);
     file.close();
   }
+  return true;
 }
 
 static bool savePrefs(bool retain = true) {
@@ -305,7 +308,7 @@ bool loadConfig() {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
   loadPrefs();
-  loadConfigVect();
+  if (!loadConfigVect()) return false;
 
   // set default hostname if config is null
   AP_SSID.toUpperCase();
