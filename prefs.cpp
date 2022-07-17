@@ -112,8 +112,9 @@ static void saveConfigVect() {
 
 static bool loadConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_READ);
-  if (!file) {
+  if (!file || !file.size()) {
     LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
+    if (!file.size()) STORAGE.remove(CONFIG_FILE_PATH);
     return false;
   } else {
     // force vector into psram if available
