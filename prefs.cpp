@@ -41,6 +41,7 @@ static bool getNextKeyVal(char* keyName, char* keyVal) {
 
 int getKeyPos(std::string thisKey) {
   // get location of given key to retrieve other elements
+  if (configs.empty()) return -1;
   auto lower = std::lower_bound(configs.begin(), configs.end(), thisKey, [](
     const std::vector<std::string> &a, const std::string &b) { 
     return a[0] < b;}
@@ -256,8 +257,8 @@ bool updateStatus(const char* variable, const char* _value) {
     res = false;
   }
   else if(!strcmp(variable, "save")) {
-    saveConfigVect();
     savePrefs();
+    saveConfigVect();
   } 
   return res;
 }
@@ -310,7 +311,7 @@ bool loadConfig() {
   }
   loadPrefs();
   if (!loadConfigVect()) return false;
-
+  
   // set default hostname if config is null
   AP_SSID.toUpperCase();
   retrieveConfigVal("hostName", hostName);
