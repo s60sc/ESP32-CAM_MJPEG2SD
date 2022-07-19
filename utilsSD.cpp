@@ -43,7 +43,7 @@ bool prepSD_MMC() {
   bool res = false;
   heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
   fileVec.reserve(1000);
-  heap_caps_malloc_extmem_enable(50000);
+  heap_caps_malloc_extmem_enable(4096);
   
   res = SD_MMC.begin("/sdcard", true, sdFormatIfMountFailed);
   if (res) {
@@ -124,6 +124,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // build relevant option list
     strcpy(jsonBuff, returnDirs ? "{" : "{\"/\":\".. [ Up ]\",");            
     File file = root.openNextFile();
+    heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
     while (file) {
       if (returnDirs && file.isDirectory() 
           && strstr(file.name(), "System") == NULL // ignore Sys Vol Info
@@ -143,6 +144,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
       }
       file = root.openNextFile();
     }
+    heap_caps_malloc_extmem_enable(4096);
   }
   
   if (noEntries) strcpy(jsonBuff, "{\"/\":\"Get Folders\"}");
