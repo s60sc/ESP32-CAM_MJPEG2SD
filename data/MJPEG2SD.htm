@@ -7,6 +7,9 @@
         <title>ESP32-CAM_AVI2SD</title>
         <script src='/web?jquery.min.js'></script>
         <style>
+            :root {
+            --itemColor: red;
+            }
             body {
                 font-family: Arial,Helvetica,sans-serif;
                 background: #181818;
@@ -202,7 +205,7 @@
                 line-height: 20px;
                 cursor: pointer;
                 color: #fff;
-                background: #ff3034;
+                background: var(--itemColor);
                 border-radius: 5px;
                 font-size: 16px;
                 outline: 0
@@ -248,7 +251,7 @@
                 height: 22px;
                 width: 22px;
                 border-radius: 50px;
-                background: #ff3034;
+                background: var(--itemColor);
                 cursor: pointer;
                 -webkit-appearance: none;
                 margin-top: -11.5px
@@ -272,7 +275,7 @@
                 height: 22px;
                 width: 22px;
                 border-radius: 50px;
-                background: #ff3034;
+                background: var(--itemColor);
                 cursor: pointer
             }
 
@@ -302,7 +305,7 @@
                 height: 22px;
                 width: 22px;
                 border-radius: 50px;
-                background: #ff3034;
+                background: var(--itemColor);
                 cursor: pointer;
                 height: 2px
             }
@@ -355,7 +358,7 @@
             }
 
             input:checked+.slider {
-                background-color: #ff3034
+                background-color: var(--itemColor)
             }
 
             input:checked+.slider:before {
@@ -375,7 +378,7 @@
                 position: absolute;
                 right: 5px;
                 top: 5px;
-                background: #ff3034;
+                background: var(--itemColor);
                 width: 16px;
                 height: 16px;
                 border-radius: 100px;
@@ -389,7 +392,7 @@
                 position: absolute;
                 right: 25px;
                 top: 5px;
-                background: #ff3034;
+                background: var(--itemColor);
                 width: 16px;
                 height: 16px;
                 border-radius: 100px;
