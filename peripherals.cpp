@@ -110,9 +110,9 @@ void setLamp(bool lampVal) {
 #define SERVO_PAN_CHANNEL LEDC_CHANNEL_3
 #define SERVO_TILT_CHANNEL LEDC_CHANNEL_4
 TaskHandle_t servoHandle = NULL;
-static int tiltVal, panVal, newTiltVal, newPanVal;
-static int oldPanVal = 90;
-static int oldTiltVal = 90;
+static int newTiltVal, newPanVal;
+static int oldPanVal = 91;
+static int oldTiltVal = 91;
 
 static int dutyCycle (int angle) {
   // calculate duty cycle for given angle
@@ -211,7 +211,7 @@ static void DS18B20task(void* pvParameters) {
         if (dsTemp > NO_TEMP) tryCnt = 10;
         else tryCnt--;
         delay(1000);
-      } 
+      }   
     } 
     // retry setting up ds18b20
     delay(10000);
