@@ -10,7 +10,7 @@
 #include "camera_pins.h"
 
 void setup() {
-  Serial.begin(115200);
+  logSetup();
   Serial.setDebugOutput(false);
   Serial.println(); 
   
@@ -122,4 +122,5 @@ void setup() {
   checkMemory();
 }
 
-void loop() {}
+void loop() {
+}

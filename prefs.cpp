@@ -121,7 +121,6 @@ static bool loadConfigVect() {
     // force vector into psram if available
     if (psramFound()) heap_caps_malloc_extmem_enable(0); 
     configs.reserve(MAX_CONFIGS);
-    esp_err_t res = ESP_OK; 
     // extract each config line from file
     while (true) {
       String configLineStr = file.readStringUntil('\n');
@@ -200,6 +199,11 @@ bool updateStatus(const char* variable, const char* _value) {
     // dont store actual password in configs.txt
     strncpy(value, FILLSTAR, strlen(value));
   }
+  else if(!strcmp(variable, "ST_ip")) strcpy(ST_ip, value);
+  else if(!strcmp(variable, "ST_gw")) strcpy(ST_gw, value);
+  else if(!strcmp(variable, "ST_sn")) strcpy(ST_sn, value);
+  else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns1, value);
+  else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns2, value);
   else if(!strcmp(variable, "Auth_User")) strcpy(Auth_User, value);
   else if(!strcmp(variable, "Auth_Pass")) {
     strcpy(Auth_Pass, value);
@@ -251,12 +255,21 @@ bool updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "reset")) res = false;
   else if(!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
   else if(!strcmp(variable, "deldata")) {  
-    // /control?deldata=1
-    if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs(true);
-    else deleteFolderOrFile(DATA_DIR);
+    if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs(true); // entire folder
+    else {
+      // SD card
+      if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
+      else {
+        // specified file, eg control?deldata=configs.txt
+        char delFile[FILE_NAME_LEN];
+        int dlen = snprintf(delFile, FILE_NAME_LEN, "%s/%s", DATA_DIR, value);
+        if (dlen > FILE_NAME_LEN) LOG_ERR("File name %s too long", value);
+        deleteFolderOrFile(delFile);
+      }
+    }
     res = false;
   }
-  else if(!strcmp(variable, "save")) {
+  else if (!strcmp(variable, "save")) {
     savePrefs();
     saveConfigVect();
   } 
@@ -298,9 +311,8 @@ void buildJsonString(uint8_t filter) {
       }
     }
   }
-  *p--;
-  *p++ = '}'; // overwrite final comma
   *p = 0;
+  *(--p) = '}'; // overwrite final comma
 }
 
 bool loadConfig() {

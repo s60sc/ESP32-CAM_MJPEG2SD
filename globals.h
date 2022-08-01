@@ -3,6 +3,9 @@
 // s60sc 2021, 2022
 
 #pragma once
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 /******************** User modifiable defines *******************/
 extern const char* git_rootCACertificate;
@@ -28,7 +31,7 @@ extern const char* git_rootCACertificate;
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "7.0"
+#define APP_VER "7.2"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -62,6 +65,7 @@ extern const char* git_rootCACertificate;
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 //#define DEV_ONLY // leave commented out
+#define STATIC_IP_OCTAL "133" // dev only
 
 #define IS_IO_EXTENDER false // must be false for client
 #define EXTPIN 100
@@ -163,12 +167,13 @@ void listBuff(const uint8_t* b, size_t len);
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension);
 bool loadConfig();
 void logPrint(const char *fmtStr, ...);
+void logSetup();
 void OTAprereq();
 void prepPeripherals();
 bool prepSD_MMC();
 void prepSMTP();
 void prepUart();
-void processAppWSmsg(uint8_t* wsMsg);
+void processAppWSmsg(const uint8_t* wsMsg);
 void remote_log_init();
 void removeChar(char *s, char c);
 void reset_log();
@@ -187,7 +192,7 @@ bool updateStatus(const char* variable, const char* _value);
 void urlDecode(char* inVal);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value);
-void wsAsyncSend(char* wsData);
+void wsAsyncSend(const char* wsData);
 
 /******************** Global utility declarations *******************/
 
@@ -248,6 +253,7 @@ extern bool logMode;
 extern bool timeSynchronized;
 extern bool monitorOpen; 
 extern const char* defaultPage_html;
+extern UBaseType_t uxHighWaterMarkArr[];
 
 // SD storage
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled

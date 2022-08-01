@@ -17,7 +17,6 @@ static httpd_handle_t streamServer = NULL; // streamer listens on port 81
 
 esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value) {
   // update handling specific to mjpeg2sd
-  int intVal = atoi(value);
   if (!strcmp(variable, "sfile")) {
     // get folders / files on SD, save received filename if has required extension
     strcpy(inFileName, value);
@@ -43,7 +42,6 @@ static esp_err_t streamHandler(httpd_req_t* req) {
   bool singleFrame = (bool)httpd_req_get_url_query_len(req);                                   
   size_t jpgLen = 0;
   uint8_t* jpgBuf = NULL;
-  char hdrBuf[HDR_BUF_LEN];
   uint32_t startTime = millis();
   uint32_t frameCnt = 0;
   uint32_t mjpegKB = 0;
@@ -136,6 +134,6 @@ if (psramFound()) heap_caps_malloc_extmem_enable(0);
 if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
 }
 
-void processAppWSmsg(uint8_t* wsMsg) {
+void processAppWSmsg(const uint8_t* wsMsg) {
   // process websocket message & send response if required
 }

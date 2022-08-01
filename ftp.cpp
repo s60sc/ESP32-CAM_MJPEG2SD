@@ -211,7 +211,7 @@ bool ftpFileOrFolder(const char* fileFolder) {
   if (!uploadInProgress) {
     uploadInProgress = true;
     strcpy(storedPathName, fileFolder);
-    xTaskCreate(&FTPtask, "FTPtask", 4096, NULL, 1, &ftpHandle);    
+    xTaskCreate(&FTPtask, "FTPtask", 1024 * 3, NULL, 1, &ftpHandle);    
     return true;
   } else LOG_ERR("Unable to upload %s as another upload in progress", fileFolder);
   return false;

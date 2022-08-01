@@ -59,8 +59,8 @@ static bool setWifiAP() {
   // Set access point
   WiFi.mode(WIFI_AP);
   //set static ip
-  if(strlen(AP_ip)>1){
-    LOG_DBG("Setting ap static ip :%s, %s, %s", AP_ip,AP_gw,AP_sn);  
+  if (strlen(AP_ip)>1) {
+    LOG_DBG("Setting ap static ip :%s, %s, %s", AP_ip, AP_gw, AP_sn);  
     IPAddress _ip,_gw,_sn,_ns1,_ns2;
     _ip.fromString(AP_ip);
     _gw.fromString(AP_gw);
@@ -68,7 +68,7 @@ static bool setWifiAP() {
     //set static ip
     WiFi.softAPConfig(_ip, _gw, _sn);
   } 
-  WiFi.softAP(AP_SSID.c_str(), AP_Pass );
+  WiFi.softAP(AP_SSID.c_str(), AP_Pass);
   LOG_INF("Created Access Point with SSID: %s", AP_SSID.c_str()); 
   LOG_INF("Use 'http://%s' to connect", WiFi.softAPIP().toString().c_str()); 
   setupMndsHost();
@@ -153,7 +153,7 @@ static void startPing() {
   pingConfig.count = ESP_PING_COUNT_INFINITE;
   pingConfig.interval_ms = wifiTimeoutSecs * 1000;
   pingConfig.timeout_ms = 5000;
-  pingConfig.task_stack_size = 1024 * 6;
+  pingConfig.task_stack_size = 1024 * 4;
   pingConfig.task_prio = 1;
   // set ping task callback functions 
   esp_ping_callbacks_t cbs;
@@ -368,11 +368,20 @@ void doRestart(String restartStr) {
  *  - To view the log, press Show Log button on the browser
  * - To clear the log file contents, on log web page press Clear Log link
  */
+ 
+#define MAX_FMT 200
+#define MAX_OUT 300
+static va_list arglist;
+static char fmtBuf[MAX_FMT];
+static char outBuf[MAX_OUT];
+static TaskHandle_t logHandle = NULL;
+static SemaphoreHandle_t logSemaphore = NULL;
+static SemaphoreHandle_t logMutex = NULL;
+static int logWait = 100; // ms
 
 #define LOG_FORMAT_BUF_LEN 512
 #define WRITE_CACHE_CYCLE 5
 bool logMode = false; // 
-static char fmt_buf[LOG_FORMAT_BUF_LEN];
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
@@ -395,7 +404,7 @@ static void remote_log_init_SD() {
   log_remote_fp = NULL;
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
   if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
-  else {LOG_INF("\nOpened SD file for logging");}
+  else {LOG_INF("Opened SD file for logging");}
 #endif
 }
 
@@ -416,22 +425,47 @@ void remote_log_init() {
   } else flush_log(true);
 }
 
-void logPrint(const char *fmtStr, ...) {  
-  va_list arglist;
-  va_start(arglist, fmtStr);
-  if (monitorOpen) vprintf(fmtStr, arglist); // serial monitor
-  if (log_remote_fp != NULL) { // log.txt
-    vfprintf(log_remote_fp, fmtStr, arglist);
-    // periodic sync to SD
-    if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
+static void logTask(void *arg) {
+  // separate task to reduce stack size in other tasks
+  while(true) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    vsnprintf(outBuf, MAX_OUT, fmtBuf, arglist);
+    va_end(arglist);
+    xSemaphoreGive(logSemaphore);
   }
-  // web monitoring
-  int len = vsprintf((char*)fmt_buf, fmtStr, arglist);
-  fmt_buf[len-1] = 0; // lose \n
-  // Send the log message
-  wsAsyncSend(fmt_buf);
-  va_end(arglist);
-  delay(FLUSH_DELAY);
+}
+
+void logPrint(const char *format, ...) {
+  // feeds logTask to format message, then outputs as required
+  if (xSemaphoreTake(logMutex, logWait / portTICK_PERIOD_MS) == pdTRUE) {
+    strncpy(fmtBuf, format, MAX_FMT);
+    va_start(arglist, format); 
+    vTaskPrioritySet(logHandle, uxTaskPriorityGet(NULL) + 1);
+    xTaskNotifyGive(logHandle);
+    xSemaphoreTake(logSemaphore, portMAX_DELAY); // wait for logTask to complete        
+    // output to monitor console if attached
+    if (monitorOpen) Serial.print(outBuf); 
+    // output to SD if file opened
+    if (log_remote_fp != NULL) {
+      fwrite(outBuf, sizeof(char), strlen(outBuf), log_remote_fp); // log.txt
+      // periodic sync to SD
+      if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
+    }
+    // output to web socket if open
+    wsAsyncSend(outBuf); 
+    delay(FLUSH_DELAY);
+    xSemaphoreGive(logMutex);
+  } 
+}
+
+void logSetup() {
+  // prep logging environment
+  Serial.begin(115200);
+  logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
+  logMutex = xSemaphoreCreateMutex(); // control access to log formatter
+  xSemaphoreGive(logSemaphore);
+  xSemaphoreGive(logMutex);
+  xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle);
 }
 
 void formatHex(const char* inData, size_t inLen) {

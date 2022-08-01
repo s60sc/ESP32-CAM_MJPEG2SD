@@ -121,7 +121,7 @@ static void micTask(void* parameter) {
 
 void prepMic() {
   LOG_INF("Sound recording is %s", micUse ? "On" : "Off");
-  if (micUse) xTaskCreate(micTask, "micTask", 4096, NULL, 1, &micHandle);
+  if (micUse) xTaskCreate(micTask, "micTask", 1024 * 3, NULL, 1, &micHandle);
 }
 
 void startAudio() {

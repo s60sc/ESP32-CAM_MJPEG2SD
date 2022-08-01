@@ -149,8 +149,9 @@ static void timeLapse(camera_fb_t* fb) {
       dateFormat(partName, sizeof(partName), true);
       SD_MMC.mkdir(partName); // make date folder if not present
       dateFormat(partName, sizeof(partName), false);
-      snprintf(TLname, sizeof(TLname)-1, "%s_%s_%u_%u_%u_T.%s", 
+      int tlen = snprintf(TLname, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u_T.%s", 
         partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, FILE_EXT);
+      if (tlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
       if (SD_MMC.exists(TLTEMP)) SD_MMC.remove(TLTEMP);
       tlFile = SD_MMC.open(TLTEMP, FILE_WRITE);
       tlFile.write(aviHeader, AVI_HEADER_LEN); // space for header
@@ -220,7 +221,7 @@ static void saveFrame(camera_fb_t* fb) {
   while (jpegRemain >= RAMSIZE - highPoint) {
     // write to SD when RAMSIZE is filled in buffer
     memcpy(iSDbuffer+highPoint, fb->buf + jpegSize - jpegRemain, RAMSIZE - highPoint);
-    size_t didred = aviFile.write(iSDbuffer, RAMSIZE);
+    aviFile.write(iSDbuffer, RAMSIZE);
     jpegRemain -= RAMSIZE - highPoint;
     highPoint = 0;
   } 
@@ -285,8 +286,9 @@ static bool closeAvi() {
   uint32_t hTime = millis(); 
   if (vidDurationSecs >= minSeconds) {
     // name file to include actual dateTime, FPS, duration, and frame count
-    snprintf(aviFileName, sizeof(aviFileName)-1, "%s_%s_%lu_%lu_%u%s.%s", 
+    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u%s.%s", 
       partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, frameCnt, haveWav ? "_S" : "", FILE_EXT);
+    if (alen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
     SD_MMC.rename(AVITEMP, aviFileName);
     LOG_DBG("AVI close time %lu ms", millis() - hTime); 
     cTime = millis() - cTime;
@@ -332,7 +334,6 @@ static boolean processFrame() {
   bool res = true;
   uint32_t dTime = millis();
   bool finishRecording = false;
-  bool savedFrame = false;
   camera_fb_t* fb = esp_camera_fb_get();
 
   if (fb == NULL) return false;
@@ -366,7 +367,6 @@ static boolean processFrame() {
       // capture is ongoing
       dTimeTot += millis() - dTime;
       saveFrame(fb);
-      savedFrame = true;
       showProgress();
       if (frameCnt >= maxFrames) {
         Serial.println("");
@@ -399,9 +399,7 @@ static void captureTask(void* parameter) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (ulNotifiedValue > 5) ulNotifiedValue = 5; // prevent too big queue if FPS excessive
     // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
-    while (ulNotifiedValue-- > 0) {
-      processFrame();
-    }
+    while (ulNotifiedValue-- > 0) processFrame();
   }
   vTaskDelete(NULL);
 }
@@ -433,7 +431,7 @@ static fnameStruct extractMeta(const char* fname) {
   // replace all '_' with space for sscanf
   for (int i = 0; i <= strlen(fnameStr); i++) 
     if (fnameStr[i] == '_') fnameStr[i] = ' ';
-  int items = sscanf(fnameStr, "%*s %*s %*s %d %d %d", &fnameMeta.recFPS, &fnameMeta.recDuration, &fnameMeta.frameCnt);
+  int items = sscanf(fnameStr, "%*s %*s %*s %hhu %u %hu", &fnameMeta.recFPS, &fnameMeta.recDuration, &fnameMeta.frameCnt);
   if (items != 3) LOG_ERR("failed to parse %s, items %u", fname, items);
   return fnameMeta;
 }
@@ -650,8 +648,8 @@ bool prepRecording() {
 
 void startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreate(&captureTask, "captureTask", 4096, NULL, 5, &captureHandle);
-  xTaskCreate(&playbackTask, "playbackTask", 4096, NULL, 4, &playbackHandle);
+  xTaskCreate(&captureTask, "captureTask", 1024 * 3, NULL, 5, &captureHandle);
+  xTaskCreate(&playbackTask, "playbackTask", 1024 * 2, NULL, 4, &playbackHandle);
   sensor_t * s = esp_camera_sensor_get();
   fsizePtr = s->status.framesize; 
   setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  

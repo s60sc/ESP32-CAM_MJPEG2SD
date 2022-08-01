@@ -134,7 +134,7 @@ static esp_err_t webHandler(httpd_req_t* req) {
   // check file extension to determine required processing before response sent to browser
   if (!strcmp(variable, "OTA.htm")) {
     // special case for OTA
-    xTaskCreate(&OTAtask, "OTAtask", 4096, NULL, 1, NULL);  
+    xTaskCreate(&OTAtask, "OTAtask", 1024 * 4, NULL, 1, NULL);  
   } else if (!strcmp(variable, "LOG.htm")) {
     flush_log(false);
   } else if (!strcmp(HTML_EXT, variable+(strlen(variable)-strlen(HTML_EXT)))) {
@@ -150,7 +150,8 @@ static esp_err_t webHandler(httpd_req_t* req) {
     // any icon file
     httpd_resp_set_type(req, "image/x-icon");
   } else LOG_WRN("Unknown file type %s", variable);  
-  sprintf(inFileName, "%s/%s", DATA_DIR, variable);               
+  int dlen = snprintf(inFileName, FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, variable);               
+  if (dlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
   return fileHandler(req);
 }
 
@@ -225,12 +226,12 @@ static esp_err_t updateHandler(httpd_req_t *req) {
   return ESP_OK;
 }
 
-void wsAsyncSend(char* wsData) {
-  // websockets async send function, usedb for logging
+void wsAsyncSend(const char* wsData) {
+  // websockets async send function, used for logging
   if (fdWs >=0) {
     httpd_ws_frame_t wsPkt;
     wsPkt.payload = (uint8_t*)wsData;
-    wsPkt.len = strlen(wsData);
+    wsPkt.len = strlen(wsData) - 1; // lose '\n'
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
     httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
   }
