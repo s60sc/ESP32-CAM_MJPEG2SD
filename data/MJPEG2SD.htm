@@ -2,7 +2,7 @@
 <!doctype html>                             
 <html>
     <head>
-        <meta charset="utf-8">
+        <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>ESP32-CAM_AVI2SD</title>
         <script src='/web?jquery.min.js'></script>
@@ -318,6 +318,24 @@
                 background: #363636
             }
 
+            input, #applog, #sdlog   {
+                font:20px 'Courier New';
+                font-weight:bold;
+                color: navy;
+            }
+            
+           .configGroup td {
+              border: solid 2px #ddd;
+            }
+            
+            #applog, #sdlog {
+              height:90%;
+              width:90%;
+              border:2px solid #ccc;
+              overflow:auto;
+              background-color: white;
+            }
+    
             .switch {
                 display: block;
                 position: relative;
@@ -456,9 +474,85 @@
                 opacity: 0;
               }
             }
-        </style>
+
+    .tab {
+      overflow: hidden;
+      background-color: #363636;
+    }
+
+    .tab button {
+      background-color: --itemColor;
+      float: left;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      transition: 0.3s;
+      font-size: 17px;
+    }
+
+    .tab button.active {
+       background-color: green;
+    }
+
+    .tabcontent {
+      display: none;
+    }
+    
+   .grid-cols2 {
+      grid-template-columns: 200px 200px;
+    }
+
+   .grid-cols4 {
+      grid-template-columns: 150px 150px 150px 150px
+    }
+    
+    .cfgTitle {
+      grid-column: 1/5;
+      text-align: left;
+    }
+
+    .grid-cols2, .grid-cols4 {
+      display: grid;
+      background-color: none;
+      text-align: center;
+      font-size: 30px;
+      border: 0px solid black;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+    
+    rect {
+       fill: silver;
+       width: 100%;
+       height: 100%; 
+       x: 0;
+       y: 0;
+       rx: 5%;
+     }
+    
+    rect:hover {
+      fill: DarkGrey;
+    }
+    
+    rect:active {
+      fill: DarkSeaGreen;
+    }
+  
+    text {
+      pointer-events: none;
+    }
+
+      </style>
     </head>
     <body>
+    <div class="tab">
+      <button class="tablinks active">Camera</button>
+      <button class="tablinks">Show Log</button>
+      <button class="tablinks">Edit Config</button>
+      <button class="tablinks">OTA Upload</button>
+    </div>
+    <div id="Camera" class="tabcontent" style="display:block">
         <section id="main">
             <section id="header">
               <section id="title">
@@ -467,9 +561,6 @@
               </section>
               <nav id="maintoolbar">
               	<ul class="navtop">
-                  <li><button id="showLog" value="1">Show Log</button></li>
-                  <li><button id="showConfig" value="1">Edit Config</button></li>
-                  <li><button id="OTAupload" value="1">OTA Upload</button></li>
                   <li><button id="forceRecord" class="default-action" style="float:right;">Record</button></li>
                   <li><button id="get-still" style="float:right;">Get Still</button></li>
                   <li><button id="toggle-stream" style="float:right;">Start Stream</button></li>
@@ -516,12 +607,19 @@
                               <div class="range-max">63</div>
                           </div>                          
                            <div class="input-group" id="debugging-group">
-                              <label for="logMode" title="Enable looging to sd card">Log to SD</label>
+                              <label for="wsMode" title="Enable logging to websocket">Log to WS</label>
+                              <div class="switch">
+                                  <input id="wsMode" type="checkbox">
+                                  <label title="Output log to WS" class="slider" for="wsMode"></label>
+                              </div>   
+                           </div>           
+                           <div class="input-group" id="debugging-group">
+                              <label for="logMode" title="Enable logging to sd card">Log to SD</label>
                               <div class="switch">
                                   <input id="logMode" type="checkbox" class="default-action">
                                   <label title="Output log to SD" class="slider" for="logMode"></label>
                               </div>   
-                           </div>                                 
+                           </div>                           
                            <div class="input-group" id="dbg-group">
                               <label for="dbgVerbose">Verbose</label>
                               <div class="switch">
@@ -987,8 +1085,114 @@
                     <div id="free_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
                 </div>   
             </section>                         
-        </section>       
-      <script>
+        </section> 
+    </div>
+    
+    <div id="ShowLog" class="tabcontent">
+      <br/>
+      <div class="grid-cols2">
+        <div>
+          <svg width="150" height="40">
+            <rect/>
+            <text id="clearWSlog" x="50%" y="50%" font-size="20" fill="black">Clear WS Log</text>
+          </svg>
+        </div>
+        <div>
+          &nbsp;
+        </div>
+      </div>
+      <pre id='applog' style="height:50vh;"></pre>
+      </br/>
+      <div class="grid-cols2">
+        <div>
+          <svg width="150" height="40">
+            <rect/>
+            <text id="clearSDlog" x="50%" y="50%" font-size="20" fill="black">Clear SD Log</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="150" height="40">
+            <rect/>
+            <text id="refreshSDlog" x="50%" y="50%" font-size="20" fill="black">Retrieve SD Log</text>
+          </svg>
+        </div>
+      </div>
+      <pre id='sdlog' style="height:50vh;"></pre>
+    </div>
+    <div id="EditConfig" class="tabcontent">
+      <h2>Control</h2>
+      <div class="grid-cols4">
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="save" x="50%" y="50%" font-size="20" fill="black">Save</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="reset" x="50%" y="50%"font-size="20" fill="black">Reboot ESP</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="deldata" x="50%" y="50%" font-size="20" fill="black">Reload Spiffs</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="clear" x="50%" y="50%" font-size="20" fill="black">Clear NVS</text>
+          </svg>
+        </div>
+        <div class="cfgTitle">
+          <br/>
+          <h2>Settings</h2>
+          <h3>Press a button to view or modify settings (changed values are not validated)</h3>
+          <h3>Press Save button to make changes permanent</h3>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="wifi" x="50%" y="50%" font-size="20" fill="black">Wifi</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="motion" x="50%" y="50%" font-size="20" fill="black">Motion</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="peripherals" x="50%" y="50%" font-size="20" fill="black">Peripherals</text>
+          </svg>
+        </div>
+        <div>
+          <svg width="120" height="40">
+            <rect/>
+            <text id="other" x="50%" y="50%" font-size="20" fill="black">Other</text>
+          </svg>
+        </div>
+      </div>
+      <div class="configGroup">
+        <p id='configTable'></p>
+      </div>
+    </div>
+           
+    <div id="OTAUpload" class="tabcontent">
+      <br></br>
+      <form id="upload_form" enctype="multipart/form-data" method="post">
+        <input type="file" name="file1" id="file1" style="background-color:white" onchange="uploadFile()"><br>
+        <br></br>
+        <progress id="progressOta" value="0" max="100" style="width:300px;"></progress>
+        <h3 id="status"></h3>
+        <p id="loaded_n_total"></p>
+      </form>
+    </div>        
+  <script>
 //Menu accordion
 $('.menu-action').each(function () {
   this.addEventListener('click', function(e) {    
@@ -1016,9 +1220,12 @@ $('input[type="range"]').on('input', function () {
   
 });
 
+const baseHost = document.location.origin
+
 document.addEventListener('DOMContentLoaded', function (event) {
 
-  var baseHost = document.location.origin
+  setListeners();
+
   var streamUrl = baseHost + ':81'
   var timer = null;                  
   var refreshVal = 5000;
@@ -1210,9 +1417,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   const view = document.getElementById('stream')
   const viewContainer = document.getElementById('stream-container')
-  const configButton = document.getElementById('showConfig')
-  const logButton = document.getElementById('showLog')
-  const otaButton = document.getElementById('OTAupload')
   const forceRecord = document.getElementById('forceRecord')
   const stillButton = document.getElementById('get-still')
   const streamButton = document.getElementById('toggle-stream')
@@ -1225,23 +1429,6 @@ document.addEventListener('DOMContentLoaded', function (event) {
   const rebootButton = document.getElementById('reboot')
   const saveButton = document.getElementById('save')
   //const formatButton = document.getElementById('format')
-  
-  configButton.onclick = () => {
-    window.location.href='/web?CONFIG.htm';
-  }
-  
-  logButton.onclick = () => {
-    const logMode = document.getElementById('logMode');
-    if (logMode.checked){ 
-      window.location.href='/web?LOG.htm';
-    } else {
-      window.location.href='/web?WSL.htm';
-    }
-  }
-  
-  otaButton.onclick = () => {
-    window.location.href='/web?OTA.htm';
-  }
   
   uploadButton.onclick = () => {
     updateConfig(uploadButton);
@@ -1459,8 +1646,8 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
   // Logging mode
   const logMode = document.getElementById('logMode')
-    logMode.onchange = () => { 
-    let lm = logMode.checked ? 1 : 0
+  logMode.onchange = () => { 
+    let lm = logMode.checked ? 1 : 0;
     $.ajax({
       url: baseHost + '/control',
       data: {
@@ -1527,7 +1714,207 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }); 
   }
 });
-        </script>        
+
+
+      /*********** tab management ***********/
+
+      const wsServer = "ws://" + document.location.host + ":80/ws";
+      let ws;
+      let cfgGroupNow = -1;
+      const _ = document.querySelector.bind(document);
+      const __ = document.querySelectorAll.bind(document);
+      
+      /*********** websocket functions ***********/
+      
+      // define websocket handling
+      function initWebSocket() {
+        addLogLine("Connect to: " + wsServer);
+        ws = new WebSocket(wsServer);
+        ws.onopen = onWSopen;
+        ws.onclose = onWSclose;
+        ws.onmessage = onWSmessage; 
+      }
+      
+      // connect to websocket server
+      function onWSopen(event) {
+        addLogLine("Connected");
+      }
+      
+      // process received message
+      function onWSmessage(messageEvent) {
+        addLogLine(messageEvent.data);
+      }
+      
+      function onWSclose(event) {
+        addLogLine("Disconnected");
+      }
+      
+      /*********** page layout functions ***********/
+    
+      function openTab(evt, tabName) {
+        // control tab viewing
+        __('.tabcontent').forEach(el => {el.style.display = "none";});
+        _('#' + tabName).style.display = "block";
+        __('.tablinks').forEach(el => {el.classList.remove("active");});
+        evt.classList.add("active");
+      }
+
+      function accordian(accId) {
+        // accordian buttons to show / hide elements
+        let panel = _('#' + accId);
+        if (panel.style.display === "block") panel.style.display = "none";
+        else panel.style.display = "block";
+      }
+      
+      // add received line to log element
+      function addLogLine(text) {
+        let log = document.getElementById('applog');
+        let new_node = document.createTextNode(text + "\n");
+        log.append(new_node);
+      }
+      
+      function setListeners() {
+        // add event listener for change events
+        document.addEventListener("change", function (event) {
+          // config input fields 
+          if (event.target.classList.contains('configItem')) { 
+            fetch(baseHost + encodeURI('/control?' + event.target.name + '=' + event.target.value));
+          }
+          if (event.target.id == ('wsMode')) { 
+            if (event.target.checked) initWebSocket();
+            else ws.close();
+          }
+        });
+        
+        // add event listener for rect click events
+        document.addEventListener("click", function (event) {
+          // svg rect elements, use id of its following text node
+          if (event.target.nodeName == 'rect') processStatus(event.target.nextElementSibling.id);
+          // tab buttons, use button text without spaces as tab id
+          if (event.target.classList.contains('tablinks')) openTab(event.target, event.target.innerHTML.replaceAll(' ', ''));
+        });
+      }
+      
+      /*********** config functions ***********/
+      
+      function processStatus(key) {
+        if (key == "wifi") getConfig("0");
+        else if (key == "motion") getConfig("01");
+        else if (key == "peripherals") getConfig("0123");
+        else if (key == "other") getConfig("012");
+        else if (key == "save") fetch(baseHost + encodeURI('/control?' + key + '=1'));
+        else if (key == "reset") fetch(baseHost + encodeURI('/control?' + key + '=1'));
+        else if (key == "deldata") fetch(baseHost + encodeURI('/control?' + key + '=1'));
+        else if (key == "clear") fetch(baseHost + encodeURI('/control?' + key + '=1'));
+        else if (key == "clearWSlog") _('#applog').innerHTML = "";
+        else if (key == "clearSDlog") clearSDlog();
+        else if (key == "refreshSDlog") getSDlog();
+      }
+      
+      async function getConfig(cfgGroup) {
+        // request config json for selected group
+        const response = await fetch('/status?123456789' + cfgGroup);
+        if (response.ok) {
+          const configData = await response.json();
+          // format received json into html table
+          buildTable(configData, cfgGroup);
+        } else console.log(response.status); 
+      }
+      
+      function buildTable(configData, cfgGroup) {
+        // dynamically build table of editable settings
+        const divShowData = document.getElementById('configTable');
+        divShowData.innerHTML = "";
+        if (cfgGroupNow != cfgGroup) {
+          cfgGroupNow = cfgGroup;
+          const table = document.createElement("table"); 
+          // Create table header row from heading names
+          const colHeaders = ['Setting Name', 'Setting Value']; 
+          let tr = table.insertRow(-1); 
+          for (let i = 0; i < colHeaders.length; i++) {
+            let th = document.createElement("th");    
+            th.innerHTML = colHeaders[i];
+            tr.appendChild(th);
+          }
+
+          // add each setting as a row containing setting name and setting value
+          let newRow = 1;
+          Object.keys(configData).forEach( key => {
+            if (newRow) tr = table.insertRow(-1);
+            let tabCell = tr.insertCell(-1);
+            if (newRow) {
+              tabCell.innerHTML = configData[key]; // name of setting
+              newRow = 0;
+            } else {
+              // input field for value of setting
+              tabCell.innerHTML = '<input type="text" class="configItem" name="' + key + '" value="' + configData[key] +'">'; 
+              newRow = 1;
+            }
+          })
+          // add the newly created table at placeholder
+          divShowData.appendChild(table);
+        } else cfgGroupNow = -1;
+      }
+      
+      function clearSDlog() {
+        if (window.confirm('This will delete all log entries on SD. Are you sure ?')) { 
+          _('#sdlog').innerHTML = "";
+          fetch(baseHost + encodeURI('/control?resetLog=1'));
+        }
+      }
+      
+      async function getSDlog() {
+        // request SD log file
+        const response = await fetch('/web?log.txt');
+        if (response.ok) {
+          const logData = await response.text();
+        _('#sdlog').innerHTML = logData; 
+        } else console.log(response.status); 
+      }
+
+      /*********** OTA functions ***********/
+       
+      async function uploadFile() {
+        // notify server to start ota task
+        const response = await fetch('/control?startOTA=1');
+        if (response.ok) {
+          // submit file for uploading
+          let file = _("#file1").files[0];
+          let formdata = new FormData();
+          formdata.append("file1", file);
+          let ajax = new XMLHttpRequest();
+          ajax.upload.addEventListener("progress", progressHandler, false);
+          ajax.addEventListener("load", completeHandler, false);
+          ajax.addEventListener("error", errorHandler, false);
+          ajax.addEventListener("abort", abortHandler, false);
+          ajax.open("POST", baseHost + ':82/upload');
+          ajax.send(formdata);
+        } else console.log(response.status); 
+      }
+
+      function progressHandler(event) {
+        _("#loaded_n_total").innerHTML = "Uploaded " + event.loaded + " of " + event.total + " bytes";
+        let percent = (event.loaded / event.total) * 100;
+        _("#progressOta").value = Math.round(percent);
+        _("#status").innerHTML = Math.round(percent) + "% transferred";
+        if (event.loaded  == event.total) _("#status").innerHTML = 'Uploaded, wait for completion result';
+      }
+
+      function completeHandler(event) {
+        _("#status").innerHTML = event.target.responseText;
+        _("#progressOta").value = 0;
+      }
+
+      function errorHandler(event) {
+        _("#status").innerHTML = "Upload Failed";
+        _("#progressOta").value = 0;
+      }
+
+      function abortHandler(event) {
+        _("#status").innerHTML = "Upload Aborted";
+        _("#progressOta").value = 0;
+      }
+      </script>        
     </body>
 </html>
 

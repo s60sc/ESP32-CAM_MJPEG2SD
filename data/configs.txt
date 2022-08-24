@@ -7,7 +7,7 @@ smtp_port:465:99:na
 smtp_server:smtp.gmail.com:99:na
 smtp_login::99:na
 smtp_email::99:na
-Auth_User::99:na
+Auth_Name::99:na
 hostName::99:na
 restart::99:na
 logMode:0:99:na
