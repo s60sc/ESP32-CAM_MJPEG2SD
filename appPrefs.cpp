@@ -183,3 +183,7 @@ void buildAppJsonString(bool filter) {
   if (!filter) p += sprintf(p, "\"sfile\":%s,", "\"None\"");
   *p = 0;
 }
+
+void appDataFiles() {
+  // callback from setupAssist.cpp, for any app specific files 
+}

@@ -3,6 +3,7 @@
 // s60sc 2021, 2022
 
 #pragma once
+// to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -31,7 +32,7 @@ extern const char* git_rootCACertificate;
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "7.2"
+#define APP_VER "7.3"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -39,9 +40,11 @@ extern const char* git_rootCACertificate;
 #define JS_EXT ".js"
 #define CSS_EXT ".css"
 #define ICO_EXT ".ico"
+#define SVG_EXT ".svg"
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define CONFIG_FILE_PATH DATA_DIR "/configs" TEXT_EXT
 #define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
+#define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT         
 #define FILE_NAME_LEN 64
 #define ONEMEG (1024 * 1024)
 #define MAX_PWD_LEN 64
@@ -57,6 +60,7 @@ extern const char* git_rootCACertificate;
 #define TLTEMP "/current.tl"
 
 #define FILLSTAR "****************************************************************"
+#define DELIM ':'
 #define STORAGE SD_MMC // use of SPIFFS or SD_MMC 
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
@@ -64,17 +68,15 @@ extern const char* git_rootCACertificate;
 #define MAX_CONFIGS 150 
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
+#define INCLUDE_SD
 //#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
 
-#define IS_IO_EXTENDER false // must be false for client
+#define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
-// which web assets to download
-#define USE_LOG true
-#define USE_WSL true
+
+// which optional web assets to download
 #define USE_JQUERY true
-#define USE_COMMON false
-#define USE_CONFIG true
 
 
 /******************** Libraries *******************/
@@ -114,6 +116,7 @@ struct fnameStruct {
 };
 
 // global app specific functions
+void appDataFiles();
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
@@ -143,6 +146,7 @@ size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
 // global general utility functions in utils.cpp / utilsSD.cpp / peripherals.cpp
+void appDataFiles();      
 void buildAppJsonString(bool filter);
 void buildJsonString(uint8_t filter);
 bool checkDataFiles();
@@ -170,19 +174,18 @@ void logPrint(const char *fmtStr, ...);
 void logSetup();
 void OTAprereq();
 void prepPeripherals();
-bool prepSD_MMC();
 void prepSMTP();
 void prepUart();
-void processAppWSmsg(const uint8_t* wsMsg);
+void processAppWSmsg(const char* wsMsg);
 void remote_log_init();
 void removeChar(char *s, char c);
 void reset_log();
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
-
 void showProgress();
+void startFTPtask();
 void startOTAtask();
 void startSecTimer(bool startTimer);
-bool startSpiffs(bool deleteAll = false);
+bool startStorage();
 void startWebServer();
 bool startWifi();
 void syncToBrowser(const char *val);
@@ -192,6 +195,7 @@ bool updateStatus(const char* variable, const char* _value);
 void urlDecode(char* inVal);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value);
+void wgetFile(const char* githubURL, const char* filePath, bool restart = false);
 void wsAsyncSend(const char* wsData);
 
 /******************** Global utility declarations *******************/
@@ -212,7 +216,7 @@ extern char ST_gw[];
 extern char ST_ns1[];
 extern char ST_ns2[];
 
-extern char Auth_User[]; 
+extern char Auth_Name[]; 
 extern char Auth_Pass[];
 
 extern int responseTimeoutSecs; // time to wait for FTP or SMTP response
@@ -220,6 +224,7 @@ extern bool allowAP; // set to true to allow AP to startup if cannot reconnect t
 extern int wifiTimeoutSecs; // how often to check wifi status
 extern uint8_t percentLoaded;
 extern int refreshVal;
+extern bool configLoaded;
 
 #ifdef INCLUDE_FTP    
 // ftp server
@@ -253,6 +258,9 @@ extern bool logMode;
 extern bool timeSynchronized;
 extern bool monitorOpen; 
 extern const char* defaultPage_html;
+extern const char* otaPage_html;
+extern SemaphoreHandle_t wsSendMutex;
+
 extern UBaseType_t uxHighWaterMarkArr[];
 
 // SD storage
@@ -427,4 +435,3 @@ const frameStruct frameData[] = {
 #define DBG_FORMAT(format) LOG_COLOR_DBG "[%s DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
 #define LOG_DBG(format, ...) if (dbgVerbose) logPrint(DBG_FORMAT(format), ##__VA_ARGS__)
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)
-  

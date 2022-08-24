@@ -221,9 +221,10 @@ static void DS18B20task(void* pvParameters) {
 
 void prepDS18B20() {
 #ifdef INCLUDE_DS18B20
-  if (ds18b20Pin > 0 && ds18b20Pin < EXTPIN)
+  if (ds18b20Pin > 0 && ds18b20Pin < EXTPIN) {
     xTaskCreate(&DS18B20task, "DS18B20task", 1024, NULL, 1, &DS18B20handle); 
-  else LOG_WRN("No DS18B20 pin defined");
+    LOG_INF("Using DS18B20 sensor");
+  } else LOG_WRN("No DS18B20 pin defined");
 #endif
 }
 

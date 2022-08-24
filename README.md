@@ -7,7 +7,6 @@ Changes from previous version 6:
 * Remote logging via web page rather than telnet.
 * Peripherals can be hosted on a separate ESP.
 * Optional login for main web page.
-* /data folder needs to be reloaded
 
 ## Purpose
 
@@ -95,9 +94,10 @@ SD storage management:
 * Download selected AVI file from SD card to browser using **Download** button. Can be downloaded in AVI format.
 * Delete, or upload and delete oldest folder when card free space is running out.  
   
-* Log viewing options via web page **Log to SD** slider, displayed using **Show Log** button, in addition to serial port:
-  * On: log is saved on SD card 
-  * Off: log is dynamically output via websocket.
+* Log viewing options via web page (may slow recorded frame rate), displayed using **Show Log** button:
+  * Log to WS: log is dynamically output via websocket
+  * Log to SD: log is stored on SD card, use **Retrieve SD Log** button to retrieve or refresh  
+
 
 ## Configuration Web Page
 

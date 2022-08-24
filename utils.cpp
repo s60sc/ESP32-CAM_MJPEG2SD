@@ -35,7 +35,7 @@ char   AP_sn[16]  = "";
 char   AP_gw[16]  = "";
 
 // basic HTTP Authentication access to web page
-char Auth_User[16] = ""; 
+char Auth_Name[16] = ""; 
 char Auth_Pass[MAX_PWD_LEN] = "";
 
 int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
@@ -246,28 +246,6 @@ void getUpTime(char* timeVal) {
 
 /********************** misc functions ************************/
 
-bool startSpiffs(bool deleteAll) {
-  if (!SPIFFS.begin(true)) {
-    LOG_ERR("SPIFFS not mounted");
-    return false;
-  } else {    
-    // list details of files on SPIFFS
-    File root = SPIFFS.open("/");
-    File file = root.openNextFile();
-    while(file) {
-      LOG_INF("File: %s, size: %u", file.path(), file.size());
-      if (deleteAll) {
-        SPIFFS.remove(file.path());
-        LOG_WRN("Deleted %s", file.path());
-      }
-      file = root.openNextFile();
-    }
-    LOG_INF("SPIFFS: Total bytes %d, Used bytes %d", SPIFFS.totalBytes(), SPIFFS.usedBytes());
-    LOG_INF("Sketch size %d kB", ESP.getSketchSize() / 1024);
-    return true;
-  }
-}
-
 bool changeExtension(char* outName, const char* inName, const char* newExt) {
   // replace original file extension with supplied extension
   size_t inNamePtr = strlen(inName);
@@ -378,6 +356,7 @@ static TaskHandle_t logHandle = NULL;
 static SemaphoreHandle_t logSemaphore = NULL;
 static SemaphoreHandle_t logMutex = NULL;
 static int logWait = 100; // ms
+static bool isWS = false;
 
 #define LOG_FORMAT_BUF_LEN 512
 #define WRITE_CACHE_CYCLE 5
@@ -444,18 +423,27 @@ void logPrint(const char *format, ...) {
     xTaskNotifyGive(logHandle);
     xSemaphoreTake(logSemaphore, portMAX_DELAY); // wait for logTask to complete        
     // output to monitor console if attached
-    if (monitorOpen) Serial.print(outBuf); 
+    if (!isWS && monitorOpen) Serial.print(outBuf); 
+    else delay(10); // allow time for other tasks
     // output to SD if file opened
-    if (log_remote_fp != NULL) {
+    if (!isWS && log_remote_fp != NULL) {
       fwrite(outBuf, sizeof(char), strlen(outBuf), log_remote_fp); // log.txt
       // periodic sync to SD
       if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
     }
     // output to web socket if open
+    outBuf[strlen(outBuf) - 1] = 0; // lose final '/n'
     wsAsyncSend(outBuf); 
     delay(FLUSH_DELAY);
     xSemaphoreGive(logMutex);
   } 
+}
+
+void wsJsonSend(const char* keyStr, const char* valStr) {
+  // output json over websocket
+  isWS = true;
+  logPrint("{\"%s\":\"%s\"}\n", keyStr, valStr);
+  isWS = false;
 }
 
 void logSetup() {

@@ -134,6 +134,6 @@ if (psramFound()) heap_caps_malloc_extmem_enable(0);
 if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
 }
 
-void processAppWSmsg(const uint8_t* wsMsg) {
+void processAppWSmsg(const char* wsMsg) {
   // process websocket message & send response if required
 }

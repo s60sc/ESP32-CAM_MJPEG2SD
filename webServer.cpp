@@ -1,5 +1,5 @@
 // Provides web server for user control of app
-// httpServer handles browser requests 
+// httpServer handles browser http requests and websocket interaction 
 // otaServer does file uploads
 //
 // s60sc 2022
@@ -7,24 +7,24 @@
 #include "globals.h"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
+#define MAX_PAYLOAD_LEN 1024 // bigger than biggest websocket msg
+#define DATA_UPDATE 999
+#define OTAport 82
+static WebServer otaServer(OTAport); 
 
 static esp_err_t fileHandler(httpd_req_t* req, bool download = false);
-static void OTAtask(void* parameter);
+static void startOTAserver();
 
 char inFileName[FILE_NAME_LEN];
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN]; 
 int refreshVal = 5000; // msecs
 
-/********************* generic Web Server functions **********************/
-
-#define OTAport 82
-static WebServer otaServer(OTAport); 
 static httpd_handle_t httpServer = NULL; // web server listens on port 80
 static int fdWs = -1; // for websockets
 static fs::FS fp = STORAGE;
 byte chunk[CHUNKSIZE];
-uint8_t wsMsg[1024];
+
 
 static bool sendChunks(File df, httpd_req_t *req) {   
   // use chunked encoding to send large content to browser
@@ -86,11 +86,11 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     return httpd_resp_send(req, defaultPage_html, HTTPD_RESP_USE_STRLEN);
   } else {
     // first check if authentication is required
-    if (strlen(Auth_User)) {
+    if (strlen(Auth_Name)) {
       // authentication required
-      size_t credLen = strlen(Auth_User) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
+      size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
       char credentials[credLen];
-      sprintf(credentials, "%s:%s", Auth_User, Auth_Pass);
+      sprintf(credentials, "%s:%s", Auth_Name, Auth_Pass);
       size_t authLen = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
       if (authLen) {
         // check credentials supplied are valid
@@ -132,23 +132,28 @@ static esp_err_t webHandler(httpd_req_t* req) {
   urlDecode(variable);
 
   // check file extension to determine required processing before response sent to browser
-  if (!strcmp(variable, "OTA.htm")) {
-    // special case for OTA
-    xTaskCreate(&OTAtask, "OTAtask", 1024 * 4, NULL, 1, NULL);  
-  } else if (!strcmp(variable, "LOG.htm")) {
+  if (!strcmp(variable, "LOG.htm")) {
     flush_log(false);
+  } else if (!strcmp(variable, "OTA.htm")) {
+    // request for built in web page
+    httpd_resp_set_type(req, "text/html"); 
+    return httpd_resp_send(req, otaPage_html, HTTPD_RESP_USE_STRLEN);
   } else if (!strcmp(HTML_EXT, variable+(strlen(variable)-strlen(HTML_EXT)))) {
     // any html file
     httpd_resp_set_type(req, "text/html");
   } else if (!strcmp(JS_EXT, variable+(strlen(variable)-strlen(JS_EXT)))) {
     // any js file
-    httpd_resp_set_hdr(req, "Cache-Control", "max-age=604800");
+    httpd_resp_set_type(req, "text/javascript");
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=604800");
   } else if (!strcmp(TEXT_EXT, variable+(strlen(variable)-strlen(TEXT_EXT)))) {
     // any text file
     httpd_resp_set_type(req, "text/plain");
   } else if (!strcmp(ICO_EXT, variable+(strlen(variable)-strlen(ICO_EXT)))) {
     // any icon file
     httpd_resp_set_type(req, "image/x-icon");
+  } else if (!strcmp(SVG_EXT, variable+(strlen(variable)-strlen(SVG_EXT)))) {
+    // any svg file
+    httpd_resp_set_type(req, "image/svg+xml");
   } else LOG_WRN("Unknown file type %s", variable);  
   int dlen = snprintf(inFileName, FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, variable);               
   if (dlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
@@ -159,14 +164,17 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   // process control query from browser 
   // obtain key from query string
   extractQueryKey(req, variable);
-  strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
-  if (!updateStatus(variable, value)) {
-    httpd_resp_send(req, NULL, 0);  
-    doRestart("user requested restart"); 
+  if (!strcmp(variable, "startOTA")) startOTAserver();
+  else {
+    strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
+    if (!updateStatus(variable, value)) {
+      httpd_resp_send(req, NULL, 0);  
+      doRestart("user requested restart"); 
+    }
+    webAppSpecificHandler(req, variable, value); 
+    // handler for downloading selected file, required file name in inFileName
+    if (!strcmp(variable, "download") && atoi(value) == 1) return fileHandler(req, true);
   }
-  // handler for downloading selected file, required file name in inFileName
-  webAppSpecificHandler(req, variable, value); 
-  if (!strcmp(variable, "download") && atoi(value) == 1) return fileHandler(req, true);
   httpd_resp_send(req, NULL, 0); 
   return ESP_OK;
 }
@@ -226,15 +234,26 @@ static esp_err_t updateHandler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+static void sendCrossOriginHeader() {
+  // prevent CORS from blocking request
+  otaServer.sendHeader("Access-Control-Allow-Origin", "*");
+  otaServer.sendHeader("Access-Control-Max-Age", "600");
+  otaServer.sendHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+  otaServer.sendHeader("Access-Control-Allow-Headers", "*");
+  otaServer.send(204);
+};
+
 void wsAsyncSend(const char* wsData) {
-  // websockets async send function, used for logging
+  // websockets send function, used for logging and status updates
   if (fdWs >=0) {
+    // send if connection open
     httpd_ws_frame_t wsPkt;
     wsPkt.payload = (uint8_t*)wsData;
-    wsPkt.len = strlen(wsData) - 1; // lose '\n'
+    wsPkt.len = strlen(wsData);
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
-    httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
-  }
+    esp_err_t ret = httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
+    if (ret != ESP_OK) LOG_ERR("websocket send failed with %s", esp_err_to_name(ret));
+  } // else ignore
 }
 
 static esp_err_t wsHandler(httpd_req_t *req) {
@@ -244,36 +263,20 @@ static esp_err_t wsHandler(httpd_req_t *req) {
   else {
     // data content received
     httpd_ws_frame_t wsPkt;
+    uint8_t wsMsg[MAX_PAYLOAD_LEN];
     memset(&wsPkt, 0, sizeof(httpd_ws_frame_t));
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
-    /* Set max_len = 0 to get the frame len */
-    esp_err_t ret = httpd_ws_recv_frame(req, &wsPkt, 0);
+    wsPkt.payload = wsMsg;
+    esp_err_t ret = httpd_ws_recv_frame(req, &wsPkt, MAX_PAYLOAD_LEN);
     if (ret != ESP_OK) {
-      LOG_ERR("websocket failed to get frame len with %d", ret);
+      LOG_ERR("websocket receive failed with %s", esp_err_to_name(ret));
       return ret;
     }
-    if (wsPkt.len) {
-      wsPkt.payload = wsMsg;
-      ret = httpd_ws_recv_frame(req, &wsPkt, wsPkt.len);
-      if (ret != ESP_OK) {
-        LOG_ERR("websocket receive failed with %d", ret);
-        return ret;
-      }
-      wsMsg[wsPkt.len] = 0; // terminator
-      processAppWSmsg(wsMsg);
-    }
+    wsMsg[wsPkt.len] = 0; // terminator
+    if (wsPkt.type == HTTPD_WS_TYPE_TEXT) processAppWSmsg((char*)wsMsg);
   }
   return ESP_OK;
 }
-
-static void sendCrossOriginHeader() {
-  // prevent CORS from blocking request
-  otaServer.sendHeader("Access-Control-Allow-Origin", "*");
-  otaServer.sendHeader("Access-Control-Max-Age", "600");
-  otaServer.sendHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-  otaServer.sendHeader("Access-Control-Allow-Headers", "*");
-  otaServer.send(204);
-};
 
 void startWebServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -306,18 +309,20 @@ void startWebServer() {
    in sketch folder, then press Update
  Similarly files ending '.htm' or '.txt' can be uploaded to the SD card /data folder
  */
- 
+
 static void uploadHandler() {
   // re-entrant callback function
   // apply received .bin file to SPIFFS or OTA partition
   // or update html file or config file on sd card
   HTTPUpload& upload = otaServer.upload();  
   static File df;
-  static int cmd = 999;    
+  static int cmd = DATA_UPDATE;    
   String filename = upload.filename;
   if (upload.status == UPLOAD_FILE_START) {
     if ((strstr(filename.c_str(), HTML_EXT) != NULL)
         || (strstr(filename.c_str(), TEXT_EXT) != NULL)
+        || (strstr(filename.c_str(), SVG_EXT) != NULL)
+        || (strstr(filename.c_str(), ICO_EXT) != NULL)
         || (strstr(filename.c_str(), JS_EXT) != NULL)) {
       // replace relevant file
       char replaceFile[20] = DATA_DIR;
@@ -333,7 +338,6 @@ static void uploadHandler() {
     } else if (strstr(filename.c_str(), ".bin") != NULL) {
       // OTA update
       LOG_INF("OTA update using file %s", filename.c_str());
-      OTAprereq();
       // if file name contains 'spiffs', update the spiffs partition
       cmd = (strstr(filename.c_str(), "spiffs") != NULL)  ? U_SPIFFS : U_FLASH;
       if (cmd == U_SPIFFS) SPIFFS.end(); // close SPIFFS if open
@@ -341,7 +345,7 @@ static void uploadHandler() {
     } else LOG_WRN("File %s not suitable for upload", filename.c_str());
     
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    if (cmd == 999) {
+    if (cmd == DATA_UPDATE) {
       // web page update
       if (df.write(upload.buf, upload.currentSize) != upload.currentSize) {
         LOG_ERR("Failed to save %s on SD", df.path());
@@ -352,7 +356,7 @@ static void uploadHandler() {
       if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
     }
   } else if (upload.status == UPLOAD_FILE_END) {
-    if (cmd == 999) {
+    if (cmd == DATA_UPDATE) {
       // data file update
       df.close();
       LOG_INF("Data file update complete");
@@ -374,16 +378,20 @@ static void otaFinish() {
 
 static void OTAtask(void* parameter) {
   // receive OTA upload details
-  static bool otaRunning = false;
-  if (!otaRunning) {
-    otaRunning = true;
-    LOG_INF("Starting OTA server on port: %u", OTAport);
-    otaServer.on("/upload", HTTP_OPTIONS, sendCrossOriginHeader); 
-    otaServer.on("/upload", HTTP_POST, otaFinish, uploadHandler);
-    otaServer.begin();
-    while (true) {
-      otaServer.handleClient();
-      delay(100);
-    }
+  LOG_INF("Starting OTA server on port: %u", OTAport);
+  otaServer.on("/upload", HTTP_OPTIONS, sendCrossOriginHeader); 
+  otaServer.on("/upload", HTTP_POST, otaFinish, uploadHandler);
+  otaServer.begin();
+  while (true) {
+    otaServer.handleClient();
+    delay(100);
   }
+}
+
+
+static void startOTAserver() {
+  OTAprereq();
+  // start OTA task
+  static TaskHandle_t otaHandle = NULL;
+  if (otaHandle == NULL) xTaskCreate(&OTAtask, "OTAtask", 1024 * 4, NULL, 1, &otaHandle);  
 }

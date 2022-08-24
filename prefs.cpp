@@ -1,16 +1,17 @@
 
 /* 
   Management and storage of application configuration state.
-  Configuration file stored on spiffs, except passwords which are stored in NVS
+  Configuration file stored on spiffs or SD, except passwords which are stored in NVS
    
   Workflow:
   loadConfig:
     file -> loadConfigVect+loadKeyVal -> vector -> getNextKeyVal+updatestatus+updateAppStatus -> vars 
-                                               retrieveConfigVal (as required)
+                                                   retrieveConfigVal (as required)
   statusHandler:
     vector -> buildJsonString+buildAppJsonString -> browser 
   controlHandler: 
-    browser -> updateStatus+updateAppStatus -> vars -> updateConfigVect -> vector -> saveConfigVect -> file 
+    browser -> updateStatus+updateAppStatus -> updateConfigVect -> vector -> saveConfigVect -> file 
+                                            -> vars
 
   s60sc 2022
 */
@@ -21,10 +22,10 @@ static fs::FS fp = STORAGE;
 static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
 char* jsonBuff = NULL;
+bool configLoaded = false;
 
 
 /********************* generic Config functions ****************************/
-
 
 static bool getNextKeyVal(char* keyName, char* keyVal) {
   // return next key and value from configs on each call in key order
@@ -86,7 +87,7 @@ static void loadVect(const std::string keyValGrpLabel) {
   int i = 0;
   if (keyValGrpLabel.length()) {
     std::istringstream ss(keyValGrpLabel);
-    while(std::getline(ss, token[i++], ':'));
+    while (std::getline(ss, token[i++], DELIM));
     if (i != 5) LOG_ERR("Unable to parse '%s', len %u", keyValGrpLabel.c_str(), keyValGrpLabel.length());
     else {
       if (!ALLOW_SPACES) token[1].erase(std::remove(token[1].begin(), token[1].end(), ' '), token[1].end());
@@ -103,7 +104,7 @@ static void saveConfigVect() {
   else {
     for (const auto& row: configs) {
       // recreate config file with updated content
-      sprintf(configLine, "%s:%s:%s:%s\n", row[0].c_str(), row[1].c_str(), row[2].c_str(), row[3].c_str());
+      sprintf(configLine, "%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str());
       file.write((uint8_t*)configLine, strlen(configLine));
     }
     file.close();
@@ -204,10 +205,10 @@ bool updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "ST_sn")) strcpy(ST_sn, value);
   else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns1, value);
   else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns2, value);
-  else if(!strcmp(variable, "Auth_User")) strcpy(Auth_User, value);
+  else if(!strcmp(variable, "Auth_Name")) strcpy(Auth_Name, value);
   else if(!strcmp(variable, "Auth_Pass")) {
     strcpy(Auth_Pass, value);
-    strncpy(value, FILLSTAR, strlen(value));;
+    strncpy(value, FILLSTAR, strlen(value));
   }
 #ifdef INCLUDE_FTP
   else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server, value);
@@ -237,11 +238,7 @@ bool updateStatus(const char* variable, const char* _value) {
     strncpy(value, FILLSTAR, strlen(value));
   }
   else if(!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
-  // update after passwords obfuscated
-  updateConfigVect(variable, value); 
-  updateAppStatus(variable, value);
-  
-  if(!strcmp(variable, "dbgVerbose")) {
+  else if(!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
   } 
@@ -255,24 +252,21 @@ bool updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "reset")) res = false;
   else if(!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
   else if(!strcmp(variable, "deldata")) {  
-    if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs(true); // entire folder
+    if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
     else {
-      // SD card
-      if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
-      else {
-        // specified file, eg control?deldata=configs.txt
-        char delFile[FILE_NAME_LEN];
-        int dlen = snprintf(delFile, FILE_NAME_LEN, "%s/%s", DATA_DIR, value);
-        if (dlen > FILE_NAME_LEN) LOG_ERR("File name %s too long", value);
-        deleteFolderOrFile(delFile);
-      }
+      // manually specified file, eg control?deldata=favicon.ico
+      char delFile[FILE_NAME_LEN];
+      int dlen = snprintf(delFile, FILE_NAME_LEN, "%s/%s", DATA_DIR, value);
+      if (dlen > FILE_NAME_LEN) LOG_ERR("File name %s too long", value);
+      else deleteFolderOrFile(delFile);
     }
     res = false;
   }
   else if (!strcmp(variable, "save")) {
     savePrefs();
     saveConfigVect();
-  } 
+  } else updateAppStatus(variable, value);
+  updateConfigVect(variable, value);  
   return res;
 }
 
@@ -355,5 +349,6 @@ bool loadConfig() {
   while (getNextKeyVal(variable, value)) updateStatus(variable, value);
   loadPrefs();
   if (strlen(ST_SSID)) LOG_INF("Using ssid: %s%s %s", ST_SSID, !strlen(ST_ip) ? " " : " with static ip ", ST_ip);
+  configLoaded = true;
   return true;
 }

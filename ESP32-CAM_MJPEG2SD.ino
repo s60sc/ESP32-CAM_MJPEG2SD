@@ -21,12 +21,9 @@ void setup() {
     ESP.restart();
   } 
   
-  if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) startSpiffs();
-  else if (!prepSD_MMC()) {
-    LOG_WRN("Insert SD card, will restart after 10 secs");    
-    delay(10000);
-    ESP.restart();
-  }
+  // prep SD card storage
+  startStorage();
+
   // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;

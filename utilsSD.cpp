@@ -12,7 +12,26 @@ bool sdFormatIfMountFailed = false; // Auto format the sd card if mount failed. 
 // hold sorted list of filenames/folders names in order of newest first
 static std::vector<std::string> fileVec;
 
+static bool startSpiffs() {
+  if (!SPIFFS.begin(true)) {
+    LOG_ERR("SPIFFS not mounted");
+    return false;
+  } else {    
+    // list details of files on SPIFFS
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+    while(file) {
+      LOG_INF("File: %s, size: %u", file.path(), file.size());
+      file = root.openNextFile();
+    }
+    LOG_INF("SPIFFS: Total bytes %d, Used bytes %d", SPIFFS.totalBytes(), SPIFFS.usedBytes());
+    LOG_INF("Sketch size %d kB", ESP.getSketchSize() / 1024);
+    return true;
+  }
+}
+
 static void infoSD() {
+#ifdef INCLUDE_SD
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) LOG_WRN("No SD card attached");
   else {
@@ -28,9 +47,10 @@ static void infoSD() {
     LOG_INF("SD card type %s, Size: %lluMB, Used space: %lluMB, of total: %lluMB",
              typeStr, cardSize, useBytes, totBytes);
   }
+#endif
 }
 
-bool prepSD_MMC() {
+static bool prepSD_MMC() {
   /* open SD card in MMC 1 bit mode
      MMC4  MMC1  ESP32
       D2          12
@@ -41,9 +61,10 @@ bool prepSD_MMC() {
       D1          4
   */
   bool res = false;
-  heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
+#ifdef INCLUDE_SD
+  if (psramFound()) heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
   fileVec.reserve(1000);
-  heap_caps_malloc_extmem_enable(4096);
+  if (psramFound()) heap_caps_malloc_extmem_enable(4096);
   
   res = SD_MMC.begin("/sdcard", true, sdFormatIfMountFailed);
   if (res) {
@@ -54,11 +75,32 @@ bool prepSD_MMC() {
     LOG_ERR("SD card mount failed");
     return false;
   }
+#endif
+  return res;
+}
+
+bool startStorage() {
+  // start required storage device
+  bool res = true;
+  if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
+    res = startSpiffs();
+    if (!res) LOG_ERR("Failed to start SPIFFS");  
+#ifdef INCLUDE_SD  
+  } else {
+    res = prepSD_MMC();
+    if (!res) {
+      LOG_WRN("Insert SD card, will restart after 10 secs");    
+      delay(10000);
+      ESP.restart();
+    }
+#endif
+  }
+  return res;
 }
 
 void getOldestDir(char* oldestDir) {
   // get oldest folder by its date name
-  File root = SD_MMC.open("/");
+  File root = STORAGE.open("/");
   File file = root.openNextFile();
   if (file) strcpy(oldestDir, file.path()); // initialise oldestDir
   while (file) {
@@ -83,7 +125,7 @@ void inline getFileDate(File file, char* fileDate) {
 bool checkFreeSpace() { 
   // Check for sufficient space on SD card
   if (sdFreeSpaceMode < 1) return false;
-  size_t freeSize = (size_t)((SD_MMC.totalBytes() - SD_MMC.usedBytes()) / ONEMEG);
+  size_t freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
   LOG_INF("Card free space: %uMB", freeSize);
   if (freeSize < sdMinCardFreeSpace) {
     char oldestDir[FILE_NAME_LEN];
@@ -116,7 +158,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // ignore leading '/' if not the only character
     bool returnDirs = strlen(fname) > 1 ? (strchr(fname+1, '/') == NULL ? false : true) : true; 
     // open relevant folder to list contents
-    File root = SD_MMC.open(fname);
+    File root = STORAGE.open(fname);
     if (!root) LOG_ERR("Failed to open directory %s", fname);
     if (!root.isDirectory()) LOG_ERR("Not a directory %s", fname);
     LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", fname);
@@ -124,7 +166,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // build relevant option list
     strcpy(jsonBuff, returnDirs ? "{" : "{\"/\":\".. [ Up ]\",");            
     File file = root.openNextFile();
-    heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
+    if (psramFound()) heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
     while (file) {
       if (returnDirs && file.isDirectory() 
           && strstr(file.name(), "System") == NULL // ignore Sys Vol Info
@@ -144,7 +186,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
       }
       file = root.openNextFile();
     }
-    heap_caps_malloc_extmem_enable(4096);
+    if (psramFound()) heap_caps_malloc_extmem_enable(4096);
   }
   
   if (noEntries) strcpy(jsonBuff, "{\"/\":\"Get Folders\"}");
@@ -166,7 +208,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
 
 void deleteFolderOrFile(const char* deleteThis) {
   // delete supplied file or folder, unless it is a reserved folder
-  File df = SD_MMC.open(deleteThis);
+  File df = STORAGE.open(deleteThis);
   if (!df) {
     LOG_ERR("Failed to open %s", deleteThis);
     return;
@@ -179,17 +221,17 @@ void deleteFolderOrFile(const char* deleteThis) {
   }  
   LOG_WRN("Deleting : %s", deleteThis);
   // Empty named folder first
-  if (df.isDirectory()) {
+  if (df.isDirectory() || (((fs::SPIFFSFS*)&STORAGE == &SPIFFS) && strstr("/", deleteThis) != NULL)) {
     LOG_INF("Folder %s contents", deleteThis);
     File file = df.openNextFile();
     while (file) {
       if (file.isDirectory()) LOG_INF("  DIR : %s", file.path());
       else LOG_INF("  FILE : %s SIZE : %uMB %sdeleted", file.path(), file.size() / ONEMEG, 
-        SD_MMC.remove(file.path()) ? "" : "not ");
+        STORAGE.remove(file.path()) ? "" : "not ");
       file = df.openNextFile();
     }
     df.close();
     // Remove the folder
-    LOG_INF("Folder %s %sdeleted", deleteThis, SD_MMC.rmdir(deleteThis) ? "" : "not ");
-  } else LOG_INF("File %s %sdeleted", deleteThis, SD_MMC.remove(deleteThis) ? "" : "not ");  //Remove the file
+    if (df.isDirectory()) LOG_INF("Folder %s %sdeleted", deleteThis, STORAGE.rmdir(deleteThis) ? "" : "not ");
+  } else LOG_INF("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
 }

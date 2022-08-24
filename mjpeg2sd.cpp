@@ -142,60 +142,62 @@ static void timeLapse(camera_fb_t* fb) {
   static int intervalMark = tlSecsBetweenFrames * saveFPS;
   static File tlFile;
   static char TLname[FILE_NAME_LEN];
-  if (timeSynchronized) {
-    if (!frameCntTL) {
-      // initialise time lapse avi
-      requiredFrames = tlDurationMins * 60 / tlSecsBetweenFrames;
-      dateFormat(partName, sizeof(partName), true);
-      SD_MMC.mkdir(partName); // make date folder if not present
-      dateFormat(partName, sizeof(partName), false);
-      int tlen = snprintf(TLname, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u_T.%s", 
-        partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, FILE_EXT);
-      if (tlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
-      if (SD_MMC.exists(TLTEMP)) SD_MMC.remove(TLTEMP);
-      tlFile = SD_MMC.open(TLTEMP, FILE_WRITE);
-      tlFile.write(aviHeader, AVI_HEADER_LEN); // space for header
-      prepAviIndex(true);
-      LOG_INF("Started time lapse file %s, duration %u mins, for %u frames",  TLname, tlDurationMins, requiredFrames);
-      frameCntTL++; // to stop re-entering
+  if (timeLapseOn) {
+    if (timeSynchronized) {
+      if (!frameCntTL) {
+        // initialise time lapse avi
+        requiredFrames = tlDurationMins * 60 / tlSecsBetweenFrames;
+        dateFormat(partName, sizeof(partName), true);
+        SD_MMC.mkdir(partName); // make date folder if not present
+        dateFormat(partName, sizeof(partName), false);
+        int tlen = snprintf(TLname, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u_T.%s", 
+          partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, FILE_EXT);
+        if (tlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
+        if (SD_MMC.exists(TLTEMP)) SD_MMC.remove(TLTEMP);
+        tlFile = SD_MMC.open(TLTEMP, FILE_WRITE);
+        tlFile.write(aviHeader, AVI_HEADER_LEN); // space for header
+        prepAviIndex(true);
+        LOG_INF("Started time lapse file %s, duration %u mins, for %u frames",  TLname, tlDurationMins, requiredFrames);
+        frameCntTL++; // to stop re-entering
+      }
+      if (intervalCnt > intervalMark) {
+        // save this frame to time lapse avi
+        uint8_t hdrBuff[CHUNK_HDR];
+        memcpy(hdrBuff, dcBuf, 4); 
+        // align end of jpeg on 4 byte boundary for AVI
+        uint16_t filler = (4 - (fb->len & 0x00000003)) & 0x00000003; 
+        uint32_t jpegSize = fb->len + filler;
+        memcpy(hdrBuff+4, &jpegSize, 4);
+        tlFile.write(hdrBuff, CHUNK_HDR); // jpeg frame details
+        tlFile.write(fb->buf, jpegSize);
+        buildAviIdx(jpegSize, true, true); // save avi index for frame
+        frameCntTL++;
+        intervalCnt = 0;   
+        intervalMark = tlSecsBetweenFrames * saveFPS;  // recalc in case FPS changed                                       
+      }
+      intervalCnt++;
+      if (frameCntTL > requiredFrames) {
+        // finish timelapse recording
+        xSemaphoreTake(aviMutex, portMAX_DELAY);
+        buildAviHdr(tlPlaybackFPS, fsizePtr, --frameCntTL, true);
+        xSemaphoreGive(aviMutex);
+        // add index
+        finalizeAviIndex(frameCntTL, true);
+        size_t idxLen = 0;
+        do {
+          idxLen = writeAviIndex(iSDbuffer, RAMSIZE, true);
+          tlFile.write(iSDbuffer, idxLen);
+        } while (idxLen > 0);
+        // add header
+        tlFile.seek(0, SeekSet); // start of file
+        tlFile.write(aviHeader, AVI_HEADER_LEN);
+        tlFile.close(); 
+        SD_MMC.rename(TLTEMP, TLname);
+        frameCntTL = intervalCnt = 0;
+        LOG_DBG("Finished time lapse");
+      }
     }
-    if (intervalCnt > intervalMark) {
-      // save this frame to time lapse avi
-      uint8_t hdrBuff[CHUNK_HDR];
-      memcpy(hdrBuff, dcBuf, 4); 
-      // align end of jpeg on 4 byte boundary for AVI
-      uint16_t filler = (4 - (fb->len & 0x00000003)) & 0x00000003; 
-      uint32_t jpegSize = fb->len + filler;
-      memcpy(hdrBuff+4, &jpegSize, 4);
-      tlFile.write(hdrBuff, CHUNK_HDR); // jpeg frame details
-      tlFile.write(fb->buf, jpegSize);
-      buildAviIdx(jpegSize, true, true); // save avi index for frame
-      frameCntTL++;
-      intervalCnt = 0;   
-      intervalMark = tlSecsBetweenFrames * saveFPS;  // recalc in case FPS changed                                       
-    }
-    intervalCnt++;
-    if (frameCntTL > requiredFrames) {
-      // finish timelapse recording
-      xSemaphoreTake(aviMutex, portMAX_DELAY);
-      buildAviHdr(tlPlaybackFPS, fsizePtr, --frameCntTL, true);
-      xSemaphoreGive(aviMutex);
-      // add index
-      finalizeAviIndex(frameCntTL, true);
-      size_t idxLen = 0;
-      do {
-        idxLen = writeAviIndex(iSDbuffer, RAMSIZE, true);
-        tlFile.write(iSDbuffer, idxLen);
-      } while (idxLen > 0);
-      // add header
-      tlFile.seek(0, SeekSet); // start of file
-      tlFile.write(aviHeader, AVI_HEADER_LEN);
-      tlFile.close(); 
-      SD_MMC.rename(TLTEMP, TLname);
-      frameCntTL = intervalCnt = 0;
-      LOG_DBG("Finished time lapse");
-    }
-  }
+  } else frameCntTL = intervalCnt = 0;
 }
 
 static void saveFrame(camera_fb_t* fb) {
@@ -337,7 +339,7 @@ static boolean processFrame() {
   camera_fb_t* fb = esp_camera_fb_get();
 
   if (fb == NULL) return false;
-  if (timeLapseOn) timeLapse(fb);
+  timeLapse(fb);
   // determine if time to monitor, then get motion capture status
   if (!forceRecord && useMotion) { 
     if (dbgMotion) checkMotion(fb, false); // check each frame for debug
