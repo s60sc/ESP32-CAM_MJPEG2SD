@@ -32,7 +32,7 @@ extern const char* git_rootCACertificate;
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "7.3"
+#define APP_VER "7.3.1"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -70,7 +70,7 @@ extern const char* git_rootCACertificate;
 #define INCLUDE_SMTP
 #define INCLUDE_SD
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100

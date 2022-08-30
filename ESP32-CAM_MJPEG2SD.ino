@@ -120,4 +120,5 @@ void setup() {
 }
 
 void loop() {
+  vTaskDelete(NULL); // free 8k ram
 }

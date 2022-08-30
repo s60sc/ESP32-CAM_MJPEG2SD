@@ -230,8 +230,8 @@ void deleteFolderOrFile(const char* deleteThis) {
         STORAGE.remove(file.path()) ? "" : "not ");
       file = df.openNextFile();
     }
-    df.close();
     // Remove the folder
     if (df.isDirectory()) LOG_INF("Folder %s %sdeleted", deleteThis, STORAGE.rmdir(deleteThis) ? "" : "not ");
+    else df.close();
   } else LOG_INF("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
 }
