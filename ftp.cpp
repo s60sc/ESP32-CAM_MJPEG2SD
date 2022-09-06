@@ -19,12 +19,13 @@ TaskHandle_t ftpHandle = NULL;
 static char storedPathName[FILE_NAME_LEN];
 static bool uploadInProgress = false;
 static fs::FS fp = STORAGE;
+#define NO_CHECK "999"
 
 // WiFi Clients
 WiFiClient client;
 WiFiClient dclient;
 
-static bool sendFtpCommand(const char* cmd, const char* param, const char* respCode) {
+static bool sendFtpCommand(const char* cmd, const char* param, const char* respCode, const char* respCode2 = NO_CHECK) {
   // build and send ftp command
   if (strlen(cmd)) {
     client.print(cmd);
@@ -48,11 +49,13 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
 
   // check response code with expected
   LOG_DBG("Rx code: %s, resp: %s", respCodeRx, rspBuf);
-  if (strcmp(respCode, "999") == 0) return true; // response code not checked
+  if (strcmp(respCode, NO_CHECK) == 0) return true; // response code not checked
   if (strcmp(respCodeRx, respCode) != 0) {
-    // incorrect response code
-    LOG_ERR("Command %s got wrong response: %s", cmd, rspBuf);
-    return false;
+    if (strcmp(respCodeRx, respCode2) != 0) {
+      // incorrect response code
+      LOG_ERR("Command %s got wrong response: %s %s", cmd, respCodeRx, rspBuf);
+      return false;
+    }
   }
   return true;
 }
@@ -76,7 +79,7 @@ static bool ftpConnect(){
 static bool createFtpFolder(const char* folderName) {
   // create folder if non existent then change to it
   LOG_DBG("Check for folder %s", folderName);
-  sendFtpCommand("CWD ", folderName, "999"); 
+  sendFtpCommand("CWD ", folderName, NO_CHECK); 
   if (strcmp(respCodeRx, "550") == 0) {
     // non existent folder, create it
     if (!sendFtpCommand("MKD ", folderName, "257")) return false;
@@ -130,10 +133,10 @@ static bool ftpStoreFile(File &fh) {
 
   // open data connection
   openDataPort();
-  uint32_t writeBytes = 0, progCnt = 0;                       
+  uint32_t writeBytes = 0, progCnt = 0; 
   uint32_t uploadStart = millis();
   size_t readLen, writeLen;
-  if (!sendFtpCommand("STOR ", ftpSaveName, "150")) return false;
+  if (!sendFtpCommand("STOR ", ftpSaveName, "150", "125")) return false;
   int saveRefreshVal = refreshVal;
   refreshVal = 1000;
   do {
@@ -148,7 +151,7 @@ static bool ftpStoreFile(File &fh) {
       }
       progCnt++;
       percentLoaded = writeBytes * 100 / fileSize;
-      if (progCnt % 50 == 0) LOG_INF("Uploaded %u%%", percentLoaded);      
+      if (progCnt % 50 == 0) LOG_INF("Uploaded %u%%", percentLoaded); 
     }
   } while (readLen > 0);
   dclient.stop();
