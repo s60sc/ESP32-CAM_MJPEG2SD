@@ -99,7 +99,7 @@ static void loadVect(const std::string keyValGrpLabel) {
 
 static void saveConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_WRITE);
-  char configLine[100];
+  char configLine[FILE_NAME_LEN + 100];
   if (!file) LOG_ERR("Failed to save to configs file");
   else {
     for (const auto& row: configs) {
@@ -190,7 +190,7 @@ bool updateStatus(const char* variable, const char* _value) {
   // called from controlHandler() to update app status from changes made on browser
   // or from loadConfig() to update app status from stored preferences
   bool res = true;
-  char value[MAX_PWD_LEN];
+  char value[FILE_NAME_LEN];
   strcpy(value, _value);
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strcpy(hostName, value);
