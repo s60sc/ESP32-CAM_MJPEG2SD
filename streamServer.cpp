@@ -2,6 +2,8 @@
 // streamServer handles streaming and stills
 //
 // s60sc 2022
+//
+// contribution from @marekful
 
 #include "globals.h"
 
@@ -12,6 +14,7 @@
 #define HDR_BUF_LEN 64
 static const size_t boundaryLen = strlen(JPEG_BOUNDARY);
 static char hdrBuf[HDR_BUF_LEN];
+static fs::FS fpv = STORAGE;
 
 static httpd_handle_t streamServer = NULL; // streamer listens on port 81
 
@@ -20,7 +23,8 @@ esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const ch
   if (!strcmp(variable, "sfile")) {
     // get folders / files on SD, save received filename if has required extension
     strcpy(inFileName, value);
-    doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, FILE_EXT); // browser control
+    if (!forceRecord) doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, FILE_EXT); // browser control
+    else strcpy(jsonBuff, "{}");                      
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
@@ -38,15 +42,32 @@ esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const ch
 static esp_err_t streamHandler(httpd_req_t* req) {
   // send mjpeg stream or single frame
   esp_err_t res = ESP_OK;
-  // if query string present, then single frame required
-  bool singleFrame = (bool)httpd_req_get_url_query_len(req);                                   
+  char variable[FILE_NAME_LEN]; 
+  char value[FILE_NAME_LEN];
+  bool singleFrame = false;                                       
   size_t jpgLen = 0;
   uint8_t* jpgBuf = NULL;
   uint32_t startTime = millis();
   uint32_t frameCnt = 0;
   uint32_t mjpegKB = 0;
   mjpegStruct mjpegData;
+
+  // obtain key from query string
+  extractQueryKey(req, variable);
+  strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  if (!strcmp(variable, "random")) singleFrame = true;
+  if (!strcmp(variable, "source") && !strcmp(value, "file")) {
+    if (fpv.exists(inFileName)) {
+      LOG_INF("Playback enabled (SD file selected)");
+      doPlayback = true;
+    } else LOG_WRN("File %s doesn't exist when Playback requested", inFileName);
+  }
+  else if (!strcmp(variable, "source") && !strcmp(value, "sensor")) {
+    LOG_INF("Playback disabled while live streaming");
+    doPlayback = false;
+  }
   // output header if streaming request
   if (!singleFrame) httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
 

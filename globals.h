@@ -6,7 +6,7 @@
 // to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wunused-variable"
+//#pragma GCC diagnostic ignored "-Wunused-variable"
 
 /******************** User modifiable defines *******************/
 extern const char* git_rootCACertificate;
@@ -32,7 +32,7 @@ extern const char* git_rootCACertificate;
 /********************* fixed defines leave as is *******************/ 
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "7.3.1"
+#define APP_VER "7.4"
 
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
@@ -69,7 +69,7 @@ extern const char* git_rootCACertificate;
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_SD
-//#define DEV_ONLY // leave commented out
+#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "132" // dev only
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
@@ -121,6 +121,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = 
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
+esp_err_t extractQueryKey(httpd_req_t *req, char* variable);
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudio(bool isValid);

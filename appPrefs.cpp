@@ -144,7 +144,8 @@ void buildAppJsonString(bool filter) {
   if (currentVoltage < 0) p += sprintf(p, "\"battv\":\"n/a\",");
   else p += sprintf(p, "\"battv\":\"%0.1fV\",", currentVoltage);  
   p += sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
-  //Other settings 
+  p += sprintf(p, "\"forcePlayback\":%u,", doPlayback ? 1 : 0);  
+  // Other settings 
   struct timeval tv;
   gettimeofday(&tv, NULL);
   time_t currEpoch = tv.tv_sec;

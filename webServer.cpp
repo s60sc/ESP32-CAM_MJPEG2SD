@@ -109,7 +109,7 @@ static esp_err_t indexHandler(httpd_req_t* req) {
   return fileHandler(req);
 }
 
-static esp_err_t extractQueryKey(httpd_req_t *req, char* variable) {
+esp_err_t extractQueryKey(httpd_req_t *req, char* variable) {
   size_t queryLen = httpd_req_get_url_query_len(req) + 1;
   httpd_req_get_url_query_str(req, variable, queryLen);
   urlDecode(variable);
@@ -145,6 +145,10 @@ static esp_err_t webHandler(httpd_req_t* req) {
     // any js file
     httpd_resp_set_type(req, "text/javascript");
     httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=604800");
+  } else if (!strcmp(CSS_EXT, variable+(strlen(variable)-strlen(CSS_EXT)))) {
+    // any css file
+    httpd_resp_set_type(req, "text/css");
+    httpd_resp_set_hdr(req, "Cache-Control", "max-age=604800");
   } else if (!strcmp(TEXT_EXT, variable+(strlen(variable)-strlen(TEXT_EXT)))) {
     // any text file
     httpd_resp_set_type(req, "text/plain");
@@ -387,7 +391,6 @@ static void OTAtask(void* parameter) {
     delay(100);
   }
 }
-
 
 static void startOTAserver() {
   OTAprereq();

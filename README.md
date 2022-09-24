@@ -2,11 +2,7 @@
 
 ESP32 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
  
-Changes from previous version 6:
-* Configuration changed dynamically via browser instead of compile time defines.
-* Remote logging via web page rather than telnet.
-* Peripherals can be hosted on a separate ESP.
-* Optional login for main web page.
+Changes for version 7.4 - web page improvements obtained from fork by [@marekful](https://github.com/marekful). The web page colors can be changed in **MJPEG2SD.htm** under `:root`.
 
 ## Purpose
 
@@ -61,13 +57,11 @@ Browser functions only tested on Chrome.
 
 A recording is generated either by the camera itself detecting motion as given in the **Motion detection by Camera** section below, or
 by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
-In addition a recording can be requested manually using the **Record** button on the web page.
+In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
 To play back a recording, select the file using **Select folder / file** on the browser to select the day folder then the required AVI file.
-After selecting the AVI file, press **Start Stream** button to playback the recording. 
-After playback finished, press **Stop Stream** button. 
-If a recording is started during a playback, playback will stop.
-If recording occurs whilst also live streaming to browser, the frame rate will be slower. 
+After selecting the AVI file, press **Start Playback** button to playback the recording. 
+The **Start Stream** button shows a live feed from the camera.
 
 Recordings can then be uploaded to an FTP server or downloaded to the browser for playback on a media application, eg VLC.
 
@@ -91,12 +85,12 @@ To change the recording parameters:
 SD storage management:
 * Folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the **Delete** button and confirming.
 * Folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the **FTP Upload** button. Can be uploaded in AVI format.
-* Download selected AVI file from SD card to browser using **Download** button. Can be downloaded in AVI format.
+* Download selected AVI file from SD card to browser using **Download** button.
 * Delete, or upload and delete oldest folder when card free space is running out.  
   
 * Log viewing options via web page (may slow recorded frame rate), displayed using **Show Log** button:
-  * Log to WS: log is dynamically output via websocket
-  * Log to SD: log is stored on SD card, use **Retrieve SD Log** button to retrieve or refresh  
+  * **Log to browser**: log is dynamically output via websocket
+  * **Log to SD card**: log is stored on SD card, use **Retrieve SD Log** button to retrieve or refresh.  
 
 
 ## Configuration Web Page
@@ -107,11 +101,12 @@ More configuration details accessed via **Edit Config** button, which displays f
 Additional WiFi and webserver settings.
 
 **Motion**: 
-See **Motion detection by Camera** section
+See **Motion detection by Camera** section.
 
 **Peripherals** eg:
 * Select if a PIR is to be used (which can also be used in parallel with camera motion detection).
 * Auto switch the lamp on for nightime PIR detection.
+* Control pan / tilt cradle for camera.
 * Connect an external I2S microphone
 * Connect a DS18B20 temperature sensor
 * Monitor voltage of battery supply
@@ -122,7 +117,7 @@ Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender)
 **Other**:
 SD and email management.
 
-When a feature is enable or disabled, the ESP should be rebooted.
+When a feature is enable or disabled, the ESP should be rebooted using **Reboot ESP** button.
 
 
 ## Motion detection by Camera
