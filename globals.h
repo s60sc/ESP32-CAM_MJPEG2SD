@@ -69,7 +69,7 @@ extern const char* git_rootCACertificate;
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_SD
-#define DEV_ONLY // leave commented out
+//#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "132" // dev only
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
