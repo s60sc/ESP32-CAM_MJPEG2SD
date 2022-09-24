@@ -1,551 +1,746 @@
 
-<!doctype html>                             
-<html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>ESP32-CAM_AVI2SD</title>
-        <script src='/web?jquery.min.js'></script>
-        <style>
-            :root {
-            --itemColor: red;
-            }
-            body {
-                font-family: Arial,Helvetica,sans-serif;
-                background: #181818;
-                color: #EFEFEF;
-                font-size: 16px
-            }
-
-            h2 {
-                font-size: 18px;
-                padding-left: 10px;
-            }
-            
-            h3 {
-                font-style: italic;
-                font-size: 14px;
-                padding-left: 5px;
-            }
-            h6 {
-                font-style: bold;
-                font-size: 9px;
-                padding-left: 15px;
-            }
-            
-           .center{
-                text-align: center; 
-           }
-           
-           .navtop{
-                list-style: none;
-           }
-           .navtop li {
-             float: left;
-             position: relative;
-           }
-             
-           nav#maintoolbar {
-              display: flex;
-              flex-wrap: nowrap;
-              justify-content: flex-end;
-              overflow: auto;
-           }
-                        
-           section#main {
-              display: flex;
-              flex-direction: column;
-           }
-            
-           section#header {
-              min-width: 332px;
-              background-color: #363636;
-              margin-bottom: 3px;
-              padding: 4px 12px;
-              display: flex;
-              flex-wrap: wrap;
-              border-radius: 4px;
-              justify-content: space-between;
-           }
-           #sidebar{
-               margin: 0px;
-              padding: 0px;         
-              width: 100%;
-           }                        
-           section#title{
-              display: flex;
-           }
-           section#footer {
-              min-width: 332px;
-              background-color: #363636;
-              margin-top: 0px;
-              padding: 4px 12px;
-              display: flex;
-              flex-wrap: wrap;
-              border-radius: 4px;
-              justify-content: space-between;
-              font-size: 11px;
-            }
-            nav.menu {
-              display: grid;
-              flex-direction: column;
-              flex-wrap: nowrap;
-              min-width: 332px;
-              background: #363636;
-              padding: 8px;
-              border-radius: 4px;
-              margin-bottom: 3px;
-              cursor: pointer;
-            }
-            
-            #content {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: stretch
-            }
-
-            figure {
-                padding: 0px;
-                margin: 0;
-                width: 100%;
-                height: auto;
-               -webkit-margin-before: 0;
-                margin-block-start: 0;
-                -webkit-margin-after: 0;
-                margin-block-end: 0;
-                -webkit-margin-start: 0;
-                margin-inline-start: 0;
-                -webkit-margin-end: 0;
-                margin-inline-end: 0;
-           }
-           .image-container {
-              position: relative;
-           }
-
-            figure img {
-                display: block;
-                width: 100%;
-                height: auto;
-                border-radius: 4px;
-            }
-
-            @media (min-width: 800px) and (orientation:landscape) {
-                #content {
-                    display:flex;
-                    flex-wrap: nowrap;
-                    align-items: stretch
-                }
-               #sidebar{
-                  width: auto;
-               }
-               figure img {
-                    display: block;
-                    width: 100%;
-                    height: auto
-                }
-
-                figure {
-                    padding: 0 0 0 0px;
-                    margin: 0;
-                    width: 100%;
-                    height: 100%; 
-                    -webkit-margin-before: 0;
-                    margin-block-start: 0;
-                    -webkit-margin-after: 0;
-                    margin-block-end: 0;
-                    -webkit-margin-start: 0;
-                    margin-inline-start: 0;
-                    -webkit-margin-end: 0;
-                    margin-inline-end: 0
-                }
-            }
-
-            section#buttons {
-                display: flex;
-                flex-wrap: nowrap;
-                justify-content: center;
-            }
-
-            .input-group {
-                position: relative;
-                display: flex;
-                flex-wrap: nowrap;
-                line-height: 29px;
-                margin: 5px 0
-            }
-            .info-group {
-                position: relative;                               
-                margin: 5px 0;
-                
-            }
-            .input-group>label {
-                display: inline-block;
-                padding-right: 10px;
-                min-width: 47%;
-           }
-           .input-group>input {
-                width: 100%;
-           }
-
-            .input-group input,.input-group select {
-                flex-grow: 1
-            }
-
-            .range-max,.range-min {
-                display: inline-block;
-                padding: 0 5px;
-            }
-
-            button {
-            		min-height: 35px;
-                display: block;
-                margin: 5px;
-                padding: 0 6px;
-                border: 0;
-                line-height: 20px;
-                cursor: pointer;
-                color: #fff;
-                background: var(--itemColor);
-                border-radius: 5px;
-                font-size: 16px;
-                outline: 0
-            }
-
-            button:hover {
-                background: #ff494d
-            }
-
-            button:active {
-                background: green
-            }
-
-            button.disabled {
-                cursor: default;
-                background: #a0a0a0
-            }
-
-            input[type=range] {
-                -webkit-appearance: none;
-                width: 100%;
-                height: 22px;
-                background: #363636;
-                cursor: pointer;
-                margin: 0
-            }
-
-            input[type=range]:focus {
-                outline: 0
-            }
-
-            input[type=range]::-webkit-slider-runnable-track {
-                width: 100%;
-                height: 2px;
-                cursor: pointer;
-                background: #EFEFEF;
-                border-radius: 0;
-                border: 0 solid #EFEFEF
-            }
-
-            input[type=range]::-webkit-slider-thumb {
-                border: 1px solid rgba(0,0,30,0);
-                height: 22px;
-                width: 22px;
-                border-radius: 50px;
-                background: var(--itemColor);
-                cursor: pointer;
-                -webkit-appearance: none;
-                margin-top: -11.5px
-            }
-
-            input[type=range]:focus::-webkit-slider-runnable-track {
-                background: #EFEFEF
-            }
-
-            input[type=range]::-moz-range-track {
-                width: 100%;
-                height: 2px;
-                cursor: pointer;
-                background: #EFEFEF;
-                border-radius: 0;
-                border: 0 solid #EFEFEF
-            }
-
-            input[type=range]::-moz-range-thumb {
-                border: 1px solid rgba(0,0,30,0);
-                height: 22px;
-                width: 22px;
-                border-radius: 50px;
-                background: var(--itemColor);
-                cursor: pointer
-            }
-
-            input[type=range]::-ms-track {
-                width: 100%;
-                height: 2px;
-                cursor: pointer;
-                background: 0 0;
-                border-color: transparent;
-                color: transparent
-            }
-
-            input[type=range]::-ms-fill-lower {
-                background: #EFEFEF;
-                border: 0 solid #EFEFEF;
-                border-radius: 0
-            }
-
-            input[type=range]::-ms-fill-upper {
-                background: #EFEFEF;
-                border: 0 solid #EFEFEF;
-                border-radius: 0
-            }
-
-            input[type=range]::-ms-thumb {
-                border: 1px solid rgba(0,0,30,0);
-                height: 22px;
-                width: 22px;
-                border-radius: 50px;
-                background: var(--itemColor);
-                cursor: pointer;
-                height: 2px
-            }
-
-            input[type=range]:focus::-ms-fill-lower {
-                background: #EFEFEF
-            }
-
-            input[type=range]:focus::-ms-fill-upper {
-                background: #363636
-            }
-
-            input, #applog, #sdlog   {
-                font:20px 'Courier New';
-                font-weight:bold;
-                color: navy;
-            }
-            
-           .configGroup td {
-              border: solid 2px #ddd;
-            }
-            
-            #applog, #sdlog {
-              height:90%;
-              width:90%;
-              border:2px solid #ccc;
-              overflow:auto;
-              background-color: white;
-            }
-    
-            .switch {
-                display: block;
-                position: relative;
-                line-height: 22px;
-                font-size: 16px;
-                height: 22px
-            }
-
-            .switch input {
-                outline: 0;
-                opacity: 0;
-                width: 0;
-                height: 0
-            }
-
-            .slider {
-                width: 50px;
-                height: 22px;
-                border-radius: 22px;
-                cursor: pointer;
-                background-color: grey
-            }
-
-            .slider,.slider:before {
-                display: inline-block;
-                transition: .4s
-            }
-
-            .slider:before {
-                position: relative;
-                content: "";
-                border-radius: 50%;
-                height: 16px;
-                width: 16px;
-                left: 4px;
-                top: 3px;
-                background-color: #fff
-            }
-
-            input:checked+.slider {
-                background-color: var(--itemColor)
-            }
-
-            input:checked+.slider:before {
-                -webkit-transform: translateX(26px);
-                transform: translateX(26px)
-            }
-
-            select {
-                border: 1px solid #363636;
-                font-size: 14px;
-                height: 22px;
-                outline: 0;
-                border-radius: 5px
-            }
-
-            .close {
-                position: absolute;
-                right: 5px;
-                top: 5px;
-                background: var(--itemColor);
-                width: 16px;
-                height: 16px;
-                border-radius: 100px;
-                color: #fff;
-                text-align: center;
-                line-height: 18px;
-                cursor: pointer
-            }
-            
-            .maximize {
-                position: absolute;
-                right: 25px;
-                top: 5px;
-                background: var(--itemColor);
-                width: 16px;
-                height: 16px;
-                border-radius: 100px;
-                color: #fff;
-                text-align: center;
-                line-height: 18px;
-                cursor: pointer
-            }
-            .hidden {
-                display: none
-            }
-            output {
-              position: absolute;
-              top: -32px;
-              display: none;
-              width: 50px;
-              height: 24px;
-              border: 1px solid #e2e2e2;
-              background-color: #FFE4C4;
-              border-radius: 3px;
-              color: #777;
-              font-size: .8em;
-              font-weight: bold;
-              line-height: 24px;
-              text-align: center;
-            }
-
-            .extras {
-                display: none;
-            }
-
-            input[type=range]:active + output {
-              display: block;
-              -webkit-transform: translateX(180px);
-            }
-            
-            .nav-toggle {
-                cursor: pointer;
-            }
-            
-            #control-cb, #settings-cb, #other-cb{
-              display: none;
-            }
-
-            #control-cb:not(:checked)+ label + div, #settings-cb:not(:checked)+ label + div, #other-cb:not(:checked)+ label + div 
-            { 
-              display: none; 
-            }
-            .info{
-              margin-top: 2px;
-            }
-            .info-group label {
-              color: dimgray;
-            }
-            .blinking {
-              animation: blinker 1s linear infinite;
-            }
-            
-            @keyframes blinker {
-              50% {
-                opacity: 0;
-              }
-            }
-
-    .tab {
-      overflow: hidden;
-      background-color: #363636;
-    }
-
-    .tab button {
-      background-color: --itemColor;
-      float: left;
-      border: none;
-      outline: none;
-      cursor: pointer;
-      padding: 14px 16px;
-      transition: 0.3s;
-      font-size: 17px;
-    }
-
-    .tab button.active {
-       background-color: green;
-    }
-
-    .tabcontent {
-      display: none;
-    }
-    
-   .grid-cols2 {
-      grid-template-columns: 200px 200px;
-    }
-
-   .grid-cols4 {
-      grid-template-columns: 150px 150px 150px 150px
-    }
-    
-    .cfgTitle {
-      grid-column: 1/5;
-      text-align: left;
-    }
-
-    .grid-cols2, .grid-cols4 {
-      display: grid;
-      background-color: none;
-      text-align: center;
-      font-size: 30px;
-      border: 0px solid black;
-      dominant-baseline: middle;
-      text-anchor: middle;
-    }
-    
-    rect {
-       fill: silver;
-       width: 100%;
-       height: 100%; 
-       x: 0;
-       y: 0;
-       rx: 5%;
-     }
-    
-    rect:hover {
-      fill: DarkGrey;
-    }
-    
-    rect:active {
-      fill: DarkSeaGreen;
-    }
+<!doctype html>  
+<!-- 
+  s60sc 2022 
   
-    text {
-      pointer-events: none;
-    }
+  with contribution from @marekful
+-->                           
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ESP32-CAM_AVI2SD</title>
+    <style>
+      :root {
+        /* colors used on web pages - see https://www.w3schools.com/colors/colors_names.asp */
+        --buttonReady: crimson;
+        --buttonActive: ForestGreen;
+        --buttonHover: green;
+        --buttonText: white;
+        --itemInactive: gray;
+        --menuBackground: #3F3F3F; /* dark gray */
+        --inputText: navy;
+        --inputBackground: WhiteSmoke; 
+        --itemBorder: silver; 
+        --pageBackground: #181818; /* nearly black */
+      }
+      
+      body {
+          font-family: Arial,Helvetica,sans-serif;
+          background: var(--pageBackground);
+          color: var(--inputBackground);
+          font-size: 16px
+      }
 
-      </style>
-    </head>
-    <body>
+      h2 {
+          font-size: 18px;
+          padding-left: 10px;
+      }
+      
+      h3 {
+          font-style: italic;
+          font-size: 14px;
+          padding-left: 5px;
+      }
+      h6 {
+          font-style: bold;
+          font-size: 9px;
+          padding-left: 15px;
+      }
+      
+     .center{
+          text-align: center; 
+     }
+     
+     .navtop{
+        list-style: none;
+        border: 1px solid var(--itemBorder);
+        border-radius: 12px;
+        padding: 8px;
+        margin: 0.5em;
+     }
+     .navtop li {
+       float: left;
+       position: relative;
+     }
+       
+     nav#maintoolbar {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        overflow: auto;
+     }
+                  
+     section#main {
+        display: flex;
+        flex-direction: column;
+     }
+      
+     section#header {
+        min-width: 332px;
+        background: var(--menuBackground);
+        margin-bottom: 3px;
+        padding: 4px 12px;
+        display: flex;
+        flex-wrap: wrap;
+        border-radius: 4px;
+        justify-content: space-between;
+     }
+     #sidebar{
+        margin: 0px;
+        padding: 0px;         
+        width: 100%;
+     }                        
+     section#title{
+        display: flex;
+     }
+     section#footer {
+        position: fixed;
+        bottom: 0;
+        width: 97%;
+        min-width: 332px;
+        background: var(--menuBackground);
+        margin-top: 0px;
+        padding: 4px 12px;
+        display: flex;
+        flex-wrap: wrap;
+        border-radius: 4px 4px 0 0;
+        justify-content: space-between;
+        font-size: 11px;
+        z-index: 4;
+        border-top: 1px solid var(--itemBorder);
+        border-left: 1px solid var(--itemBorder);
+        border-right: 1px solid var(--itemBorder);
+        border-bottom: none;
+      }
+
+      #foot-spacer {
+          height: 60px;
+      }
+
+      nav.menu {
+        display: grid;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        min-width: 332px;
+        background: var(--menuBackground);
+        padding: 8px;
+        border-radius: 0 4px 4px 4px;
+        margin-bottom: 3px;
+        border: 1px solid var(--itemBorder);
+      }
+
+      nav.menu.buttons {
+          min-width: 388px;
+      }
+
+      nav.menu.panel {
+          display: none;
+          min-height: 330px;
+      }
+
+      nav.menu.panel.active {
+          display: block;
+      }
+
+      #menu-top.menu-floating nav.menu.panel {
+          border-radius: 0 4px 4px 4px;
+      }
+
+      #menu-top.menu-pinned nav.menu.panel {
+          border-radius: 0 4px 4px 4px;
+          height: 112%;
+          left: -1px;
+          position: relative;
+      }
+
+      #menu-container {
+          position: relative;
+          min-width: 60px;
+          min-height: 332px;
+          border-radius: 4px;
+          left: 2px;
+          top: 4px;
+      }
+      #menu-container.menu-floating {
+          display: table;
+      }
+      #menu-container.menu-pinned {
+          display: flex;
+      }
+
+      #menu-top {
+          display: inline-grid;
+          display: -moz-inline-grid;
+          display: -ms-inline-grid;
+      }
+      #menu-top.menu-floating {
+          position: absolute;
+          left: 58px;
+          z-index: 2;
+      }
+      #menu-top.menu-pinned {
+          position: initial;
+          left: initial;
+          float: left;
+          z-index: 4;
+          border-left: none;
+      }
+
+      #menu-selector {
+          z-index: 4;
+          background: var(--menuBackground);
+          width: 58px;
+      }
+      #menu-selector.menu-floating {
+          position: absolute;
+      }
+      #menu-selector.menu-pinned {
+          position: relative;
+          float: left;
+          height: 100%;
+          border-right: none;
+          z-index: 5;
+      }
+
+      .menu-floating.menu-open {
+          border-radius: 4px 0 0 4px;
+          border: 1px solid var(--itemBorder);
+          border-right: none;
+      }
+
+      .menu-floating.menu-closed {
+          border-radius: 4px;
+          border: 1px solid var(--itemBorder);
+      }
+
+      .menu-pinned.menu-open {
+          border-radius: 4px 0 0 4px;
+          border: 1px solid var(--itemBorder);
+      }
+
+      .menu-pinnded.menu-closed {
+          border-radius: 4px;
+          border: 1px solid var(--itemBorder);
+      }
+
+      .pin-menu {
+          width: 24px;
+          height: 24px;
+          float: right;
+          cursor: pointer;
+      }
+
+      nav.quick-nav {
+          width: 32px;
+          height: 32px;
+          margin: 8px 6px 12px 8px;
+          border: 1px solid var(--itemBorder);
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 150%;
+          padding: 4px 0 4px 8px;
+          background: var(--buttonReady);
+      }
+
+      nav.quick-nav:hover {
+          background: var(--buttonHover);
+      }
+
+      nav.quick-nav.active {
+          box-shadow: 0 0 0 4px var(--buttonActive);
+          background: var(--buttonActive);
+      }
+
+      #content {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: stretch
+      }
+
+      figure {
+          padding: 0px;
+          margin: 0;               
+          width: 100%;
+          height: auto;
+          -webkit-margin-before: 0;
+          margin-block-start: 0;
+          -webkit-margin-after: 0;
+          margin-block-end: 0;
+          -webkit-margin-start: 0;
+          margin-inline-start: 0;
+          -webkit-margin-end: 0;
+          margin-inline-end: 0;
+      }
+      .image-container {
+        position: relative;
+      }
+
+      figure img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          border-radius: 4px;
+      }
+
+      @media (min-width: 800px) and (orientation:landscape) {
+          #content {
+              display:flex;
+              flex-wrap: nowrap;
+              align-items: stretch
+          }
+          #sidebar{
+            width: auto;
+          }                                
+      }
+
+      section#buttons {
+          display: flex;
+          flex-wrap: nowrap;
+          justify-content: center;
+      }
+
+      .input-group {
+          position: relative;
+          display: flex;
+          flex-wrap: nowrap;
+          line-height: 29px;
+          margin: 5px 0
+      }
+      .info-group {
+          position: relative;                               
+          margin: 5px 0;
+          
+      }
+      .input-group>label {
+          display: inline-block;
+          padding-right: 10px;
+          min-width: 47%;
+      }
+      .input-group>input {
+          width: 100%;
+      }
+
+      .input-group input,.input-group select {
+          flex-grow: 1
+      }
+
+      .range-max,.range-min {
+          display: inline-block;
+          padding: 0 5px;
+      }
+
+      button {
+          min-height: 35px;
+          display: block;
+          margin: 5px;
+          padding: 0 6px;
+          border: 0;
+          line-height: 20px;
+          cursor: pointer;
+          color: var(--buttonText);
+          background: var(--buttonReady);
+          border-radius: 5px;
+          font-size: 16px;
+          outline: 0
+      }
+
+      button:active {
+         box-shadow: 0 0 0 4px var(--buttonActive);
+         background: var(--buttonActive);
+      }
+
+      button:hover {
+          background: var(--buttonHover);
+      }
+
+      button:disabled {
+          cursor: default;
+          background: var(--itemInactive)
+      }
+
+      input[type=range] {
+          -webkit-appearance: none;
+          width: 100%;
+          height: 22px;
+          background: var(--menuBackground);
+          cursor: pointer;
+          margin: 0
+      }
+
+      input[type=range]:focus {
+          outline: 0
+      }
+
+      input[type=range]::-webkit-slider-runnable-track {
+          width: 100%;
+          height: 2px;
+          cursor: pointer;
+          background: var(--inputBackground);
+          border-radius: 0;
+          border: 0 solid var(--inputBackground);
+      }
+
+      input[type=range]::-webkit-slider-thumb {
+          border: 1px solid rgba(0,0,30,0);
+          height: 22px;
+          width: 22px;
+          border-radius: 50px;
+          background: var(--buttonReady);
+          cursor: pointer;
+          -webkit-appearance: none;
+          margin-top: -11.5px
+      }
+
+      input[type=range]:focus::-webkit-slider-runnable-track {
+          background: var(--inputBackground);
+      }
+
+      input[type=range]::-moz-range-track {
+          width: 100%;
+          height: 2px;
+          cursor: pointer;
+          background: var(--inputBackground);
+          border-radius: 0;
+          border: 0 solid var(--inputBackground);
+      }
+
+      input[type=range]::-moz-range-thumb {
+          border: 1px solid rgba(0,0,30,0);
+          height: 22px;
+          width: 22px;
+          border-radius: 50px;
+          background: var(--buttonReady);
+          cursor: pointer
+      }
+
+      input[type=range]::-ms-track {
+          width: 100%;
+          height: 2px;
+          cursor: pointer;
+          background: 0 0;
+          border-color: transparent;
+          color: transparent
+      }
+
+      input[type=range]::-ms-fill-lower {
+          background: var(--inputBackground);
+          border: 0 solid var(--inputBackground);
+          border-radius: 0
+      }
+
+      input[type=range]::-ms-fill-upper {
+          background: var(--inputBackground);
+          border: 0 solid var(--inputBackground);
+          border-radius: 0
+      }
+
+      input[type=range]::-ms-thumb {
+          border: 1px solid rgba(0,0,30,0);
+          height: 22px;
+          width: 22px;
+          border-radius: 50px;
+          background: var(--buttonReady);
+          cursor: pointer;
+          height: 2px
+      }
+
+      input[type=range]:focus::-ms-fill-lower {
+          background: var(--inputBackground)
+      }
+
+      input[type=range]:focus::-ms-fill-upper {
+          background: var(--menuBackground)
+      }
+      
+      input {
+          font:16px 'Courier New';
+          font-weight:bold;
+          color: var(--inputText);
+          background: var(--inputBackground);
+      }
+
+     .configGroup td {
+        border: solid 2px var(--itemBorder);
+      }
+      
+      #applog, #sdlog {
+        font:20px 'Courier New';
+        font-weight:bold;
+        color: var(--inputText);
+        height:90%;
+        width:90%;
+        border:2px solid var(--itemBorder);
+        overflow:auto;
+        background: var(--inputBackground);
+      }
+
+      .switch {
+          display: block;
+          position: relative;
+          line-height: 22px;
+          font-size: 16px;
+          height: 22px
+      }
+
+      .switch input {
+          outline: 0;
+          opacity: 0;
+          width: 0;
+          height: 0
+      }
+
+      .slider {
+          width: 50px;
+          height: 22px;
+          border-radius: 22px;
+          cursor: pointer;
+          background: var(--itemInactive);
+      }
+
+      .slider,.slider:before {
+          display: inline-block;
+          transition: .4s
+      }
+
+      .slider:before {
+          position: relative;
+          content: "";
+          border-radius: 50%;
+          height: 16px;
+          width: 16px;
+          left: 4px;
+          top: 3px;
+          background: var(--inputBackground);
+      }
+
+      input:checked+.slider {
+          background: var(--buttonActive);
+      }
+
+      input:checked+.slider:before {
+          -webkit-transform: translateX(26px);
+          transform: translateX(26px)
+      }
+
+      select {
+          border: 1px solid var(--menuBackground);
+          font-size: 14px;
+          outline: 0;
+          border-radius: 5px
+      }
+
+      .close {
+          position: absolute;
+          right: 5px;
+          top: 5px;
+          background: var(--buttonReady);
+          width: 16px;
+          height: 16px;
+          border-radius: 100px;
+          color: var(--buttonText);
+          text-align: center;
+          line-height: 18px;
+          cursor: pointer
+      }
+      
+      .maximize {
+          position: absolute;
+          right: 25px;
+          top: 5px;
+          background: var(--buttonReady);
+          width: 16px;
+          height: 16px;
+          border-radius: 100px;
+          color: var(--buttonText);
+          text-align: center;
+          line-height: 18px;
+          cursor: pointer
+      }
+      .hidden {
+          display: none
+      }
+      output {
+        position: absolute;
+        top: -32px;
+        display: none;
+        width: 50px;
+        height: 24px;
+        border: 1px solid var(--itemBorder);
+        background: var(--inputBackground);
+        border-radius: 3px;
+        color: var(--itemInactive);
+        font-size: .8em;
+        font-weight: bold;
+        line-height: 24px;
+        text-align: center;
+      }
+
+      .extras {
+          display: none;
+      }
+
+      input[type=range]:active + output {
+        display: block;
+        -webkit-transform: translateX(180px);
+      }
+              
+      .nav-toggle {
+          margin: 0 0 4px 4px;
+          font-size: 120%;
+          display: block;
+          margin-bottom: 12px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid var(--itemBorder);
+      }
+
+      .menu-action {
+        display: none;
+      }
+
+      .menu-action + label + div {
+        padding: 10px 0 0 0;
+        margin: 6px 0 0 0;
+        border-top: 1px solid var(--itemBorder);
+      }
+
+      .menu-action:not(:checked) + label + div 
+      { 
+        display: none; 
+      }
+
+      .sep {
+        border: 1px solid var(--itemBorder);
+        height: 32px;
+        margin: 6px 8px 0 8px;
+      }
+      .vsep {
+        border: 1px solid var(--itemBorder);
+        margin: 10px 2px;
+      }
+
+      .info{
+        margin-top: 2px;
+      }
+      .info-group label {
+        color: var(--itemInactive);
+      }
+      .blinking {
+        animation: blinker 1.5s linear infinite;
+      }
+      #recording-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        padding: 4px;
+        margin: 9px;
+        background: var(--buttonReady);
+        border-radius: 16px;
+        border: 2px solid var(--itemBorder);
+      }
+
+      @keyframes blinker {
+        50% {
+          opacity: .4;
+        }
+      }
+
+      span.fliph {
+          display: inline-block;
+          -moz-transform: scale(-1, 1);
+          -webkit-transform: scale(-1, 1);
+          -o-transform: scale(-1, 1);
+          -ms-transform: scale(-1, 1);
+          transform: scale(-1, 1);
+          filter: fliph; /*IE*/
+      }
+
+      .record {
+      }
+
+      #stream-container {
+          margin: 4px 8px 42px 8px;
+          border: 1px solid var(--itemBorder);
+      }
+
+      .tab {
+        overflow: hidden;
+        background: var(--menuBackground);
+      }
+
+      .tab button {
+        background: var(--buttonReady);
+        float: left;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 14px 16px;
+        transition: 0.3s;
+        font-size: 17px;
+      }
+
+      .tab button.active {
+        box-shadow: 0 0 0 4px var(--buttonActive);
+        background: var(--buttonActive);
+      }
+      
+      .tab button.hover {
+         background: var(--buttonHover);
+      }
+
+      .tabcontent {
+        display: none;
+      }
+      
+     .grid-cols3 {
+        grid-template-columns: 220px 200px 200px;
+      }
+
+     .grid-cols4 {
+        grid-template-columns: 150px 150px 150px 150px
+      }
+      
+      .cfgTitle {
+        grid-column: 1/5;
+        text-align: left;
+      }
+
+      .grid-cols3, .grid-cols4 {
+        display: grid;
+        background: none;
+        text-align: center;
+        font-size: 30px;
+        border: 0px solid var(--itemBorder);
+        dominant-baseline: middle;
+        text-anchor: middle;
+      }
+      
+      rect {
+         fill: var(--buttonReady);
+         width: 100%;
+         height: 100%; 
+         x: 0;
+         y: 0;
+         rx: 5%;
+       }
+      
+      rect:active {
+        fill: var(--buttonActive);
+      }
+      
+      rect:hover{
+        fill: var(--buttonHover);
+      }
+    
+      text {
+        pointer-events: none;
+      }
+      
+
+    </style>
+  </head>
+  
+  <body>
     <div class="tab">
       <button class="tablinks active">Camera</button>
       <button class="tablinks">Show Log</button>
@@ -553,25 +748,39 @@
       <button class="tablinks">OTA Upload</button>
     </div>
     <div id="Camera" class="tabcontent" style="display:block">
-        <section id="main">
-            <section id="header">
-              <section id="title">
-                <h2 id="page-title">ESP32-CAM_AVI2SD</h2>&nbsp;
-                <h6 id="fw_version" class="default-action displayonly"></h6>
-              </section>
-              <nav id="maintoolbar">
-              	<ul class="navtop">
-                  <li><button id="forceRecord" class="default-action" style="float:right;">Record</button></li>
-                  <li><button id="get-still" style="float:right;">Get Still</button></li>
-                  <li><button id="toggle-stream" style="float:right;">Start Stream</button></li>
-                </ul>  
-              </nav>
-            </section>          
-            <div id="content">
-                <div id="sidebar">
-                    <nav class="menu">                                                                
-                        <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
-                        <label for="control-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
+      <section id="main">
+        <section id="header">
+          <section id="title">
+            <h2 id="page-title">ESP32-CAM_AVI2SD</h2>&nbsp;
+            <h6 id="fw_version" class="default-action displayonly"></h6>
+          </section>
+        <nav id="maintoolbar">
+          <ul class="navtop">
+            <li><span id="recording-indicator" style="float: right; display: none;"></span></li>
+            <li><button id="forceRecord" class="default-action" data-state-recording="false" data-label-active="&#x25FD;&nbsp;Stop Recording" data-label-inactive="<span class='record'>&#x25C9;</span>&nbsp;Start Recording" style="float:right;"><span class="record">&#x25C9;</span>&nbsp;Start Recording</button></li>                  
+            <li><div class="sep"></div></li>
+            <li><button id="forceStream" class="default-action" data-state-streaming-live="false" data-label-active="&#x25FD;&nbsp;Stop Stream" data-label-inactive="<span class='fliph'>&#x25C3;</span>&nbsp;Start Stream" style="float:right;"><span class="fliph">&#x25C3;</span>&nbsp;Start Stream</button></li>
+            <li><button id="get-still" style="float:right;">Get Still</button></li>
+            <li><div class="sep"></div></li>
+            <li><button id="forcePlayback" class="default-action" data-state-streaming-file="false" data-label-active="&#x25FD;&nbsp;Stop Playback" data-label-inactive="<span class='fliph'>&#x25C3;</span>&nbsp;Start Playback" style="float:right;" disabled="disabled" title="Select a video in 'Playback & File Transfers' to activate playback."><span class="fliph">&#x25C3;</span>&nbsp;Start Playback</button></li>
+          </ul>
+        </nav>
+      </section>
+      <div id="content">
+        <div id="sidebar">
+          <div id="menu-container" class="menu-pinned">
+            <nav id="menu-selector" class="menu-pinned menu-closed">
+              <nav class="quick-nav" data-target="#camera-control">&#x1F4F7;</nav>
+              <nav class="quick-nav" data-target="#motion-record">&#x1F440;</nav>
+              <nav class="quick-nav" data-target="#playback-transfers">&#x1F3A5;</nav>
+              <nav class="quick-nav" data-target="#picture-settings">&#x1F4FA;</nav>
+              <nav class="quick-nav" data-target="#access-settings">&#x1F527;</nav>
+            </nav>
+            <div id="menu-top" class="menu-pinned">
+              <nav class="menu panel" id="camera-control">
+                <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
+                <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
+                <label for="control-cb" class="nav-toggle">&#x1F4F7;&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
                         <div>                    
                           <div class="input-group" id="framesize-group">
                               <label for="framesize">Resolution</label>
@@ -606,544 +815,569 @@
                               <output name="rangeVal">10</output>
                               <div class="range-max">63</div>
                           </div>                          
-                           <div class="input-group" id="debugging-group">
-                              <label for="wsMode" title="Enable logging to websocket">Log to WS</label>
-                              <div class="switch">
-                                  <input id="wsMode" type="checkbox">
-                                  <label title="Output log to WS" class="slider" for="wsMode"></label>
-                              </div>   
-                           </div>           
-                           <div class="input-group" id="debugging-group">
-                              <label for="logMode" title="Enable logging to sd card">Log to SD</label>
-                              <div class="switch">
-                                  <input id="logMode" type="checkbox" class="default-action">
-                                  <label title="Output log to SD" class="slider" for="logMode"></label>
-                              </div>   
-                           </div>                           
-                           <div class="input-group" id="dbg-group">
-                              <label for="dbgVerbose">Verbose</label>
-                              <div class="switch">
-                                  <input id="dbgVerbose" type="checkbox" class="default-action">
-                                  <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="sfiles-group" style="display: grid;">
-                            <label for="sfiles">Select folder / file</label>                          
-                            <select title="Select sd card file or folder" id="sfile" style="font-size: 11px;">
-                              <option value="None" selected="selected">-- Select --</option>
-                              <option value="/">Get Folders</option>
-                            </select>
-                          </div>
-                          <progress id="progressBar" value='0' max='100' class="default-action info"></progress>%
-                          <section id="buttons"><br>
-                            <button title="Download selected file from sd card" id="download" style="float:right; " value="1">Download</button>
-                            <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
-                            <button title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
-                            <button title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
-                          </section><br>
-                          <div class="input-group" id="autoUpload-group">
-                              <label for="autoUpload">Auto upload</label>
-                              <div class="switch">
-                                  <input id="autoUpload" type="checkbox" class="default-action">
-                                  <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
-                              </div>
-                          </div>                              
-                          <div class="input-group" id="micGain-group">
-                              <label for="micGain">Microphone Gain</label>
-                              <div class="range-min">0</div>
-                              <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0" class="default-action">
-                              <output name="rangeVal">0</output>
-                              <div class="range-max">10</div>
-                          </div>                          
-                          <div class="input-group" id="lamp-group">
-                              <label for="enableMotion">Enable motion detect</label>
-                              <div class="switch">
-                                  <input id="enableMotion" type="checkbox" class="default-action">
-                                  <label title="Enable/disable motion detection" class="slider" for="enableMotion"></label>
-                              </div>
-                           </div>
-                          <div class="input-group" id="motion-group">
-                              <label for="motion">Motion Sensitivity</label>
-                              <div class="range-min">1</div>
-                              <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
-                              <output name="rangeVal">7</output>
-                              <div class="range-max">10</div>
-                          </div> 
-                          <div class="input-group" id="minf-group">
-                              <label for="minf">Min Seconds</label>
-                              <div class="range-min">0</div>
-                              <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
-                              <output name="rangeVal">5</output>
-                              <div class="range-max">20</div>
-                         </div>                     
-                          <div class="input-group" id="record-group">
-                              <label for="record">Save Capture</label>
-                              <div class="switch">
-                                  <input id="record" type="checkbox" class="default-action">
-                                  <label title="Enable recording on motion detection" class="slider" for="record"></label>
-                              </div>
-                          </div> 
-                          <div class="input-group" id="dbgMotion-group">
-                              <label for="dbgMotion">Show Motion</label>
-                              <div class="switch">
-                                  <input id="dbgMotion" type="checkbox" class="default-action">
-                                  <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="lswitch-group">
-                              <label for="lswitch">Night Switch</label>
-                              <div class="range-min">0</div>
-                              <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
-                              <output name="rangeVal">10</output>
-                              <div class="range-max">100</div>
-                          </div> 
-                          <div class="input-group" id="lamp-group">
-                              <label for="lamp">Lamp</label>
-                              <div class="switch">
-                                  <input id="lamp" type="checkbox" class="default-action">
-                                  <label title="Control onboard led" class="slider" for="lamp"></label>
-                              </div>
-                           </div>
-                           <div class="input-group" id="lamp-group">
-                              <label for="timeLapseOn">Time Lapse</label>
-                              <div class="switch">
-                                  <input id="timeLapseOn" type="checkbox" class="default-action">
-                                  <label title="Enable time lapse recording" class="slider" for="timeLapseOn"></label>
-                              </div>
-                           </div>
-                           <div class="input-group" id="CamTilt-group">
-                              <label for="camTilt">Camera Tilt</label>
-                              <div class="range-min">0</div>
-                                  <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90" class="default-action">
-                              <output name="rangeVal">90</output>
-                              <div class="range-max">180</div>
-                          </div>
-                          <div class="input-group" id="CamPan-group">
-                              <label for="camPan">Camera Pan</label>
-                              <div class="range-min">0</div>
-                                  <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90" class="default-action">
-                              <output name="rangeVal">90</output>
-                              <div class="range-max">180</div>
-                          </div>
-                          <div class="input-group extras" id="atemp-group">
-                              <label for="atemp">Camera Temp</label>
-                              &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
-                          </div>  
-                       </div>
-                     </nav>
-                     <nav class="menu">                                                                
-                        <input type="checkbox" id="settings-cb" class="menu-action">
-                        <label for="settings-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Camera Settings&nbsp;&nbsp;</label>
-                        <div>
-                          <div class="input-group" id="brightness-group">
-                              <label for="brightness">Brightness</label>
-                              <div class="range-min">-2</div>
-                              <input type="range" id="brightness" min="-2" max="2" value="0" class="default-action">
-                              <output name="rangeVal">0</output>
-                              <div class="range-max">2</div>
-                          </div>
-                          <div class="input-group" id="contrast-group">
-                              <label for="contrast">Contrast</label>
-                              <div class="range-min">-2</div>
-                              <input type="range" id="contrast" min="-2" max="2" value="0" class="default-action">
-                              <output name="rangeVal">0</output>
-                              <div class="range-max">2</div>
-                          </div>
-                          <div class="input-group" id="saturation-group">
-                              <label for="saturation">Saturation</label>
-                              <div class="range-min">-2</div>
-                              <input type="range" id="saturation" min="-2" max="2" value="0" class="default-action">
-                              <output name="rangeVal">0</output>
-                              <div class="range-max">2</div>
-                          </div>
-                          <div class="input-group" id="special_effect-group">
-                              <label for="special_effect">Special Effect</label>
-                              <select id="special_effect" class="default-action">
-                                  <option value="0" selected="selected">No Effect</option>
-                                  <option value="1">Negative</option>
-                                  <option value="2">Grayscale</option>
-                                  <option value="3">Red Tint</option>
-                                  <option value="4">Green Tint</option>
-                                  <option value="5">Blue Tint</option>
-                                  <option value="6">Sepia</option>
-                              </select>
-                          </div>
-                          <div class="input-group" id="awb-group">
-                              <label for="awb">AWB</label>
-                              <div class="switch">
-                                  <input id="awb" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="awb"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="awb_gain-group">
-                              <label for="awb_gain">AWB Gain</label>
-                              <div class="switch">
-                                  <input id="awb_gain" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="awb_gain"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="wb_mode-group">
-                              <label for="wb_mode">WB Mode</label>
-                              <select id="wb_mode" class="default-action">
-                                  <option value="0" selected="selected">Auto</option>
-                                  <option value="1">Sunny</option>
-                                  <option value="2">Cloudy</option>
-                                  <option value="3">Office</option>
-                                  <option value="4">Home</option>
-                              </select>
-                          </div>
-                          <div class="input-group" id="aec-group">
-                              <label for="aec">AEC SENSOR</label>
-                              <div class="switch">
-                                  <input id="aec" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="aec"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="aec2-group">
-                              <label for="aec2">AEC DSP</label>
-                              <div class="switch">
-                                  <input id="aec2" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="aec2"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="ae_level-group">
-                              <label for="ae_level">AE Level</label>
-                              <div class="range-min">-2</div>
-                              <input type="range" id="ae_level" min="-2" max="2" value="0" class="default-action">
-                              <output name="rangeVal">0</output>
-                              <div class="range-max">2</div>
-                          </div>
-                          <div class="input-group" id="aec_value-group">
-                              <label for="aec_value">Exposure</label>
-                              <div class="range-min">0</div>
-                              <input type="range" id="aec_value" min="0" max="1200" value="204" class="default-action">
-                              <output name="rangeVal">204</output>
-                              <div class="range-max">1200</div>
-                          </div>
-                          <div class="input-group" id="agc-group">
-                              <label for="agc">AGC</label>
-                              <div class="switch">
-                                  <input id="agc" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="agc"></label>
-                              </div>
-                          </div>
-                          <div class="input-group hidden" id="agc_gain-group">
-                              <label for="agc_gain">Gain</label>
-                              <div class="range-min">1x</div>
-                              <input type="range" id="agc_gain" min="0" max="30" value="5" class="default-action">
-                              <output name="rangeVal">5</output>
-                              <div class="range-max">31x</div>
-                          </div>
-                          <div class="input-group" id="gainceiling-group">
-                              <label for="gainceiling">Gain Ceiling</label>
-                              <div class="range-min">2x</div>
-                              <input type="range" id="gainceiling" min="0" max="6" value="0" class="default-action">
-                              <output name="rangeVal">0</output>
-                              <div class="range-max">128x</div>
-                          </div>
-                          <div class="input-group" id="bpc-group">
-                              <label for="bpc">BPC</label>
-                              <div class="switch">
-                                  <input id="bpc" type="checkbox" class="default-action">
-                                  <label class="slider" for="bpc"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="wpc-group">
-                              <label for="wpc">WPC</label>
-                              <div class="switch">
-                                  <input id="wpc" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="wpc"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="raw_gma-group">
-                              <label for="raw_gma">Raw GMA</label>
-                              <div class="switch">
-                                  <input id="raw_gma" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="raw_gma"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="lenc-group">
-                              <label for="lenc">Lens Correction</label>
-                              <div class="switch">
-                                  <input id="lenc" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="lenc"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="hmirror-group">
-                              <label for="hmirror">H-Mirror</label>
-                              <div class="switch">
-                                  <input id="hmirror" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="hmirror"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="vflip-group">
-                              <label for="vflip">V-Flip</label>
-                              <div class="switch">
-                                  <input id="vflip" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="vflip"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="dcw-group">
-                              <label for="dcw">DCW (Downsize EN)</label>
-                              <div class="switch">
-                                  <input id="dcw" type="checkbox" class="default-action" checked="checked">
-                                  <label class="slider" for="dcw"></label>
-                              </div>
-                          </div>
-                          <div class="input-group" id="colorbar-group">
-                              <label for="colorbar">Color Bar</label>
-                              <div class="switch">
-                                  <input id="colorbar" type="checkbox" class="default-action">
-                                  <label class="slider" for="colorbar"></label>
-                              </div>
-                          </div>                                                
-                        </div>            
-                    </nav>
-                    <nav class="menu">
-                        <input type="checkbox" id="other-cb" class="menu-action">
-                        <label for="other-cb" class="nav-toggle">&#9776;&nbsp;&nbsp;Other Settings&nbsp;&nbsp;</label>
-                        <div>
-                          <h3>Network settings</h3>
-                          <div class="input-group" id="wifi-group">
-                              <label for "hostName">Host Name</label>
-                              <input id="hostName" name="hostName" length=32 placeholder="Host name" class="default-action">
-                          </div>
-                          <div class="input-group" id="wifi-group">
-                              <label for "ST_SSID">SSID</label>
-                              <input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID" class="default-action">
-                          </div>
-                          <div class="input-group" id="wifi-group">
-                              <label for="ST_Pass">Password</label>
-                              <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
-                          </div>
-                          <h3>Clock settings</h3>
-                          <div class="input-group" id="time-group">
-                             <label for="timezone">Time zone</label>
-                             <input id="timezone" name="timezone" length=64 placeholder="Time zone string" class="default-action">
-                          </div>
-                          <div class="input-group" id="time-group">
-                             <label for="timezoneSel">Time zone select</label>
-                             <select id="timezoneSel" name="timezoneSel">
-                                <option value="" selected>&nbsp;-- Select --</option>
-                                <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
-                                <option value="GMT0BST,M3.5.0/01,M10.5.0/02">Europe/Belfast</option>
-                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
-                                <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London</option>
-                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
-                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
-                                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
-                                <option value="Etc/GMT-12">GMT-12:00</option>
-                                <option value="Etc/GMT-11">GMT-11:00</option>
-                                <option value="Etc/GMT-10">GMT-10:00</option>
-                                <option value="Etc/GMT-9">GMT-9:00</option>
-                                <option value="Etc/GMT-8">GMT-8:00</option>
-                                <option value="Etc/GMT-7">GMT-7:00</option>
-                                <option value="Etc/GMT-6">GMT-6:00</option>
-                                <option value="Etc/GMT-5">GMT-5:00</option>
-                                <option value="Etc/GMT-4">GMT-4:00</option>
-                                <option value="Etc/GMT-3">GMT-3:00</option>
-                                <option value="Etc/GMT-2">GMT-2:00</option>
-                                <option value="Etc/GMT-1">GMT-1:00</option>
-                                <option value="Etc/GMT+0">GMT+0:00</option>
-                                <option value="Etc/GMT-1">GMT+1:00</option>
-                                <option value="Etc/GMT-2">GMT+2:00</option>
-                                <option value="Etc/GMT-3">GMT+3:00</option>
-                                <option value="Etc/GMT-4">GMT+4:00</option>
-                                <option value="Etc/GMT-5">GMT+5:00</option>
-                                <option value="Etc/GMT-6">GMT+6:00</option>
-                                <option value="Etc/GMT-7">GMT+7:00</option>
-                                <option value="Etc/GMT-8">GMT+8:00</option>
-                                <option value="Etc/GMT-9">GMT+9:00</option>
-                                <option value="Etc/GMT-10">GMT+10:00</option>
-                                <option value="Etc/GMT-11">GMT+11:00</option>
-                                <option value="Etc/GMT-12">GMT+12:00</option>                                
-                             </select>
-                          </div>
-                          <div class="input-group extras" id="time-group">
-                              <label for="clockUTC">Camera UTC</label>
-                              <input id="clockUTC" name="clockUTC" length=20 style="max-width:124px" class="default-action">
-                          </div>                          
-                          <h3>Ftp settings</h3>
-                          <div class="input-group" id="ftp-group">
-                              <label for "ftp_server">Ftp Server</label>
-                              <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name" class="default-action">
-                          </div>
-                          <div class="input-group" id="ftp-group">
-                              <label for "ftp_port">Ftp port</label>
-                              <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port" class="default-action">
-                          </div>                          
-                          <div class="input-group" id="ftp-group">
-                              <label for="ftp_user">Ftp user name</label>
-                              <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name" class="default-action">
-                          </div>
-                          <div class="input-group" id="ftp-group">
-                              <label for="ftp_pass">Ftp password</label>
-                              <input id="ftp_pass" name="ftp_pass" length=32 placeholder="Ftp password" class="default-action">
-                          </div>
-                          <div class="input-group" id="ftp-group">
-                              <label for="ftp_wd">Ftp root dir</label>
-                              <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory" class="default-action">
-                          </div>                          
-                          <br>
-                          <h3>SMTP settings</h3>
-                          <div class="input-group" id="smtp-group">
-                              <label for "smtp_server">SMTP server</label>
-                              <input id="smtp_server" name="smtp_server" length=32 placeholder="smtp server name" class="default-action">
-                          </div>
-                          <div class="input-group" id="smtp-group">
-                              <label for "smtp_port">SMTP port</label>
-                              <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port" class="default-action">
-                          </div>                          
-                          <div class="input-group" id="smtp-group">
-                              <label for="smtp_login">SMTP login</label>
-                              <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email" class="default-action">
-                          </div>
-                          <div class="input-group" id="smtp-group">
-                              <label for="smtp_pass">SMTP password</label>
-                              <input id="smtp_pass" name="smtp_pass" length=32 placeholder="smtp password" class="default-action">
-                          </div>
-                          <div class="input-group" id="smtp-group">
-                              <label for="smtp_email">SMTP email</label>
-                              <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to" class="default-action">
-                          </div>                          
-                          <br>
-                          <h3>Authentication settings</h3>
-                          <div class="input-group" id="auth-group">
-                              <label for="Auth_User">Web login</label>
-                              <input id="Auth_User" name="Auth_User" length=32 placeholder="Authentication user" class="default-action">
-                          </div>
-                          <div class="input-group" id="auth-group">
-                              <label for="Auth_Pass">Web password</label>
-                              <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password" class="default-action">
-                          </div>                         
-                          <br>
-                          <div>
-                            <section id="buttons">
-                              <button id="reboot" style="float:right;">Reboot</button>
-                              <button id="save" style="float:right;">Save</button>
-                              <!-- <button id="format" style="float:right;">Format</button> -->
-                            </section>
-                          </div>   
-                        </div>
-                   </nav>
-                </div>
-                <figure>
-                    <div id="stream-container" class="image-container hidden">
-                        <div class="close" id="close-stream">×</div>
-                        <div class="maximize" id="full-screen">+</div>
-                        <img id="stream" src="">
+                  <div class="input-group" id="micGain-group">
+                    <label for="micGain">Microphone Gain</label>
+                    <div class="range-min">0</div>
+                    <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0" class="default-action">
+                    <output name="rangeVal">0</output>
+                    <div class="range-max">10</div>
+                  </div>
+                  <div class="input-group" id="CamTilt-group">
+                      <label for="camTilt">Camera Tilt</label>
+                      <div class="range-min">0</div>
+                          <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90" class="default-action">
+                      <output name="rangeVal">90</output>
+                      <div class="range-max">180</div>
+                  </div>
+                  <div class="input-group" id="CamPan-group">
+                      <label for="camPan">Camera Pan</label>
+                      <div class="range-min">0</div>
+                          <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90" class="default-action">
+                      <output name="rangeVal">90</output>
+                      <div class="range-max">180</div>
+                  </div>
+                  <div class="input-group" id="lamp-group">
+                    <label for="lamp">Lamp</label>
+                    <div class="switch">
+                      <input id="lamp" type="checkbox" class="default-action">
+                      <label title="Control onboard led" class="slider" for="lamp"></label>
                     </div>
-                </figure>
-            </div>
-            <section id="footer">
-                <div class="info-group center" id="llevel-group">
-                    <label for="llevel">Ambient&nbsp;Light</label>
-                    <div id="llevel" class="default-action info displayonly">&nbsp;</div>
+                  </div>
                 </div>
-                <div class="info-group center" id="night-group">
-                    <label for="night">Night&nbsp;Time</label>
-                    <div id="night" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              </nav>
+              <nav class="menu panel" id="picture-settings">                                                   
+                <input type="checkbox" id="settings-cb" class="menu-action">
+                <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
+                <label for="settings-cb" class="nav-toggle">&#x1F4FA;&nbsp;&nbsp;Picture Settings&nbsp;&nbsp;</label>
+                <div>
+                  <div class="input-group" id="brightness-group">
+                    <label for="brightness">Brightness</label>
+                    <div class="range-min">-2</div>
+                    <input type="range" id="brightness" min="-2" max="2" value="0" class="default-action">
+                    <output name="rangeVal">0</output>
+                    <div class="range-max">2</div>
+                  </div>
+                  <div class="input-group" id="contrast-group">
+                    <label for="contrast">Contrast</label>
+                    <div class="range-min">-2</div>
+                    <input type="range" id="contrast" min="-2" max="2" value="0" class="default-action">
+                    <output name="rangeVal">0</output>
+                    <div class="range-max">2</div>
+                  </div>
+                  <div class="input-group" id="saturation-group">
+                    <label for="saturation">Saturation</label>
+                    <div class="range-min">-2</div>
+                    <input type="range" id="saturation" min="-2" max="2" value="0" class="default-action">
+                    <output name="rangeVal">0</output>
+                    <div class="range-max">2</div>
+                  </div>
+                  <div class="input-group" id="special_effect-group">
+                    <label for="special_effect">Special Effect</label>
+                    <select id="special_effect" class="default-action">
+                      <option value="0" selected="selected">No Effect</option>
+                      <option value="1">Negative</option>
+                      <option value="2">Grayscale</option>
+                      <option value="3">Red Tint</option>
+                      <option value="4">Green Tint</option>
+                      <option value="5">Blue Tint</option>
+                      <option value="6">Sepia</option>
+                    </select>
+                  </div>
+                  <div class="input-group" id="awb-group">
+                      <label for="awb">AWB</label>
+                      <div class="switch">
+                          <input id="awb" type="checkbox" class="default-action" checked="checked">
+                          <label class="slider" for="awb"></label>
+                      </div>
+                  </div>
+                  <div class="input-group" id="awb_gain-group">
+                    <label for="awb_gain">AWB Gain</label>
+                    <div class="switch">
+                      <input id="awb_gain" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="awb_gain"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="wb_mode-group">
+                    <label for="wb_mode">WB Mode</label>
+                    <select id="wb_mode" class="default-action">
+                      <option value="0" selected="selected">Auto</option>
+                      <option value="1">Sunny</option>
+                      <option value="2">Cloudy</option>
+                      <option value="3">Office</option>
+                      <option value="4">Home</option>
+                    </select>
+                  </div>
+                  <div class="input-group" id="aec-group">
+                    <label for="aec">AEC SENSOR</label>
+                    <div class="switch">
+                      <input id="aec" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="aec"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="aec2-group">
+                    <label for="aec2">AEC DSP</label>
+                    <div class="switch">
+                      <input id="aec2" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="aec2"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="ae_level-group">
+                    <label for="ae_level">AE Level</label>
+                    <div class="range-min">-2</div>
+                    <input type="range" id="ae_level" min="-2" max="2" value="0" class="default-action">
+                    <output name="rangeVal">0</output>
+                    <div class="range-max">2</div>
+                  </div>
+                  <div class="input-group" id="aec_value-group">
+                    <label for="aec_value">Exposure</label>
+                    <div class="range-min">0</div>
+                    <input type="range" id="aec_value" min="0" max="1200" value="204" class="default-action">
+                    <output name="rangeVal">204</output>
+                    <div class="range-max">1200</div>
+                  </div>
+                  <div class="input-group" id="agc-group">
+                    <label for="agc">AGC</label>
+                    <div class="switch">
+                      <input id="agc" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="agc"></label>
+                    </div>
+                  </div>
+                  <div class="input-group hidden" id="agc_gain-group">
+                    <label for="agc_gain">Gain</label>
+                    <div class="range-min">1x</div>
+                    <input type="range" id="agc_gain" min="0" max="30" value="5" class="default-action">
+                    <output name="rangeVal">5</output>
+                    <div class="range-max">31x</div>
+                  </div>
+                  <div class="input-group" id="gainceiling-group">
+                    <label for="gainceiling">Gain Ceiling</label>
+                    <div class="range-min">2x</div>
+                    <input type="range" id="gainceiling" min="0" max="6" value="0" class="default-action">
+                    <output name="rangeVal">0</output>
+                    <div class="range-max">128x</div>
+                  </div>       
+                  <div class="input-group" id="lenc-group">
+                    <label for="lenc">Lens Correction</label>
+                    <div class="switch">
+                      <input id="lenc" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="lenc"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="hmirror-group">
+                    <label for="hmirror">H-Mirror</label>
+                    <div class="switch">
+                      <input id="hmirror" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="hmirror"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="vflip-group">
+                    <label for="vflip">V-Flip</label>
+                    <div class="switch">
+                      <input id="vflip" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="vflip"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="dcw-group">
+                    <label for="dcw">DCW (Downsize EN)</label>
+                    <div class="switch">
+                      <input id="dcw" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="dcw"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="colorbar-group">
+                    <label for="colorbar">Color Bar</label>
+                    <div class="switch">
+                      <input id="colorbar" type="checkbox" class="default-action">
+                      <label class="slider" for="colorbar"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="bpc-group">
+                    <label for="bpc">BPC</label>
+                    <div class="switch">
+                      <input id="bpc" type="checkbox" class="default-action">
+                      <label class="slider" for="bpc"></label>
+                  </div>
+                  </div>
+                  <div class="input-group" id="wpc-group">
+                    <label for="wpc">WPC</label>
+                    <div class="switch">
+                      <input id="wpc" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="wpc"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="raw_gma-group">
+                    <label for="raw_gma">Raw GMA</label>
+                    <div class="switch">
+                      <input id="raw_gma" type="checkbox" class="default-action" checked="checked">
+                      <label class="slider" for="raw_gma"></label>
+                    </div>
+                  </div>                  
+                </div>            
+              </nav>
+              <nav class="menu panel" id="motion-record">
+                <input type="checkbox" id="motion-cb" class="menu-action">
+                <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
+                <label for="motion-cb" class="nav-toggle">&#x1F4F9;&nbsp;&nbsp;Motion Detect & Recording&nbsp;&nbsp;</label>
+                <div>
+                  <div class="input-group" id="motion-group">
+                    <label for="enableMotion">Enable motion detect</label>
+                    <div class="switch">
+                      <input id="enableMotion" type="checkbox" class="default-action">
+                      <label title="Enable/disable motion detection" class="slider" for="enableMotion"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="motion-group">
+                    <label for="motion">Motion Sensitivity</label>
+                    <div class="range-min">1</div>
+                    <input title="Set motion detection sensitivity" type="range" id="motion" min="1" max="10" value="7" class="default-action">
+                    <output name="rangeVal">7</output>
+                    <div class="range-max">10</div>
+                  </div> 
+                  <div class="input-group" id="minf-group">
+                    <label for="minf">Min Seconds</label>
+                    <div class="range-min">0</div>
+                    <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
+                    <output name="rangeVal">5</output>
+                    <div class="range-max">20</div>
+                  </div>                     
+                  <div class="input-group" id="record-group">
+                      <label for="record">Save Capture</label>
+                      <div class="switch">
+                        <input id="record" type="checkbox" class="default-action">
+                        <label title="Enable recording on motion detection" class="slider" for="record"></label>
+                      </div>
+                  </div> 
+                  <div class="input-group" id="dbgMotion-group">
+                    <label for="dbgMotion">Show Motion</label>
+                    <div class="switch">
+                      <input id="dbgMotion" type="checkbox" class="default-action">
+                      <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="lswitch-group">
+                    <label for="lswitch">Night Switch</label>
+                    <div class="range-min">0</div>
+                    <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
+                    <output name="rangeVal">10</output>
+                    <div class="range-max">100</div>
+                  </div> 
+                  <div class="vsep"></div>
+                  <div class="input-group" id="tlapse-group">
+                    <label for="timeLapseOn">Time Lapse</label>
+                    <div class="switch">
+                      <input id="timeLapseOn" type="checkbox" class="default-action">
+                      <label title="Enable time lapse recording" class="slider" for="timeLapseOn"></label>
+                    </div>
+                  </div>
+                  <div class="input-group extras" id="atemp-group">
+                    <label for="atemp">Camera Temp</label>
+                    &nbsp;<div id="atemp" class="default-action displayonly" name="textonly">&nbsp;</div>
+                  </div>  
                 </div>
-                <div class="info-group center" id="atemp-group">
-                    <label for="atemp">Camera&nbsp;Temp</label>
-                    <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div> 
-                <div class="info-group center" id="batt-group">
-                    <label for="battv">Battery&nbsp;Voltage</label>
-                    <div id="battv" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div> 
-                <div class="info-group center" id="clock-group">
-                    <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
-                    <div id="clock" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              </nav>
+              <nav class="menu panel" id="playback-transfers">
+                <input type="checkbox" id="files-cb" class="menu-action">
+                <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
+                <label for="files-cb" class="nav-toggle">&#x1F3A5;&nbsp;&nbsp;Playback & File Transfers&nbsp;&nbsp;</label>
+                <div>
+                  <div class="input-group" id="sfiles-group" style="display: grid;">
+                    <label for="sfiles">Select folder / file</label>                          
+                    <select title="Select sd card file or folder" id="sfile" size="16" style="font-size: 90%;">
+                      <option value="/#reset" selected="selected">-- Select --</option>
+                      <option value="/">Get Folders</option>
+                      <option value="/#current">List current (today)</option>
+                      <option value="/#previous">List previous (yesterday)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <progress id="progressBar" value='0' max='100' class="default-action info"></progress>%
+                  </div>
+                  <br/>
+                  <section id="buttons">
+                    <button title="Download selected file from sd card" id="download" style="float:right; " value="1">Download</button>
+                    <button title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
+                    <button title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
+                    <button title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
+                  </section>
+                  <br/>
+                  <div class="input-group" id="autoUpload-group">
+                      <label for="autoUpload">Auto upload</label>
+                      <div class="switch">
+                        <input id="autoUpload" type="checkbox" class="default-action">
+                        <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
+                      </div>
+                  </div>
                 </div>
-                <div class="info-group center" id="uptime-group">
-                    <label for="up_time">Up&nbsp;time</label>
-                    <div id="up_time" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div>                                                 
-                <div class="info-group center" id="rssi-group">
-                    <label for="wifi_rssi">Signal&nbsp;Strength</label>
-                    <div id="wifi_rssi" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div>
-                <div class="info-group center" id="heap-group">
-                    <label for="free_heap">Free&nbsp;heap</label>
-                    <div id="free_heap" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              </nav>
+              <nav class="menu panel" id="access-settings">
+                <input type="checkbox" id="other-cb" class="menu-action">
+                <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
+                <label for="other-cb" class="nav-toggle">&#x1F527;&nbsp;&nbsp;Access Settings&nbsp;&nbsp;</label>
+                <div>
+                  <section id="buttons">
+                    <button id="save" style="float:right;">Save settings</button>
+                    <button id="reboot" style="float:right;">Reboot ESP</button>
+                  </section>
                 </div>  
-                <div class="info-group center" id="heap-group">
-                    <label for="free_psram">Free&nbsp;PSRAM</label>
-                    <div id="free_psram" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div>                 
-                <div class="info-group center" id="total-group">
-                    <label for="total_bytes">Total&nbsp;space</label>
-                    <div id="total_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div>                
-                <div class="info-group center" id="used-group">
-                    <label for="used_bytes">Used&nbsp;space</label>
-                    <div id="used_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+                <br/>
+                <div>
+                  <h3>Network settings</h3>
+                  <div class="input-group" id="wifi-group">
+                    <label for="hostName">Host Name</label>
+                    <input id="hostName" name="hostName" length=32 placeholder="Host name" class="default-action">
+                  </div>
+                  <div class="input-group" id="wifi-group">
+                    <label for="ST_SSID">SSID</label>
+                    <input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID" class="default-action">
+                  </div>
+                  <div class="input-group" id="wifi-group">
+                    <label for="ST_Pass">Password</label>
+                    <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
+                  </div>
+                  <br>
+                  <h3>Clock settings</h3>
+                  <div class="input-group" id="time-group">
+                    <label for="timezone">Time zone</label>
+                    <input id="timezone" name="timezone" length=64 placeholder="Time zone string" class="default-action">
+                  </div>
+                  <div class="input-group" id="time-group">
+                    <label for="timezoneSel">Time zone select</label>
+                    <select id="timezoneSel" name="timezoneSel">
+                      <option value="" selected>&nbsp;-- Select --</option>
+                      <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
+                      <option value="GMT-1BST,M3.5.0/01,M10.5.0/02">Europe/Belfast</option>
+                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
+                      <option value="GMT-1BST,M3.5.0/1,M10.5.0">Europe/London</option>
+                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
+                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
+                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
+                      <option value="Etc/GMT-12">GMT-12:00</option>
+                      <option value="Etc/GMT-11">GMT-11:00</option>
+                      <option value="Etc/GMT-10">GMT-10:00</option>
+                      <option value="Etc/GMT-9">GMT-9:00</option>
+                      <option value="Etc/GMT-8">GMT-8:00</option>
+                      <option value="Etc/GMT-7">GMT-7:00</option>
+                      <option value="Etc/GMT-6">GMT-6:00</option>
+                      <option value="Etc/GMT-5">GMT-5:00</option>
+                      <option value="Etc/GMT-4">GMT-4:00</option>
+                      <option value="Etc/GMT-3">GMT-3:00</option>
+                      <option value="Etc/GMT-2">GMT-2:00</option>
+                      <option value="Etc/GMT-1">GMT-1:00</option>
+                      <option value="Etc/GMT+0">GMT+0:00</option>
+                      <option value="Etc/GMT-1">GMT+1:00</option>
+                      <option value="Etc/GMT-2">GMT+2:00</option>
+                      <option value="Etc/GMT-3">GMT+3:00</option>
+                      <option value="Etc/GMT-4">GMT+4:00</option>
+                      <option value="Etc/GMT-5">GMT+5:00</option>
+                      <option value="Etc/GMT-6">GMT+6:00</option>
+                      <option value="Etc/GMT-7">GMT+7:00</option>
+                      <option value="Etc/GMT-8">GMT+8:00</option>
+                      <option value="Etc/GMT-9">GMT+9:00</option>
+                      <option value="Etc/GMT-10">GMT+10:00</option>
+                      <option value="Etc/GMT-11">GMT+11:00</option>
+                      <option value="Etc/GMT-12">GMT+12:00</option>                                
+                    </select>
+                  </div>
+                  <div class="input-group extras" id="time-group">
+                    <label for="clockUTC">Camera UTC</label>
+                    <input id="clockUTC" name="clockUTC" length=20 style="max-width:124px" class="default-action">
+                  </div>
+                  <br>                          
+                  <h3>Ftp settings</h3>
+                  <div class="input-group" id="ftp-group">
+                    <label for="ftp_server">Ftp Server</label>
+                    <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name" class="default-action">
+                  </div>
+                  <div class="input-group" id="ftp-group">
+                    <label for="ftp_port">Ftp port</label>
+                    <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port" class="default-action">
+                  </div>                          
+                  <div class="input-group" id="ftp-group">
+                    <label for="ftp_user">Ftp user name</label>
+                    <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name" class="default-action">
+                  </div>
+                  <div class="input-group" id="ftp-group">
+                    <label for="ftp_pass">Ftp password</label>
+                    <input id="ftp_pass" name="ftp_pass" length=32 placeholder="Ftp password" class="default-action">
+                  </div>
+                  <div class="input-group" id="ftp-group">
+                    <label for="ftp_wd">Ftp root dir</label>
+                    <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory" class="default-action">
+                  </div>                          
+                  <br>
+                  <h3>SMTP settings</h3>
+                  <div class="input-group" id="smtp-group">
+                    <label for="smtp_server">SMTP server</label>
+                    <input id="smtp_server" name="smtp_server" length=32 placeholder="smtp server name" class="default-action">
+                  </div>
+                  <div class="input-group" id="smtp-group">
+                    <label for="smtp_port">SMTP port</label>
+                    <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port" class="default-action">
+                  </div>                          
+                  <div class="input-group" id="smtp-group">
+                    <label for="smtp_login">SMTP login</label>
+                    <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email" class="default-action">
+                  </div>
+                  <div class="input-group" id="smtp-group">
+                    <label for="smtp_pass">SMTP password</label>
+                    <input id="smtp_pass" name="smtp_pass" length=32 placeholder="smtp password" class="default-action">
+                  </div>
+                  <div class="input-group" id="ftp-group">
+                    <label for="smtp_email">SMTP email</label>
+                    <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to" class="default-action">
+                  </div>   
+                  <br>
+                  <h3>Authentication settings</h3>
+                  <div class="input-group" id="auth-group">
+                      <label for="Auth_User">Web login</label>
+                      <input id="Auth_User" name="Auth_User" length=32 placeholder="Authentication user" class="default-action">
+                  </div>
+                  <div class="input-group" id="auth-group">
+                      <label for="Auth_Pass">Web password</label>
+                      <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password" class="default-action">
+                  </div>                      
                 </div>
-                <div class="info-group center" id="free-group">
-                    <label for="free_bytes">Free&nbsp;space</label>
-                    <div id="free_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
-                </div>   
-            </section>                         
-        </section> 
+              </nav>
+              <div id="foot-spacer"></div>
+            </div>
+          </div>
+        </div>
+        <figure>
+            <div id="stream-container" class="image-container hidden">
+                <div class="close" id="close-stream">×</div>
+                <div class="maximize" id="full-screen">#</div>
+                <img id="stream" src="">
+            </div>
+        </figure>
+      </div>
+        <section id="footer">
+          <div class="info-group center" id="llevel-group">
+              <label for="llevel">Ambient&nbsp;Light</label>
+              <div id="llevel" class="default-action info displayonly">&nbsp;</div>
+          </div>
+          <div class="info-group center" id="night-group">
+              <label for="night">Night&nbsp;Time</label>
+              <div id="night" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>
+          <div class="info-group center" id="atemp-group">
+              <label for="atemp">Camera&nbsp;Temp</label>
+              <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div> 
+          <div class="info-group center" id="batt-group">
+              <label for="battv">Battery&nbsp;Voltage</label>
+              <div id="battv" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div> 
+          <div class="info-group center" id="clock-group">
+              <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
+              <div id="clock" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>
+          <div class="info-group center" id="uptime-group">
+              <label for="up_time">Up&nbsp;time</label>
+              <div id="up_time" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>                                                 
+          <div class="info-group center" id="rssi-group">
+              <label for="wifi_rssi">Signal&nbsp;Strength</label>
+              <div id="wifi_rssi" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>
+          <div class="info-group center" id="heap-group">
+              <label for="free_heap">Free&nbsp;heap</label>
+              <div id="free_heap" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>  
+          <div class="info-group center" id="heap-group">
+              <label for="free_psram">Free&nbsp;PSRAM</label>
+              <div id="free_psram" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>                 
+          <div class="info-group center" id="total-group">
+              <label for="total_bytes">Total&nbsp;space</label>
+              <div id="total_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>                
+          <div class="info-group center" id="used-group">
+              <label for="used_bytes">Used&nbsp;space</label>
+              <div id="used_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>
+          <div class="info-group center" id="free-group">
+              <label for="free_bytes">Free&nbsp;space</label>
+              <div id="free_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+          </div>   
+        </section>                         
+      </section> 
     </div>
     
     <div id="ShowLog" class="tabcontent">
-      <br/>
-      <div class="grid-cols2">
+      <br/><br/>
+      <div class="grid-cols3">
+        <div class="input-group" id="debugging-group" style="font-size: 20px; text-align: left">
+          <label for="wsMode" title="Enable logging to websocket">Log to browser:</label>
+          <div class="switch">
+              <input id="wsMode" type="checkbox">
+              <label title="Output log to WS" class="slider" for="wsMode"></label>
+          </div>   
+        </div>
         <div>
           <svg width="150" height="40">
             <rect/>
-            <text id="clearWSlog" x="50%" y="50%" font-size="20" fill="black">Clear WS Log</text>
+            <text id="clearWSlog" x="50%" y="50%" font-size="20" fill="white">Clear WS Log</text>
           </svg>
         </div>
-        <div>
-          &nbsp;
+        <div class="input-group" id="dbg-group" style="font-size: 20px; text-align: left">
+          <label for="dbgVerbose" title="Set verbose logging">Verbose:</label>
+          <div class="switch">
+            <input id="dbgVerbose" type="checkbox" class="default-action">
+            <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
+          </div>
         </div>
       </div>
       <pre id='applog' style="height:50vh;"></pre>
       </br/>
-      <div class="grid-cols2">
+      <div class="grid-cols3">
+        <div class="input-group" id="debugging-group" style="font-size: 20px; text-align: left">
+          <label for="logMode" title="Enable logging to sd card">Log to SD card:</label>
+          <div class="switch">
+              <input id="logMode" type="checkbox" class="default-action">
+              <label title="Output log to SD" class="slider" for="logMode"></label>
+          </div>  
+        </div> 
         <div>
           <svg width="150" height="40">
             <rect/>
-            <text id="clearSDlog" x="50%" y="50%" font-size="20" fill="black">Clear SD Log</text>
+            <text id="clearSDlog" x="50%" y="50%" font-size="20" fill="white">Clear SD Log</text>
           </svg>
         </div>
         <div>
           <svg width="150" height="40">
             <rect/>
-            <text id="refreshSDlog" x="50%" y="50%" font-size="20" fill="black">Retrieve SD Log</text>
+            <text id="refreshSDlog" x="50%" y="50%" font-size="20" fill="white">Retrieve SD Log</text>
           </svg>
         </div>
       </div>
       <pre id='sdlog' style="height:50vh;"></pre>
     </div>
+    
     <div id="EditConfig" class="tabcontent">
       <h2>Control</h2>
       <div class="grid-cols4">
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="save" x="50%" y="50%" font-size="20" fill="black">Save</text>
+            <text id="save" x="50%" y="50%" font-size="20" fill="white">Save</text>
           </svg>
         </div>
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="reset" x="50%" y="50%"font-size="20" fill="black">Reboot ESP</text>
+            <text id="reset" x="50%" y="50%" font-size="20" fill="white">Reboot ESP</text>
           </svg>
         </div>
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="deldata" x="50%" y="50%" font-size="20" fill="black">Reload Spiffs</text>
+            <text id="deldata" x="50%" y="50%" font-size="20" fill="white">Reload /data</text>
           </svg>
         </div>
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="clear" x="50%" y="50%" font-size="20" fill="black">Clear NVS</text>
+            <text id="clear" x="50%" y="50%" font-size="20" fill="white">Clear NVS</text>
           </svg>
         </div>
         <div class="cfgTitle">
@@ -1155,25 +1389,25 @@
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="wifi" x="50%" y="50%" font-size="20" fill="black">Wifi</text>
+            <text id="wifi" x="50%" y="50%" font-size="20" fill="white">Wifi</text>
           </svg>
         </div>
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="motion" x="50%" y="50%" font-size="20" fill="black">Motion</text>
+            <text id="motion" x="50%" y="50%" font-size="20" fill="white">Motion</text>
           </svg>
         </div>
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="peripherals" x="50%" y="50%" font-size="20" fill="black">Peripherals</text>
+            <text id="peripherals" x="50%" y="50%" font-size="20" fill="white">Peripherals</text>
           </svg>
         </div>
         <div>
           <svg width="120" height="40">
             <rect/>
-            <text id="other" x="50%" y="50%" font-size="20" fill="black">Other</text>
+            <text id="other" x="50%" y="50%" font-size="20" fill="white">Other</text>
           </svg>
         </div>
       </div>
@@ -1183,539 +1417,684 @@
     </div>
            
     <div id="OTAUpload" class="tabcontent">
-      <br></br>
+      <br/><br/>
       <form id="upload_form" enctype="multipart/form-data" method="post">
-        <input type="file" name="file1" id="file1" style="background-color:white" onchange="uploadFile()"><br>
-        <br></br>
-        <progress id="progressOta" value="0" max="100" style="width:300px;"></progress>
+        <input type="file" name="file1" id="file1" onchange="uploadFile()">
+        <br/><br/>
+        <progress id="progressOta" value="0" max="100" style="width:300px;"></progress>%
         <h3 id="status"></h3>
         <p id="loaded_n_total"></p>
       </form>
-    </div>        
-  <script>
-//Menu accordion
-$('.menu-action').each(function () {
-  this.addEventListener('click', function(e) {    
-    var clickedID = $(this).prop('id')
-    $('.menu-action').each(function () {
-      if(clickedID != $(this).prop('id')) this.checked=false;
-    });
-  }); 
-});
-
-
-$('input[type="range"]').on('input', function () {
-
-  var control = $(this),
-  controlMin = control.attr('min'),
-  controlMax = control.attr('max'),
-  controlVal = control.val();
-
-  var range = controlMax - controlMin;
-  var position = (controlVal - controlMin) / range * 30;
-  
-  var output = control.next('output');
-  output.
-  css('left', 'calc(' + position + '%)').text(controlVal);
-  
-});
-
-const baseHost = document.location.origin
-
-document.addEventListener('DOMContentLoaded', function (event) {
-
-  setListeners();
-
-  var streamUrl = baseHost + ':81'
-  var timer = null;                  
-  var refreshVal = 5000;
-
-  const hide = el => {
-    el.classList.add('hidden')
-  }
-  const show = el => {
-    el.classList.remove('hidden')
-  }
-
-  const disable = el => {
-    el.classList.add('disabled')
-    el.disabled = true
-  }
-
-  const enable = el => {
-    el.classList.remove('disabled')
-    el.disabled = false
-  }
-
-  const updateValue = (el, value, updateRemote) => {
-    updateRemote = updateRemote == null ? true : updateRemote    
-    let initialValue
-    if (el.type === 'checkbox') {
-      initialValue = el.checked
-      value = !!Number(value);
-      el.checked = value
-    }else if (el.type === 'range') {
-        initialValue = el.value
-        el.value = value          
-        el.parentElement.children.rangeVal.value = value
-    } else {
-      if (el.classList.contains('displayonly')) {
-        el.innerHTML = value       
-      } else {
-        initialValue = el.value
-        el.value = value
-      }
-    }
-
-    if (updateRemote && initialValue !== value) {
-      updateConfig(el);
-    } else if(!updateRemote){
-      if(el.id === "aec"){
-        value ? hide(exposure) : show(exposure)
-      } else if(el.id === "agc"){
-        if (value) {
-          show(gainCeiling)
-          hide(agcGain)
-        } else {
-          hide(gainCeiling)
-          show(agcGain)
+    </div>   
+    <script>
+      // Load script from webserver, as intended, or fallback 
+      // to loading using relative path if that fails (e.g. for local development).
+      function loadScript(url, fallbackUrl, callback = null) {
+        let h = document.getElementsByTagName("head")[0];
+        let s1 = document.createElement("script");
+        let s2 = document.createElement("script");
+        h.appendChild(s1);
+        s1.onerror = () => {
+          h.removeChild(s1);
+          h.appendChild(s2);
+          s2.src = fallbackUrl;
         }
-      } else if(el.id === "forceRecord"){ 
-          if(value){
-            document.getElementById("forceRecord").innerHTML='Stop Recording'
-            document.getElementById("forceRecord").classList.add("blinking")
-          }else{
-            document.getElementById("forceRecord").innerHTML='Record'          
-            document.getElementById("forceRecord").classList.remove("blinking")
-          }
-      } else if(el.id === "clockUTC"){        
-        var uClock = new Date(value.replace(" ","T"));
-        var now = new Date();
-        var nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
-        var timeDiff = Math.abs(nowUTC - uClock.getTime());        
-        console.log("Now: " + now.toISOString() + " browser: " + uClock.toISOString() + " Local time diff to browser: " + timeDiff/100 +" sec");
-        if(timeDiff > 2000){ //2 sec
-          now = new Date();
-          var value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
-          console.log("Sync to time: " + value );
-          const query = `${baseHost}/control?clockUTC=${value}`
-          fetch(query)
-            .then(response => {
-              console.log(`request to ${query} finished, status: ${response.status}`)
-          })
-        }      
-      } else if(el.id === "fw_version"){    
-        document.getElementById("fw_version").innerHTML = "ver: " + value;
-      } else if(el.id === "hostName"){
-        document.title = value;
-        document.getElementById("page-title").innerHTML = value;
-      } else if(el.id === "awb_gain"){
-        value ? show(wb) : hide(wb)
-      }
-    }
-  }
-  
-  function handleErrors(response) {
-    if (!response.ok) {
-      alert(response.statusText);
-    }
-    return response;
-  }
-
-  function updateConfig (el) {
-    let value
-    switch (el.type) {
-      case 'checkbox':
-        value = el.checked ? 1 : 0
-        break
-      case 'range':
-      case 'select-one':
-        value = el.value
-        break
-      case 'button':
-      case 'submit':
-        if(el.value!="1"){ //Delete folder or file, or ftp upload or move
-          value = el.value;        
-        }else{
-          value = '1'
+        if (callback && typeof callback === "function") {
+          s1.onload = s2.onload = () => callback();
         }
-        break
-      case 'text':
-        value = el.value
-        break
-      default:
-        return
-    }
-    
-    const query = `${baseHost}/control?${el.id}=${value}`
-    const encoded = encodeURI(query);
-    //console.log(`Encoded request ${query}`)
-    fetch(encoded)
-      .then(handleErrors)
-      .then(response => {
-        console.log(`request to ${query} finished, status: ${response.status}`)
-    })
-  }
-
-  document
-    .querySelectorAll('.close')
-    .forEach(el => {
-      el.onclick = () => {
-        hide(el.parentNode)
+        s1.src = url;
       }
-    })
-    
-  refresh_status();
-  if(timer == null){
-    setTimeout(refresh_status_quick,refreshVal);
-  } 
-   
-  function refresh_status_quick() {
-    // read initial values
-    clearTimeout(timer);
-    timer = null;
-    fetch(`${baseHost}/status?q`)
-      .then(function (response) {     
-        return response.json()
-      })
-      .then(function (state) {
-        document
-          .querySelectorAll('#footer .default-action, #clockUTC')
-          .forEach(el => {
-            updateValue(el, state[el.id], false)
-          })
-          if(state['isrecord']=='Yes' && document.getElementById("forceRecord").innerHTML=='Record')  updateValue(document.getElementById('forceRecord'), 1, false)
-          if(state['isrecord']=='No' && document.getElementById("forceRecord").innerHTML=='Stop Recording')  updateValue(document.getElementById('forceRecord'), 0, false)
-          refreshVal = state['refreshVal'];
-          timer = setTimeout(refresh_status_quick, refreshVal);
-          document.getElementById('progressBar').value = state['progressBar'];
-      })
-      .catch((e) => {
-        console.log('Error: ', e);
-        timer = setTimeout(refresh_status_quick, refreshVal);
-      });
-  }
-
-
-  function refresh_status() {
-  // read initial values
-  fetch(`${baseHost}/status?`)
-    .then(function (response) {
-      return response.json()
-    })
-    .then(function (state) {
-      document
-        .querySelectorAll('.default-action')
-        .forEach(el => {
-          updateValue(el, state[el.id], false)
-        })
-     })
-     .catch((e) => {
-        console.error('Error: ', e);
-      });
-  }
-
-  const view = document.getElementById('stream')
-  const viewContainer = document.getElementById('stream-container')
-  const forceRecord = document.getElementById('forceRecord')
-  const stillButton = document.getElementById('get-still')
-  const streamButton = document.getElementById('toggle-stream')
-  const closeButton = document.getElementById('close-stream')  
-  const fullScreen= document.getElementById('full-screen') 
-  const uploadButton = document.getElementById('upload')    
-  const uploadMoveButton = document.getElementById('uploadMove')    
-  const downloadButton = document.getElementById('download') 
-  const deleteButton = document.getElementById('delete') 
-  const rebootButton = document.getElementById('reboot')
-  const saveButton = document.getElementById('save')
-  //const formatButton = document.getElementById('format')
-  
-  uploadButton.onclick = () => {
-    updateConfig(uploadButton);
-  }
-  uploadMoveButton.onclick = () => {
-    updateConfig(uploadMoveButton);
-  }  
-  downloadButton.onclick = () => {
-    var downloadBtVal = $('#download').val();    
-    if (downloadBtVal != downloadBtVal.split('.')) window.location.href='/control?download=1';    
-  }
-
-  deleteButton.onclick = () => {
-    var deleteBt = $('#delete');
-    if(!confirm("Are you sure you want to delete " + deleteBt.val() + " from the SD card?"))
-      return false;
       
-    updateConfig(deleteButton);
-    
-    var sid = $('#sfile');
-    sid.find('option:not(:first)').remove(); // remove all except first option
-    sid.append('<option value="/">Get Folders</option>'); 
-  }
-
-  rebootButton.onclick = () => {
-    stopStream();
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "reset" : "1"
+      // The external script and the DOM each set their respective *Loaded flag when loaded
+      // and call init(). Therefore, setup() will only be called once by latest event.
+      let jqLoaded = domLoaded = false;
+      function init() {
+        if (domLoaded && jqLoaded) {
+          setup();
+        }
       }
-    })
-    setTimeout(function () { location.reload(true); }, 10000);
-  }
- 
- saveButton.onclick = () => {
-    const bPlaying = (streamButton.innerHTML == 'Stop Stream')
-    if(bPlaying){
-      stopStream();
-    }
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "save" : "1"
-      },
-      success: function(response) {
-        if(bPlaying) startStream()
+      
+      document.addEventListener("DOMContentLoaded", e => {domLoaded = true; init();})
+      loadScript("web?jquery.min.js", "jquery.min.js", () => {jqLoaded = true; init();});
+      
+      setListeners();
+      const baseHost = document.location.origin
+      const streamUrl = baseHost + ':81';
+      let timer = null;                  
+      let refreshVal = 5000;
+      
+      /**** NEEDS JQUERY *****/
+      function setup() {
+
+        $('input[type="range"]').on('input', function () {
+          var control = $(this),
+          controlMin = control.attr('min'),
+          controlMax = control.attr('max'),
+          controlVal = control.val();
+
+          var range = controlMax - controlMin;
+          var position = (controlVal - controlMin) / range * 30;
+          
+          var output = control.next('output');
+          output.
+          css('left', 'calc(' + position + '%)').text(controlVal);
+        });
+
+        $('nav.quick-nav').click(function() {
+            let a = $($(this).data('target'));
+            a.toggleClass('active');
+            $('nav.panel').not($(this).data('target')).removeClass('active');
+            a.find('.menu-action').prop('checked', true);
+
+            $(this).siblings().removeClass('active');
+            $(this).toggleClass('active');
+            
+            if (!$('nav.panel').hasClass('active')) {
+              $(this).parent().addClass('menu-closed');
+              $(this).parent().removeClass('menu-open');
+            } else {
+              $(this).parent().removeClass('menu-closed');
+              $(this).parent().addClass('menu-open');
+            }
+        });
+
+        $('.pin-menu').click(() => {
+            pinned = $('.menu-pinned');
+            floating = $('.menu-floating');
+            if (pinned.length) {
+                pinned.removeClass('menu-pinned');
+                pinned.addClass('menu-floating');
+            }
+            if (floating.length) {
+                floating.removeClass('menu-floating');
+                floating.addClass('menu-pinned');
+            }
+        });
+
+      const updateValue = (el, value, updateRemote) => {
+        updateRemote = updateRemote == null ? true : updateRemote    
+        el = el instanceof HTMLElement ? el : el[0];
+        let initialValue
+        if (el.type === 'checkbox') {
+          initialValue = el.checked
+          value = !!Number(value);
+          el.checked = value
+        }else if (el.type === 'range') {
+            initialValue = el.value
+            el.value = value          
+            el.parentElement.children.rangeVal.value = value
+        } else {
+          if (el.classList.contains('displayonly')) {
+            el.innerHTML = value       
+          } else {
+            initialValue = el.value
+            el.value = value
+          }
+        }
+        if (updateRemote && initialValue !== value) {
+          updateConfig(el);
+        } else if(!updateRemote){
+          if(el.id === "aec"){
+            value ? exposure.hide() : exposure.show()
+          } else if(el.id === "agc"){
+            if (value) {
+              $(gainCeiling).show()
+              agcGain.hide()
+            } else {
+              gainCeiling.hide()
+              agcGain.show()
+            }
+          } else if(el.id === "forceRecord") { 
+            if (!value) deactivateRecordButton();
+          } else if (el.id === "forcePlayback") {
+            if (!value) deactivatePlaybackButton();
+          } else if(el.id === "clockUTC"){        
+            var uClock = new Date(value.replace(" ","T"));
+            var now = new Date();
+            var nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
+            var timeDiff = Math.abs(nowUTC - uClock.getTime());        
+            //console.log("Now: " + now.toISOString() + " browser: " + uClock.toISOString() + " Local time diff to browser: " + timeDiff/100 +" sec");
+            if(timeDiff > 2000){ //2 sec
+              now = new Date();
+              var value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
+              console.log("Sync to time: " + value );
+              const query = `${baseHost}/control?clockUTC=${value}`
+              fetch(query)
+                .then(response => {
+                  console.log(`request to ${query} finished, status: ${response.status}`)
+              })
+            }      
+          } else if(el.id === "fw_version"){    
+            document.getElementById("fw_version").innerHTML = "ver: " + value;
+          } else if(el.id === "hostName"){
+            document.title = value;
+            document.getElementById("page-title").innerHTML = value;
+          } else if(el.id === "awb_gain"){
+            value ? $(wb).show() : $(wb).hide()
+          }
+        }
       }
-    })
-  }
-  
-	var srcSize = { width: 0, height: 0 };
-  const stopStream = () => {
-    window.stop();
-//    $("#stream-container").css("width",srcSize.width);
-//    $("#stream-container").css("height", srcSize.height);
-//    $("#stream").css("width", srcSize.width);
-//    $("#stream").css("height", srcSize.height);
-    streamButton.innerHTML = 'Start Stream'
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "stopStream": "1"
+      
+      function handleErrors(response) {
+        if (!response.ok) {
+          alert(response.statusText);
+        }
+        return response;
       }
-    })
-  }
 
-  const startStream = () => {
-    show(viewContainer)
-    view.src = `${streamUrl}/stream`
-		
-    streamButton.innerHTML = 'Stop Stream'
-  }
-  view.onload = function () {srcSize = { width: view.width, height: view.height } };
-
-  forceRecord.onclick = () => {    
-    var recOn = 0;
-    if(forceRecord.innerHTML == 'Record'){
-      forceRecord.classList.add("blinking")
-      forceRecord.innerHTML='Stop Recording'
-      var recOn = 1;
-    }else{
-      forceRecord.classList.remove("blinking")
-      forceRecord.innerHTML='Record'
-      var recOn = 0;
-    }
-    
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "forceRecord": recOn
+      function updateConfig (el) {
+        el = el instanceof HTMLElement ? el : el[0];                  
+        let value
+        switch (el.type) {
+          case 'checkbox':
+            value = el.checked ? 1 : 0
+            break
+          case 'range':
+          case 'select-one':
+            value = el.value
+            break
+          case 'button':
+          case 'submit':
+            if(el.value!="1"){ //Delete folder or file, or ftp upload or move
+              value = el.value;        
+            }else{
+              value = '1'
+            }
+            break
+          case 'text':
+            value = el.value
+            break
+          default:
+            return
+        }
+        if(el.id === "framesize"){ 
+          r = el.options[el.selectedIndex].text.split('(')[1].replace(')','').split('x')
+          srcSize = { width: parseInt(r[0]), height: parseInt(r[1]) } 
+          if (encodeURI(fullScreen.html()) === '%C2%A4') 
+            $("#stream-container").css("width", srcSize.width).css("height", srcSize.height );
+        }
+        
+        const query = `${baseHost}/control?${el.id}=${value}`
+        const encoded = encodeURI(query);
+        //console.log(`Encoded request ${query}`)
+        fetch(encoded)
+          .then(handleErrors)
+          .then(response => {
+            console.log(`request to ${query} finished, status: ${response.status}`)
+        })
       }
-    })
-    
-  }  
 
-  stillButton.onclick = () => {
-    stopStream()
-    view.src = `${streamUrl}/stream?random=${Date.now()}`
-    show(viewContainer)
-  }
-  closeButton.onclick = (e) => {
-    stopStream()
-    hide(viewContainer)
-    e.stopPropagation();
-    //Exit from full screen
-    if(fullScreen.innerHTML === '-' || fullScreen.innerHTML === '#'){
-      toggleFullScreen()
-    }
-  }
+      document
+        .querySelectorAll('.close')
+        .forEach(el => {
+          el.onclick = () => {
+            $(el.parentNode).hide();
+          }
+        })
+        
+      refresh_status();
+      if(timer == null){
+        setTimeout(refresh_status_quick,refreshVal);
+      } 
+       
+      function refresh_status_quick() {
+        // read initial values
+        clearTimeout(timer);
+        timer = null;
+        fetch(`${baseHost}/status?q`)
+          .then(function (response) {     
+            return response.json()
+          })
+          .then(function (state) {
+            document
+              .querySelectorAll('#footer .default-action, #maintoolbar .default-action, #clockUTC')
+              .forEach(el => {
+                updateValue(el, state[el.id], false)
+              })
+              if(state['forceRecord'] && forceRecord.data('state-recording')) updateValue(forceRecord, 1, false)
+              else if(!state['forceRecord'] && !forceRecord.data('state-recording')) updateValue(forceRecord, 0, false);
+              refreshVal = state['refreshVal'];
+              timer = setTimeout(refresh_status_quick, refreshVal);
+              document.getElementById('progressBar').value = state['progressBar'];
+          })
+          .catch((e) => {
+            console.log('Error: ', e);
+            timer = setTimeout(refresh_status_quick, refreshVal);
+          });
+      }
 
-  streamButton.onclick = () => {
-    const streamEnabled = streamButton.innerHTML === 'Stop Stream'
-    if (streamEnabled) {
-      stopStream()
-    } else {
-      startStream()
-    }
-  }
-  
-  function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
-    var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-    return { width: srcWidth*ratio, height: srcHeight*ratio };
-  }
-  
-  //Maximize - Minimize player window  
-  function toggleFullScreen(){        
-   if (fullScreen.innerHTML === '+') {     //Maximize
-      srcSize = { width: $("#stream-container").width(), height: $("#stream-container").height() }
-      viewContainer.requestFullscreen()
-      fullScreen.innerHTML = '#' 
-      $("#stream-container").css("width", window.screen.availWidth);
-      $("#stream-container").css("height", window.screen.availHeight);
-      $("#stream").css("width", $("#stream-container").width());
-      $("#stream").css("height", $("#stream-container").height());      
-      //console.log("Max",window.screen.availWidth,window.screen.availHeight);
-   }else  if (fullScreen.innerHTML === '-') {     //Maximized
-      document.exitFullscreen()
-      fullScreen.innerHTML = '+'
-      $("#stream-container").css("width", "auto");
-      $("#stream-container").css("height", "auto");   
-      $("#stream").css("width", "100%");
-      $("#stream").css("height", "auto");  
-    }else{ //Maximize with aspect ratio
-      fullScreen.innerHTML = '-' 
-      var r = calculateAspectRatioFit(srcSize.width,srcSize.height, window.screen.availWidth, window.screen.availHeight)
-      $("#stream-container").css("width",r.width);
-      $("#stream-container").css("height", r.height);
-      $("#stream").css("width", r.width);
-      $("#stream").css("height", r.height);      
-      //console.log("Max asp",srcSize,r);
-    }
 
-}
+      function refresh_status() {
+      // read initial values
+      fetch(`${baseHost}/status?`)
+        .then(function (response) {
+          return response.json()
+        })
+        .then(function (state) {
+          document
+            .querySelectorAll('.default-action')
+            .forEach(el => {
+              updateValue(el, state[el.id], false)
+            })
+         })
+         .catch((e) => {
+            console.error('Error: ', e);
+          });
+      }
 
- //Maximize - Minimize video on click
-  viewContainer.onclick = () => {
-     toggleFullScreen()
-  }
-  //Maximize - Minimize on button click
-  fullScreen.onclick = (e) => {
-    e.stopPropagation();
-    console.log("fullScreen click")
-    toggleFullScreen()
-  }
-  
-  // Attach default on change action
-  document
-    .querySelectorAll('.default-action')
-    .forEach(el => {
-      el.onchange = () => updateConfig(el)
-    })
+      const view = $('#stream')
+      const viewContainer = $('#stream-container')
+      const forceRecord = $('#forceRecord')
+      const recordingIndicator = $('#recording-indicator')                                        
+      const stillButton = $('#get-still')
+      const streamButton = $('#forceStream')
+      const playbackButton = $('#forcePlayback')
+      const closeButton = $('#close-stream')  
+      const fullScreen= $('#full-screen') 
+      const uploadButton = $('#upload')    
+      const uploadMoveButton = $('#uploadMove')    
+      const downloadButton = $('#download') 
+      const deleteButton = $('#delete') 
+      const rebootButton = $('#reboot')
+      const saveButton = $('#save')
+      
+      uploadButton.click(() => {
+        updateConfig(uploadButton);
+      });
+      uploadMoveButton.click(() => {
+        updateConfig(uploadMoveButton);
+      });  
+      downloadButton.click(() => {
+        var downloadBtVal = $('#download').val();    
+        if (downloadBtVal != downloadBtVal.split('.')) window.location.href='/control?download=1';    
+      });
 
-  // Custom actions
-  //Timezone selection
-  const timezoneSel = document.getElementById('timezoneSel')
-  timezoneSel.onchange = () => {
-    var tz = document.getElementById('timezone');
-    if(timezoneSel.options[timezoneSel.selectedIndex].value!=''){
-      tz.value = timezoneSel.options[timezoneSel.selectedIndex].value;    
-      updateConfig(tz)
-    }
-  }
-  
-  // Gain
-  const agc = document.getElementById('agc')
-  const agcGain = document.getElementById('agc_gain-group')
-  const gainCeiling = document.getElementById('gainceiling-group')
-  agc.onchange = () => {
-    updateConfig(agc)
-    if (agc.checked) {
-      show(gainCeiling)
-      hide(agcGain)
-    } else {
-      hide(gainCeiling)
-      show(agcGain)
-    }
-  }
+       deleteButton.click(function() {
+        if(!confirm("Are you sure you want to delete " + $(this).val() + " from the SD card?"))
+          return false;
+          
+        updateConfig(deleteButton);
+        
+        var sid = $('#sfile');
+        sid.find('option:not(:first)').remove(); // remove all except first option
+        sid.append('<option id="del" value="/"List Folders</option>'); 
+      });
 
-  // Exposure
-  const aec = document.getElementById('aec')
-  const exposure = document.getElementById('aec_value-group')
-  aec.onchange = () => {
-    updateConfig(aec)
-    aec.checked ? hide(exposure) : show(exposure)
-  }
-
-  // AWB
-  const awb = document.getElementById('awb_gain')
-  const wb = document.getElementById('wb_mode-group')
-  awb.onchange = () => {
-    updateConfig(awb)
-    awb.checked ? show(wb) : hide(wb)
-  }
-
-  // Logging mode
-  const logMode = document.getElementById('logMode')
-  logMode.onchange = () => { 
-    let lm = logMode.checked ? 1 : 0;
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "logMode": lm
-      },   
-    }); 
-  }
-
-  // framesize
-  const framesize = document.getElementById('framesize')
-  framesize.onchange = () => {
-    updateConfig(framesize)
-    updateFPS()
-  }
-
-  function updateFPS() {
-    // update default FPS to match selected framesize 
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "updateFPS": $('#framesize').val()
-      }, 
-      success: function(response) {
-        // update FPS
-        $.each(response, function(key, value){
-           $('#'+key).val(value); // fps
+      rebootButton.click(function() {
+        stopAll();
+        $.ajax({
+          url: baseHost + '/control',
+          data: {
+            "reset" : "1"
+          }
+        })
+        setTimeout(function () { location.reload(true); }, 10000);
+      });
+     
+      saveButton.click(function() {
+        stopAll();
+        $.ajax({
+          url: baseHost + '/control',
+          data: {
+            "save" : "1"
+          },
+          success: function(response) {
+            if(bPlaying) startStream();
+          }
+        })
+      });
+      
+      var srcSize = { width: 0, height: 0 };
+      const stopStream = () => {
+        const curSize = {width: view.width, height: view.height}
+        window.stop();
+        //Reset to view size
+        $("#stream-container").css("width",curSize.width).css("height", curSize.height);
+        $.ajax({
+          url: baseHost + '/control',
+          data: {
+            "stopStream": "1"
+          }
+        }).then(() => {
+          deactivateStreamButton();
         });
       }
-    }); 
-  }
 
-  // folder / file option list
-  const sfile = document.getElementById('sfile');
-  sfile.onchange = () => {
-    // build option list from json
-    var sid = $('#sfile');
-    var selection = sid.val();    
-    $("*").css("cursor", "wait");
-    document.getElementById('download').value = selection; //Store file path for download
-    document.getElementById('delete').value = selection; //Store file path for delete
-    document.getElementById('upload').value = selection; //Store file path for ftp upload
-    document.getElementById('uploadMove').value = selection; //Store file path for ftp upload move
-    var listItems = '';
-    //Not a file list
-    var pathDir = selection.substring(0,selection.lastIndexOf("/"))
-    if(pathDir=="") sid.find('option:not(:first)').remove(); // remove all except first option
-    $.ajax({
-      url: baseHost + '/control',
-      data: {
-        "sfile": selection
-      },   
-      success: function(response) {
-        // create new option list from json
-        $.each(response, function(key, value){
-          listItems += '<option value="' + key + '">' + value + '</option>';
+      const stopPlayback = () => {
+        const curSize = {width: view.width, height: view.height}
+        window.stop();
+        //Reset to view size
+        $("#stream-container").css("width",curSize.width).css("height", curSize.height);
+        deactivatePlaybackButton();
+        enableStreamButtons();
+        $.ajax({
+          url: baseHost + '/control',
+          data: {
+            "stopStream": "1"
+          }
+        }).then(() => {
+          deactivatePlaybackButton();
+          viewContainer.hide();
         });
-        sid.append(listItems); // small bug - keeps appending Get Folders each time file selected in same folder
-        $("*").css("cursor", "default");
-      },
-      error: function (xhr, ajaxOptions, thrownError) {
-        $("*").css("cursor", "default");
-        console.log(xhr.status);
-      }         
-    }); 
-  }
-});
+      }
+
+        const startStream = () => {
+          activateStreamButton();
+          view.attr('src', `${streamUrl}/stream?source=sensor`);
+        }
+        
+        function stopAll() {
+          if (playbackButton.data('state-streaming-file')) stopPlayback();
+          if (streamButton.data('state-streaming-live')) stopStream();
+          if (forceRecord.data('state-recording')) forceRecordAction();
+        }
+
+        const activatePlaybackButton = () => {
+          if (playbackButton.data('state-streaming-file')) return;
+          playbackButton.data('state-streaming-file', true);
+          playbackButton.html(playbackButton.data('label-active'));
+          playbackButton.addClass("blinking");
+        }
+        
+        const deactivatePlaybackButton = () => {
+          if (!playbackButton.data('state-streaming-file')) return;
+          playbackButton.data('state-streaming-file', false);
+          playbackButton.html(playbackButton.data('label-inactive'));
+          playbackButton.removeClass("blinking");
+          playbackButton.prop("disabled", true);
+        }
+
+        const activateRecordButton = () => {
+          if (forceRecord.data('state-recording')) return;
+          forceRecord.data('state-recording', true);
+          forceRecord.addClass('button-red');
+          forceRecord.html(forceRecord.data('label-active'));
+          recordingIndicator.show();
+          recordingIndicator.addClass("blinking");
+        }
+        
+        const deactivateRecordButton = () => {
+          if (!forceRecord.data('state-recording')) return;
+          forceRecord.data('state-recording', false);
+          forceRecord.removeClass('button-red');
+          forceRecord.html(forceRecord.data('label-inactive'));
+          recordingIndicator.removeClass("blinking");
+          recordingIndicator.hide();
+        }
+
+        const activateStreamButton = () => {
+          if (streamButton.data('state-streaming-live')) return;
+          streamButton.data('state-streaming-live', true);
+          streamButton.html(streamButton.data('label-active'));
+          streamButton.addClass('blinking');
+        }
+        
+        const deactivateStreamButton = () => {
+          if (!streamButton.data('state-streaming-live')) return;
+          streamButton.data('state-streaming-live', false);
+          streamButton.html(streamButton.data('label-inactive'));
+          streamButton.removeClass('blinking');
+        }
+        
+        const startPlayback = () => {
+          view.attr('src', `${streamUrl}/stream?source=file`);
+          activatePlaybackButton()
+        }
+
+        const disableStreamButtons = () => {
+          stillButton.prop('disabled', true);
+          streamButton.prop('disabled', true);
+        }
+        
+        const enableStreamButtons = () => {
+          stillButton.prop('disabled', false);
+          streamButton.prop('disabled', false);
+        }
+
+        view.on('load', function() {
+          enableStreamButtons();
+          srcSize = { width: view.width, height: view.height } 
+          if(fullScreen.html() !== '#')
+            $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
+            viewContainer.show();
+        });
+
+        view.on('error', function() {
+          console.log('view error');
+          enableStreamButtons();
+
+        });
+
+        view.on('abort', function() {
+          console.log('view abort ');
+          enableStreamButtons();
+        });
+
+        forceRecord.click(function() {    
+          forceRecordAction();
+        });
+        
+        function forceRecordAction() {
+          var recOn = 0;
+          if( !forceRecord.data('state-recording')) {
+            stopAll();
+            activateRecordButton();
+            forceRecord.prop('disabled', true);
+            var recOn = 1;
+          } else {
+            deactivateRecordButton();
+            var recOn = 0;
+          }
+        
+          $.ajax({
+            url: baseHost + '/control',
+            data: {
+              "forceRecord": recOn
+            }
+          }).then(function() {
+            forceRecord.prop('disabled', false);
+          })
+        }
+        
+        stillButton.click(() => {
+          stopAll();
+          view.attr('src', `${streamUrl}/stream?random=${Date.now()}`);
+        });
+
+        closeButton.click((e) => {
+          stopStream();
+          viewContainer.hide()
+          e.stopPropagation();
+          //Exit from full screen
+          if(fullScreen.html() === '-' || fullScreen.html() === '#'){
+            toggleFullScreen()
+          }
+        });
+
+        streamButton.click(function() {
+          const streamEnabled = $(this).data('state-streaming-live');
+          if (streamEnabled) {
+            stopStream();
+            viewContainer.hide();
+          } else {
+            stopAll();
+            startStream();
+          }
+        });
+        
+        playbackButton.click(() => {
+          const streamEnabled = playbackButton.data('state-streaming-file');
+          if (streamEnabled) {
+            stopPlayback();
+          } else {
+            stopAll();
+            startPlayback();
+          }
+        });
+        
+        function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+          var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+          return { width: srcWidth*ratio, height: srcHeight*ratio };
+        }
+        
+        //Resize player window,  #. Maximized - 2. Original - 3. Fullscreen aspect - 4. Fullscreen 
+        function toggleFullScreen() {        
+        if (fullScreen.html() === '#') { //Maximized -> Original 
+            $("#stream-container").css("width", srcSize.width).css("height", srcSize.height);
+            fullScreen.html('&curren;')
+        } else if (encodeURI(fullScreen.html()) === '%C2%A4') { //Original -> Fullscreen aspect
+            viewContainer[0].requestFullscreen()
+            var r = calculateAspectRatioFit(srcSize.width, srcSize.height, window.screen.availWidth, window.screen.availHeight)
+            $("#stream-container").css("width",r.width).css("height", r.height);
+            $("#stream").css("width","100%").css("height","auto")
+            fullScreen.html('&rect;')
+        } else if (encodeURI(fullScreen.html()) === '%E2%96%AD') { //Fullscreen aspect -> Fullscreen       
+            $("#stream-container").css("width", window.screen.availWidth).css("height", window.screen.availHeight);
+            $("#stream").css("width","100%").css("height","100%")
+            fullScreen.html('-')
+          } else { //Fullscreen -> Maximized
+            document.exitFullscreen()
+            $("#stream-container").css("width", "100%").css("height", "auto");
+            fullScreen.html('#')
+          }
+        }
+
+      //Maximize - Minimize video on click
+        viewContainer.click(() => {
+          toggleFullScreen()
+        });
+        //Maximize - Minimize on button click
+        fullScreen.click((e) => {
+          e.stopPropagation();
+          console.log("fullScreen click")
+          toggleFullScreen()
+        });
+      
+        // Attach default on change action
+        document
+          .querySelectorAll('.default-action')
+          .forEach(el => {
+            el.onchange = () => updateConfig(el)
+          })
+
+        // Custom actions
+        //Timezone selection
+        const timezoneSel = document.getElementById('timezoneSel')
+        timezoneSel.onchange = () => {
+          var tz = document.getElementById('timezone');
+          if(timezoneSel.options[timezoneSel.selectedIndex].value!=''){
+            tz.value = timezoneSel.options[timezoneSel.selectedIndex].value;    
+            updateConfig(tz)
+          }
+        }
+        
+          // Gain
+          const agc = $('#agc');
+          const agcGain = $('#agc_gain-group');
+          const gainCeiling = $('#gainceiling-group');
+          agc.change(function() {
+            updateConfig(agc)
+            if (agc.prop('checked')) {
+              gainCeiling.show();
+              agcGain.hide();
+            } else {
+              gainCeiling.hide();
+              agcGain.show();
+            }
+          });
+
+          // Exposure
+          const aec = $('#aec');
+          const exposure = $('#aec_value-group');
+          aec.change(function() {
+            updateConfig($(this))
+            $(this).prop('checked') ? exposure.hide() : exposure.show()
+          });
+
+          // AWB
+          const awb = $('#awb_gain');
+          const wb = $('#wb_mode-group');
+          awb.change(function() {
+            updateConfig(awb)
+            awb.prop('checked') ? wb.show() : wb.hide()
+          });
+
+          // Logging mode
+          const logMode = $('#logMode');
+          logMode.change(function() {
+            let lm = logMode.checked ? 1 : 0;
+            $.ajax({
+              url: baseHost + '/control',
+              data: {
+                "logMode": lm
+              },   
+            }); 
+          });
 
 
+          // framesize
+          const framesize = $('#framesize');
+          framesize.change(function() {
+            updateConfig(framesize)
+            updateFPS();
+          });
+
+        function updateFPS() {
+          // update default FPS to match selected framesize 
+          $.ajax({
+            url: baseHost + '/control',
+            data: {
+              "updateFPS": $('#framesize').val()
+            }, 
+            success: function(response) {
+              // update FPS
+              $.each(response, function(key, value){
+                 $('#'+key).val(value); // fps
+              });
+            }
+          }); 
+        }
+
+        // folder / file option list
+        const sfile = document.getElementById('sfile');
+        sfile.onchange = () => {
+          // build option list from json
+          var sid = $('#sfile');
+          var selection = sid.val();    
+          $("*").css("cursor", "wait");
+          document.getElementById('download').value = selection; //Store file path for download
+          document.getElementById('delete').value = selection; //Store file path for delete
+          document.getElementById('upload').value = selection; //Store file path for ftp upload
+          document.getElementById('uploadMove').value = selection; //Store file path for ftp upload move
+          var listItems = '';
+          //Not a file list
+          var pathDir = selection.substring(0,selection.lastIndexOf("/"))
+          if(pathDir=="") sid.find('option:not(:first)').remove(); // remove all except first option
+          if(selection.substr(-4) === '.avi' && !recordingIndicator.data('state-recording')) playbackButton.prop("disabled", false);
+          else playbackButton.prop("disabled", true);
+          $.ajax({
+            url: baseHost + '/control',
+            data: {
+              "sfile": selection
+            },   
+            success: function(response) {
+              // create new option list from json
+              $.each(response, function(key, value){
+                listItems += '<option value="' + key + '">' + value + '</option>';
+              });
+              sid.append(listItems); // small bug - keeps appending Get Folders each time file selected in same folder
+              $("*").css("cursor", "default");
+            },
+            error: function (xhr, ajaxOptions, thrownError) {
+              $("*").css("cursor", "default");
+              console.log(xhr.status);
+            }         
+          }); 
+        }
+      };
+      
+      /***** NON JQUERY *****/
+      
       /*********** tab management ***********/
 
       const wsServer = "ws://" + document.location.host + ":80/ws";
@@ -1733,6 +2112,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         ws.onopen = onWSopen;
         ws.onclose = onWSclose;
         ws.onmessage = onWSmessage; 
+        ws.onerror = onWSerror;
       }
       
       // connect to websocket server
@@ -1747,6 +2127,10 @@ document.addEventListener('DOMContentLoaded', function (event) {
       
       function onWSclose(event) {
         addLogLine("Disconnected");
+      }
+      
+      function onWSerror(event) {
+        addLogLine("Websocket error");
       }
       
       /*********** page layout functions ***********/
@@ -1871,7 +2255,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         _('#sdlog').innerHTML = logData; 
         } else console.log(response.status); 
       }
-
+    
       /*********** OTA functions ***********/
        
       async function uploadFile() {
@@ -1914,7 +2298,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
         _("#status").innerHTML = "Upload Aborted";
         _("#progressOta").value = 0;
       }
-      </script>        
-    </body>
+    </script>    
+  </body>
 </html>
 
