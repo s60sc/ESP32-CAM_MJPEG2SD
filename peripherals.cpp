@@ -5,6 +5,7 @@
 // - servos, eg camera pan / tilt
 // - DS18B20 temperature sensor
 // - battery voltage measurement
+// - lamp led driver (PWM or WS2812)
 //
 // Peripherals can be hosted directly on the client ESP, or on
 // a separate IO Extender ESP if the client ESP has limited free 
@@ -13,19 +14,17 @@
 // so interrupt driven input pins should be monitored internally by the client.
 // Peripherals that need a clocked data stream such as microphones are not suitable
 //
+// Pin numbers must be > 0.
+//
 // The client and extender must be compiled with the same version of 
 // the peripherals.cpp and have compatible configuration settings
 //
 // s60sc 2022
 
-#include "globals.h"
+#include "appGlobals.h"
 
-// following peripheral requires additional libraries - see peripherals.cpp
+// following peripheral requires additional libraries: OneWire and DallasTemperature
 //#define INCLUDE_DS18B20 // uncomment to include DS18B20 temp sensor if fitted
-
-#ifndef IS_ESP32_C3 // ESP32 ADC not compatible with ESP32-C3
-//#define INCLUDE_VOLTAGE // uncomment to include battery voltage monitoring
-#endif
 
 // IO Extender use
 bool useIOextender; // true to use IO Extender, otherwise false
@@ -35,8 +34,10 @@ int uartRxdPin;
 // peripherals used
 bool pirUse; // true to use PIR for motion detection
 bool lampUse; // true to use lamp
+uint8_t lampLevel; // brightness of on board lamp led 
 bool lampAuto; // if true in conjunction with pirUse & lampUse, switch on lamp when PIR activated at night
 bool servoUse; // true to use pan / tilt servo control
+bool voltUse; // true to report on ADC pin eg for for battery
 // microphone cannot be used on IO Extender
 bool micUse; // true to use external I2S microphone 
 
@@ -59,14 +60,8 @@ int servoTiltPin;
 int ds18b20Pin; // if INCLUDE_DS18B20 uncommented
 
 // batt monitoring 
-// only pin 33 can be used on ESP-Cam module as it is the only available analog pin
-int voltPin; // if INCLUDE_VOLTAGE uncommented
-
-// microphone recording - mic.cpp
-// INMP441 I2S microphone pinout, connect L/R to GND for left channel
-int micSckPin; // I2S SCK
-int micWsPin;  // I2S WS
-int micSdPin;  // I2S SD
+// only pin 33 can be used on ESP32-Cam module as it is the only available analog pin
+int voltPin; 
 
 // additional peripheral configuration
 // configure for specific servo model, eg for SG90
@@ -78,7 +73,7 @@ int servoDelay; // control rate of change of servo angle using delay
 
 // configure battery monitor
 int voltDivider; // set battVoltageDivider value to be divisor of input voltage from resistor divider
-                          // eg: 100k / 100k would be divisor value 2
+                 // eg: 100k / 100k would be divisor value 2
 int voltLow; // voltage level at which to send out email alert
 int voltInterval; // interval in minutes to check battery voltage
 
@@ -93,12 +88,6 @@ bool getPIRval() {
   return pirVal; 
 }
  
-void setLamp(bool lampVal) {
-  if (lampUse) {
-    // switch lamp on / off
-    if (!externalPeripheral(lampPin, lampVal)) digitalWrite(lampPin, lampVal); 
-  }
-}
 
 // Control a Pan-Tilt-Camera stand using two servos connected to pins specified above
 
@@ -155,43 +144,55 @@ void setCamTilt(int tiltVal) {
 }
 
 static void prepServos() {
-  ledcSetup(SERVO_PAN_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
-  ledcAttachPin(servoPanPin, SERVO_PAN_CHANNEL);
-  ledcSetup(SERVO_TILT_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
-  ledcAttachPin(servoTiltPin, SERVO_TILT_CHANNEL);
-  xTaskCreate(&servoTask, "servoTask", 1024, NULL, 1, &servoHandle); 
+  if ((servoPanPin < EXTPIN) && servoUse) {
+    if (servoPanPin) {
+      ledcSetup(SERVO_PAN_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
+      ledcAttachPin(servoPanPin, SERVO_PAN_CHANNEL);
+    } else LOG_WRN("No servo pan pin defined");
+    if (servoTiltPin) {
+      ledcSetup(SERVO_TILT_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
+      ledcAttachPin(servoTiltPin, SERVO_TILT_CHANNEL);
+    } else LOG_WRN("No servo tilt pin defined");
 
-  // initial angle
-  setCamPan(90);
-  setCamTilt(90);
-  
-  LOG_INF("Servos available");
+    if (servoPanPin || servoTiltPin) {
+      xTaskCreate(&servoTask, "servoTask", 1024, NULL, 1, &servoHandle); 
+      // initial angle
+      setCamPan(90);
+      setCamTilt(90);
+      LOG_INF("Servos available");
+    } else servoUse = false;
+  }
 }
 
 
 /* Read temperature from DS18B20 connected to pin specified above
- Use Arduino Manage Libraries to install OneWire and DallasTemperature
- DS18B20 is a one wire digital temperature sensor
- Pin layout from flat front L-R: Gnd, data, 3V3.
- Need a 4.7k resistor between 3V3 and data line
- Runs in its own task as there is a 750ms delay to get temperature
+    Use Arduino Manage Libraries to install OneWire and DallasTemperature
+    DS18B20 is a one wire digital temperature sensor
+    Pin layout from flat front L-R: Gnd, data, 3V3.
+    Need a 4.7k resistor between 3V3 and data line
+    Runs in its own task as there is a 750ms delay to get temperature
+
+    If DS18B20 is not present, use ESP internal temperature sensor
 */
 
 #ifdef INCLUDE_DS18B20
 #include <OneWire.h> 
 #include <DallasTemperature.h>
 #endif
-#ifndef IS_ESP32_C3
+#if CONFIG_IDF_TARGET_ESP32
 extern "C" {
 // Use internal on chip temperature sensor (if present)
 uint8_t temprature_sens_read(); // sic
 }
+#elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
+#include "driver/temp_sensor.h"
 #endif
 
 // configuration
 #define NO_TEMP -127
 float dsTemp = NO_TEMP;
 TaskHandle_t DS18B20handle = NULL;
+static bool haveDS18B20 = false;
 
 static void DS18B20task(void* pvParameters) {
 #ifdef INCLUDE_DS18B20
@@ -219,94 +220,161 @@ static void DS18B20task(void* pvParameters) {
 #endif
 }
 
-void prepDS18B20() {
-#ifdef INCLUDE_DS18B20
-  if (ds18b20Pin > 0 && ds18b20Pin < EXTPIN) {
-    xTaskCreate(&DS18B20task, "DS18B20task", 1024, NULL, 1, &DS18B20handle); 
-    LOG_INF("Using DS18B20 sensor");
-  } else LOG_WRN("No DS18B20 pin defined");
+static void prepTemperature() {
+#if defined(INCLUDE_DS18B20)
+  if (ds18b20Pin < EXTPIN) {
+    if (ds18b20Pin) {
+      size_t stacksize = 1024;
+#if CONFIG_IDF_TARGET_ESP32S3
+      stacksize = 1024 * 2;
+#endif
+      xTaskCreate(&DS18B20task, "DS18B20task", stacksize, NULL, 1, &DS18B20handle); 
+      haveDS18B20 = true;
+      LOG_INF("Using DS18B20 sensor");
+    } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
+  }
+#endif
+#if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
+  // setup internal sensor
+  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
+  temp_sensor.dac_offset = TSENS_DAC_L2;  // TSENS_DAC_L2 is default. L4(-40℃ ~ 20℃), L2(-10℃ ~ 80℃) L1(20℃ ~ 100℃) L0(50℃ ~ 125℃)
+  temp_sensor_set_config(temp_sensor);
+  temp_sensor_start();
 #endif
 }
 
-float readDS18B20temp(bool isCelsius) {
-  // return latest read DS18B20 value in celsius (true) or fahrenheit (false), unless error
-  if (ds18b20Pin > 0) externalPeripheral(ds18b20Pin);
-#ifndef IS_ESP32_C3
+float readTemperature(bool isCelsius) {
+  // return latest read temperature value in celsius (true) or fahrenheit (false), unless error
+#if defined(INCLUDE_DS18B20)
+  // use external DS18B20 sensor
+  if (ds18b20Pin) externalPeripheral(ds18b20Pin);
+#endif
+#if CONFIG_IDF_TARGET_ESP32
   // convert on chip raw temperature in F to Celsius degrees
-  else dsTemp = (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present     
+  if (!haveDS18B20) dsTemp = (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present
+#elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
+  if (!haveDS18B20) temp_sensor_read_celsius(&dsTemp); 
 #endif
   return (dsTemp > NO_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 }
 
-/************ battery monitoring ************/
-// Read voltage from battery connected to ADC pin - client peripheral only
-#ifdef INCLUDE_VOLTAGE
 
-#include "esp_adc_cal.h"
-#define DEFAULT_VREF 1100 // if eFuse or two point not available on old ESPs
-static esp_adc_cal_characteristics_t *adc_chars; // holds ADC characteristics
-static const adc_atten_t ADCatten = ADC_ATTEN_DB_11; // attenuation level
-static const adc_unit_t ADCunit = ADC_UNIT_1; // using ADC1
-static const adc_bits_width_t ADCbits = ADC_WIDTH_BIT_11; // ADC bit resolution
-#endif
+/************ battery monitoring ************/
+// Read voltage from battery connected to ADC pin
+// input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
+#define ADC_BITS 12
 float currentVoltage = -1.0; // no monitoring
 
-#ifdef INCLUDE_VOLTAGE
-static adc1_channel_t getADCchannel(int gpioNum) {
-  // the 6 ESP32 pins that can be used for ADC input, in order: 32, 33, 34, 35, 36, 39
-  const adc1_channel_t ADCchannel[] = {ADC1_CHANNEL_4, ADC1_CHANNEL_5, ADC1_CHANNEL_6, ADC1_CHANNEL_7, ADC1_CHANNEL_0, ADC1_CHANNEL_0, ADC1_CHANNEL_0, ADC1_CHANNEL_3}; 
-  return ADCchannel[gpioNum - 32];
-}
-#endif
-
-static void battVoltage() {
-#ifdef INCLUDE_VOLTAGE
-  // get multiple readings of battery voltage from ADC pin and average
-  // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
-  #define NO_OF_SAMPLES 16 // ADC multisampling
-  uint32_t ADCsample = 0;
-  static bool sentEmailAlert = false;
-  for (int j = 0; j < NO_OF_SAMPLES; j++) ADCsample += adc1_get_raw(getADCchannel(voltPin)); 
-  ADCsample /= NO_OF_SAMPLES;
-  // convert ADC averaged pin value to curve adjusted voltage in mV
-  if (ADCsample > 0) ADCsample = esp_adc_cal_raw_to_voltage(ADCsample, adc_chars);
-  currentVoltage = ADCsample * voltDivider / 1000.0; // convert to battery volts
-
-#ifdef INCLUDE_SMTP
-  if (currentVoltage < voltLow && !sentEmailAlert) {
-    sentEmailAlert = true; // only sent once per esp32 session
-    smtpBufferSize = 0; // no attachment
-    char battMsg[20];
-    sprintf(battMsg, "Voltage is %0.1fV", currentVoltage);
-    emailAlert("Low battery", battMsg);
-  }
-#endif
-#endif
+static float getVoltage() {
+  // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
+  return (float)(analogRead(voltPin)) * 3.3 * voltDivider / pow(2, ADC_BITS);
 }
 
 static void battTask(void* parameter) {
   delay(20 * 1000); // allow time for esp32 to start up
   while (true) {
-    battVoltage();
+    static bool sentEmailAlert = false;
+    if (!externalPeripheral(voltPin)) currentVoltage = getVoltage();
+
+#ifdef INCLUDE_SMTP
+    if (currentVoltage < voltLow && !sentEmailAlert) {
+      sentEmailAlert = true; // only sent once per esp32 session
+      smtpBufferSize = 0; // no attachment
+      char battMsg[20];
+      sprintf(battMsg, "Voltage is %0.2fV", currentVoltage);
+      emailAlert("Low battery", battMsg);
+    }
+#endif
     delay(voltInterval * 60 * 1000); // mins
   }
   vTaskDelete(NULL);
 }
 
-void setupADC() {
-  // Characterise ADC to generate voltage curve for battery monitoring 
-#ifdef INCLUDE_VOLTAGE
-  if (voltPin) {
-    adc1_config_width(ADCbits);
-    adc1_config_channel_atten(getADCchannel(voltPin), ADCatten);
-    adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
-    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADCunit, ADCatten, ADCbits, DEFAULT_VREF, adc_chars);
-    if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {LOG_INF("ADC characterised using eFuse Two Point Value");}
-    else if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {LOG_INF("ADC characterised using eFuse Vref");}
-    else {LOG_INF("ADC characterised using Default Vref");}
-    xTaskCreate(&battTask, "battTask", 2048, NULL, 1, NULL);
+static void setupADC() {
+  if (voltUse && (voltPin < EXTPIN)) {
+    if (voltPin) {
+      analogSetPinAttenuation(voltPin, ADC_11db);
+      analogReadResolution(ADC_BITS);
+      xTaskCreate(&battTask, "battTask", 2048, NULL, 1, NULL);
+      LOG_INF("Monitor batt voltage");
+      debugMemory("setupADC");
+    } else LOG_WRN("No voltage pin defined");
   }
+}
+
+/********************* LED Lamp Driver **********************/
+
+#define RGB_BITS 24  // WS2812 has 24 bit color in RGB order
+#define LAMP_LEDC_CHANNEL 2 // Use channel not required by camera
+#if defined(CAMERA_MODEL_ESP32S3_EYE)
+static rmt_obj_t* rmtWS2812;
+static rmt_data_t ledData[RGB_BITS];
 #endif
+
+void setupLamp() {
+  // setup lamp LED according to board type
+  // assumes led wired as active high (ESP32 signal led on pin 33 is active low)
+  if ((lampPin < EXTPIN) && lampUse) {
+    if (lampPin) {
+#if defined(CAMERA_MODEL_AI_THINKER)
+      // High itensity white led
+      ledcSetup(LAMP_LEDC_CHANNEL, 5000, 4);
+      ledcAttachPin(lampPin, LAMP_LEDC_CHANNEL); 
+      LOG_INF("Setup Lamp Led for ESP32 Cam board");
+
+#elif defined(CAMERA_MODEL_ESP32S3_EYE)
+      // Single WS2812 RGB high intensity led
+      rmtWS2812 = rmtInit(lampPin, true, RMT_MEM_64);
+      if (rmtWS2812 == NULL) LOG_ERR("Failed to setup WS2812 with pin %u", lampPin);
+      else {
+        rmtSetTick(rmtWS2812, 100);
+        LOG_INF("Setup Lamp Led for ESP32S3 Cam board");
+      }
+  
+#else
+      LOG_WRN("Unknown if board has Lamp Led");
+#endif
+    } else {
+      lampUse = false;
+      LOG_WRN("No Lamp Led pin defined");
+    }
+  } 
+}
+
+void setLamp(uint8_t lampVal) {
+  if (lampUse) {
+    lampLevel = lampVal;
+#if defined(CAMERA_MODEL_AI_THINKER)
+    // set lamp brightness using PWM (0 = off, 15 = max)
+    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampLevel);
+
+#elif defined(CAMERA_MODEL_ESP32S3_EYE)
+    // Set white color and apply lampLevel (0 = off, 15 = max)
+    uint8_t RGB[3]; // each color is 8 bits
+    lampVal = lampLevel == 15 ? 255 : lampLevel * 16;
+    for (uint8_t i = 0; i < 3; i++) {
+      RGB[i] = lampVal;
+      // apply WS2812 bit encoding pulse timing per bit
+      for (uint8_t j = 0; j < 8; j++) { 
+        int bit = (i * 8) + j;
+        if ((RGB[i] << j) & 0x80) { // get left most bit first
+          // bit = 1
+          ledData[bit].level0 = 1;
+          ledData[bit].duration0 = 8;
+          ledData[bit].level1 = 0;
+          ledData[bit].duration1 = 4;
+        } else {
+          // bit = 0
+          ledData[bit].level0 = 1;
+          ledData[bit].duration0 = 4;
+          ledData[bit].level1 = 0;
+          ledData[bit].duration1 = 8;
+        }
+      }
+    }
+    rmtWrite(rmtWS2812, ledData, RGB_BITS);
+#endif
+  }
 }
 
 
@@ -318,6 +386,8 @@ void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
   // map received pin number to peripheral
   if (pinNum == pirPin) 
     memcpy(&pirVal, &responseData, sizeof(pirVal));  // set PIR status
+  else if (pinNum == voltPin)
+    memcpy(&currentVoltage, &responseData, sizeof(currentVoltage));  // set current batt voltage
   else if (pinNum == ds18b20Pin)
     memcpy(&dsTemp, &responseData, sizeof(dsTemp));  // set current temperature
   else if (pinNum != lampPin && pinNum != servoPanPin && pinNum != servoTiltPin) 
@@ -327,15 +397,14 @@ void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
   // callback for IO Extender to interact with peripherals
   uint32_t responseData = 0;
+  int ival;
   // map received pin number to peripheral
   if (pinNum == servoTiltPin) {
     // send tilt angle to servo
-    int ival;
     memcpy(&ival, &receivedData, sizeof(ival)); 
     setCamTilt(ival);
   } else if (pinNum == servoPanPin) {
     // send pan angle to servo
-    int ival;
     memcpy(&ival, &receivedData, sizeof(ival)); 
     setCamPan(ival);
   } else if (pinNum == pirPin) {
@@ -344,22 +413,37 @@ uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
     memcpy(&responseData, &bval, sizeof(bval)); 
   } else if (pinNum == lampPin) {
     // set Lamp status
-    bool bval;
-    memcpy(&bval, &receivedData, sizeof(bval)); 
-    setLamp(bval);
+    memcpy(&ival, &receivedData, sizeof(ival)); 
+    setLamp(ival);
   } else if (pinNum == ds18b20Pin) {
     // get current temperature
-    float fval = readDS18B20temp(true);
+    float fval = readTemperature(true);
+    memcpy(&responseData, &fval, sizeof(fval)); 
+  } else if (pinNum == voltPin) {
+    // get current batt voltage
+    float fval = getVoltage();
     memcpy(&responseData, &fval, sizeof(fval)); 
   } else LOG_ERR("Undefined pin number requested: %d ", pinNum);
   return responseData;
 }
 
+static void prepPIR() {
+  if ((pirPin < EXTPIN) && pirUse) {
+    if (pirPin) pinMode(pirPin, INPUT_PULLDOWN); // pulled high for active
+    else {
+      pirUse = false;
+      LOG_WRN("No PIR pin defined");
+    }
+  }
+}
+
 void prepPeripherals() {
   // initial setup of each peripheral on client or extender
+  setupADC();
   prepUart();
-  if ((lampPin < EXTPIN) && lampUse) pinMode(lampPin, OUTPUT);
-  if ((pirPin < EXTPIN) && pirUse) pinMode(pirPin, INPUT_PULLDOWN); // pulled high for active
-  if (ds18b20Pin < EXTPIN) prepDS18B20();
-  if ((servoPanPin < EXTPIN) && servoUse) prepServos();   
+  setupLamp();
+  prepPIR();
+  prepTemperature();
+  prepServos();  
+  debugMemory("prepPeripherals");
 }

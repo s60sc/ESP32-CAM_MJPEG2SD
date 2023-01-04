@@ -2,7 +2,7 @@
 // Assist setup for new app installations
 // original provided by gemi254
 
-#include "globals.h"
+#include "appGlobals.h"
 #include <HTTPClient.h>
 
 // DigiCert valid till 22/10/2028
@@ -42,7 +42,7 @@ Dfvp7OOGAN6dEOM4+qR9sdjoSYKEBpsr6GtPAQw4dy753ec5
 
 static fs::FS fp = STORAGE;
 
-void wgetFile(const char* githubURL, const char* filePath, bool restart) {
+static bool wgetFile(const char* githubURL, const char* filePath, bool restart = false) {
   // download file from github
   if (fp.exists(filePath)) {
     // if file exists but is empty, delete it to allow re-download
@@ -52,7 +52,7 @@ void wgetFile(const char* githubURL, const char* filePath, bool restart) {
     if (!fSize) fp.remove(filePath);
   }
   if (!fp.exists(filePath)) {
-    if (WiFi.status() != WL_CONNECTED) return;  
+    if (WiFi.status() != WL_CONNECTED) return false;  
     char downloadURL[150];
     sprintf(downloadURL, "%s%s", githubURL, filePath);
 ////    for (int i = 0; i < 2; i++) { // secure not working
@@ -86,24 +86,28 @@ void wgetFile(const char* githubURL, const char* filePath, bool restart) {
           if (httpCode == HTTP_CODE_OK) break;
           else fp.remove(filePath);
         }
-      } else LOG_ERR("Open failed: %s", filePath);
+      } else {
+        LOG_ERR("Open failed: %s", filePath);
+        return false;
+      }
     } 
     if (restart) {
       loadConfig();
       doRestart("config file downloaded");
     }
   } 
+  return true;
 }
 
 bool checkDataFiles() {
   // Download any missing data files
   if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
-  wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
-  wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
-  if (USE_JQUERY) wgetFile(GITHUB_URL, DATA_DIR "/jquery.min.js");
-  wgetFile(GITHUB_URL, DATA_DIR "/favicon.ico");
-  appDataFiles();
-  return true;
+  bool res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
+  if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
+  if (USE_JQUERY && res) res = wgetFile(GITHUB_URL, DATA_DIR "/jquery.min.js");
+  if (res) res = wgetFile(GITHUB_URL, DATA_DIR "/favicon.ico");
+  if (res) res = appDataFiles();
+  return res;
 }
 
 const char* defaultPage_html = R"~(
@@ -152,7 +156,7 @@ function Config(){
 </html>
 )~";
 
-// in case app html is corrupted.
+// in case app html is not present, or corrupted
 // <ip address>/web?OTA.htm
 const char* otaPage_html = R"~(
 <html>

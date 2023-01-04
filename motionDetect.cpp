@@ -14,7 +14,7 @@
  s60sc 2020
 */
 
-#include "globals.h"
+#include "appGlobals.h"
 
 using namespace std;
 

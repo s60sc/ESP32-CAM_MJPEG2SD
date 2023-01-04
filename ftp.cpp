@@ -2,13 +2,13 @@
 //
 // s60sc 2022, based on code contributed by gemi254
 
-#include "globals.h"
+#include "appGlobals.h"
 
 // Ftp server params, setup via web page
 char ftp_server[32];
 uint16_t ftp_port = 21;
 char ftp_user[32];
-char ftp_pass[MAX_PWD_LEN];
+char FTP_Pass[MAX_PWD_LEN];
 char ftp_wd[64]; 
 uint8_t percentLoaded = 0;
 
@@ -70,7 +70,7 @@ static bool ftpConnect(){
   }
   if (!sendFtpCommand("", "", "220")) return false;
   if (!sendFtpCommand("USER ", ftp_user, "331")) return false;
-  if (!sendFtpCommand("PASS ", ftp_pass, "230")) return false;
+  if (!sendFtpCommand("PASS ", FTP_Pass, "230")) return false;
   if (!sendFtpCommand("CWD ", ftp_wd, "250")) return false;
   if (!sendFtpCommand("Type I", "", "200")) return false;
   return true;

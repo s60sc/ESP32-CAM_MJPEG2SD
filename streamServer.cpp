@@ -5,7 +5,7 @@
 //
 // contribution from @marekful
 
-#include "globals.h"
+#include "appGlobals.h"
 
 // stream separator
 #define STREAM_CONTENT_TYPE "multipart/x-mixed-replace;boundary=" BOUNDARY_VAL
@@ -153,8 +153,10 @@ if (psramFound()) heap_caps_malloc_extmem_enable(0);
     LOG_INF("Starting streaming server on port: %u", config.server_port);
   } else LOG_ERR("Failed to start streaming server");
 if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
+debugMemory("startStreamserver");
 }
 
-void processAppWSmsg(const char* wsMsg) {
-  // process websocket message & send response if required
-}
+void wsAppSpecificHandler(const char* wsMsg) {
+  // process app specific websocket message & send response if required       
+}  
+ 

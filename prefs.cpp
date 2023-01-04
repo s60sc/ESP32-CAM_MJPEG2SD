@@ -16,13 +16,14 @@
   s60sc 2022
 */
 
-#include "globals.h"
+#include "appGlobals.h"
 
 static fs::FS fp = STORAGE;
 static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
 char* jsonBuff = NULL;
 bool configLoaded = false;
+bool allowSpaces = false;
 
 
 /********************* generic Config functions ****************************/
@@ -40,7 +41,7 @@ static bool getNextKeyVal(char* keyName, char* keyVal) {
   return false;
 }
 
-int getKeyPos(std::string thisKey) {
+static int getKeyPos(std::string thisKey) {
   // get location of given key to retrieve other elements
   if (configs.empty()) return -1;
   auto lower = std::lower_bound(configs.begin(), configs.end(), thisKey, [](
@@ -49,7 +50,7 @@ int getKeyPos(std::string thisKey) {
   );
   int keyPos = std::distance(configs.begin(), lower); 
   if (thisKey == configs[keyPos][0]) return keyPos;
-  else LOG_DBG("Key %s not found", thisKey.c_str());
+  else LOG_DBG("Key %s not found", thisKey.c_str()); 
   return -1; // not found
 }
 
@@ -80,7 +81,7 @@ static bool retrieveConfigVal(const char* variable, char* value) {
   return false; 
 }
 
-static void loadVect(const std::string keyValGrpLabel) {
+static void loadVectItem(const std::string keyValGrpLabel) {
   // extract a config tokens from input and load into configs vector
   // comprises key : val : group : label
   std::string token[4];
@@ -90,11 +91,12 @@ static void loadVect(const std::string keyValGrpLabel) {
     while (std::getline(ss, token[i++], DELIM));
     if (i != 5) LOG_ERR("Unable to parse '%s', len %u", keyValGrpLabel.c_str(), keyValGrpLabel.length());
     else {
-      if (!ALLOW_SPACES) token[1].erase(std::remove(token[1].begin(), token[1].end(), ' '), token[1].end());
+      if (!allowSpaces) token[1].erase(std::remove(token[1].begin(), token[1].end(), ' '), token[1].end());
       if (token[3][token[3].size() - 1] == '\r') token[3].erase(token[3].size() - 1);
       configs.push_back({token[0], token[1], token[2], token[3]});
     }
   }
+  if (configs.size() > MAX_CONFIGS) LOG_WRN("Config file entries: %u exceed max: %u", configs.size(), MAX_CONFIGS);
 }
 
 static void saveConfigVect() {
@@ -104,7 +106,10 @@ static void saveConfigVect() {
   else {
     for (const auto& row: configs) {
       // recreate config file with updated content
-      sprintf(configLine, "%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str());
+      if (!strcmp(row[0].c_str() + strlen(row[0].c_str()) - 5, "_Pass")) 
+        // replace passwords with asterisks
+        sprintf(configLine, "%s%c%.*s%c%s%c%s\n", row[0].c_str(), DELIM, strlen(row[1].c_str()), FILLSTAR, DELIM, row[2].c_str(), DELIM, row[3].c_str());
+      else sprintf(configLine, "%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str());
       file.write((uint8_t*)configLine, strlen(configLine));
     }
     file.close();
@@ -126,7 +131,7 @@ static bool loadConfigVect() {
     while (true) {
       String configLineStr = file.readStringUntil('\n');
       if (!configLineStr.length()) break;
-      loadVect(configLineStr.c_str());
+      loadVectItem(configLineStr.c_str());
     } 
     // sort vector by key (element 0 in row)
     std::sort(configs.begin(), configs.end(), [] (
@@ -148,18 +153,18 @@ static bool savePrefs(bool retain = true) {
   }
   if (!retain) { 
     prefs.clear(); 
-    LOG_ERR("Cleared preferences");
+    LOG_INF("Cleared preferences");
     return true;
   }
-  prefs.putString("st_ssid", ST_SSID);
-  prefs.putString("st_pass", ST_Pass);
-  prefs.putString("ap_pass", AP_Pass); 
-  prefs.putString("auth_pass", Auth_Pass); 
+  prefs.putString("ST_SSID", ST_SSID);
+  prefs.putString("ST_Pass", ST_Pass);
+  prefs.putString("AP_Pass", AP_Pass); 
+  prefs.putString("Auth_Pass", Auth_Pass); 
 #ifdef INCLUDE_FTP          
-  prefs.putString("ftp_pass", ftp_pass);
+  prefs.putString("FTP_Pass", FTP_Pass);
 #endif
 #ifdef INCLUDE_SMTP
-  prefs.putString("smtp_pass", smtp_pass);
+  prefs.putString("SMTP_Pass", SMTP_Pass);
 #endif
   prefs.end();
   LOG_INF("Saved preferences");
@@ -172,21 +177,27 @@ static bool loadPrefs() {
     savePrefs(); // if prefs do not yet exist
     return false;
   }
-  prefs.getString("st_ssid", ST_SSID, 32);
-  prefs.getString("st_pass", ST_Pass, MAX_PWD_LEN);
-  prefs.getString("ap_pass", AP_Pass, MAX_PWD_LEN); 
-  prefs.getString("auth_pass", Auth_Pass, MAX_PWD_LEN); 
+
+  if (!strlen(ST_SSID)) {
+     // first call only after instal
+    prefs.getString("ST_SSID", ST_SSID, MAX_PWD_LEN);
+    updateConfigVect("ST_SSID", ST_SSID);
+  } 
+
+  prefs.getString("ST_Pass", ST_Pass, MAX_PWD_LEN);
+  prefs.getString("AP_Pass", AP_Pass, MAX_PWD_LEN);
+  prefs.getString("Auth_Pass", Auth_Pass, MAX_PWD_LEN); 
 #ifdef INCLUDE_FTP
-  prefs.getString("ftp_pass", ftp_pass, MAX_PWD_LEN);
+  prefs.getString("FTP_Pass", FTP_Pass, MAX_PWD_LEN);
 #endif
 #ifdef INCLUDE_SMTP
-  prefs.getString("smtp_pass", smtp_pass, MAX_PWD_LEN);
+  prefs.getString("SMTP_Pass", SMTP_Pass, MAX_PWD_LEN);
 #endif
   prefs.end();
   return true;
 }
 
-bool updateStatus(const char* variable, const char* _value) {
+void updateStatus(const char* variable, const char* _value) {
   // called from controlHandler() to update app status from changes made on browser
   // or from loadConfig() to update app status from stored preferences
   bool res = true;
@@ -195,29 +206,25 @@ bool updateStatus(const char* variable, const char* _value) {
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strcpy(hostName, value);
   else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID, value);
-  else if(!strcmp(variable, "ST_Pass")) {
-    strcpy(ST_Pass, value);
-    // dont store actual password in configs.txt
-    strncpy(value, FILLSTAR, strlen(value));
-  }
+  else if(!strcmp(variable, "ST_Pass") && strchr(value, '*') == NULL) strcpy(ST_Pass, value);
   else if(!strcmp(variable, "ST_ip")) strcpy(ST_ip, value);
   else if(!strcmp(variable, "ST_gw")) strcpy(ST_gw, value);
   else if(!strcmp(variable, "ST_sn")) strcpy(ST_sn, value);
   else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns1, value);
   else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns2, value);
   else if(!strcmp(variable, "Auth_Name")) strcpy(Auth_Name, value);
-  else if(!strcmp(variable, "Auth_Pass")) {
-    strcpy(Auth_Pass, value);
-    strncpy(value, FILLSTAR, strlen(value));
-  }
+  else if(!strcmp(variable, "Auth_Pass") && strchr(value, '*') == NULL) strcpy(Auth_Pass, value);
+  else if(!strcmp(variable, "AP_ip")) strcpy(AP_ip, value);
+  else if(!strcmp(variable, "AP_gw")) strcpy(AP_gw, value);
+  else if(!strcmp(variable, "AP_sn")) strcpy(AP_sn, value);
+  else if(!strcmp(variable, "AP_Pass") && strchr(value, '*') == NULL) strcpy(AP_Pass, value); 
+  else if(!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
+  else if(!strcmp(variable, "allowSpaces")) allowSpaces = (bool)intVal;
 #ifdef INCLUDE_FTP
   else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server, value);
   else if(!strcmp(variable, "ftp_port")) ftp_port = intVal;
   else if(!strcmp(variable, "ftp_user")) strcpy(ftp_user, value);
-  else if(!strcmp(variable, "ftp_pass")) {
-    strcpy(ftp_pass, value);
-    strncpy(value, FILLSTAR, strlen(value));
-  }
+  else if(!strcmp(variable, "FTP_Pass") && strchr(value, '*') == NULL) strcpy(FTP_Pass, value);
   else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd, value);
 #endif
 #ifdef INCLUDE_SMTP
@@ -225,31 +232,22 @@ bool updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "smtp_login")) strcpy(smtp_login, value);
   else if(!strcmp(variable, "smtp_server")) strcpy(smtp_server, value);
   else if(!strcmp(variable, "smtp_email")) strcpy(smtp_email, value);
-  else if(!strcmp(variable, "smtp_pass")) {
-    strcpy(smtp_pass, value);
-    strncpy(value, FILLSTAR, strlen(value));
-  }
+  else if(!strcmp(variable, "SMTP_Pass") && strchr(value, '*') == NULL) strcpy(SMTP_Pass, value);
   else if(!strcmp(variable, "smtp_port")) smtp_port = intVal;
 #endif
   else if(!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
-  else if(!strcmp(variable, "allowAP")) allowAP = intVal;
-  else if(!strcmp(variable, "AP_Pass")) {
-    strcpy(AP_Pass, value);
-    strncpy(value, FILLSTAR, strlen(value));
-  }
   else if(!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
   else if(!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
   } 
-  else if(!strcmp(variable, "useIOextender")) useIOextender = (bool)intVal; 
   else if(!strcmp(variable, "logMode")) {
     logMode = (bool)intVal; 
     remote_log_init();
   }
   else if(!strcmp(variable, "refreshVal")) refreshVal = intVal * 1000; 
   else if(!strcmp(variable, "resetLog")) reset_log(); 
-  else if(!strcmp(variable, "reset")) res = false;
+  else if(!strcmp(variable, "reset")) doRestart("user requested restart"); 
   else if(!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
   else if(!strcmp(variable, "deldata")) {  
     if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
@@ -260,14 +258,16 @@ bool updateStatus(const char* variable, const char* _value) {
       if (dlen > FILE_NAME_LEN) LOG_ERR("File name %s too long", value);
       else deleteFolderOrFile(delFile);
     }
-    res = false;
+    doRestart("user requested restart after data deletion"); 
   }
   else if (!strcmp(variable, "save")) {
     savePrefs();
     saveConfigVect();
-  } else updateAppStatus(variable, value);
-  updateConfigVect(variable, value);  
-  return res;
+  } else {
+    res = updateAppStatus(variable, value);
+    if (!res) LOG_DBG("Unrecognised config: %s", variable);
+  }
+  if (res) updateConfigVect(variable, value);  
 }
 
 void buildJsonString(uint8_t filter) {
@@ -278,26 +278,28 @@ void buildJsonString(uint8_t filter) {
     // build json string for main page refresh
     buildAppJsonString((bool)filter);
     p += strlen(jsonBuff) - 1;
+    p += sprintf(p, "\"cfgGroup\":\"-1\",");
     if (!filter) {
       // populate first part of json string from config vect
       for (const auto& row : configs) 
         p += sprintf(p, "\"%s\":\"%s\",", row[0].c_str(), row[1].c_str());
-      // stored on NVS 
-      p += sprintf(p, "\"ST_Pass\":\"%.*s\",",strlen(ST_Pass), FILLSTAR);
-      p += sprintf(p, "\"AP_Pass\":\"%.*s\",",strlen(AP_Pass), FILLSTAR);
-      p += sprintf(p, "\"Auth_Pass\":\"%.*s\",",strlen(Auth_Pass), FILLSTAR);
+      // passwords stored in prefs on NVS 
+      p += sprintf(p, "\"ST_Pass\":\"%.*s\",", strlen(ST_Pass), FILLSTAR);
+      p += sprintf(p, "\"AP_Pass\":\"%.*s\",", strlen(AP_Pass), FILLSTAR);
+      p += sprintf(p, "\"Auth_Pass\":\"%.*s\",", strlen(Auth_Pass), FILLSTAR);
   #ifdef INCLUDE_FTP 
-      p += sprintf(p, "\"ftp_pass\":\"%.*s\",",strlen(ftp_pass), FILLSTAR);
+      p += sprintf(p, "\"FTP_Pass\":\"%.*s\",", strlen(FTP_Pass), FILLSTAR);
   #endif
   #ifdef INCLUDE_SMTP
-      p += sprintf(p, "\"smtp_pass\":\"%.*s\",",strlen(smtp_pass), FILLSTAR);
+      p += sprintf(p, "\"SMTP_Pass\":\"%.*s\",", strlen(SMTP_Pass), FILLSTAR);
   #endif
       // other
       p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
     }
   } else {
     // build json string for requested config group
-    uint8_t cfgGroup = filter - 10;
+    uint8_t cfgGroup = filter - 10; // filter number is length of url query string, config group number is length of string - 10
+    p += sprintf(p, "\"cfgGroup\":\"%u\",", cfgGroup);
     for (const auto& row : configs) {
       if (atoi(row[2].c_str()) == cfgGroup) {
         p += sprintf(p, "\"lab%s\":\"%s\",\"%s\":\"%s\",", 
@@ -307,6 +309,15 @@ void buildJsonString(uint8_t filter) {
   }
   *p = 0;
   *(--p) = '}'; // overwrite final comma
+  if (p - jsonBuff >= JSON_BUFF_LEN) LOG_ERR("jsonBuff overrun by: %u bytes", (p - jsonBuff) - JSON_BUFF_LEN);
+}
+
+void initStatus(int cfgGroup, int delayVal) {
+  // update app status for given config group
+  for (const auto& row : configs) {
+    if (atoi(row[2].c_str()) == cfgGroup) updateAppStatus(row[0].c_str(), row[1].c_str());
+    delay(delayVal);
+  }
 }
 
 bool loadConfig() {
@@ -315,40 +326,25 @@ bool loadConfig() {
   if (jsonBuff == NULL) {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
+  loadConfigVect();
+  loadPrefs(); // overwrites any corresponding entries in config
 
-  if (!loadConfigVect()) {
-    loadPrefs();
-    return false;
-  }
-  // set default hostname if config is null
-  AP_SSID.toUpperCase();
+  // set default hostname and AP SSID if config is null
   retrieveConfigVal("hostName", hostName);
   if (!strlen(hostName)) {
-    strcpy(hostName, AP_SSID.c_str());
-    updateStatus("hostName", hostName);
+    sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
+    updateConfigVect("hostName", hostName);
+  }
+  if (!strlen(AP_SSID)) {
+    strcpy(AP_SSID, hostName);
+    updateConfigVect("AP_SSID", AP_SSID);
   }
 
-  // ST_SSID value priority: configs > prefs > hardcoded
-  retrieveConfigVal("ST_SSID", jsonBuff);
-  if (!strlen(jsonBuff)) {
-    // not defined in configs, use retrieved prefs 
-    if (strlen(ST_SSID)) updateConfigVect("ST_SSID", ST_SSID);
-    else {
-      // not in prefs, use hardcoded values
-      updateConfigVect("ST_SSID", ST_SSID);
-      updateConfigVect("ST_ip", ST_ip);
-      updateConfigVect("ST_gw", ST_gw);
-      updateConfigVect("ST_sn", ST_sn);
-      updateConfigVect("ST_ns1", ST_ns1);
-      updateConfigVect("ST_ns1", ST_ns2);
-    }
-  }
   // load variables from stored config vector
   char variable[32] = {0,};
   char value[FILE_NAME_LEN] = {0,};
   while (getNextKeyVal(variable, value)) updateStatus(variable, value);
-  loadPrefs();
-  if (strlen(ST_SSID)) LOG_INF("Using ssid: %s%s %s", ST_SSID, !strlen(ST_ip) ? " " : " with static ip ", ST_ip);
   configLoaded = true;
+  debugMemory("loadConfig");
   return true;
 }

@@ -18,7 +18,7 @@
 //
 // s60sc 2022
 
-#include "globals.h"
+#include "appGlobals.h"
 #include "driver/uart.h"
 
 // UART pins
@@ -30,7 +30,7 @@
 #define MSG_LEN 8 
 
 TaskHandle_t uartClientHandle = NULL;
-static QueueHandle_t uartQueue;
+static QueueHandle_t uartQueue = NULL;
 static SemaphoreHandle_t responseMutex = NULL;
 static SemaphoreHandle_t writeMutex = NULL;
 static uart_event_t uartEvent;
@@ -101,7 +101,7 @@ static void configureUart() {
     .parity    = UART_PARITY_DISABLE,
     .stop_bits = UART_STOP_BITS_1,
     .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-#ifndef IS_ESP32_C3
+#if CONFIG_IDF_TARGET_ESP32
     .source_clk = UART_SCLK_REF_TICK,
 #endif
   };
@@ -156,29 +156,39 @@ bool externalPeripheral(byte pinNum, uint32_t outputData) {
 
 void getPeripheralsRequest() {
   // used by IO Extender to receive peripheral request from client
-  if (readUart()) { 
-    // client data arrived, loaded into uartBuffRx
-    uint32_t receivedData;
-    memcpy(&receivedData, uartBuffRx + 3, 4);
-    // interact with peripheral, supplying any data and receiving response
-    uint32_t responseData = usePeripheral(uartBuffRx[2] - EXTPIN, receivedData); 
-    // write response to client
-    uartBuffTx[2] = uartBuffRx[2];
-    memcpy(uartBuffTx + 3, &responseData, 4);
-    writeUart();
+  if (uartQueue == NULL) {
+    LOG_ERR("Interface UART not defined");
+    delay(30000); // allow time for user to rectify
+  } else {
+    if (readUart()) { 
+      // client data arrived, loaded into uartBuffRx
+      uint32_t receivedData;
+      memcpy(&receivedData, uartBuffRx + 3, 4);
+      // interact with peripheral, supplying any data and receiving response
+      uint32_t responseData = usePeripheral(uartBuffRx[2] - EXTPIN, receivedData); 
+      // write response to client
+      uartBuffTx[2] = uartBuffRx[2];
+      memcpy(uartBuffTx + 3, &responseData, 4);
+      writeUart();
+    }
+    delay(10);
   }
-  delay(10);
 }
 
 void prepUart() {
-  // setup uart if IO_Extender being used, or this is IO_Extender
+  // setup uart if IO_Extender being used, or if this is IO_Extender
   if (useIOextender || IS_IO_EXTENDER) {
-    LOG_INF("Prepare IO Extender");
-    responseMutex = xSemaphoreCreateMutex();
-    writeMutex = xSemaphoreCreateMutex();
-    if (!IS_IO_EXTENDER) xTaskCreate(uartClientTask, "uartClientTask", 2048, NULL, 1, &uartClientHandle);
-    else configureUart();
-    xSemaphoreGive(responseMutex);
-    xSemaphoreGive(writeMutex);
-  } else LOG_INF("IO Extender not used");
+    if (uartTxdPin && uartRxdPin) {
+      LOG_INF("Prepare IO Extender");
+      responseMutex = xSemaphoreCreateMutex();
+      writeMutex = xSemaphoreCreateMutex();
+      if (!IS_IO_EXTENDER) xTaskCreate(uartClientTask, "uartClientTask", 2048, NULL, 1, &uartClientHandle);
+      else configureUart();
+      xSemaphoreGive(responseMutex);
+      xSemaphoreGive(writeMutex);
+    } else {
+      useIOextender = false;
+      LOG_WRN("At least one uart pin not defined");
+    }
+  } 
 }

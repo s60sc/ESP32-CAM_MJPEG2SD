@@ -33,7 +33,7 @@ footer:
   4 byte pcm size
 */
 
-#include "globals.h"
+#include "appGlobals.h"
 
 // avi header data
 const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc

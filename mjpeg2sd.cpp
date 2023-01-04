@@ -6,7 +6,7 @@
 * s60sc 2020, 2022
 */
 
-#include "globals.h"
+#include "appGlobals.h"
 
 // user parameters set from web
 bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
@@ -30,6 +30,7 @@ bool autoUpload = false;  // Automatically upload every created file to remote f
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not        
+uint8_t xclkMhz = 20; // camera clock rate MHz
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -358,7 +359,7 @@ static boolean processFrame() {
     
     if (isCapturing && !wasCapturing) {
       // movement has occurred, start recording, and switch on lamp if night time
-      if (lampAuto && nightTime) setLamp(true); // switch on lamp
+      if (lampAuto && nightTime) setLamp(lampLevel); // switch on lamp
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_INF("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
@@ -379,7 +380,7 @@ static boolean processFrame() {
     if (!isCapturing && wasCapturing) {
       // movement stopped
       finishRecording = true;
-      if (lampAuto) setLamp(false); // switch off lamp
+      if (lampAuto) setLamp(0); // switch off lamp
     }
     wasCapturing = isCapturing;
     LOG_DBG("============================");
@@ -623,10 +624,18 @@ static void playbackTask(void* parameter) {
 
 /******************* Startup ********************/
 
+static void startSDtasks() {
+  // tasks to manage SD card operation
+  xTaskCreate(&captureTask, "captureTask", 1024 * 4, NULL, 5, &captureHandle);
+  xTaskCreate(&playbackTask, "playbackTask", 1024 * 4, NULL, 4, &playbackHandle);
+  sensor_t * s = esp_camera_sensor_get();
+  fsizePtr = s->status.framesize; 
+  setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
+  debugMemory("startSDtasks");
+}
+
 bool prepRecording() {
   // initialisation & prep for AVI capture
-  pinMode(4, OUTPUT);
-  digitalWrite(4, 0); // set pin 4 fully off as sd_mmc library still initialises pin 4 in 1 line mode
   readSemaphore = xSemaphoreCreateBinary();
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
@@ -637,6 +646,7 @@ bool prepRecording() {
     esp_camera_fb_return(fb);
     fb = NULL;
   }
+  startSDtasks();
   LOG_INF("To record new AVI, do one of:");
   if (pirUse) {
     String extStr = (pirPin >= EXTPIN) ? "IO extender" : "";
@@ -645,16 +655,8 @@ bool prepRecording() {
   }
   if (useMotion) LOG_INF("- move in front of camera");
   Serial.println();
+  debugMemory("prepRecording");
   return true;
-}
-
-void startSDtasks() {
-  // tasks to manage SD card operation
-  xTaskCreate(&captureTask, "captureTask", 1024 * 4, NULL, 5, &captureHandle);
-  xTaskCreate(&playbackTask, "playbackTask", 1024 * 4, NULL, 4, &playbackHandle);
-  sensor_t * s = esp_camera_sensor_get();
-  fsizePtr = s->status.framesize; 
-  setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
 }
 
 static void deleteTask(TaskHandle_t thisTaskHandle) {

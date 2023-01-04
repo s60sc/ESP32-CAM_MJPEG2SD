@@ -1,8 +1,13 @@
 # ESP32-CAM_MJPEG2SD
 
-ESP32 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
+ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
  
-Changes for version 7.4 - web page improvements obtained from fork by [@marekful](https://github.com/marekful). The web page colors can be changed in **MJPEG2SD.htm** under `:root`.
+Changes for version 8.0:
+- compiled for arduino-esp32 v2.0.6
+- support for ESP32S3 (much better than ESP32)
+- simultaneous Wifi Station and AP mode
+- lamp has variable intensity
+- internal code restructuring.
 
 ## Purpose
 
@@ -22,16 +27,18 @@ CIF | 50 | 40 | 110
 HVGA | 50 | 40 | 130
 VGA | 25 | 20 |  80
 SVGA | 25 | 20 | 120
-XGA | 6.25 | 5 | 180
-HD | 6.25 | 5 | 220
-SXGA | 6.25 | 5 | 300
-UXGA | 6.25 | 5 | 450
+XGA | 12.5 | 5 | 180
+HD | 12.5 | 5 | 220
+SXGA | 12.5 | 5 | 300
+UXGA | 12.5 | 5 | 450
+
+The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs the app about double the speed of the ESP32 mainly due to much faster PSRAM. It can record at the maximum OV2640 frame rates including audio for all frame sizes except UXGA (max 10fps).
 
 ## Design
 
 The application was originally based on the Arduino CameraWebServer example but has since been extensively modified, including contributions made by [@gemi254](https://github.com/gemi254).
 
-The ESP32 Cam module has 4MB of pSRAM which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
+The ESP32 Cam module has 4MB of PSRAM which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
 The AVI files are named using a date time format **YYYYMMDD_HHMMSS** with added frame size, recording rate, duration and frame count, eg **20200130_201015_VGA_15_60_900.avi**, and stored in a per day folder **YYYYMMDD**. If audio is included the filename ends with **_S**.  
 The ESP32 time is set from an NTP server or connected browser client.
@@ -39,15 +46,20 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
-Select the required ESP-CAM board using `CAMERA_MODEL_` in `globals.h` 
-Compile with Partition Scheme: `Minimal SPIFFS (...)`.  and with PSRAM enabled.
+Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless using the defaults:
+* ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
+* ESP32S3 Cam board - `CAMERA_MODEL_ESP32S3_EYE`
+
+Compile with PSRAM enabled and the following Partition scheme:
+* ESP32 - `Minimal SPIFFS (...)`
+* ESP32S3 - `8M with spiffs (...)`
 
 **NOTE: If you get compilation errors you need to update your `arduino-esp32` library in the IDE 
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
 The application web pages and configuration data file (except passwords) are stored in the **/data** folder which needs to be copied as a folder to the SD card, or automatically downloaded from GitHub on app startup. This reduces the size of the application on flash and reduces wear as well as making updates easier.
 
-On first use, the application will start in wifi AP mode to allow router and other details to be entered via the web page. If the **/data** folder is not present on the SD card, it is downloaded from GitHub.
+On first installation, the application will start in wifi AP mode (connect to SSID: **ESP-CAM_MJPEG_** ) to allow router and password details to be entered via the web page on 192.168.4.1. If the **/data** folder is not present on the SD card, it is downloaded from GitHub.
 Subsequent updates to the application, or to the **/data** folder contents, can be made using the **OTA Upload** button on the main web page. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the configuration web page accessed via the **Edit Config** button.
 
 Browser functions only tested on Chrome.
@@ -109,13 +121,24 @@ See **Motion detection by Camera** section.
 * Control pan / tilt cradle for camera.
 * Connect an external I2S microphone
 * Connect a DS18B20 temperature sensor
-* Monitor voltage of battery supply
+* Monitor voltage of battery supply on ADC pin
 
-Note that there are not enough free pins on the camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 4, 12, 3, 33.
-Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.
+Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
+* pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
+* pin 4: Also used for onboard lamp. Lamp can be disabled by removing its current limiting resistor. 
+* pin 12: Only use as output pin.
+* pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3, and the red LED current limiting resistor, then running a wire between the VCC pin and the red LED resistor solder tab.  
+
+Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.  
+
+The ESP32S3 Freenove board can support all of the above peripherals with its spare pins.
+
+On-board LEDs:
+* ESP32 - Lamp: 4, signal: 33.
+* ESP32S3 - Lamp: 48, signal: 2.
 
 **Other**:
-SD and email management.
+SD and email management. An email can be sent when motion is detected.
 
 When a feature is enable or disabled, the ESP should be rebooted using **Reboot ESP** button.
 
@@ -139,13 +162,9 @@ Additional options are provided on the camera index page, where:
 
 ## Audio Recording
 
-The addition of a microphone significantly slows down the frame recording rate due to an unknown contention between the two I2S channels, which also degrades the audio quality.
+An I2S microphone can be supported, such as INMP441. PDM and analog microphones cannot be used due to limitations of I2S_NUM_1 peripheral. I2S_NUM_0 is not available as it is used by the camera. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. The I2S microphone needs 3 free pins.
 
-An I2S microphone can be supported, such as INMP441. PDM and analog microphones cannot be used due to limitations of I2S_NUM_1 peripheral. I2S_NUM_0 is not available as it is used by the camera. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. The I2S microphone needs 3 free pins on the ESP32, selected from the following 4 pins:
-- pin 3: Labelled U0R. Only use as input pin, i.e for microphone SD pin, as also used for flashing. Default microphone SD pin.
-- pin 4: Also used for onboard lamp. Lamp can be disabled by removing its current limiting resistor. Default microphone SCK pin.
-- pin 12: Only use as output pin, i.e for microphone WS or SCK pin. Default microphone WS pin.
-- pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3 and the red LED current limiting resistor then running a wire between the VCC pin and the red LED resistor solder tab.
+Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate.
 
 The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting 0 cancels the microphone. Other settings under **Peripherals** button on the configuration web page.
 

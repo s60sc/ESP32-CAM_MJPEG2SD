@@ -10,7 +10,7 @@
 //
 // s60sc 2022
 
-#include "globals.h"
+#include "appGlobals.h"
 
 // control sending emails 
 bool smtpUse; // whether or not to send email alerts
@@ -19,7 +19,7 @@ int smtpMaxEmails = 10; // too many could cause account suspension
 
 // SMTP connection params, setup via web page
 char smtp_login[32]; // sender email account 
-char smtp_pass[MAX_PWD_LEN]; // 16 digit app password, not account password
+char SMTP_Pass[MAX_PWD_LEN]; // 16 digit app password, not account password
 char smtp_email[32]; // receiver, can be same as smtp_login, or be any other email account
 char smtp_server[32]; // the email service provider, eg smtp.gmail.com"
 uint16_t smtp_port; // gmail SSL port 465; 
@@ -97,7 +97,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
     
     if (!sendSmtpCommand(client, "AUTH LOGIN", "334")) break; 
     if (!sendSmtpCommand(client, encode64(smtp_login), "334")) break;
-    if (!sendSmtpCommand(client, encode64(smtp_pass), "235")) break;
+    if (!sendSmtpCommand(client, encode64(SMTP_Pass), "235")) break;
   
     // send email header
     sprintf(content, "MAIL FROM: <%s>", APP_NAME);
@@ -192,5 +192,6 @@ void prepSMTP() {
     emailCount = 0;
     if (SMTPbuffer == NULL) SMTPbuffer = (byte*)ps_malloc(ONEMEG/2); 
     LOG_INF("Email alerts active");
-  } else LOG_INF("Email alerts not active");
+  } 
+  debugMemory("prepSmtp");
 }

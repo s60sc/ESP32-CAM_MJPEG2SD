@@ -4,10 +4,9 @@
 //
 // s60sc 2022
 
-#include "globals.h"
+#include "appGlobals.h"
 
-#define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
-#define MAX_PAYLOAD_LEN 1024 // bigger than biggest websocket msg
+#define MAX_PAYLOAD_LEN 1000 // bigger than biggest websocket msg
 #define DATA_UPDATE 999
 #define OTAport 82
 static WebServer otaServer(OTAport); 
@@ -18,13 +17,15 @@ static void startOTAserver();
 char inFileName[FILE_NAME_LEN];
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN]; 
+static char retainAction[2];
 int refreshVal = 5000; // msecs
 
 static httpd_handle_t httpServer = NULL; // web server listens on port 80
-static int fdWs = -1; // for websockets
+static int fdWs = -1; //websocket sockfd
+static httpd_ws_frame_t wsPkt;
+
 static fs::FS fp = STORAGE;
 byte chunk[CHUNKSIZE];
-
 
 static bool sendChunks(File df, httpd_req_t *req) {   
   // use chunked encoding to send large content to browser
@@ -79,8 +80,13 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
 
 static esp_err_t indexHandler(httpd_req_t* req) {
   strcpy(inFileName, INDEX_PAGE_PATH);
-  // Show wifi wizard if not setup and access point mode  
-  if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
+  // first check if a startup failure needs to be reported
+  if (strlen(startupFailure)) {
+    httpd_resp_set_type(req, "text/html");                        
+    return httpd_resp_send(req, startupFailure, HTTPD_RESP_USE_STRLEN);
+  }
+  // Show wifi wizard if not setup, using access point mode  
+  if (!fp.exists(CONFIG_FILE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, defaultPage_html, HTTPD_RESP_USE_STRLEN);
@@ -135,11 +141,11 @@ static esp_err_t webHandler(httpd_req_t* req) {
   if (!strcmp(variable, "LOG.htm")) {
     flush_log(false);
   } else if (!strcmp(variable, "OTA.htm")) {
-    // request for built in web page
+    // request for built in OTA page, if index html defective
     httpd_resp_set_type(req, "text/html"); 
     return httpd_resp_send(req, otaPage_html, HTTPD_RESP_USE_STRLEN);
   } else if (!strcmp(HTML_EXT, variable+(strlen(variable)-strlen(HTML_EXT)))) {
-    // any html file
+    // any other html file
     httpd_resp_set_type(req, "text/html");
   } else if (!strcmp(JS_EXT, variable+(strlen(variable)-strlen(JS_EXT)))) {
     // any js file
@@ -171,10 +177,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   if (!strcmp(variable, "startOTA")) startOTAserver();
   else {
     strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
-    if (!updateStatus(variable, value)) {
-      httpd_resp_send(req, NULL, 0);  
-      doRestart("user requested restart"); 
-    }
+    updateStatus(variable, value);
     webAppSpecificHandler(req, variable, value); 
     // handler for downloading selected file, required file name in inFileName
     if (!strcmp(variable, "download") && atoi(value) == 1) return fileHandler(req, true);
@@ -184,35 +187,22 @@ static esp_err_t controlHandler(httpd_req_t *req) {
 }
 
 static esp_err_t statusHandler(httpd_req_t *req) {
-  uint8_t filter = (uint8_t)httpd_req_get_url_query_len(req); 
+  uint8_t filter = (uint8_t)httpd_req_get_url_query_len(req); // filter number is length of query string
   buildJsonString(filter);
   httpd_resp_set_type(req, "application/json");
   httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
   return ESP_OK;
 }
 
-static esp_err_t updateHandler(httpd_req_t *req) {
-  // extract key pairs from received json string
-  size_t rxSize = min(req->content_len, (size_t)JSON_BUFF_LEN);
-  char retainAction[2];
-  int ret = 0;
-  // obtain json payload
-  do {
-    ret = httpd_req_recv(req, jsonBuff, rxSize);
-    if (ret < 0) {  
-      if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
-      else {
-        LOG_ERR("Post request failed with status %i", ret);
-        return ESP_FAIL;
-      }
-    }
-  } while (ret > 0);
+bool parseJson(int rxSize) {
+  // process json in jsonBuff to extract properly formatted flat key:value pairs  
   jsonBuff[rxSize - 1] = ','; // replace final '}' 
-
-  // process json to extract key value pairs  
-  char* ptr = jsonBuff + 1; 
+  jsonBuff[rxSize] = 0; // terminator
+  char* ptr = jsonBuff + 1; // skip over initial '{'
   size_t itemLen = 0; 
+  bool retAction = false;
   do {
+    // get and process each key:value in turn
     char* endItem = strchr(ptr += itemLen, ':');
     itemLen = endItem - ptr;
     memcpy(variable, ptr, itemLen);
@@ -225,15 +215,31 @@ static esp_err_t updateHandler(httpd_req_t *req) {
     value[itemLen] = 0;
     removeChar(value, '"');
     ptr++;
-    if (!strcmp(variable, "action")) strcpy(retainAction, value);
-    else {
-      if (!updateStatus(variable, value)) {
-        httpd_resp_send(req, NULL, 0);  
-        doRestart("user requested restart after data deletion");  
-      } 
-    }
+    if (!strcmp(variable, "action")) {
+      strcpy(retainAction, value);
+      retAction = true;
+    } else updateStatus(variable, value);
   } while (ptr + itemLen - jsonBuff < rxSize);
-  webAppSpecificHandler(req, "action", retainAction);
+  return retAction;
+}
+
+static esp_err_t updateHandler(httpd_req_t *req) {
+  // extract key pairs from received json string
+  size_t rxSize = min(req->content_len, (size_t)JSON_BUFF_LEN);
+  int ret = 0;
+  // obtain json payload
+  do {
+    ret = httpd_req_recv(req, jsonBuff, rxSize);
+    if (ret < 0) {  
+      if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+      else {
+        LOG_ERR("Post request failed with status %i", ret);
+        return ESP_FAIL;
+      }
+    }
+  } while (ret > 0);
+
+  if (parseJson(rxSize)) webAppSpecificHandler (req, "action", retainAction); 
   httpd_resp_send(req, NULL, 0); 
   return ESP_OK;
 }
@@ -247,14 +253,16 @@ static void sendCrossOriginHeader() {
   otaServer.send(204);
 };
 
+
 void wsAsyncSend(const char* wsData) {
-  // websockets send function, used for logging and status updates
-  if (fdWs >=0) {
-    // send if connection open
-    httpd_ws_frame_t wsPkt;
-    wsPkt.payload = (uint8_t*)wsData;
+  // websockets send function, used for async logging and status updates
+  if (fdWs >= 0) {
+    // send if connection active
+    memset(&wsPkt, 0, sizeof(httpd_ws_frame_t));                                           
+    wsPkt.payload = (uint8_t*)(wsData);
     wsPkt.len = strlen(wsData);
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
+    wsPkt.final = true;
     esp_err_t ret = httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
     if (ret != ESP_OK) LOG_ERR("websocket send failed with %s", esp_err_to_name(ret));
   } // else ignore
@@ -262,11 +270,26 @@ void wsAsyncSend(const char* wsData) {
 
 static esp_err_t wsHandler(httpd_req_t *req) {
   // receive websocket data and determine response
-  fdWs = httpd_req_to_sockfd(req);
-  if (req->method == HTTP_GET) LOG_INF("Websocket connection: %d", fdWs);
-  else {
+  // if a new connection is received, the old connection is closed, but the browser
+  // page on the newer connection may need to be manually refreshed to take over the log
+  if (req->method == HTTP_GET) {
+    // websocket connection request from browser client
+    if (fdWs != -1) {
+      if (fdWs != httpd_req_to_sockfd(req)) {
+        // websocket connection from browser when another browser connection is active
+        LOG_WRN("closing connection, as newer Websocket on %u", httpd_req_to_sockfd(req));
+        // kill older connection
+        httpd_sess_trigger_close(httpServer, fdWs);
+      }
+    }
+    fdWs = httpd_req_to_sockfd(req);
+    if (fdWs < 0) {
+      LOG_ERR("failed to get socket number");
+      return ESP_FAIL;
+    }
+    LOG_INF("Websocket connection: %d", fdWs);
+  } else {
     // data content received
-    httpd_ws_frame_t wsPkt;
     uint8_t wsMsg[MAX_PAYLOAD_LEN];
     memset(&wsPkt, 0, sizeof(httpd_ws_frame_t));
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
@@ -277,16 +300,19 @@ static esp_err_t wsHandler(httpd_req_t *req) {
       return ret;
     }
     wsMsg[wsPkt.len] = 0; // terminator
-    if (wsPkt.type == HTTPD_WS_TYPE_TEXT) processAppWSmsg((char*)wsMsg);
+    if (wsPkt.type == HTTPD_WS_TYPE_TEXT) wsAppSpecificHandler((char*)wsMsg);
   }
   return ESP_OK;
 }
 
 void startWebServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+#if CONFIG_IDF_TARGET_ESP32S3
+  config.stack_size = 1024 * 8;
+#endif  
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
-  httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
-  httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
+   httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
+   httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
   httpd_uri_t updateUri = {.uri = "/update", .method = HTTP_POST, .handler = updateHandler, .user_ctx = NULL};
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
   httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
@@ -301,6 +327,7 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &wsUri);
     LOG_INF("Starting web server on port: %u", config.server_port);
   } else LOG_ERR("Failed to start web server");
+  debugMemory("startWebserver");
 }
 
 /*
@@ -309,26 +336,29 @@ void startWebServer() {
  - select Tools / Partition Scheme / Minimal SPIFFS
  - select Sketch / Export compiled Binary
  On browser, press OTA Upload button
- On returned page, select Choose file and navigate to sketch or spiffs .bin file
-   in sketch folder, then press Update
- Similarly files ending '.htm' or '.txt' can be uploaded to the SD card /data folder
+ On returned page, select Choose file and navigate to sketch .bin file,
+ or data file to be uploaded to the storage /data folder
  */
 
 static void uploadHandler() {
   // re-entrant callback function
-  // apply received .bin file to SPIFFS or OTA partition
-  // or update html file or config file on sd card
+  // apply received .bin file to OTA partition
+  // or data file to SD card or SPIFFS partition
   HTTPUpload& upload = otaServer.upload();  
   static File df;
   static int cmd = DATA_UPDATE;    
   String filename = upload.filename;
+  
   if (upload.status == UPLOAD_FILE_START) {
-    if ((strstr(filename.c_str(), HTML_EXT) != NULL)
-        || (strstr(filename.c_str(), TEXT_EXT) != NULL)
-        || (strstr(filename.c_str(), SVG_EXT) != NULL)
-        || (strstr(filename.c_str(), ICO_EXT) != NULL)
-        || (strstr(filename.c_str(), JS_EXT) != NULL)) {
-      // replace relevant file
+    if (strstr(filename.c_str(), ".bin") != NULL) {
+      // partition update, sketch or SPIFFS
+      LOG_INF("Partition update using file %s", filename.c_str());
+      // a spiffs binary must have 'spiffs' in the filename
+      cmd = (strstr(filename.c_str(), "spiffs") != NULL)  ? U_SPIFFS : U_FLASH;
+      if (cmd == U_SPIFFS) STORAGE.end();// close relevant file system
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) Update.printError(Serial);
+    } else {
+      // replace relevant data file on storage
       char replaceFile[20] = DATA_DIR;
       strcat(replaceFile, "/");
       strcat(replaceFile, filename.c_str());
@@ -336,23 +366,15 @@ static void uploadHandler() {
       // Create file
       df = fp.open(replaceFile, FILE_WRITE);
       if (!df) {
-        LOG_ERR("Failed to open %s on SD", replaceFile);
+        LOG_ERR("Failed to open %s on storage", replaceFile);
         return;
       }
-    } else if (strstr(filename.c_str(), ".bin") != NULL) {
-      // OTA update
-      LOG_INF("OTA update using file %s", filename.c_str());
-      // if file name contains 'spiffs', update the spiffs partition
-      cmd = (strstr(filename.c_str(), "spiffs") != NULL)  ? U_SPIFFS : U_FLASH;
-      if (cmd == U_SPIFFS) SPIFFS.end(); // close SPIFFS if open
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) Update.printError(Serial);
-    } else LOG_WRN("File %s not suitable for upload", filename.c_str());
-    
+    } 
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (cmd == DATA_UPDATE) {
       // web page update
       if (df.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        LOG_ERR("Failed to save %s on SD", df.path());
+        LOG_ERR("Failed to save %s on Storage", df.path());
         return;
       }
     } else {

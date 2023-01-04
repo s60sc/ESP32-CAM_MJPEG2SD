@@ -4,26 +4,24 @@
 *
 * s60sc 2020, 2021, 2022
 */
-// built using arduino-esp32 stable release v2.0.4
+// built using arduino-esp32 stable release v2.0.6
 
-#include "globals.h"
+#include "appGlobals.h"
 #include "camera_pins.h"
 
-void setup() {
-  logSetup();
-  Serial.setDebugOutput(false);
-  Serial.println(); 
-  
-  LOG_INF("=============== Starting ===============");
-  if (!psramFound()) {
-    LOG_WRN("Need PSRAM to be enabled");
-    delay(10000);
-    ESP.restart();
-  } 
-  
-  // prep SD card storage
-  startStorage();
+// camera board selected
+#if defined(CAMERA_MODEL_AI_THINKER)
+#define CAM_BOARD "CAMERA_MODEL_AI_THINKER"
+#elif defined(CAMERA_MODEL_ESP32S3_EYE)
+#define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE"
+#else
+#define CAM_BOARD "OTHER"
+#endif
 
+static char camModel[10];
+
+static void prepCam() {
+  // initialise camera depending on model and board
   // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -40,22 +38,17 @@ void setup() {
   config.pin_pclk = PCLK_GPIO_NUM;
   config.pin_vsync = VSYNC_GPIO_NUM;
   config.pin_href = HREF_GPIO_NUM;
-  config.pin_sscb_sda = SIOD_GPIO_NUM;
-  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_sccb_sda = SIOD_GPIO_NUM;
+  config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = XCLK_MHZ*1000000;
+  config.xclk_freq_hz = xclkMhz * 1000000;
   config.pixel_format = PIXFORMAT_JPEG;
   // init with high specs to pre-allocate larger buffers
-  if (psramFound()) {
-    config.frame_size = FRAMESIZE_UXGA;
-    config.jpeg_quality = 10;
-    config.fb_count = 4;
-  } else {
-    config.frame_size = FRAMESIZE_SVGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
-  }
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.frame_size = FRAMESIZE_UXGA;
+  config.jpeg_quality = 10;
+  config.fb_count = 4;
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -63,60 +56,98 @@ void setup() {
 #endif
 
   // camera init
-  esp_err_t err = ESP_FAIL;
-  uint8_t retries = 2;
-  while (retries && err != ESP_OK) {
-    err = esp_camera_init(&config);
-    if (err != ESP_OK) {
-      LOG_ERR("Camera init failed with error 0x%x", err);
-      digitalWrite(PWDN_GPIO_NUM, 1);
-      delay(100);
-      digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
-      retries--;
-    }
-  } 
-  if (err != ESP_OK) ESP.restart();
-  else LOG_INF("Camera init OK");
+  if (psramFound()) {
+    esp_err_t err = ESP_FAIL;
+    uint8_t retries = 2;
+    while (retries && err != ESP_OK) {
+      err = esp_camera_init(&config);
+      if (err != ESP_OK) {
+        digitalWrite(PWDN_GPIO_NUM, 1);
+        delay(100);
+        digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
+        retries--;
+      }
+    } 
+    if (err != ESP_OK) sprintf(startupFailure, "Startup Failure: Camera init error 0x%x", err);
+    else {
+      sensor_t * s = esp_camera_sensor_get();
+      switch (s->id.PID) {
+        case (OV2640_PID):
+          strcpy(camModel, "OV2640");
+        break;
+        case (OV3660_PID):
+          strcpy(camModel, "OV3660");
+        break;
+        case (OV5640_PID):
+          strcpy(camModel, "OV5640");
+        break;
+        default:
+          strcpy(camModel, "Other");
+        break;
+      }
+      LOG_INF("Camera init OK for model %s on board %s", camModel, CAM_BOARD);
 
-  sensor_t * s = esp_camera_sensor_get();
-  //initial sensors are flipped vertically and colors are a bit saturated
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);//flip it back
-    s->set_brightness(s, 1);//up the brightness just a bit
-    s->set_saturation(s, -2);//lower the saturation
-  }
-  //drop down frame size for higher initial frame rate
-  s->set_framesize(s, FRAMESIZE_SVGA);
-
+      // model specific corrections
+      if (s->id.PID == OV3660_PID) {
+        // initial sensors are flipped vertically and colors are a bit saturated
+        s->set_vflip(s, 1);//flip it back
+        s->set_brightness(s, 1);//up the brightness just a bit
+        s->set_saturation(s, -2);//lower the saturation
+      }
+      //drop down frame size for higher initial frame rate
+      s->set_framesize(s, FRAMESIZE_SVGA);
+  
 #if defined(CAMERA_MODEL_M5STACK_WIDE)
-  s->set_vflip(s, 1);
-  s->set_hmirror(s, 1);
+      s->set_vflip(s, 1);
+      s->set_hmirror(s, 1);
 #endif
+  
+#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
+    s->set_vflip(s, 1);
+    s->set_hmirror(s, 1);
+#endif
+  
+#if defined(CAMERA_MODEL_ESP32S3_EYE)
+    s->set_vflip(s, 1);
+#endif
+    }
+  }
+  debugMemory("prepCam");
+}
 
+void setup() { 
+  logSetup();
+  LOG_INF("=============== Starting ===============");
+  if (!psramFound()) sprintf(startupFailure, "Startup Failure: Need PSRAM to be enabled");
+  
+  // prep SD card storage
+  startStorage();
+
+  // initialise camera
+ prepCam();
+  
   // Load saved user configuration
   loadConfig();
 
-  // connect wifi or start config AP if router details not available
 #ifdef DEV_ONLY
   devSetup();
 #endif
+
+  // connect wifi or start config AP if router details not available
   startWifi();
- 
-  if (!prepRecording()) {
-    LOG_ERR("Unable to continue, AVI capture fail, restart after 10 secs");    
-    delay(10000);
-    ESP.restart();
-  }
+
   // start rest of services
   startWebServer();
-  startStreamServer();
-  prepMic(); 
-  prepSMTP(); 
-  setupADC();
-  prepPeripherals();
-  startSDtasks();
-  LOG_INF("Camera Ready @ %uMHz, version %s", XCLK_MHZ, APP_VER); 
-  checkMemory();
+  if (strlen(startupFailure)) LOG_ERR("%s", startupFailure);
+  else {
+    startStreamServer();
+    prepSMTP(); 
+    prepPeripherals();
+    prepMic(); 
+    prepRecording();
+    LOG_INF("Camera model %s on board %s ready @ %uMHz, version %s", camModel, CAM_BOARD, xclkMhz, APP_VER); 
+    checkMemory();
+  } 
 }
 
 void loop() {
