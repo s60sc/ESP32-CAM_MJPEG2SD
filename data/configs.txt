@@ -11,6 +11,7 @@ Auth_Name::99:na
 hostName::99:na
 restart::99:na
 logMode:0:99:na
+xclkMhz:20:98:na
 ae_level:0:98:na
 aec:1:98:na
 aec2:0:98:na
@@ -23,13 +24,14 @@ awb_gain:1:98:na
 bpc:0:98:na
 brightness:0:98:na
 colorbar:0:98:na
-contrast:0:98:na
+contrast:-2:98:na
 dcw:1:98:na
 enableMotion:1:98:na
 fps:20:98:na
 framesize:9:98:na
 gainceiling:0:98:na
 hmirror:0:98:na
+lampLevel:0:98:na
 lenc:1:98:na
 lswitch:20:98:na
 micGain:0:98:na
@@ -38,7 +40,7 @@ motion:8:98:na
 quality:12:98:na
 raw_gma:1:98:na
 record:1:98:na
-saturation:0:98:na
+saturation:-2:98:na
 special_effect:0:98:na
 timeLapseOn:0:98:na
 timezone:GMT0BST,M3.5.0/1,M10.5.0:98:na
@@ -50,15 +52,16 @@ ST_gw::0:Router IP address
 ST_sn:255.255.255.0:0:Router subnet
 ST_ns1::0:DNS server
 ST_ns2::0:Alt DNS server
-AP_Pass:123456789:0:AP password
+AP_SSID::0:AP SSID name
+AP_Pass::0:AP Password
 AP_ip::0:AP IP Address if not 192.168.4.1
 AP_sn::0:AP subnet
 AP_gw::0:AP gateway
-allowAP:1:0:Allow AP Fallback if no router (0/1)
+allowAP:1:0:Allow simultaneous AP (0/1)
 wifiTimeoutSecs:30:0:WiFi connect timeout (secs)
 useUART0:1:99:na
-uartTxdPin:1:3:UART1 TX pin
-uartRxdPin:3:3:UART1 RX pin
+uartTxdPin::3:UART1 TX pin
+uartRxdPin::3:UART1 RX pin
 refreshVal:5:0:Web page refresh rate (secs)
 responseTimeoutSecs:10:0:FTP / SMTP response timeout (secs)
 tlSecsBetweenFrames:600:1:Timelapse interval (secs)
@@ -78,7 +81,8 @@ smtpFrame:5:2:Frame number image sent in email
 smtpMaxEmails:10:2:Max daily emails
 sdMinCardFreeSpace:100:2:Min free MBytes On SD before action
 sdFreeSpaceMode:1:2:Action mode on min free (0/1/2)
-sdFormatIfMountFailed:0:2:Format SD on failure (0/1)
+formatIfMountFailed:0:2:Format file system on failure (0/1)
+allowSpaces:0:0:Allow whitespace in configs.txt (0/1)
 useIOextender:0:3:Use another ESP as IO Extender (0/1)
 pirUse:0:3:Use PIR for detection (0/1)
 lampUse:0:3:Use lamp (0/1)
@@ -86,11 +90,10 @@ lampAuto:0:3:Lamp activated by PIR (0/1)
 servoUse:0:3:Use servos (0/1)
 micUse:0:3:Use microphone (0/1)
 pirPin::3:Pin used for PIR
-lampPin::3:Pin used for Lamp
+lampPin:4:3:Pin used for Lamp
 servoPanPin::3:Pin used for Pan Servo
 servoTiltPin::3:Pin used for Tilt Servo
 ds18b20Pin::3:Pin used for DS18B20 temperature sensor
-voltPin::3:Pin used for battery voltage monitoring
 micSckPin::3:Pin used for I2S microphone SCK 
 micWsPin::3:Pin used for I2S microphone WS
 micSdPin::3:Pin used for I2S microphone SD
@@ -101,4 +104,6 @@ servoMinPulseWidth:544:3:Set min pulse width for servo model (usecs)
 servoMaxPulseWidth:2400:3:Set max pulse width for servo model (usecs)
 voltDivider:2:3:Voltage divider resistor ratio
 voltLow:3:3:Warning level for low voltage
-voltInterval:5:3: Voltage check interval (secs)
+voltInterval:5:3: Voltage check interval (mins)
+voltPin::3:ADC Pin used for battery voltage
+voltUse:0:3: Use Voltage check (0/1)

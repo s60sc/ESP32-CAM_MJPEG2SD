@@ -1,4 +1,4 @@
-
+	
 <!doctype html>  
 <!-- 
   s60sc 2022 
@@ -17,9 +17,11 @@
         --buttonActive: ForestGreen;
         --buttonHover: green;
         --buttonText: white;
+        --buttonLabel: black;
         --itemInactive: gray;
         --menuBackground: #3F3F3F; /* dark gray */
         --inputText: navy;
+        --pageText: black; 
         --inputBackground: WhiteSmoke; 
         --itemBorder: silver; 
         --pageBackground: #181818; /* nearly black */
@@ -358,7 +360,7 @@
           cursor: default;
           background: var(--itemInactive)
       }
-
+            
       input[type=range] {
           -webkit-appearance: none;
           width: 100%;
@@ -823,25 +825,25 @@
                     <div class="range-max">10</div>
                   </div>
                   <div class="input-group" id="CamTilt-group">
-                      <label for="camTilt">Camera Tilt</label>
-                      <div class="range-min">0</div>
-                          <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90" class="default-action">
-                      <output name="rangeVal">90</output>
-                      <div class="range-max">180</div>
+                    <label for="camTilt">Camera Tilt</label>
+                    <div class="range-min">0</div>
+                    <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90" class="default-action">
+                    <output name="rangeVal">90</output>
+                    <div class="range-max">180</div>
                   </div>
                   <div class="input-group" id="CamPan-group">
-                      <label for="camPan">Camera Pan</label>
-                      <div class="range-min">0</div>
-                          <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90" class="default-action">
-                      <output name="rangeVal">90</output>
-                      <div class="range-max">180</div>
+                    <label for="camPan">Camera Pan</label>
+                    <div class="range-min">0</div>
+                    <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90" class="default-action">
+                    <output name="rangeVal">90</output>
+                    <div class="range-max">180</div>
                   </div>
                   <div class="input-group" id="lamp-group">
                     <label for="lamp">Lamp</label>
-                    <div class="switch">
-                      <input id="lamp" type="checkbox" class="default-action">
-                      <label title="Control onboard led" class="slider" for="lamp"></label>
-                    </div>
+                    <div class="range-min">0</div>
+                     <input title="Control onboard lamp led brightness" type="range" id="lampLevel" min="0" max="15" value="0" class="default-action">
+                     <output name="rangeVal">0</output>
+                    <div class="range-max">15</div>
                   </div>
                 </div>
               </nav>
@@ -850,6 +852,13 @@
                 <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
                 <label for="settings-cb" class="nav-toggle">&#x1F4FA;&nbsp;&nbsp;Picture Settings&nbsp;&nbsp;</label>
                 <div>
+                  <div class="input-group" id="xclk-group">
+                      <label for="set-xclk">Clock MHz</label>
+                      <div class="text">
+                          <input id="xclkMhz" title="Set camera clock speed in MHz" type="text" minlength="1" maxlength="2" size="2" value="20">
+                      </div>
+                      <button id="set-xclk" style="min-height:25px">Set</button>
+                  </div>
                   <div class="input-group" id="brightness-group">
                     <label for="brightness">Brightness</label>
                     <div class="range-min">-2</div>
@@ -1017,7 +1026,7 @@
               <nav class="menu panel" id="motion-record">
                 <input type="checkbox" id="motion-cb" class="menu-action">
                 <div class="pin-menu" title="Pin / unpin menu">&#x1F4CC;</div>
-                <label for="motion-cb" class="nav-toggle">&#x1F4F9;&nbsp;&nbsp;Motion Detect & Recording&nbsp;&nbsp;</label>
+                <label for="motion-cb" class="nav-toggle">&#x1F440;&nbsp;&nbsp;Motion Detect & Recording&nbsp;&nbsp;</label>
                 <div>
                   <div class="input-group" id="motion-group">
                     <label for="enableMotion">Enable motion detect</label>
@@ -1197,8 +1206,8 @@
                     <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name" class="default-action">
                   </div>
                   <div class="input-group" id="ftp-group">
-                    <label for="ftp_pass">Ftp password</label>
-                    <input id="ftp_pass" name="ftp_pass" length=32 placeholder="Ftp password" class="default-action">
+                    <label for="FTP_Pass">Ftp password</label>
+                    <input id="FTP_Pass" name="FTP_Pass" length=32 placeholder="Ftp password" class="default-action">
                   </div>
                   <div class="input-group" id="ftp-group">
                     <label for="ftp_wd">Ftp root dir</label>
@@ -1219,8 +1228,8 @@
                     <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email" class="default-action">
                   </div>
                   <div class="input-group" id="smtp-group">
-                    <label for="smtp_pass">SMTP password</label>
-                    <input id="smtp_pass" name="smtp_pass" length=32 placeholder="smtp password" class="default-action">
+                    <label for="SMTP_Pass">SMTP password</label>
+                    <input id="SMTP_Pass" name="SMTP_Pass" length=32 placeholder="smtp password" class="default-action">
                   </div>
                   <div class="input-group" id="ftp-group">
                     <label for="smtp_email">SMTP email</label>
@@ -1464,6 +1473,7 @@
       let refreshVal = 5000;
       
       /**** NEEDS JQUERY *****/
+      
       function setup() {
 
         $('input[type="range"]').on('input', function () {
@@ -1697,6 +1707,7 @@
       const deleteButton = $('#delete') 
       const rebootButton = $('#reboot')
       const saveButton = $('#save')
+      const xclkButton = $('#set-xclk')
       
       uploadButton.click(() => {
         updateConfig(uploadButton);
@@ -1741,6 +1752,16 @@
           success: function(response) {
             if(bPlaying) startStream();
           }
+        })
+      });
+      
+      xclkButton.click(function() {
+        let val = parseInt(document.getElementById('xclkMhz').value);
+        $.ajax({
+          url: baseHost + '/control',
+          data: {
+            "xclkMhz" : val
+          },
         })
       });
       
@@ -2093,12 +2114,12 @@
         }
       };
       
-      /***** NON JQUERY *****/
+       /***** NON JQUERY *****/
       
-      /*********** tab management ***********/
+      /*********** initialisation functions ***********/
 
       const wsServer = "ws://" + document.location.host + ":80/ws";
-      let ws;
+      let ws = null;
       let cfgGroupNow = -1;
       const _ = document.querySelector.bind(document);
       const __ = document.querySelectorAll.bind(document);
@@ -2107,7 +2128,7 @@
       
       // define websocket handling
       function initWebSocket() {
-        addLogLine("Connect to: " + wsServer);
+        sendLog("Connect to: " + wsServer);
         ws = new WebSocket(wsServer);
         ws.onopen = onWSopen;
         ws.onclose = onWSclose;
@@ -2117,7 +2138,7 @@
       
       // connect to websocket server
       function onWSopen(event) {
-        addLogLine("Connected");
+        sendLog("Connected");
       }
       
       // process received message
@@ -2125,12 +2146,17 @@
         addLogLine(messageEvent.data);
       }
       
-      function onWSclose(event) {
-        addLogLine("Disconnected");
+      function onWSerror(event) {
+        sendLog("WS Error: " + event.code);
       }
       
-      function onWSerror(event) {
-        addLogLine("Websocket error");
+      function onWSclose(event) {
+       sendLog("Disconnected: " + event.code + ' - ' + event.reason);
+        // event.codes:
+        //   1006 if server not available, or another web page is already open
+        //   1005 if closed from app
+        if (event.code == 1006) alert("Closed websocket as a newer connection was made, refresh browser page");
+        else if (event.code != 1005) initWebSocket(); // retry if any other reason
       }
       
       /*********** page layout functions ***********/
@@ -2150,15 +2176,39 @@
         else panel.style.display = "block";
       }
       
+      /*********** utility functions ***********/
+      
       // add received line to log element
       function addLogLine(text) {
         let log = document.getElementById('applog');
         let new_node = document.createTextNode(text + "\n");
         log.append(new_node);
+        // auto scroll new entry unless scroll bar is not at bottom
+        const bottom = 40; // double font size
+        const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
+        if (pos < bottom) log.scrollTop = log.scrollHeight;
       }
+      
+      function debounce(func, timeout = 500){
+        // debounce rapid clicks to prevent unnecessary fetches
+        let timer;
+        return (...args) => {
+          clearTimeout(timer);
+          timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
+      }
+      
+      const debounceSendControl = debounce((query) => fetch(baseHost + encodeURI('/control?' + query)));
+      
+      function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+      
+      /*********** command processing ***********/
       
       function setListeners() {
         // add event listener for change events
+        // input fields of given class
         document.addEventListener("change", function (event) {
           // config input fields 
           if (event.target.classList.contains('configItem')) { 
@@ -2173,27 +2223,42 @@
         // add event listener for rect click events
         document.addEventListener("click", function (event) {
           // svg rect elements, use id of its following text node
-          if (event.target.nodeName == 'rect') processStatus(event.target.nextElementSibling.id);
+          if (event.target.nodeName == 'rect') processStatus(event.target.nextElementSibling.id, true);
           // tab buttons, use button text without spaces as tab id
           if (event.target.classList.contains('tablinks')) openTab(event.target, event.target.innerHTML.replaceAll(' ', ''));
         });
+        // event listener to close web socket immediately on leaving page
+        window.addEventListener('beforeunload', function (event) {
+          if (ws) ws.terminate();
+        });                                  
       }
       
-      /*********** config functions ***********/
+      function sendCmd(reqStr) {
+        ws.send(reqStr);
+        sendLog("Cmd: " + reqStr);
+      }
       
-      function processStatus(key) {
+      function sendLog(reqStr) {
+        let date = new Date();
+        addLogLine("[" + date.toLocaleTimeString() + " Web] " + reqStr);
+      }
+      
+      function processStatus(key, fromUser) {
+        // called for each updated key
         if (key == "wifi") getConfig("0");
         else if (key == "motion") getConfig("01");
         else if (key == "peripherals") getConfig("0123");
         else if (key == "other") getConfig("012");
-        else if (key == "save") fetch(baseHost + encodeURI('/control?' + key + '=1'));
-        else if (key == "reset") fetch(baseHost + encodeURI('/control?' + key + '=1'));
-        else if (key == "deldata") fetch(baseHost + encodeURI('/control?' + key + '=1'));
-        else if (key == "clear") fetch(baseHost + encodeURI('/control?' + key + '=1'));
+        else if (key == "save") debounceSendControl(key + '=1');
+        else if (key == "reset") debounceSendControl(key + '=1');
+        else if (key == "deldata") debounceSendControl(key + '=1');
+        else if (key == "clear") debounceSendControl(key + '=1');
         else if (key == "clearWSlog") _('#applog').innerHTML = "";
         else if (key == "clearSDlog") clearSDlog();
         else if (key == "refreshSDlog") getSDlog();
       }
+      
+      /*********** config functions ***********/
       
       async function getConfig(cfgGroup) {
         // request config json for selected group
@@ -2224,15 +2289,17 @@
           // add each setting as a row containing setting name and setting value
           let newRow = 1;
           Object.keys(configData).forEach( key => {
-            if (newRow) tr = table.insertRow(-1);
-            let tabCell = tr.insertCell(-1);
-            if (newRow) {
-              tabCell.innerHTML = configData[key]; // name of setting
-              newRow = 0;
-            } else {
-              // input field for value of setting
-              tabCell.innerHTML = '<input type="text" class="configItem" name="' + key + '" value="' + configData[key] +'">'; 
-              newRow = 1;
+            if (key != "cfgGroup") { // skip over this entry 
+              if (newRow) tr = table.insertRow(-1);
+              let tabCell = tr.insertCell(-1);
+              if (newRow) {
+                tabCell.innerHTML = configData[key]; // name of setting
+                newRow = 0;
+              } else {
+                // input field for value of setting
+                tabCell.innerHTML = '<input type="text" class="configItem" name="' + key + '" value="' + configData[key] +'">'; 
+                newRow = 1;
+              }
             }
           })
           // add the newly created table at placeholder
@@ -2301,4 +2368,3 @@
     </script>    
   </body>
 </html>
-
