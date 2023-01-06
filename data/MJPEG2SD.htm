@@ -1,3 +1,4 @@
+
 	
 <!doctype html>  
 <!-- 
@@ -1160,31 +1161,31 @@
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
-                      <option value="Etc/GMT-12">GMT-12:00</option>
-                      <option value="Etc/GMT-11">GMT-11:00</option>
-                      <option value="Etc/GMT-10">GMT-10:00</option>
-                      <option value="Etc/GMT-9">GMT-9:00</option>
-                      <option value="Etc/GMT-8">GMT-8:00</option>
-                      <option value="Etc/GMT-7">GMT-7:00</option>
-                      <option value="Etc/GMT-6">GMT-6:00</option>
-                      <option value="Etc/GMT-5">GMT-5:00</option>
-                      <option value="Etc/GMT-4">GMT-4:00</option>
-                      <option value="Etc/GMT-3">GMT-3:00</option>
-                      <option value="Etc/GMT-2">GMT-2:00</option>
-                      <option value="Etc/GMT-1">GMT-1:00</option>
-                      <option value="Etc/GMT+0">GMT+0:00</option>
-                      <option value="Etc/GMT-1">GMT+1:00</option>
-                      <option value="Etc/GMT-2">GMT+2:00</option>
-                      <option value="Etc/GMT-3">GMT+3:00</option>
-                      <option value="Etc/GMT-4">GMT+4:00</option>
-                      <option value="Etc/GMT-5">GMT+5:00</option>
-                      <option value="Etc/GMT-6">GMT+6:00</option>
-                      <option value="Etc/GMT-7">GMT+7:00</option>
-                      <option value="Etc/GMT-8">GMT+8:00</option>
-                      <option value="Etc/GMT-9">GMT+9:00</option>
-                      <option value="Etc/GMT-10">GMT+10:00</option>
-                      <option value="Etc/GMT-11">GMT+11:00</option>
-                      <option value="Etc/GMT-12">GMT+12:00</option>                                
+                      <option value="<-12>12">GMT-12:00</option>
+                      <option value="<-11>11">GMT-11:00</option>
+                      <option value="<-10>10">GMT-10:00</option>
+                      <option value="<-09>9">GMT-9:00</option>
+                      <option value="<-08>8">GMT-8:00</option>
+                      <option value="<-07>7">GMT-7:00</option>
+                      <option value="<-06>6">GMT-6:00</option>
+                      <option value="<-05>5">GMT-5:00</option>
+                      <option value="<-04>4">GMT-4:00</option>
+                      <option value="<-03>3">GMT-3:00</option>
+                      <option value="<-02>2">GMT-2:00</option>
+                      <option value="<-01>1">GMT-1:00</option>
+                      <option value="GMT0">GMT+0:00</option>
+                      <option value="<+01>-1">GMT+1:00</option>
+                      <option value="<+02>-2">GMT+2:00</option>
+                      <option value="<+03>-3">GMT+3:00</option>
+                      <option value="<+04>-4">GMT+4:00</option>
+                      <option value="<+05>-5">GMT+5:00</option>
+                      <option value="<+06>-6">GMT+6:00</option>
+                      <option value="<+07>-7">GMT+7:00</option>
+                      <option value="<+08>-8">GMT+8:00</option>
+                      <option value="<+09>-9">GMT+9:00</option>
+                      <option value="<+10>-10">GMT+10:00</option>
+                      <option value="<+11>-11">GMT+11:00</option>
+                      <option value="<+12>-12">GMT+12:00</option>                                
                     </select>
                   </div>
                   <div class="input-group extras" id="time-group">
@@ -1564,7 +1565,7 @@
             var nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
             var timeDiff = Math.abs(nowUTC - uClock.getTime());        
             //console.log("Now: " + now.toISOString() + " browser: " + uClock.toISOString() + " Local time diff to browser: " + timeDiff/100 +" sec");
-            if(timeDiff > 2000){ //2 sec
+            if (timeDiff > 2000){ //2 sec
               now = new Date();
               var value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
               console.log("Sync to time: " + value );
