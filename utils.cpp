@@ -236,16 +236,20 @@ void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder) {
   else strftime(inBuff, inBuffLen, "/%Y%m%d/%Y%m%d_%H%M%S", localtime(&currEpoch));
 }
 
+static void showLocalTime(const char* timeSrc) {
+  time_t currEpoch = getEpoch();
+  char timeFormat[20];
+  strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
+  LOG_INF("Got current time from %s: %s with tz: %s", timeSrc, timeFormat, timezone);
+  timeSynchronized = true;
+}
+
 bool getLocalNTP() {
   // get current time from NTP server and apply to ESP32
   const char* ntpServer = "pool.ntp.org";
   configTzTime(timezone, ntpServer);
   if (getEpoch() > 10000) {
-    time_t currEpoch = getEpoch();
-    char timeFormat[20];
-    strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
-    timeSynchronized = true;
-    LOG_INF("Got current time from NTP: %s", timeFormat);
+    showLocalTime("NTP");    
     return true;
   }
   else {
@@ -255,12 +259,8 @@ bool getLocalNTP() {
 }
 
 void syncToBrowser(const char *val) {
-  if (timeSynchronized) return;
-  
   // Synchronize clock to browser clock if no sync with NTP
-  LOG_INF("Sync clock to: %s with tz:%s", val, timezone);
-  struct tm now;
-  getLocalTime(&now, 0);
+  if (timeSynchronized) return;
 
   int Year, Month, Day, Hour, Minute, Second ;
   sscanf(val, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
@@ -277,11 +277,9 @@ void syncToBrowser(const char *val) {
   timeval epoch = {t_of_day, 0};
   struct timezone utc = {0, 0};
   settimeofday(&epoch, &utc);
-  //setenv("TZ", timezone, 1);
-//  Serial.print(&now, "Before sync: %B %d %Y %H:%M:%S (%A) ");
-  getLocalTime(&now, 0);
-//  Serial.println(&now, "After sync: %B %d %Y %H:%M:%S (%A)");
-  timeSynchronized = true;
+  setenv("TZ", timezone, 1);
+  tzset();
+  showLocalTime("browser");
 }
 
 void formatElapsedTime(char* timeStr, uint32_t timeVal) {
