@@ -1555,21 +1555,16 @@
               gainCeiling.hide()
               agcGain.show()
             }
-          } else if(el.id === "forceRecord") { 
+          } else if (el.id === "forceRecord") { 
             if (!value) deactivateRecordButton();
           } else if (el.id === "forcePlayback") {
             if (!value) deactivatePlaybackButton();
-          } else if(el.id === "clockUTC"){        
-            var uClock = new Date(value.replace(" ","T"));
-            var now = new Date();
-            var nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
-            var timeDiff = Math.abs(nowUTC - uClock.getTime());        
-            //console.log("Now: " + now.toISOString() + " browser: " + uClock.toISOString() + " Local time diff to browser: " + timeDiff/100 +" sec");
-            if (timeDiff > 2000){ //2 sec
-              now = new Date();
-              var value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString();
-              console.log("Sync to time: " + value );
-              const query = `${baseHost}/control?clockUTC=${value}`
+          } else if (el.id === "clockUTC"){
+            let now = new Date();
+            let nowUTC = Math.floor(now.getTime() / 1000);    
+            let timeDiff = Math.abs(nowUTC - value);  
+            if (timeDiff > 5){ // 5 secs
+              const query = `${baseHost}/control?clockUTC=${nowUTC}`
               fetch(query)
                 .then(response => {
                   console.log(`request to ${query} finished, status: ${response.status}`)
@@ -1751,7 +1746,7 @@
             "save" : "1"
           },
           success: function(response) {
-            if(bPlaying) startStream();
+            if(Playing) startStream();
           }
         })
       });
