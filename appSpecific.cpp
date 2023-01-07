@@ -81,7 +81,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "camTilt")) setCamTilt(intVal);
   
   // Other settings
-  else if(!strcmp(variable, "clockUTC")) syncToBrowser(value);      
+  else if(!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
   else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
   else if(!strcmp(variable, "smtpFrame")) smtpFrame = intVal;
   else if(!strcmp(variable, "smtpMaxEmails")) smtpMaxEmails = intVal;
@@ -145,15 +145,6 @@ void buildAppJsonString(bool filter) {
   else p += sprintf(p, "\"battv\":\"%0.1fV\",", currentVoltage);  
   p += sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
   p += sprintf(p, "\"forcePlayback\":%u,", doPlayback ? 1 : 0);  
-  // Other settings 
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  time_t currEpoch = tv.tv_sec;
-  char timeBuff[20];
-  strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
-  p += sprintf(p, "\"clock\":\"%s\",", timeBuff);
-  strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", gmtime(&currEpoch));
-  p += sprintf(p, "\"clockUTC\":\"%s\",", timeBuff); 
   
   // Extend info
   uint8_t cardType = SD_MMC.cardType();
@@ -172,6 +163,11 @@ void buildAppJsonString(bool filter) {
     p += sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
     p += sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
   }
+  time_t currEpoch = getEpoch();
+  p += sprintf(p, "\"clockUTC\":\"%u\",", (uint32_t)currEpoch); 
+  char timeBuff[20];
+  strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+  p += sprintf(p, "\"clock\":\"%s\",", timeBuff);
   formatElapsedTime(timeBuff, millis());
   p += sprintf(p, "\"up_time\":\"%s\",", timeBuff);   
   p += sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    

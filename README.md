@@ -9,6 +9,9 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
+Changes for version 8.1:
+- fix for [timezone](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/150). 
+
 ## Purpose
 
 The application enables video capture of motion detection or timelapse recording. Examples include security cameras or wildlife monitoring.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code.
@@ -86,6 +89,7 @@ The operation of the application can be modified dynamically as below, by using 
 
 Connections:
 * The FTP, Wifi, SMTP, and time zone parameters can be defined on the web page under **Other Settings**. 
+  - for **Time Zone** use dropdown, or paste in values from second column [here](https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv)
 * To make the changes persistent, press the **Save** button
 * mdns name services in order to use `http://[Host Name]` instead of ip address.
 

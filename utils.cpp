@@ -221,9 +221,10 @@ static void startPing() {
 
 /************************** NTP  **************************/
 
-char timezone[64] = "GMT0BST,M3.5.0/01,M10.5.0/02"; 
+// Needs to be a time zone string from: https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv
+char timezone[64] = "GMT0"; 
 
-static inline time_t getEpoch() {
+time_t getEpoch() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return tv.tv_sec;
@@ -258,25 +259,11 @@ bool getLocalNTP() {
   }
 }
 
-void syncToBrowser(const char *val) {
-  // Synchronize clock to browser clock if no sync with NTP
-  if (timeSynchronized) return;
-
-  int Year, Month, Day, Hour, Minute, Second ;
-  sscanf(val, "%d-%d-%dT%d:%d:%d", &Year, &Month, &Day, &Hour, &Minute, &Second);
-
-  struct tm t;
-  t.tm_year = Year - 1900;
-  t.tm_mon  = Month - 1;    // Month, 0 - jan
-  t.tm_mday = Day;          // Day of the month
-  t.tm_hour = Hour;
-  t.tm_min  = Minute;
-  t.tm_sec  = Second;
-
-  time_t t_of_day = mktime(&t);
-  timeval epoch = {t_of_day, 0};
-  struct timezone utc = {0, 0};
-  settimeofday(&epoch, &utc);
+void syncToBrowser(uint32_t browserUTC) {
+  // Synchronize to browser clock if out of sync
+  struct timeval tv;
+  tv.tv_sec = browserUTC;
+  settimeofday(&tv, NULL);
   setenv("TZ", timezone, 1);
   tzset();
   showLocalTime("browser");
