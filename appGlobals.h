@@ -42,7 +42,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.1"
+#define APP_VER "8.2"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause error
 #define DATA_DIR "/data"

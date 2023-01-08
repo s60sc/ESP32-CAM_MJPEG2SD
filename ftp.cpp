@@ -18,6 +18,7 @@ static char respCodeRx[4]; // ftp response code
 TaskHandle_t ftpHandle = NULL;
 static char storedPathName[FILE_NAME_LEN];
 static bool uploadInProgress = false;
+static bool deleteAfter = false;
 static fs::FS fp = STORAGE;
 #define NO_CHECK "999"
 
@@ -162,58 +163,63 @@ static bool ftpStoreFile(File &fh) {
   return true;
 }
 
-static void uploadFolderOrFileFtp() {
+static bool uploadFolderOrFileFtp() {
   // Upload a single file or whole folder using ftp 
   // folder is uploaded file by file
   if (strlen(storedPathName) < 2){
     LOG_DBG("Root or null is not allowed %s", storedPathName);  
-    return;  
+    return false;  
   }
   if (!ftpConnect()) {
     LOG_ERR("Unable to make ftp connection");
-    return; 
+    return false; 
   }
   File root = fp.open(storedPathName);
   if (!root) {
     LOG_ERR("Failed to open: %s", storedPathName);
-    return;
+    return false;
   }  
-   
+
+  bool res;
   if (!root.isDirectory()) {
     // Upload a single file 
-    if (getFolderName(root.path())) ftpStoreFile(root); 
+    if (getFolderName(root.path())) res = ftpStoreFile(root); 
   } else {  
     // Upload a whole folder, file by file
     LOG_INF("Uploading folder: ", root.name()); 
-    if (!createFtpFolder(root.name())) return;
+    if (!createFtpFolder(root.name())) return false;
     File fh = root.openNextFile();            
     while (fh) {
-      if (!ftpStoreFile(fh)) break; // abandon rest of files
+      res = ftpStoreFile(fh);
+      if (!res) break; // abandon rest of files
       fh.close();
       fh = root.openNextFile();
     }
     if (fh) fh.close();
   }
   root.close();
+  return res;
 }
 
 static void FTPtask(void* parameter) {
   // process an FTP request
   doPlayback = false; // close any current playback
-  uploadFolderOrFileFtp();
+  bool res = uploadFolderOrFileFtp();
   // Disconnect from ftp server
   client.println("QUIT");
   dclient.stop();
   client.stop();
+  if (res && deleteAfter) deleteFolderOrFile(storedPathName);
   uploadInProgress = false;
   vTaskDelete(NULL);
 }
 
-bool ftpFileOrFolder(const char* fileFolder) {
+bool ftpFileOrFolder(const char* fileFolder, bool _deleteAfter) {
   // called from other functions to commence FTP upload
   if (!uploadInProgress) {
     uploadInProgress = true;
     strcpy(storedPathName, fileFolder);
+    deleteAfter = _deleteAfter;
     xTaskCreate(&FTPtask, "FTPtask", 1024 * 3, NULL, 1, &ftpHandle);    
     return true;
   } else LOG_ERR("Unable to upload %s as another upload in progress", fileFolder);

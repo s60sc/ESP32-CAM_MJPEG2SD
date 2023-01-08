@@ -9,8 +9,10 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes for version 8.1:
+Changes for version 8.2:
 - fix for [timezone](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/150). 
+- fix for unwanted [APs](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/144). 
+- NTP server [configurable](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/151). 
 
 ## Purpose
 

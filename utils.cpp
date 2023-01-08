@@ -89,9 +89,9 @@ static void onWiFiEvent(WiFiEvent_t event) {
   if (event == ARDUINO_EVENT_WIFI_READY);
   else if (event == ARDUINO_EVENT_WIFI_SCAN_DONE);  
   else if (event == ARDUINO_EVENT_WIFI_STA_START) LOG_INF("Wifi Station started, connecting to: %s", ST_SSID);
-  else if (event == ARDUINO_EVENT_WIFI_STA_STOP) LOG_INF("Wifi Station stopped");
-  else if (event == ARDUINO_EVENT_WIFI_AP_START) LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", AP_SSID, WiFi.softAPIP().toString().c_str());
-  else if (event == ARDUINO_EVENT_WIFI_AP_STOP) LOG_INF("Wifi AP stopped");
+  else if (event == ARDUINO_EVENT_WIFI_STA_STOP) LOG_INF("Wifi Station stopped %s", ST_SSID);
+  else if (event == ARDUINO_EVENT_WIFI_AP_START) LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+  else if (event == ARDUINO_EVENT_WIFI_AP_STOP) LOG_INF("Wifi AP stopped: %s", WiFi.softAPSSID().c_str());
   else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) LOG_INF("Wifi Station IP, use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
   else if (event == ARDUINO_EVENT_WIFI_STA_LOST_IP) LOG_INF("Wifi Station lost IP");
   else if (event == ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED);
@@ -142,7 +142,6 @@ static bool setWifiSTA() {
 
 bool startWifi(bool firstcall) {
   // start wifi station (and wifi AP if allowed or station not defined)
-  WiFi.disconnect();
   if (firstcall) {
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
     WiFi.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
@@ -151,9 +150,11 @@ bool startWifi(bool firstcall) {
     WiFi.setHostname(hostName);
   }
   WiFi.mode(WIFI_AP_STA);
+  WiFi.disconnect();
+  WiFi.softAPdisconnect(true); // kill rogue connections on startup
   bool station = setWifiSTA();
   debugMemory("setWifiSTA");
-  if (firstcall && (!station || allowAP)) setWifiAP(); // AP always allowed if no Station SSID eg on first time use
+  if (!station || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use
   debugMemory("setWifiAP");
   if (station) {
     // connect to Wifi station
@@ -185,9 +186,6 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
-//  esp_ping_stop(pingHandle);
-//  esp_ping_delete_session(pingHandle);
-//  pingHandle = NULL;
   LOG_WRN("Failed to ping gateway, restart wifi ...");
   startWifi(false);
 }
@@ -218,11 +216,17 @@ static void startPing() {
   LOG_INF("Started ping monitoring");
 }
 
+void stopPing() {
+  esp_ping_stop(pingHandle);
+  esp_ping_delete_session(pingHandle);
+  pingHandle = NULL;
+}
 
 /************************** NTP  **************************/
 
 // Needs to be a time zone string from: https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv
-char timezone[64] = "GMT0"; 
+char timezone[64] = "GMT0";
+char ntpServer[64] = "pool.ntp.org";
 
 time_t getEpoch() {
   struct timeval tv;
@@ -247,7 +251,7 @@ static void showLocalTime(const char* timeSrc) {
 
 bool getLocalNTP() {
   // get current time from NTP server and apply to ESP32
-  const char* ntpServer = "pool.ntp.org";
+  LOG_INF("Using NTP server: %s", ntpServer);
   configTzTime(timezone, ntpServer);
   if (getEpoch() > 10000) {
     showLocalTime("NTP");    

@@ -53,7 +53,7 @@ bool externalPeripheral(byte pinNum, uint32_t outputData = 0);
 void flush_log(bool andClose = false);
 void formatElapsedTime(char* timeStr, uint32_t timeVal);
 void formatHex(const char* inData, size_t inLen);
-bool ftpFileOrFolder(const char* fileFolder);
+bool ftpFileOrFolder(const char* fileFolder, bool _deleteAfter = false);
 const char* getEncType(int ssidIndex);
 time_t getEpoch();
 bool getLocalNTP();
@@ -82,6 +82,7 @@ void startSecTimer(bool startTimer);
 bool startStorage();
 void startWebServer();
 bool startWifi(bool firstcall = true);
+void stopPing();
 void syncToBrowser(uint32_t browserUTC);
 bool updateConfigVect(const char* variable, const char* value);
 void updateStatus(const char* variable, const char* _value);
@@ -141,6 +142,7 @@ extern int smtpFrame; // which captured frame number to use for email image
 extern int smtpMaxEmails; // too many could cause account suspension
 
 extern char timezone[];
+extern char ntpServer[];
 extern char* jsonBuff; 
 extern bool dbgVerbose;
 extern bool logMode;

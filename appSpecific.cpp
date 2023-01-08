@@ -12,7 +12,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   if(!strcmp(variable, "minf")) minSeconds = intVal; 
   else if(!strcmp(variable, "stopStream")) stopPlaying();
   else if(!strcmp(variable, "lampLevel")) setLamp(intVal);
-  else if(!strcmp(variable, "motion")) motionVal = intVal;
+  else if(!strcmp(variable, "motionVal")) motionVal = intVal;
   else if(!strcmp(variable, "moveStartChecks")) moveStartChecks = intVal;
   else if(!strcmp(variable, "moveStopSecs")) moveStopSecs = intVal;
   else if(!strcmp(variable, "maxFrames")) maxFrames = intVal;
@@ -35,10 +35,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "micGain")) micGain = intVal;
   else if(!strcmp(variable, "autoUpload")) autoUpload = intVal;
   else if(!strcmp(variable, "upload")) ftpFileOrFolder(value);  
-  else if(!strcmp(variable, "uploadMove")) {
-    ftpFileOrFolder(value);  
-    deleteFolderOrFile(value);
-  }
+  else if(!strcmp(variable, "uploadMove")) ftpFileOrFolder(value, true);  
   else if(!strcmp(variable, "delete")) {
     stopPlayback = true;
     deleteFolderOrFile(value);
@@ -82,7 +79,8 @@ bool updateAppStatus(const char* variable, const char* value) {
   
   // Other settings
   else if(!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
-  else if(!strcmp(variable, "timezone")) strcpy(timezone,value);
+  else if(!strcmp(variable, "timezone")) strcpy(timezone, value);
+  else if(!strcmp(variable, "ntpServer")) strcpy(ntpServer, value);
   else if(!strcmp(variable, "smtpFrame")) smtpFrame = intVal;
   else if(!strcmp(variable, "smtpMaxEmails")) smtpMaxEmails = intVal;
   else if(!strcmp(variable, "sdMinCardFreeSpace")) sdMinCardFreeSpace = intVal;
