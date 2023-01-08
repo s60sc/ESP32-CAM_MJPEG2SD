@@ -242,7 +242,7 @@
           border-radius: 4px;
           cursor: pointer;
           font-size: 150%;
-          padding: 4px 0 4px 8px;
+          padding: 4px 0 4px 4px;
           background: var(--buttonReady);
       }
 
@@ -797,11 +797,11 @@
                                   <option value="7">HVGA(480x320)</option>
                                   <option value="6">CIF(400x296)</option> 
                                   <option value="5">QVGA(320x240)</option>
-                                  <option value="4">240X240</option> 
+                                  <option value="4">240x240</option> 
                                   <option value="3">HQVGA(240x176)</option> 
                                   <option value="2">QCIF(176x144)</option> 
                                   <option value="1">QQVGA(160x120)</option> 
-                                  <option value="0">96X96</option>
+                                  <option value="0">96x96</option>
                               </select>
                           </div>
                           <div class="input-group" id="fps-group">
@@ -1255,7 +1255,7 @@
         <figure>
             <div id="stream-container" class="image-container hidden">
                 <div class="close" id="close-stream">×</div>
-                <div class="maximize" id="full-screen">#</div>
+                <div class="maximize" id="full-screen" title="Original size">#</div>
                 <img id="stream" src="">
             </div>
         </figure>
@@ -1472,7 +1472,9 @@
       const streamUrl = baseHost + ':81';
       let timer = null;                  
       let refreshVal = 5000;
-      
+      let  imgSize = { width: 0, height: 0 };
+      let  fitSize = { width: 0, height: 0 };
+
       /**** NEEDS JQUERY *****/
       
       function setup() {
@@ -1614,10 +1616,9 @@
             return
         }
         if(el.id === "framesize"){ 
-          r = el.options[el.selectedIndex].text.split('(')[1].replace(')','').split('x')
-          srcSize = { width: parseInt(r[0]), height: parseInt(r[1]) } 
+          imgSize = getFrameSize();          
           if (encodeURI(fullScreen.html()) === '%C2%A4') 
-            $("#stream-container").css("width", srcSize.width).css("height", srcSize.height );
+            $("#stream-container").css("width", imgSize.width).css("height", imgSize.height );
         }
         
         const query = `${baseHost}/control?${el.id}=${value}`
@@ -1761,7 +1762,6 @@
         })
       });
       
-      var srcSize = { width: 0, height: 0 };
       const stopStream = () => {
         const curSize = {width: view.width, height: view.height}
         window.stop();
@@ -1870,10 +1870,17 @@
 
         view.on('load', function() {
           enableStreamButtons();
-          srcSize = { width: view.width, height: view.height } 
-          if(fullScreen.html() !== '#')
-            $("#stream-container").css("width",srcSize.width).css("height", srcSize.height);
-            viewContainer.show();
+          imgSize = getFrameSize()
+          if(fullScreen.html() === '#'){
+            fitSize = calculateAspectRatioFit( imgSize.width, imgSize.height, 
+                        window.screen.availWidth - $('#menu-container').outerWidth() - 25, 
+                        $(window).height() - $('.tab').outerHeight() - $('#header').outerHeight() - $('#footer').outerHeight() - 25 )
+      
+            $("#stream-container").css("width",fitSize.width).css("height", fitSize.height);
+          }else{
+            $("#stream-container").css("width",imgSize.width).css("height", imgSize.height);
+          }
+          viewContainer.show();
         });
 
         view.on('error', function() {
@@ -1954,25 +1961,30 @@
           return { width: srcWidth*ratio, height: srcHeight*ratio };
         }
         
-        //Resize player window,  #. Maximized - 2. Original - 3. Fullscreen aspect - 4. Fullscreen 
-        function toggleFullScreen() {        
+        //Resize player window,  #. Maximized - 2. ¤ Original - 3. ▭ Fullscreen aspect - 4. - Fullscreen 
+        function toggleFullScreen() {  
         if (fullScreen.html() === '#') { //Maximized -> Original 
-            $("#stream-container").css("width", srcSize.width).css("height", srcSize.height);
+            $("#stream-container").css("width", imgSize.width).css("height", imgSize.height);
             fullScreen.html('&curren;')
+            $('#full-screen').attr('title', 'Fullscreen with aspect');
         } else if (encodeURI(fullScreen.html()) === '%C2%A4') { //Original -> Fullscreen aspect
             viewContainer[0].requestFullscreen()
-            var r = calculateAspectRatioFit(srcSize.width, srcSize.height, window.screen.availWidth, window.screen.availHeight)
+            var r = calculateAspectRatioFit(imgSize.width, imgSize.height, window.screen.availWidth, window.screen.availHeight)
             $("#stream-container").css("width",r.width).css("height", r.height);
-            $("#stream").css("width","100%").css("height","auto")
+            $("#stream").css("width","100%").css("height", "auto")
             fullScreen.html('&rect;')
+            $('#full-screen').attr('title', 'Fullscreen');
         } else if (encodeURI(fullScreen.html()) === '%E2%96%AD') { //Fullscreen aspect -> Fullscreen       
             $("#stream-container").css("width", window.screen.availWidth).css("height", window.screen.availHeight);
             $("#stream").css("width","100%").css("height","100%")
             fullScreen.html('-')
+            $('#full-screen').attr('title', 'Fit to screen');
           } else { //Fullscreen -> Maximized
             document.exitFullscreen()
-            $("#stream-container").css("width", "100%").css("height", "auto");
+            //$("#stream-container").css("width", "100%").css("height", "auto");
+            $("#stream-container").css("width",fitSize.width).css("height", fitSize.height);
             fullScreen.html('#')
+            $('#full-screen').attr('title', 'Original size');
           }
         }
 
@@ -2051,8 +2063,8 @@
 
           // framesize
           const framesize = $('#framesize');
-          framesize.change(function() {
-            updateConfig(framesize)
+          framesize.change(function() {            
+            //updateConfig(framesize) //Already called from default on change action
             updateFPS();
           });
 
@@ -2173,7 +2185,10 @@
       }
       
       /*********** utility functions ***********/
-      
+      function getFrameSize(){
+        return { width:  parseInt($('#framesize option:selected').text().split('x')[0].match(/\d+/)[0]),
+                 height: parseInt($('#framesize option:selected').text().split('x')[1].match(/\d+/)[0]) } 
+      }
       // add received line to log element
       function addLogLine(text) {
         let log = document.getElementById('applog');
