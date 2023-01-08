@@ -36,7 +36,7 @@ lenc~1~98~na
 lswitch~20~98~na
 micGain~0~98~na
 minf~5~98~na
-motion~8~98~na
+motionVal~8~98~na
 quality~12~98~na
 raw_gma~1~98~na
 record~1~98~na
@@ -59,6 +59,7 @@ AP_sn~~0~AP subnet
 AP_gw~~0~AP gateway
 allowAP~1~0~Allow simultaneous AP (0/1)
 wifiTimeoutSecs~30~0~WiFi connect timeout (secs)
+ntpServer~pool.ntp.org~0~NTP Server address
 useUART0~1~99~na
 uartTxdPin~~3~UART1 TX pin
 uartRxdPin~~3~UART1 RX pin
