@@ -37,12 +37,12 @@
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.2"
+#define APP_VER "8.3"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause error
 #define DATA_DIR "/data"
@@ -60,7 +60,7 @@
 #define ONEMEG (1024 * 1024)
 #define MAX_PWD_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 110 // > number of entries in configs.txt
+#define MAX_CONFIGS 120 // > number of entries in configs.txt
 #define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
 
 #define FILE_EXT "avi"
@@ -82,9 +82,6 @@
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
-
-// which optional web assets to download
-#define USE_JQUERY true
 
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 // pins configured for SD card on this camera board
@@ -183,6 +180,7 @@ extern bool timeLapseOn; // enable time lapse recording
 extern int maxFrames;
 extern char inFileName[];
 extern uint8_t xclkMhz;
+extern char camModel[];
 
 // buffers
 extern uint8_t iSDbuffer[];
@@ -262,13 +260,13 @@ struct frameStruct {
   const uint16_t frameWidth;
   const uint16_t frameHeight;
   const uint16_t defaultFPS;
-  const uint8_t scaleFactor; // (0..3)
+  const uint8_t scaleFactor; // (0..4)
   const uint8_t sampleRate; // (1..N)
 };
 
 // indexed by frame size - needs to be consistent with sensor.h framesize_t enum
 const frameStruct frameData[] = {
-  {"96X96", 96, 96, 30, 1, 1}, 
+  {"96X96", 96, 96, 30, 1, 1},   // 2MP sensors
   {"QQVGA", 160, 120, 30, 1, 1},
   {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
@@ -281,6 +279,13 @@ const frameStruct frameData[] = {
   {"XGA", 1024, 768, 5, 3, 1},   
   {"HD", 1280, 720, 5, 3, 1}, 
   {"SXGA", 1280, 1024, 5, 3, 1}, 
-  {"UXGA", 1600, 1200, 5, 3, 1}  
+  {"UXGA", 1600, 1200, 5, 3, 1},  
+  {"FHD", 920, 1080, 5, 3, 1},    // 3MP Sensors
+  {"P_HD", 720, 1280, 5, 3, 1},
+  {"P_3MP", 864, 1536, 5, 3, 1},
+  {"QXGA", 2048, 1536, 5, 4, 1},
+  {"QHD", 2560, 1440, 5, 4, 1},   // 5MP Sensors
+  {"WQXGA", 2560, 1600, 5, 4, 1},
+  {"P_FHD", 1080, 1920, 5, 3, 1},
+  {"QSXGA", 2560, 1920, 4, 4, 1}
 };
-

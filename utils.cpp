@@ -175,7 +175,7 @@ bool startWifi(bool firstcall) {
   int numNetworks = WiFi.scanNetworks();
   for (int i=0; i < numNetworks; i++) {
     if (!strcmp(WiFi.SSID(i).c_str(), ST_SSID))
-      LOG_INF("Wifi stats - signal strength: %d dBm; Encryption: %s; channel: %u", WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
+      LOG_INF("Wifi stats for %s - signal strength: %d dBm; Encryption: %s; channel: %u",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
   }
   return WiFi.status() == WL_CONNECTED ? true : false;
 }

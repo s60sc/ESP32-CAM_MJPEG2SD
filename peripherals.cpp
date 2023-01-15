@@ -313,7 +313,7 @@ static rmt_data_t ledData[RGB_BITS];
 
 void setupLamp() {
   // setup lamp LED according to board type
-  // assumes led wired as active high (ESP32 signal led on pin 33 is active low)
+  // assumes led wired as active high (ESP32 lamp led on pin 4 is active high, signal led on pin 33 is active low)
   if ((lampPin < EXTPIN) && lampUse) {
     if (lampPin) {
 #if defined(CAMERA_MODEL_AI_THINKER)

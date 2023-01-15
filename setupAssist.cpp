@@ -104,7 +104,6 @@ bool checkDataFiles() {
   if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
   bool res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
   if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
-  if (USE_JQUERY && res) res = wgetFile(GITHUB_URL, DATA_DIR "/jquery.min.js");
   if (res) res = wgetFile(GITHUB_URL, DATA_DIR "/favicon.ico");
   if (res) res = appDataFiles();
   return res;

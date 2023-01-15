@@ -38,7 +38,7 @@ static size_t jpgImgSize = 0;
 
 /**********************************************************************************/
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, uint8_t scale);
+static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, jpg_scale_t scale);
 
 static bool isNight(uint8_t nightSwitch) {
   // check if night time for suspending recording
@@ -76,13 +76,13 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   size_t jpg_len = 0;
 
   // calculate parameters for sample size
-  int scaling = frameData[fsizePtr].scaleFactor; 
+  uint8_t scaling = frameData[fsizePtr].scaleFactor; 
   uint16_t reducer = frameData[fsizePtr].sampleRate;
   uint8_t downsize = pow(2, scaling) * reducer;
   int sampleWidth = frameData[fsizePtr].frameWidth / downsize;
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   int num_pixels = sampleWidth * sampleHeight;
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, scaling)) {
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, (jpg_scale_t)scaling)) {
     LOG_ERR("motionDetect: jpg2rgb() failed");
     free(rgb_buf);
     rgb_buf = NULL;
@@ -242,14 +242,14 @@ static uint32_t _jpg_read(void * arg, size_t index, uint8_t *buf, size_t len) {
   return len;
 }
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t **out, uint8_t scale) {
+static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t **out, jpg_scale_t scale) {
   rgb_jpg_decoder jpeg;
   jpeg.width = 0;
   jpeg.height = 0;
   jpeg.input = src;
   jpeg.output = NULL; 
   jpeg.data_offset = 0;
-  esp_err_t res = esp_jpg_decode(src_len, jpg_scale_t(scale), _jpg_read, _rgb_write, (void*)&jpeg);
+  esp_err_t res = esp_jpg_decode(src_len, scale, _jpg_read, _rgb_write, (void*)&jpeg);
   *out = jpeg.output;
   return (res == ESP_OK) ? true : false;
 }

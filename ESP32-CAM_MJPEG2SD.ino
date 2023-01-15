@@ -18,7 +18,7 @@
 #define CAM_BOARD "OTHER"
 #endif
 
-static char camModel[10];
+char camModel[10];
 
 static void prepCam() {
   // initialise camera depending on model and board
@@ -44,9 +44,14 @@ static void prepCam() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = xclkMhz * 1000000;
   config.pixel_format = PIXFORMAT_JPEG;
+  config.grab_mode = CAMERA_GRAB_LATEST;
   // init with high specs to pre-allocate larger buffers
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.frame_size = FRAMESIZE_UXGA;
+#if CONFIG_IDF_TARGET_ESP32S3
+  config.frame_size = FRAMESIZE_QSXGA; // 8M
+#else
+  config.frame_size = FRAMESIZE_UXGA;  // 4M
+#endif  
   config.jpeg_quality = 10;
   config.fb_count = 4;
 
@@ -62,9 +67,11 @@ static void prepCam() {
     while (retries && err != ESP_OK) {
       err = esp_camera_init(&config);
       if (err != ESP_OK) {
+        // power cycle the camera, provided pin is connected
         digitalWrite(PWDN_GPIO_NUM, 1);
         delay(100);
-        digitalWrite(PWDN_GPIO_NUM, 0); // power cycle the camera (OV2640)
+        digitalWrite(PWDN_GPIO_NUM, 0); 
+        delay(100);
         retries--;
       }
     } 

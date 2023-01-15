@@ -176,7 +176,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   extractQueryKey(req, variable);
   if (!strcmp(variable, "startOTA")) startOTAserver();
   else {
-    strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
+    strcpy(value, variable + strlen(variable) + 1); // value points to second part of string
     updateStatus(variable, value);
     webAppSpecificHandler(req, variable, value); 
     // handler for downloading selected file, required file name in inFileName
@@ -305,6 +305,14 @@ static esp_err_t wsHandler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+void killWebSocket() {
+  // user requested
+  if (fdWs >= 0) {
+    httpd_sess_trigger_close(httpServer, fdWs);
+    fdWs = -1;
+  }
+}
+
 void startWebServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -416,6 +424,7 @@ static void OTAtask(void* parameter) {
 
 static void startOTAserver() {
   OTAprereq();
+  if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
   // start OTA task
   static TaskHandle_t otaHandle = NULL;
   if (otaHandle == NULL) xTaskCreate(&OTAtask, "OTAtask", 1024 * 4, NULL, 1, &otaHandle);  

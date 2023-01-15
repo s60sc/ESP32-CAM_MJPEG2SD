@@ -107,6 +107,8 @@ bool updateAppStatus(const char* variable, const char* value) {
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, intVal);
     else if(!strcmp(variable, "brightness")) res = s->set_brightness(s, intVal);
     else if(!strcmp(variable, "saturation")) res = s->set_saturation(s, intVal);
+    else if(!strcmp(variable, "denoise")) res = s->set_denoise(s, intVal);    
+    else if(!strcmp(variable, "sharpness")) res = s->set_sharpness(s, intVal);    
     else if(!strcmp(variable, "gainceiling")) res = s->set_gainceiling(s, (gainceiling_t)intVal);
     else if(!strcmp(variable, "colorbar")) res = s->set_colorbar(s, intVal);
     else if(!strcmp(variable, "awb")) res = s->set_whitebal(s, intVal);
@@ -129,6 +131,31 @@ bool updateAppStatus(const char* variable, const char* value) {
     else res = ESP_FAIL;
   }
   return res == ESP_OK ? true : false;
+}
+
+void wsAppSpecificHandler(const char* wsMsg) {
+  // message from web socket
+  int wsLen = strlen(wsMsg) - 1;
+  switch ((char)wsMsg[0]) {
+    case 'H': 
+      // keepalive heartbeat, return status
+    break;
+    case 'S': 
+      // status request
+      buildJsonString(wsLen); // required config number 
+      logPrint("%s\n", jsonBuff);
+    break;   
+    case 'U': 
+      // update or control request
+      memcpy(jsonBuff, wsMsg + 1, wsLen); // remove 'U'
+      parseJson(wsLen);
+    break;
+    case 'K': 
+      // kill websocket connection
+    break;
+    default:
+    break;
+  }
 }
 
 void buildAppJsonString(bool filter) {

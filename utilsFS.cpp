@@ -11,8 +11,8 @@ bool formatIfMountFailed = true; // Auto format the file system if mount failed.
 
 // hold sorted list of filenames/folders names in order of newest first
 static std::vector<std::string> fileVec;
-static auto currentDir = "/#current";
-static auto previousDir = "/#previous";
+static auto currentDir = "/~current";
+static auto previousDir = "/~previous";
 static char fsType[10] = {0};
 
 #ifdef INCLUDE_SD
@@ -167,7 +167,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
   char fileName[FILE_NAME_LEN];
   bool noEntries = true;
   // set current or previous folder
-  if (strchr(fname, '#') != NULL) {
+  if (strchr(fname, '~') != NULL) {
     if (!strcmp(fname, currentDir)) {
       dateFormat(partName, sizeof(partName), true);
       strcpy(fileName, partName);
@@ -182,7 +182,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
       strftime(partName, sizeof(partName), "/%Y%m%d", localtime(&prev));
       strcpy(fileName, partName);
       LOG_INF("Previous directory set to %s", fileName);
-    }
+    } else strcpy(fileName, ""); 
   } else strcpy(fileName, fname);
 
   // check if folder or file
@@ -196,9 +196,11 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     bool returnDirs = strlen(fileName) > 1 ? (strchr(fileName+1, '/') == NULL ? false : true) : true; 
     // open relevant folder to list contents
     File root = STORAGE.open(fileName);
-    if (!root) LOG_ERR("Failed to open directory %s", fileName);
-    if (!root.isDirectory()) LOG_ERR("Not a directory %s", fileName);
-    LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
+    if (strlen(fileName)) {
+      if (!root) LOG_ERR("Failed to open directory %s", fileName);
+      if (!root.isDirectory()) LOG_ERR("Not a directory %s", fileName);
+      LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
+    }
     
     // build relevant option list
     strcpy(jsonBuff, returnDirs ? "{" : "{\"/\":\".. [ Up ]\",");            
@@ -226,7 +228,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     if (psramFound()) heap_caps_malloc_extmem_enable(4096);
   }
   
-  if (noEntries && !hasExtension) strcpy(jsonBuff, "{\"/\":\"List folders\",\"/#current\":\"Go to current (today)\",\"/#previous\":\"Go to previous (yesterday)\"}");
+  if (noEntries && !hasExtension) sprintf(jsonBuff, "{\"/\":\"List folders\",\"%s\":\"Go to current (today)\",\"%s\":\"Go to previous (yesterday)\"}", currentDir, previousDir);
   else {
     // build json string content
     sort(fileVec.begin(), fileVec.end(), std::greater<std::string>());

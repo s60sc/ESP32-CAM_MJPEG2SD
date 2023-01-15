@@ -60,6 +60,7 @@ bool getLocalNTP();
 void getOldestDir(char* oldestDir);
 void goToSleep(int wakeupPin, bool deepSleep);
 void initStatus(int cfgGroup, int delayVal);
+void killWebSocket();
 void listBuff(const uint8_t* b, size_t len); 
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension);
 bool loadConfig();

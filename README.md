@@ -9,10 +9,14 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes for version 8.2:
+Changes up to version 8.3:
+- Web page improvements and jQuery removed.
+- Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
+- Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
 - fix for [timezone](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/150). 
 - fix for unwanted [APs](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/144). 
 - NTP server [configurable](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/151). 
+
 
 ## Purpose
 
@@ -37,7 +41,7 @@ HD | 12.5 | 5 | 220
 SXGA | 12.5 | 5 | 300
 UXGA | 12.5 | 5 | 450
 
-The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs the app about double the speed of the ESP32 mainly due to much faster PSRAM. It can record at the maximum OV2640 frame rates including audio for all frame sizes except UXGA (max 10fps).
+The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs the app about double the speed of the ESP32 mainly due to much faster PSRAM. It can record at the maximum OV2640 frame rates including [audio](#audio-recording) for all frame sizes except UXGA (max 10fps).
 
 ## Design
 
@@ -72,7 +76,7 @@ Browser functions only tested on Chrome.
 
 ## Main Function
 
-A recording is generated either by the camera itself detecting motion as given in the **Motion detection by Camera** section below, or
+A recording is generated either by the camera itself detecting motion as given in the [**Motion detection by Camera**](#motion-detection-by-camera) section below, or
 by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
 In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
@@ -119,7 +123,7 @@ More configuration details accessed via **Edit Config** button, which displays f
 Additional WiFi and webserver settings.
 
 **Motion**: 
-See **Motion detection by Camera** section.
+See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 
 **Peripherals** eg:
 * Select if a PIR is to be used (which can also be used in parallel with camera motion detection).
@@ -173,4 +177,23 @@ An I2S microphone can be supported, such as INMP441. PDM and analog microphones 
 Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate.
 
 The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting 0 cancels the microphone. Other settings under **Peripherals** button on the configuration web page.
+
+## OV5640
+
+The OV5640 pinout is compatible with boards designed for the OV2640 but the voltage supply is too high for the internal 1.5V regulator, so the camera overheats unless a heat sink is applied.
+
+For recording purposes the OV5640 should only be used with an ESP32S3 board. Motion detection above `FHD` framesize does not work due to `esp_jpg_decode()` decompression [error](https://github.com/espressif/esp32-camera/issues/496).
+
+Recordable frame rates for the OV5460 highest framesizes on an ESP32S3 are:
+
+Frame Size | FPS 
+------------ | -------------
+QXSGA | 4
+WQXGA | 5
+QXGA | 5
+QHD | 6
+FHD | 6
+P_FHD | 6
+
+The OV3660 has not been tested.
 

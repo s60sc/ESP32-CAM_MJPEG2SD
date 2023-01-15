@@ -3,7 +3,6 @@
 //
 // s60sc 2022
 //
-// contribution from @marekful
 
 #include "appGlobals.h"
 
@@ -19,7 +18,7 @@ static fs::FS fpv = STORAGE;
 static httpd_handle_t streamServer = NULL; // streamer listens on port 81
 
 esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value) {
-  // update handling specific to mjpeg2sd
+  // update handling requiring response specific to mjpeg2sd
   if (!strcmp(variable, "sfile")) {
     // get folders / files on SD, save received filename if has required extension
     strcpy(inFileName, value);
@@ -145,6 +144,9 @@ static esp_err_t streamHandler(httpd_req_t* req) {
 void startStreamServer() {
 if (psramFound()) heap_caps_malloc_extmem_enable(0); 
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+#if CONFIG_IDF_TARGET_ESP32S3
+  config.stack_size = 1024 * 8;
+#endif
   httpd_uri_t streamUri = {.uri = "/stream", .method = HTTP_GET, .handler = streamHandler, .user_ctx = NULL};
   config.server_port += 1;
   config.ctrl_port += 1;
@@ -156,7 +158,4 @@ if (psramFound()) heap_caps_malloc_extmem_enable(4096);
 debugMemory("startStreamserver");
 }
 
-void wsAppSpecificHandler(const char* wsMsg) {
-  // process app specific websocket message & send response if required       
-}  
  

@@ -138,8 +138,6 @@ static bool ftpStoreFile(File &fh) {
   uint32_t uploadStart = millis();
   size_t readLen, writeLen;
   if (!sendFtpCommand("STOR ", ftpSaveName, "150", "125")) return false;
-  int saveRefreshVal = refreshVal;
-  refreshVal = 1000;
   do {
     // upload file in chunks
     readLen = fh.read(chunk, CHUNKSIZE);  
@@ -157,7 +155,6 @@ static bool ftpStoreFile(File &fh) {
   } while (readLen > 0);
   dclient.stop();
   percentLoaded = 100;
-  refreshVal = saveRefreshVal;
   if (sendFtpCommand("", "", "226")) LOG_INF("Uploaded %0.1fMB in %u sec", (float)(writeBytes) / ONEMEG, (millis() - uploadStart) / 1000); 
   else LOG_ERR("File transfer not successful");
   return true;
@@ -181,13 +178,18 @@ static bool uploadFolderOrFileFtp() {
   }  
 
   bool res;
+  const int saveRefreshVal = refreshVal;
+  refreshVal = 1;
   if (!root.isDirectory()) {
     // Upload a single file 
     if (getFolderName(root.path())) res = ftpStoreFile(root); 
   } else {  
     // Upload a whole folder, file by file
     LOG_INF("Uploading folder: ", root.name()); 
-    if (!createFtpFolder(root.name())) return false;
+    if (!createFtpFolder(root.name())) {
+      refreshVal = saveRefreshVal;
+      return false;
+    }
     File fh = root.openNextFile();            
     while (fh) {
       res = ftpStoreFile(fh);
@@ -197,6 +199,7 @@ static bool uploadFolderOrFileFtp() {
     }
     if (fh) fh.close();
   }
+  refreshVal = saveRefreshVal;
   root.close();
   return res;
 }

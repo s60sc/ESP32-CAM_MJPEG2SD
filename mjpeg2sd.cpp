@@ -677,6 +677,7 @@ void endTasks() {
 void OTAprereq() {
   // stop timer isrs, and free up heap space, or crashes esp32
   controlFrameTimer(false);
+  stopPing();
   endTasks();
   esp_camera_deinit();
   delay(100);
