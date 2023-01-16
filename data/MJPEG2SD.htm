@@ -1321,7 +1321,7 @@
         <div>
           <svg width="150" height="40">
             <rect/>
-            <text id="clearWSlog" x="50%" y="50%">Clear WS Log</text>
+            <text id="clearWSlog" x="50%" y="50%" font-size="20" fill=var(--buttonText)>Clear WS Log</text>
           </svg>
         </div>
         <div class="input-group" id="dbg-group" style="font-size: 20px; text-align: left">
@@ -1436,7 +1436,7 @@
 
         /*********** initialisation  ***********/
         
-        const baseHost = document.location.origin;
+        const baseHost = document.location.origin
         const wsServer = "ws://" + document.location.host + ":80/ws";
         let refreshInterval = 5000;
         let ws = null;
@@ -1444,12 +1444,10 @@
         let updateData = {}; // receives json for status data as key val pairs
         let cfgGroupNow = -1;
         let loggingOn = false;
-        const CLASS = "class";
-        const ID = "id";
-        
-        const streamUrl = baseHost + ':81';
         let imgSize = { width: 0, height: 0 };
         let fitSize = { width: 0, height: 0 };
+        const CLASS = "class";
+        const ID = "id";
         let cameraModel = "OV2640";
         
         const $ = document.querySelector.bind(document);
@@ -1651,7 +1649,7 @@
          document.addEventListener("click", function (event) {
             const e = event.target;
             // svg rect elements, use id of its following text node
-            if (e.nodeName == 'rect') processStatus(ID, e.nextElementSibling.id, 1);
+            if (e.nodeName == 'rect') processStatus(ID, e.nextElementSibling.id, null);
             // tab buttons, use name as target id 
             else if (e.classList.contains('tablinks')) openTab(e);
             // submit buttons
@@ -1851,17 +1849,19 @@
         
         /************* App specific ***************/
         
+        const streamUrl = baseHost + ':81';
+         
         function processStatus(dest, key, value) {
           // process user request
           if (dest == ID) {
             // operation based on ID
             if (key == "wifi") getConfig("0");
-            else if (key == "clearWSlog") $('#applog').innerHTML = "";
             else if (key == "peripherals") getConfig("0123");
             else if (key == "motion") getConfig("01");
             else if (key == "other") getConfig("012");
             else if (key == "clearSDlog") clearSDlog();
             else if (key == "refreshSDlog") getSDlog();
+            else if (key == "clearWSlog") $('#applog').innerHTML = "";
             else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key);
             else if (key == 'timezoneSel') setTz(key, value);
             else if (key == "framesize") frameSize(key, value);
