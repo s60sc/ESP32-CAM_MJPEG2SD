@@ -443,6 +443,7 @@ static void playbackFPS(const char* fname) {
   // extract meta data from filename to commence playback
   fnameStruct fnameMeta = extractMeta(fname);
   recFPS = fnameMeta.recFPS;
+  if (recFPS < 1) recFPS = 1;
   recDuration = fnameMeta.recDuration;
   // temp change framerate to recorded framerate
   FPS = recFPS;

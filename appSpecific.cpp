@@ -167,9 +167,13 @@ void buildAppJsonString(bool filter) {
   if (aTemp > -127.0) p += sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
   else p += sprintf(p, "\"atemp\":\"n/a\",");
   if (currentVoltage < 0) p += sprintf(p, "\"battv\":\"n/a\",");
-  else p += sprintf(p, "\"battv\":\"%0.1fV\",", currentVoltage);  
-  p += sprintf(p, "\"forceRecord\":%u,", forceRecord ? 1 : 0);  
-  p += sprintf(p, "\"forcePlayback\":%u,", doPlayback ? 1 : 0);  
+  else p += sprintf(p, "\"battv\":\"%0.1fV\",", currentVoltage); 
+  if (forcePlayback && !doPlayback) {
+    // switch off playback on browser
+    forcePlayback = false;
+    p += sprintf(p, "\"forcePlayback\":0,");  
+  }
+  p += sprintf(p, "\"camModel\":\"%s\",", camModel); 
   
   // Extend info
   uint8_t cardType = SD_MMC.cardType();
@@ -202,7 +206,6 @@ void buildAppJsonString(bool filter) {
   p += sprintf(p, "\"progressBar\":%u,", percentLoaded);  
   if (percentLoaded == 100) percentLoaded = 0;
   //p += sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 
-  if (!filter) p += sprintf(p, "\"sfile\":%s,", "\"None\"");
   *p = 0;
 }
 bool appDataFiles() {

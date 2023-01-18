@@ -42,7 +42,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.3"
+#define APP_VER "8.3.2"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause error
 #define DATA_DIR "/data"
@@ -163,7 +163,8 @@ extern bool autoUpload;
 extern bool dbgMotion;
 extern bool doPlayback;
 extern bool doRecording; // whether to capture to SD or not
-extern bool forceRecord; //Recording enabled by rec button
+extern bool forceRecord; // Recording enabled by rec button
+extern bool forcePlayback; // playback enabled by user
 extern uint8_t FPS;
 extern uint8_t fsizePtr; // index to frameData[] for record
 extern bool isCapturing;

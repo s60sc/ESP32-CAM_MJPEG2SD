@@ -207,10 +207,8 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     File file = root.openNextFile();
     if (psramFound()) heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
     while (file) {
-      if (returnDirs && file.isDirectory() 
-          && strstr(file.name(), "System") == NULL // ignore Sys Vol Info
-          && strstr(DATA_DIR, file.name()) == NULL) { // ignore data folder
-        // build folder list
+      if (returnDirs && file.isDirectory() && strstr(DATA_DIR, file.name()) == NULL) {  
+        // build folder list, ignore data folder
         sprintf(partJson, "\"%s\":\"%s\",", file.path(), file.name());
         fileVec.push_back(std::string(partJson));
         noEntries = false;

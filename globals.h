@@ -6,8 +6,8 @@
 // to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-//#pragma GCC diagnostic ignored "-Wunused-variable"
-//#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
 /******************** Libraries *******************/
 
@@ -45,7 +45,7 @@ void debugMemory(const char* caller);
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
 void deleteFolderOrFile(const char* deleteThis);
 void devSetup();
-void doRestart(String restartStr);
+void doRestart(const char* restartStr);
 void emailAlert(const char* _subject, const char* _message);
 const char* encode64(const char* inp);
 const uint8_t* encode64chunk(const uint8_t* inp, int rem);

@@ -247,7 +247,6 @@ void updateStatus(const char* variable, const char* _value) {
   }
   else if(!strcmp(variable, "refreshVal")) refreshVal = intVal; 
   else if(!strcmp(variable, "resetLog")) reset_log(); 
-  else if(!strcmp(variable, "reset") || !strcmp(variable, "reboot")) doRestart("user requested restart"); 
   else if(!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
   else if(!strcmp(variable, "deldata")) {  
     if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
@@ -295,7 +294,6 @@ void buildJsonString(uint8_t filter) {
   #endif
       // other
       p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
-      p += sprintf(p, "\"camModel\":\"%s\",", camModel); 
     }
   } else {
     // build json string for requested config group

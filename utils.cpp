@@ -6,7 +6,8 @@
 // - base64 encoding
 // - device sleep
 //
-// s60sc 2021, some functions based on code contributed by gemi254
+// s60sc 2021, 2023
+// some functions based on code contributed by gemi254
 
 #include "appGlobals.h"
 
@@ -217,9 +218,11 @@ static void startPing() {
 }
 
 void stopPing() {
-  esp_ping_stop(pingHandle);
-  esp_ping_delete_session(pingHandle);
-  pingHandle = NULL;
+  if (pingHandle != NULL) {
+    esp_ping_stop(pingHandle);
+    esp_ping_delete_session(pingHandle);
+    pingHandle = NULL;
+  }
 }
 
 /************************** NTP  **************************/
@@ -303,12 +306,10 @@ bool changeExtension(char* outName, const char* inName, const char* newExt) {
 void showProgress() {
   // show progess as dots if not verbose
   static uint8_t dotCnt = 0;
-////  if (!dbgVerbose) {
-    Serial.print("."); // progress marker
-    if (++dotCnt >= 50) {
-      dotCnt = 0;
-      Serial.println("");
-////    }
+  Serial.print("."); // progress marker
+  if (++dotCnt >= 50) {
+    dotCnt = 0;
+    Serial.println("");
     Serial.flush();
   }
 }
@@ -379,9 +380,9 @@ void debugMemory(const char* caller) {
   }
 }
 
-void doRestart(String restartStr) {
+void doRestart(const char* restartStr) {
   flush_log(true);
-  LOG_WRN("Controlled restart: %s", restartStr.c_str());
+  LOG_WRN("Controlled restart: %s", restartStr);
   delay(2000);
   ESP.restart();
 }

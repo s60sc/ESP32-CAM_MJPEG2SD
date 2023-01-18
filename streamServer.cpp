@@ -14,6 +14,7 @@
 static const size_t boundaryLen = strlen(JPEG_BOUNDARY);
 static char hdrBuf[HDR_BUF_LEN];
 static fs::FS fpv = STORAGE;
+bool forcePlayback = false;
 
 static httpd_handle_t streamServer = NULL; // streamer listens on port 81
 
@@ -57,16 +58,18 @@ static esp_err_t streamHandler(httpd_req_t* req) {
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
   if (!strcmp(variable, "random")) singleFrame = true;
+  doPlayback = false;
   if (!strcmp(variable, "source") && !strcmp(value, "file")) {
+    forcePlayback = true;
     if (fpv.exists(inFileName)) {
-      LOG_INF("Playback enabled (SD file selected)");
-      doPlayback = true;
+      if (stopPlayback) LOG_WRN("Playback refused - capture in progress");
+      else {
+        LOG_INF("Playback enabled (SD file selected)");
+        doPlayback = true;
+      }
     } else LOG_WRN("File %s doesn't exist when Playback requested", inFileName);
   }
-  else if (!strcmp(variable, "source") && !strcmp(value, "sensor")) {
-    LOG_INF("Playback disabled while live streaming");
-    doPlayback = false;
-  }
+
   // output header if streaming request
   if (!singleFrame) httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
 
