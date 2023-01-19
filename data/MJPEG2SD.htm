@@ -2022,6 +2022,7 @@
         function recordAction(key) {
           if (isActive($('#'+key))) deactivateRecordButton();
           else activateRecordButton();
+          return isActive($('#'+key)) ? 1 : 0;
         }
                 
         function playbackAction(key) {
