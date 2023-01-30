@@ -297,7 +297,7 @@ static bool closeAvi() {
     cTime = millis() - cTime;
     // AVI stats
     LOG_INF("******** AVI recording stats ********");
-    LOG_INF("Recorded %s", aviFileName);
+    LOG_ALT("Recorded %s", aviFileName);
     LOG_INF("AVI duration: %u secs", vidDurationSecs);
     LOG_INF("Number of frames: %u", frameCnt);
     LOG_INF("Required FPS: %u", FPS);
@@ -324,7 +324,7 @@ static bool closeAvi() {
   } else {
     // delete too small files if exist
     SD_MMC.remove(AVITEMP);
-    LOG_WRN("Insufficient capture duration: %u secs", vidDurationSecs);                 
+    LOG_INF("Insufficient capture duration: %u secs", vidDurationSecs);                 
     return false;
   }
 }
@@ -362,7 +362,7 @@ static boolean processFrame() {
       if (lampAuto && nightTime) setLamp(lampLevel); // switch on lamp
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
-      LOG_INF("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
+      LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
       openAvi();
       wasCapturing = true;
     }

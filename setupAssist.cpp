@@ -92,8 +92,7 @@ static bool wgetFile(const char* githubURL, const char* filePath, bool restart =
       }
     } 
     if (restart) {
-      loadConfig();
-      doRestart("config file downloaded");
+      if (loadConfig()) doRestart("config file downloaded");
     }
   } 
   return true;

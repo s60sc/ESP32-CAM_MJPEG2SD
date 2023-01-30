@@ -83,37 +83,38 @@ static bool retrieveConfigVal(const char* variable, char* value) {
 
 static void loadVectItem(const std::string keyValGrpLabel) {
   // extract a config tokens from input and load into configs vector
-  // comprises key : val : group : label
-  std::string token[4];
+  // comprises key : val : group : type : label
+  const int tokens = 5;
+  std::string token[tokens];
   int i = 0;
   if (keyValGrpLabel.length()) {
     std::istringstream ss(keyValGrpLabel);
     while (std::getline(ss, token[i++], DELIM));
-    if (i != 5) LOG_ERR("Unable to parse '%s', len %u", keyValGrpLabel.c_str(), keyValGrpLabel.length());
+    if (i != tokens+1) LOG_ERR("Unable to parse '%s', len %u", keyValGrpLabel.c_str(), keyValGrpLabel.length());
     else {
       if (!allowSpaces) token[1].erase(std::remove(token[1].begin(), token[1].end(), ' '), token[1].end());
-      if (token[3][token[3].size() - 1] == '\r') token[3].erase(token[3].size() - 1);
-      configs.push_back({token[0], token[1], token[2], token[3]});
+      if (token[tokens-1][token[tokens-1].size() - 1] == '\r') token[tokens-1].erase(token[tokens-1].size() - 1);
+      configs.push_back({token[0], token[1], token[2], token[3], token[4]});
     }
   }
-  if (configs.size() > MAX_CONFIGS) LOG_WRN("Config file entries: %u exceed max: %u", configs.size(), MAX_CONFIGS);
+  if (configs.size() > MAX_CONFIGS) LOG_ALT("Config file entries: %u exceed max: %u", configs.size(), MAX_CONFIGS);
 }
 
 static void saveConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_WRITE);
   char configLine[FILE_NAME_LEN + 100];
-  if (!file) LOG_ERR("Failed to save to configs file");
+  if (!file) LOG_ALT("Failed to save to configs file");
   else {
     for (const auto& row: configs) {
       // recreate config file with updated content
       if (!strcmp(row[0].c_str() + strlen(row[0].c_str()) - 5, "_Pass")) 
         // replace passwords with asterisks
-        sprintf(configLine, "%s%c%.*s%c%s%c%s\n", row[0].c_str(), DELIM, strlen(row[1].c_str()), FILLSTAR, DELIM, row[2].c_str(), DELIM, row[3].c_str());
-      else sprintf(configLine, "%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str());
+        sprintf(configLine, "%s%c%.*s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, strlen(row[1].c_str()), FILLSTAR, DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
+      else sprintf(configLine, "%s%c%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
       file.write((uint8_t*)configLine, strlen(configLine));
     }
     file.close();
-    LOG_INF("Config file saved");
+    LOG_ALT("Config file saved");
   }
 }
 
@@ -278,6 +279,9 @@ void buildJsonString(uint8_t filter) {
     buildAppJsonString((bool)filter);
     p += strlen(jsonBuff) - 1;
     p += sprintf(p, "\"cfgGroup\":\"-1\",");
+    p += sprintf(p, "\"alertMsg\":\"%s\",", alertMsg); 
+    alertMsg[0] = 0;
+
     if (!filter) {
       // populate first part of json string from config vect
       for (const auto& row : configs) 
@@ -301,8 +305,9 @@ void buildJsonString(uint8_t filter) {
     p += sprintf(p, "\"cfgGroup\":\"%u\",", cfgGroup);
     for (const auto& row : configs) {
       if (atoi(row[2].c_str()) == cfgGroup) {
-        p += sprintf(p, "\"lab%s\":\"%s\",\"%s\":\"%s\",", 
-          row[0].c_str(), row[3].c_str(), row[0].c_str(), row[1].c_str()); 
+        // for each config item, list - key:value, key:label text, key:type identifier
+        p += sprintf(p, "\"%s\":\"%s\",\"lab%s\":\"%s\",\"typ%s\":\"%s\",",  row[0].c_str(),
+          row[1].c_str(), row[0].c_str(), row[4].c_str(), row[0].c_str(), row[3].c_str()); 
       }
     }
   }
@@ -325,25 +330,27 @@ bool loadConfig() {
   if (jsonBuff == NULL) {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
-  loadConfigVect();
-  loadPrefs(); // overwrites any corresponding entries in config
-
-  // set default hostname and AP SSID if config is null
-  retrieveConfigVal("hostName", hostName);
-  if (!strlen(hostName)) {
-    sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
-    updateConfigVect("hostName", hostName);
+  if (loadConfigVect()) {
+    loadPrefs(); // overwrites any corresponding entries in config
+  
+    // set default hostname and AP SSID if config is null
+    retrieveConfigVal("hostName", hostName);
+    if (!strlen(hostName)) {
+      sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
+      updateConfigVect("hostName", hostName);
+    }
+    if (!strlen(AP_SSID)) {
+      strcpy(AP_SSID, hostName);
+      updateConfigVect("AP_SSID", AP_SSID);
+    }
+  
+    // load variables from stored config vector
+    char variable[32] = {0,};
+    char value[FILE_NAME_LEN] = {0,};
+    while (getNextKeyVal(variable, value)) updateStatus(variable, value);
+    configLoaded = true;
+    debugMemory("loadConfig");
+    return true;
   }
-  if (!strlen(AP_SSID)) {
-    strcpy(AP_SSID, hostName);
-    updateConfigVect("AP_SSID", AP_SSID);
-  }
-
-  // load variables from stored config vector
-  char variable[32] = {0,};
-  char value[FILE_NAME_LEN] = {0,};
-  while (getNextKeyVal(variable, value)) updateStatus(variable, value);
-  configLoaded = true;
-  debugMemory("loadConfig");
-  return true;
+  return false;
 }

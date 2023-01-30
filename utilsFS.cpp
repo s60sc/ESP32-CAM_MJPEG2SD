@@ -77,6 +77,7 @@ bool startStorage() {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
     if (!res) sprintf(startupFailure, "Startup Failure: Check SD card inserted");
+    else checkFreeSpace();
     return res; 
   }
 #endif
@@ -97,7 +98,8 @@ bool startStorage() {
 #endif
     if (res) {  
       // list details of files on file system
-      File root = STORAGE.open("/");
+      const char* rootDir = !strcmp(fsType, "LittleFS") ? "/data" : "/";
+      File root = STORAGE.open(rootDir);
       File file = root.openNextFile();
       while (file) {
         LOG_INF("File: %s, size: %u", file.path(), file.size());
@@ -140,23 +142,25 @@ void inline getFileDate(File file, char* fileDate) {
 
 bool checkFreeSpace() { 
   // Check for sufficient space on SD card
-  if (sdFreeSpaceMode < 1) return false;
+  bool res = false;
   size_t freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
-  LOG_INF("Card free space: %uMB", freeSize);
-  if (freeSize < sdMinCardFreeSpace) {
-    char oldestDir[FILE_NAME_LEN];
-    getOldestDir(oldestDir);
-    LOG_WRN("Deleting oldest folder: %s %s", oldestDir, sdFreeSpaceMode == 2 ? "after uploading" : "");
-    if (sdFreeSpaceMode == 1) deleteFolderOrFile(oldestDir); // Delete oldest folder
-    if (sdFreeSpaceMode == 2) {
+  if (!sdFreeSpaceMode && freeSize < sdMinCardFreeSpace) 
+    LOG_ERR("Space left %uMB is less than minimum %uMB", freeSize, sdMinCardFreeSpace);
+  else {
+    // delete to make space
+    while (freeSize < sdMinCardFreeSpace) {
+      char oldestDir[FILE_NAME_LEN];
+      getOldestDir(oldestDir);
+      LOG_WRN("Deleting oldest folder: %s %s", oldestDir, sdFreeSpaceMode == 2 ? "after uploading" : "");
 #ifdef INCLUDE_FTP 
-      ftpFileOrFolder(oldestDir); // Upload and then delete oldest folder
+      if (sdFreeSpaceMode == 2) ftpFileOrFolder(oldestDir); // Upload and then delete oldest folder
 #endif
       deleteFolderOrFile(oldestDir);
     }
-    return true;
+    LOG_INF("Card free space: %uMB", freeSize);
+    res = true;
   }
-  return false;
+  return res;
 } 
 
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension) {
@@ -256,19 +260,24 @@ void deleteFolderOrFile(const char* deleteThis) {
     LOG_ERR("Deletion of %s not permitted", deleteThis);
     return;
   }  
-  LOG_WRN("Deleting : %s", deleteThis);
+  LOG_INF("Deleting : %s", deleteThis);
   // Empty named folder first
   if (df.isDirectory() || ((!strcmp(fsType, "SPIFFS")) && strstr("/", deleteThis) != NULL)) {
     LOG_INF("Folder %s contents", deleteThis);
     File file = df.openNextFile();
     while (file) {
-      if (file.isDirectory()) LOG_INF("  DIR : %s", file.path());
-      else LOG_INF("  FILE : %s SIZE : %uMB %sdeleted", file.path(), file.size() / ONEMEG, 
-        STORAGE.remove(file.path()) ? "" : "not ");
+      char filepath[FILE_NAME_LEN];
+      strcpy(filepath, file.path()); 
+      if (file.isDirectory()) LOG_INF("  DIR : %s", filepath);
+      else {
+        int fileSize = file.size() / ONEMEG;
+        file.close();
+        LOG_INF("  FILE : %s Size : %dMB %sdeleted", filepath, fileSize, STORAGE.remove(filepath) ? "" : "not ");
+      }
       file = df.openNextFile();
     }
     // Remove the folder
-    if (df.isDirectory()) LOG_INF("Folder %s %sdeleted", deleteThis, STORAGE.rmdir(deleteThis) ? "" : "not ");
+    if (df.isDirectory()) LOG_ALT("Folder %s %sdeleted", deleteThis, STORAGE.rmdir(deleteThis) ? "" : "not ");
     else df.close();
-  } else LOG_INF("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
+  } else LOG_ALT("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
 }

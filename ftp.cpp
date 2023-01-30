@@ -155,7 +155,7 @@ static bool ftpStoreFile(File &fh) {
   } while (readLen > 0);
   dclient.stop();
   percentLoaded = 100;
-  if (sendFtpCommand("", "", "226")) LOG_INF("Uploaded %0.1fMB in %u sec", (float)(writeBytes) / ONEMEG, (millis() - uploadStart) / 1000); 
+  if (sendFtpCommand("", "", "226")) LOG_ALT("Uploaded %0.1fMB in %u sec", (float)(writeBytes) / ONEMEG, (millis() - uploadStart) / 1000); 
   else LOG_ERR("File transfer not successful");
   return true;
 }
@@ -225,6 +225,6 @@ bool ftpFileOrFolder(const char* fileFolder, bool _deleteAfter) {
     deleteAfter = _deleteAfter;
     xTaskCreate(&FTPtask, "FTPtask", 1024 * 3, NULL, 1, &ftpHandle);    
     return true;
-  } else LOG_ERR("Unable to upload %s as another upload in progress", fileFolder);
+  } else LOG_WRN("Unable to upload %s as another upload in progress", fileFolder);
   return false;
 }

@@ -45,7 +45,7 @@ char Auth_Pass[MAX_PWD_LEN] = "";
 int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
 bool allowAP = true;  // set to true to allow AP to startup if cannot connect to STA (router)
 int wifiTimeoutSecs = 30; // how often to check wifi status
-
+static bool APstarted = false;
 static esp_ping_handle_t pingHandle = NULL;
 static void startPing();
 
@@ -91,8 +91,14 @@ static void onWiFiEvent(WiFiEvent_t event) {
   else if (event == ARDUINO_EVENT_WIFI_SCAN_DONE);  
   else if (event == ARDUINO_EVENT_WIFI_STA_START) LOG_INF("Wifi Station started, connecting to: %s", ST_SSID);
   else if (event == ARDUINO_EVENT_WIFI_STA_STOP) LOG_INF("Wifi Station stopped %s", ST_SSID);
-  else if (event == ARDUINO_EVENT_WIFI_AP_START) LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
-  else if (event == ARDUINO_EVENT_WIFI_AP_STOP) LOG_INF("Wifi AP stopped: %s", WiFi.softAPSSID().c_str());
+  else if (event == ARDUINO_EVENT_WIFI_AP_START) {
+    APstarted = true;
+    LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+  }
+  else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
+    LOG_INF("Wifi AP stopped: %s", WiFi.softAPSSID().c_str());
+    APstarted = false;
+  }
   else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) LOG_INF("Wifi Station IP, use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
   else if (event == ARDUINO_EVENT_WIFI_STA_LOST_IP) LOG_INF("Wifi Station lost IP");
   else if (event == ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED);
@@ -104,22 +110,26 @@ static void onWiFiEvent(WiFiEvent_t event) {
 }
 
 static bool setWifiAP() {
-  // Set access point with static ip if provided
-  if (strlen(AP_ip) > 1) {
-    LOG_INF("Set AP static IP :%s, %s, %s", AP_ip, AP_gw, AP_sn);  
-    IPAddress _ip, _gw, _sn, _ns1 ,_ns2;
-    _ip.fromString(AP_ip);
-    _gw.fromString(AP_gw);
-    _sn.fromString(AP_sn);
-    // set static ip
-    WiFi.softAPConfig(_ip, _gw, _sn);
-  } 
-  WiFi.softAP(AP_SSID, AP_Pass);
+  if (!APstarted) {
+    // Set access point with static ip if provided
+    WiFi.softAPdisconnect(false); // kill rogue connections on startup
+    if (strlen(AP_ip) > 1) {
+      LOG_INF("Set AP static IP :%s, %s, %s", AP_ip, AP_gw, AP_sn);  
+      IPAddress _ip, _gw, _sn, _ns1 ,_ns2;
+      _ip.fromString(AP_ip);
+      _gw.fromString(AP_gw);
+      _sn.fromString(AP_sn);
+      // set static ip
+      WiFi.softAPConfig(_ip, _gw, _sn);
+    } 
+    WiFi.softAP(AP_SSID, AP_Pass);
+  }
   return true;
 }
 
 static bool setWifiSTA() {
   // set station with static ip if provided
+  WiFi.disconnect(false);
   if (strlen(ST_SSID)) { 
     if (strlen(ST_ip) > 1) {
       IPAddress _ip, _gw, _sn, _ns1, _ns2;
@@ -144,15 +154,12 @@ static bool setWifiSTA() {
 bool startWifi(bool firstcall) {
   // start wifi station (and wifi AP if allowed or station not defined)
   if (firstcall) {
+    WiFi.mode(WIFI_AP_STA);
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
     WiFi.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
-    WiFi.setAutoConnect(false);
     WiFi.onEvent(onWiFiEvent);
     WiFi.setHostname(hostName);
   }
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.disconnect();
-  WiFi.softAPdisconnect(true); // kill rogue connections on startup
   bool station = setWifiSTA();
   debugMemory("setWifiSTA");
   if (!station || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use
@@ -382,7 +389,7 @@ void debugMemory(const char* caller) {
 
 void doRestart(const char* restartStr) {
   flush_log(true);
-  LOG_WRN("Controlled restart: %s", restartStr);
+  LOG_ALT("Controlled restart: %s", restartStr);
   delay(2000);
   ESP.restart();
 }
@@ -402,17 +409,16 @@ float smooth(float latestVal, float smoothedVal, float alpha) {
  * - To clear the log file contents, on log web page press Clear Log link
  */
  
-#define MAX_FMT 1000
-#define MAX_OUT 1100
+#define MAX_OUT 200
 static va_list arglist;
-static char fmtBuf[MAX_FMT];
+static char fmtBuf[MAX_OUT];
 static char outBuf[MAX_OUT];
+char alertMsg[MAX_OUT];
 static TaskHandle_t logHandle = NULL;
 static SemaphoreHandle_t logSemaphore = NULL;
 static SemaphoreHandle_t logMutex = NULL;
 static int logWait = 100; // ms
 bool useLogColors = false;  // true to colorise log messages (eg if using idf.py, but not arduino)
-
 
 #define LOG_FORMAT_BUF_LEN 512
 #define WRITE_CACHE_CYCLE 5
@@ -473,22 +479,30 @@ static void logTask(void *arg) {
 void logPrint(const char *format, ...) {
   // feeds logTask to format message, then outputs as required
   if (xSemaphoreTake(logMutex, logWait / portTICK_PERIOD_MS) == pdTRUE) {
-    strncpy(fmtBuf, format, MAX_FMT);
+    strncpy(fmtBuf, format, MAX_OUT);
+    fmtBuf[MAX_OUT - 1] = 0;
     va_start(arglist, format); 
     vTaskPrioritySet(logHandle, uxTaskPriorityGet(NULL) + 1);
     xTaskNotifyGive(logHandle);
     xSemaphoreTake(logSemaphore, portMAX_DELAY); // wait for logTask to complete        
     // output to monitor console if attached
+    size_t msgLen = strlen(outBuf);
+    if (outBuf[msgLen - 2] == '~') {
+      // set up alert message for browser
+      outBuf[msgLen - 2] = ' ';
+      strncpy(alertMsg, outBuf, MAX_OUT - 1);
+      alertMsg[msgLen - 2] = 0;
+    }
     if (monitorOpen) Serial.print(outBuf); 
     else delay(10); // allow time for other tasks
     // output to SD if file opened
     if (log_remote_fp != NULL) {
-      fwrite(outBuf, sizeof(char), strlen(outBuf), log_remote_fp); // log.txt
+      fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
       // periodic sync to SD
       if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
     }
     // output to web socket if open
-    outBuf[strlen(outBuf) - 1] = 0; // lose final '/n'
+    outBuf[msgLen - 1] = 0; // lose final '/n'
     wsAsyncSend(outBuf);
     delay(FLUSH_DELAY);
     xSemaphoreGive(logMutex);
@@ -514,7 +528,7 @@ void formatHex(const char* inData, size_t inLen) {
   char formatted[(inLen * 3) + 1];
   for (int i=0; i<inLen; i++) sprintf(formatted + (i*3), "%02x ", inData[i]);
   formatted[(inLen * 3)] = 0; // terminator
-  LOG_WRN("Hex: %s", formatted);
+  LOG_INF("Hex: %s", formatted);
 }
 
 /****************** base 64 ******************/

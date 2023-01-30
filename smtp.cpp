@@ -165,8 +165,7 @@ static void emailTask(void* parameter) {
   }
   if (emailCount < smtpMaxEmails) { 
     // send email if under daily limit
-    if (emailSend())
-      LOG_INF("Sent daily email %u", emailCount + 1);
+    if (emailSend()) LOG_ALT("Sent daily email %u", emailCount + 1);
     else LOG_WRN("Failed to send email");
   }
   if (++emailCount == smtpMaxEmails) LOG_WRN("Daily email limit %u reached", smtpMaxEmails);

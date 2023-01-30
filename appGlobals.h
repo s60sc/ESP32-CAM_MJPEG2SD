@@ -42,9 +42,9 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.3.2"
+#define APP_VER "8.4"
 
-#define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause error
+#define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
 #define HTML_EXT ".htm"
 #define TEXT_EXT ".txt"
@@ -209,17 +209,19 @@ extern bool micUse; // true to use external I2S microphone
 
 // sensors 
 extern int pirPin; // if usePir is true
+extern bool pirVal;
 extern int lampPin; // if useLamp is true
 // Pan / Tilt Servos 
 extern int servoPanPin; // if useServos is true
 extern int servoTiltPin;
 // ambient / module temperature reading 
 extern int ds18b20Pin; // if INCLUDE_DS18B20 uncommented
+extern float dsTemp;
 // batt monitoring 
 extern int voltPin; 
 
-extern float dsTemp;
-extern bool pirVal;
+
+
 
 // microphone recording
 extern int micSckPin; // I2S SCK

@@ -2,7 +2,7 @@
 * Capture ESP32 Cam JPEG images into a AVI file and store on SD
 * AVI files stored on the SD card can also be selected and streamed to a browser as MJPEG.
 *
-* s60sc 2020, 2021, 2022
+* s60sc 2020 - 2023
 */
 // built using arduino-esp32 stable release v2.0.6
 
@@ -131,7 +131,7 @@ void setup() {
   startStorage();
 
   // initialise camera
- prepCam();
+  prepCam();
   
   // Load saved user configuration
   loadConfig();
@@ -142,11 +142,11 @@ void setup() {
 
   // connect wifi or start config AP if router details not available
   startWifi();
-
-  // start rest of services
+  
   startWebServer();
   if (strlen(startupFailure)) LOG_ERR("%s", startupFailure);
   else {
+    // start rest of services
     startStreamServer();
     prepSMTP(); 
     prepPeripherals();

@@ -47,7 +47,7 @@ static bool readUart() {
     if (uartEvent.type != UART_DATA) {
       xQueueReset(uartQueue);
       uart_flush_input(uartId);
-      LOG_ERR("Unexpected uart event type: %s", uartErr[uartEvent.type]);
+      LOG_WRN("Unexpected uart event type: %s", uartErr[uartEvent.type]);
       delay(1000);
       return false;
     } else {

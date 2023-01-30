@@ -177,7 +177,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   if (!strcmp(variable, "startOTA")) startOTAserver();
   else {
     strcpy(value, variable + strlen(variable) + 1); // value points to second part of string
-    if (!strcmp(variable, "reset") || !strcmp(variable, "reboot")) {
+    if (!strcmp(variable, "reset")) {
       httpd_resp_send(req, NULL, 0); // stop browser resending reset
       doRestart("user requested restart"); 
       return ESP_OK;

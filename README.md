@@ -9,7 +9,7 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes up to version 8.3:
+Changes up to version 8.4:
 - Web page improvements and jQuery removed.
 - Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
 - Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
