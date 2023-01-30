@@ -1,3 +1,4 @@
+appId~ESP-CAM_MJPEG~99~~na
 ST_SSID~~99~~na
 ftp_port~21~99~~na
 ftp_server~~99~~na
@@ -62,7 +63,7 @@ AP_gw~~0~T~AP gateway
 allowAP~1~0~C~Allow simultaneous AP 
 wifiTimeoutSecs~30~0~N~WiFi connect timeout (secs)
 ntpServer~pool.ntp.org~0~T~NTP Server address
-useUART0~1~99~C~na
+useUART0~0~99~C~na
 uartTxdPin~~3~N~UART1 TX pin
 uartRxdPin~~3~N~UART1 RX pin
 refreshVal~5~2~N~Web page refresh rate (secs)
