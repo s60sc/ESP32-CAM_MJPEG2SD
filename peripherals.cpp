@@ -18,6 +18,7 @@
 //
 // The client and extender must be compiled with the same version of 
 // the peripherals.cpp and have compatible configuration settings
+// with respect to pin numbers etc
 //
 // s60sc 2022
 
@@ -31,6 +32,9 @@ bool useIOextender; // true to use IO Extender, otherwise false
 bool useUART0; // true to use UART0, false for UART1
 int uartTxdPin;
 int uartRxdPin;
+#define EXT_IO_PING 199 // dummy pin number for ping heartbeat
+static bool extIOpinged = true;
+
 // peripherals used
 bool pirUse; // true to use PIR for motion detection
 bool lampUse; // true to use lamp
@@ -76,6 +80,18 @@ int voltDivider; // set battVoltageDivider value to be divisor of input voltage 
                  // eg: 100k / 100k would be divisor value 2
 int voltLow; // voltage level at which to send out email alert
 int voltInterval; // interval in minutes to check battery voltage
+
+void doIOextPing() {
+  // called from pingSuccess() to check that IO_Extender is available
+  if (useIOextender && !IS_IO_EXTENDER) {
+    // client sends ping
+    if (!extIOpinged) LOG_WRN("IO_Extender failed to ping");
+    extIOpinged = false;
+    externalPeripheral(EXT_IO_PING);
+    // extIOpinged set by setPeripheralResponse() from io extender
+  }
+}
+
 
 // individual pin sensor / controller functions
 
@@ -190,7 +206,7 @@ uint8_t temprature_sens_read(); // sic
 
 // configuration
 #define NO_TEMP -127
-float dsTemp = NO_TEMP;
+static float dsTemp = NO_TEMP;
 TaskHandle_t DS18B20handle = NULL;
 static bool haveDS18B20 = false;
 
@@ -246,8 +262,8 @@ static void prepTemperature() {
 float readTemperature(bool isCelsius) {
   // return latest read temperature value in celsius (true) or fahrenheit (false), unless error
 #if defined(INCLUDE_DS18B20)
-  // use external DS18B20 sensor
-  if (ds18b20Pin) externalPeripheral(ds18b20Pin);
+  // use external DS18B20 sensor if available, else use local value
+  externalPeripheral(ds18b20Pin);
 #endif
 #if CONFIG_IDF_TARGET_ESP32
   // convert on chip raw temperature in F to Celsius degrees
@@ -263,18 +279,21 @@ float readTemperature(bool isCelsius) {
 // Read voltage from battery connected to ADC pin
 // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
 #define ADC_BITS 12
-float currentVoltage = -1.0; // no monitoring
+static float currentVoltage = -1.0; // no monitoring
 
-static float getVoltage() {
-  // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
-  return (float)(analogRead(voltPin)) * 3.3 * voltDivider / pow(2, ADC_BITS);
+float readVoltage()  {
+  // use external voltage sensor if available, else use local value
+  externalPeripheral(voltPin);
+  return currentVoltage;
 }
 
 static void battTask(void* parameter) {
   delay(20 * 1000); // allow time for esp32 to start up
+  if (voltInterval < 1) voltInterval = 1;
   while (true) {
     static bool sentEmailAlert = false;
-    if (!externalPeripheral(voltPin)) currentVoltage = getVoltage();
+    // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
+    currentVoltage = (float)(analogRead(voltPin)) * 3.3 * voltDivider / pow(2, ADC_BITS);
 
 #ifdef INCLUDE_SMTP
     if (currentVoltage < voltLow && !sentEmailAlert) {
@@ -330,9 +349,11 @@ void setupLamp() {
         rmtSetTick(rmtWS2812, 100);
         LOG_INF("Setup Lamp Led for ESP32S3 Cam board");
       }
-  
 #else
-      LOG_WRN("Unknown if board has Lamp Led");
+      // unknown board, assume PWM LED
+      ledcSetup(LAMP_LEDC_CHANNEL, 5000, 4);
+      ledcAttachPin(lampPin, LAMP_LEDC_CHANNEL); 
+      LOG_INF("Setup Lamp Led");
 #endif
     } else {
       lampUse = false;
@@ -373,6 +394,10 @@ void setLamp(uint8_t lampVal) {
       }
     }
     rmtWrite(rmtWS2812, ledData, RGB_BITS);
+#else
+    // other board
+    // set lamp brightness using PWM (0 = off, 15 = max)
+    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampLevel);
 #endif
   }
 }
@@ -381,7 +406,7 @@ void setLamp(uint8_t lampVal) {
 /********************* interact with UART **********************/
 
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
-  // callback for uart Client task 
+  // callback for Client uart task 
   // updates peripheral stored input value when response received
   // map received pin number to peripheral
   if (pinNum == pirPin) 
@@ -390,6 +415,8 @@ void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
     memcpy(&currentVoltage, &responseData, sizeof(currentVoltage));  // set current batt voltage
   else if (pinNum == ds18b20Pin)
     memcpy(&dsTemp, &responseData, sizeof(dsTemp));  // set current temperature
+  else if (pinNum == EXT_IO_PING) 
+    extIOpinged = true;
   else if (pinNum != lampPin && pinNum != servoPanPin && pinNum != servoTiltPin) 
     LOG_ERR("Undefined pin number requested: %d ", pinNum);
 }
@@ -417,12 +444,14 @@ uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
     setLamp(ival);
   } else if (pinNum == ds18b20Pin) {
     // get current temperature
-    float fval = readTemperature(true);
+    float fval = dsTemp;
     memcpy(&responseData, &fval, sizeof(fval)); 
   } else if (pinNum == voltPin) {
     // get current batt voltage
-    float fval = getVoltage();
+    float fval = currentVoltage;
     memcpy(&responseData, &fval, sizeof(fval)); 
+  } else if (pinNum == (EXT_IO_PING - EXTPIN)) {
+    LOG_INF("Received client ping");
   } else LOG_ERR("Undefined pin number requested: %d ", pinNum);
   return responseData;
 }

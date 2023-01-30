@@ -37,7 +37,7 @@
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "132" // dev only
+#define STATIC_IP_OCTAL "133" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
  
@@ -125,7 +125,6 @@ void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
 bool prepRecording();
 void prepMic();
-float readTemperature(bool isCelsius);
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
@@ -216,7 +215,6 @@ extern int servoPanPin; // if useServos is true
 extern int servoTiltPin;
 // ambient / module temperature reading 
 extern int ds18b20Pin; // if INCLUDE_DS18B20 uncommented
-extern float dsTemp;
 // batt monitoring 
 extern int voltPin; 
 
@@ -239,7 +237,6 @@ extern int servoMaxPulseWidth;
 extern int voltDivider;
 extern int voltLow;
 extern int voltInterval;
-extern float currentVoltage; 
 
 // audio
 extern const uint32_t SAMPLE_RATE; // audio sample rate

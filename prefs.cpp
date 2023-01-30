@@ -24,6 +24,7 @@ static Preferences prefs;
 char* jsonBuff = NULL;
 bool configLoaded = false;
 bool allowSpaces = false;
+static char appId[16];
 
 
 /********************* generic Config functions ****************************/
@@ -331,6 +332,11 @@ bool loadConfig() {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
   if (loadConfigVect()) {
+    retrieveConfigVal("appId", appId);
+    if (strcmp(appId, APP_NAME)) {
+      sprintf(startupFailure, "Wrong configs.txt file, expected %s, got %s", APP_NAME, appId);
+      return false;
+    }
     loadPrefs(); // overwrites any corresponding entries in config
   
     // set default hostname and AP SSID if config is null

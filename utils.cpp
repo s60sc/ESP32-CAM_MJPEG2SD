@@ -191,6 +191,7 @@ bool startWifi(bool firstcall) {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
+  doIOextPing();
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {

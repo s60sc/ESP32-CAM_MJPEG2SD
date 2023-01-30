@@ -50,6 +50,8 @@ bool updateAppStatus(const char* variable, const char* value) {
   
   // peripherals
   else if(!strcmp(variable, "useIOextender")) useIOextender = (bool)intVal;
+  else if(!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
+  else if(!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
   else if(!strcmp(variable, "pirUse")) pirUse = (bool)intVal;
   else if(!strcmp(variable, "lampUse")) lampUse = (bool)intVal;
   else if(!strcmp(variable, "lampAuto")) lampAuto = (bool)intVal;
@@ -167,6 +169,7 @@ void buildAppJsonString(bool filter) {
   float aTemp = readTemperature(true);
   if (aTemp > -127.0) p += sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
   else p += sprintf(p, "\"atemp\":\"n/a\",");
+  float currentVoltage = readVoltage();
   if (currentVoltage < 0) p += sprintf(p, "\"battv\":\"n/a\",");
   else p += sprintf(p, "\"battv\":\"%0.1fV\",", currentVoltage); 
   if (forcePlayback && !doPlayback) {
