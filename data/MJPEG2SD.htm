@@ -10,6 +10,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>ESP32-CAM_MJPEGSD</title>
     <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">📷</text></svg>'>
+    
     <style>
       :root {
         /* colors used on web pages - see https://www.w3schools.com/colors/colors_names.asp */
@@ -19,615 +20,64 @@
         --buttonText: white;
         --buttonLabel: black;
         --itemInactive: gray;
-        --rangeMarker: bisque;
-        --menuBackground: #3F3F3F; /* dark gray */
+        --menuBackground: #404040; /* dark gray */
         --inputText: navy;
-        --pageText: black; 
+        --pageText: WhiteSmoke; 
         --inputBackground: WhiteSmoke; 
+        --alertMsg: orange;
         --itemBorder: silver; 
-        --pageBackground: #181818; /* nearly black */
+        --pageBackground:#181818; /* nearly black */
+        
+        /* element sizes */
+        --bodySize: 1rem; /* used as basis for element sizes and padding */
+        --buttonSize: var(--bodySize);
+        --buttonHalf: calc(var(--buttonSize) / 2);
+        --buttonQuart: calc(var(--buttonSize) / 4);
+        --buttonDbl: calc(var(--buttonSize) * 2);
+        --inputSize: calc(var(--bodySize) * 0.9);
+        --headingSize: calc(var(--bodySize) * 1.25);
+        --subheadingSize: var(--bodySize);
+        --footerSize: calc(var(--bodySize) * 0.7);
       }
       
       body {
-          font-family: Arial,Helvetica,sans-serif;
-          background: var(--pageBackground);
-          color: var(--inputBackground);
-          font-size: 16px
+        font-family: Helvetica  !important;
+        background: var(--pageBackground);
+        color: var(--pageText);
+        font-size: var(--bodySize); 
       }
 
-      h2 {
-          font-size: 18px;
-          padding-left: 10px;
-      }
-      
-      h3 {
-          font-style: italic;
-          font-size: 14px;
-          padding-left: 5px;
-      }
-      h6 {
-          font-style: bold;
-          font-size: 9px;
-          padding-left: 15px;
-      }
-      
-     .center{
-          text-align: center; 
-     }
-     
-     .navtop{
-        list-style: none;
-        border: 1px solid var(--itemBorder);
-        border-radius: 6px;
-        padding: 5px;
-        margin: 0.5em;
-     }
-     .navtop li {
-       float: left;
-       position: relative;
-     }
-       
-     nav#maintoolbar {
-        display: flex;
-        flex-wrap: nowrap;
-        justify-content: flex-end;
-        overflow: auto;
-     }
-                  
-     section#main {
-        display: flex;
-        flex-direction: column;
-     }
-     section#header {
-        min-width: 332px;
-        background: var(--menuBackground);
-        margin-bottom: 2px;
-        padding: 1px 1px;
-        display: flex;
-        flex-wrap: wrap;
-        border-radius: 2px;
-        justify-content: space-between;
-     }
-     #sidebar{
-        margin: 0px;
-        padding: 0px;         
-        width: 100%;
-     }                        
-     section#title{
-        display: flex;
-     }
-     section#footer {
-        position: fixed;
-        bottom: 0;
-        width: 97%;
-        min-width: 332px;
-        background: var(--menuBackground);
-        margin-top: 0px;
-        padding: 4px 12px;
-        display: flex;
-        flex-wrap: wrap;
-        border-radius: 4px 4px 0 0;
-        justify-content: space-between;
-        font-size: 11px;
-        z-index: 4;
-        border-top: 1px solid var(--itemBorder);
-        border-left: 1px solid var(--itemBorder);
-        border-right: 1px solid var(--itemBorder);
-        border-bottom: none;
-      }
-
-      #foot-spacer {
-          height: 60px;
-      }
-
-      nav.menu {
-        display: grid;
-        flex-direction: column;
-        flex-wrap: nowrap;
-        min-width: 332px;
-        background: var(--menuBackground);
-        padding: 8px;
-        border-radius: 0 4px 4px 4px;
-        margin-bottom: 3px;
-        border: 1px solid var(--itemBorder);
-      }
-      nav.menu.buttons {
-          min-width: 388px;
-      }
-      nav.menu.panel {
-          display: none;
-          min-height: 330px;
-      }
-      nav.menu.panel.active {
-          display: block;
-      }
-
-      #menu-top.menu-floating nav.menu.panel {
-          border-radius: 0 4px 4px 4px;
-      }
-      #menu-top.menu-pinned nav.menu.panel {
-          border-radius: 0 4px 4px 4px;
-          height: 112%;
-          left: -1px;
-          position: relative;
-      }
-      #menu-container {
-          position: relative;
-          min-width: 60px;
-          min-height: 332px;
-          border-radius: 4px;
-          left: 2px;
-          top: 4px;
-      }
-      #menu-container.menu-floating {
-          display: table;
-      }
-      #menu-container.menu-pinned {
-          display: flex;
-      }
-      #menu-top {
-          display: inline-grid;
-          display: -moz-inline-grid;
-          display: -ms-inline-grid;
-      }
-      #menu-top.menu-floating {
-          position: absolute;
-          left: 58px;
-          z-index: 2;
-      }
-      #menu-top.menu-pinned {
-          position: initial;
-          left: initial;
-          float: left;
-          z-index: 4;
-          border-left: none;
-      }
-      #menu-selector {
-          z-index: 4;
-          background: var(--menuBackground);
-          width: 58px;
-      }
-      #menu-selector.menu-floating {
-          position: absolute;
-      }
-      #menu-selector.menu-pinned {
-          position: relative;
-          float: left;
-          height: 100%;
-          border-right: none;
-          z-index: 5;
-      }
-      .menu-floating.menu-open {
-          border-radius: 4px 0 0 4px;
-          border: 1px solid var(--itemBorder);
-          border-right: none;
-      }
-      .menu-floating.menu-closed {
-          border-radius: 4px;
-          border: 1px solid var(--itemBorder);
-      }
-      .menu-pinned.menu-open {
-          border-radius: 4px 0 0 4jpx;
-          border: 1px solid var(--itemBorder);
-      }
-      .menu-pinnded.menu-closed {
-          border-radius: 4px;
-          border: 1px solid var(--itemBorder);
-      }
-      .pin-menu {
-          width: 24px;
-          height: 24px;
-          float: right;
-          cursor: pointer;
-      }
-
-      nav.quick-nav {
-          width: 32px;
-          height: 32px;
-          margin: 8px 6px 12px 8px;
-          border: 1px solid var(--itemBorder);
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 150%;
-          padding: 4px 0 4px 4px;
-          background: var(--buttonReady);
-      }
-
-      nav.quick-nav:hover {
-          background: var(--buttonHover);
-      }
-
-      nav.quick-nav.active {
-          box-shadow: 0 0 0 4px var(--buttonActive);
-          background: var(--buttonActive);
-      }
-
-      #content {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: stretch
-      }
-
-      figure {
-          padding: 0px;
-          margin: 0;               
-          width: 100%;
-          height: auto;
-          -webkit-margin-before: 0;
-          margin-block-start: 0;
-          -webkit-margin-after: 0;
-          margin-block-end: 0;
-          -webkit-margin-start: 0;
-          margin-inline-start: 0;
-          -webkit-margin-end: 0;
-          margin-inline-end: 0;
-      }
-      
-      .image-container {
-        position: relative;
-      }
-
-      figure img {
-          display: block;
-          width: 100%;
-          height: 100%;
-          border-radius: 4px;
-      }
-
-      @media (min-width: 800px) and (orientation:landscape) {
-          #content {
-              display:flex;
-              flex-wrap: nowrap;
-              align-items: stretch
-          }
-          #sidebar{
-            width: auto;
-          }                                
-      }
-
-      section#buttons {
-          display: flex;
-          flex-wrap: nowrap;
-          justify-content: center;
-      }
-
-      .input-group {
-          position: relative;
-          display: flex;
-          flex-wrap: nowrap;
-          line-height: 29px;
-          margin: 5px 0
-      }
-      .info-group {
-          position: relative;                               
-          margin: 5px 0;
-          
-      }
-      .input-group>label {
-          display: inline-block;
-          padding-right: 10px;
-          min-width: 47%;
-      }
-      .input-group>input {
-          width: 100%;
-      }
-
-      .input-group input,.input-group select {
-          flex-grow: 1
-      }
-
-      .range-max,.range-min {
-          display: inline-block;
-          padding: 0 5px;
-      }
-
-      button {
-          min-height: 35px;
-          display: block;
-          margin: 5px;
-          padding: 0 6px;
-          border: 0;
-          line-height: 20px;
-          cursor: pointer;
-          color: var(--buttonText);
-          background: var(--buttonReady);
-          border-radius: 5px;
-          font-size: 16px;
-          outline: 0
-      }
-
-      button:active {
-         box-shadow: 0 0 0 4px var(--buttonActive);
-         background: var(--buttonActive);
-      }
-
-      button:hover {
-          background: var(--buttonHover);
-      }
-
-      button:disabled {
-          cursor: default;
-          background: var(--itemInactive)
-      }
-            
-      input[type=range] {
-          -webkit-appearance: none;
-          width: 100%;
-          height: 22px;
-          background: var(--menuBackground);
-          cursor: pointer;
-          margin: 0
-      }
-
-      input[type=range]:focus {
-          outline: 0
-      }
-
-      input[type=range]::-webkit-slider-runnable-track {
-          width: 100%;
-          height: 2px;
-          cursor: pointer;
-          background: var(--inputBackground);
-          border-radius: 0;
-          border: 0 solid var(--inputBackground);
-      }
-
-      input[type=range]::-webkit-slider-thumb {
-          border: 1px solid rgba(0,0,30,0);
-          height: 22px;
-          width: 22px;
-          border-radius: 50px;
-          background: var(--buttonReady);
-          cursor: pointer;
-          -webkit-appearance: none;
-          margin-top: -11.5px
-      }
-
-      input[type=range]:focus::-webkit-slider-runnable-track {
-          background: var(--inputBackground);
-      }
-
-      input[type=range]::-moz-range-track {
-          width: 100%;
-          height: 2px;
-          cursor: pointer;
-          background: var(--inputBackground);
-          border-radius: 0;
-          border: 0 solid var(--inputBackground);
-      }
-
-      input[type=range]::-moz-range-thumb {
-          border: 1px solid rgba(0,0,30,0);
-          height: 22px;
-          width: 22px;
-          border-radius: 50px;
-          background: var(--buttonReady);
-          cursor: pointer
-      }
-
-      input[type=range]::-ms-track {
-          width: 100%;
-          height: 2px;
-          cursor: pointer;
-          background: 0 0;
-          border-color: transparent;
-          color: transparent
-      }
-
-      input[type=range]::-ms-fill-lower {
-          background: var(--inputBackground);
-          border: 0 solid var(--inputBackground);
-          border-radius: 0
-      }
-
-      input[type=range]::-ms-fill-upper {
-          background: var(--inputBackground);
-          border: 0 solid var(--inputBackground);
-          border-radius: 0
-      }
-
-      input[type=range]::-ms-thumb {
-          border: 1px solid rgba(0,0,30,0);
-          height: 22px;
-          width: 22px;
-          border-radius: 50px;
-          background: var(--buttonReady);
-          cursor: pointer;
-          height: 2px
-      }
-
-      input[type=range]:focus::-ms-fill-lower {
-          background: var(--inputBackground)
-      }
-
-      input[type=range]:focus::-ms-fill-upper {
-          background: var(--menuBackground)
-      }
-      
-      input {
-          font:16px 'Courier New';
-          font-weight:bold;
-          color: var(--inputText);
-          background: var(--inputBackground);
-      }
-
-     .configGroup td {
-        border: solid 2px var(--itemBorder);
-      }
-      
-      #applog, #sdlog {
-        font:20px 'Courier New';
-        font-weight:bold;
-        color: var(--inputText);
-        height:90%;
-        width:90%;
-        border:2px solid var(--itemBorder);
-        overflow:auto;
-        background: var(--inputBackground);
-      }
-
-      .switch {
-          display: block;
-          position: relative;
-          line-height: 22px;
-          font-size: 16px;
-          height: 22px
-      }
-
-      .switch input {
-          outline: 0;
-          opacity: 0;
-          width: 0;
-          height: 0
-      }
-
-      .slider {
-          width: 50px;
-          height: 22px;
-          border-radius: 22px;
-          cursor: pointer;
-          background: var(--itemInactive);
-      }
-
-      .slider,.slider:before {
-          display: inline-block;
-          transition: .4s
-      }
-
-      .slider:before {
-          position: relative;
-          content: "";
-          border-radius: 50%;
-          height: 16px;
-          width: 16px;
-          left: 4px;
-          top: 3px;
-          background: var(--inputBackground);
-      }
-
-      input:checked+.slider {
-          background: var(--buttonActive);
-      }
-
-      input:checked+.slider:before {
-          -webkit-transform: translateX(26px);
-          transform: translateX(26px)
-      }
-
-      select {
-          border: 1px solid var(--menuBackground);
-          font-size: 14px;
-          outline: 0;
-          border-radius: 5px
-      }
-      
-      .streamSize {
-          position: absolute;
-          top: 5px;
-          background: var(--buttonReady);
-          width: 16px;
-          height: 16px;
-          border-radius: 100px;
-          color: var(--buttonText);
-          text-align: center;
-          line-height: 18px;
-          cursor: pointer;
-          text-decoration: none;
-      }
-      
       .hidden {
-          display: none
+        display: none
       }
       
-      output {
-        position: absolute;
-        top: -32px;
-        display: none;
-        width: 50px;
-        height: 24px;
-        border: 1px solid var(--itemBorder);
-        background: var(--rangeMarker);
-        border-radius: 3px;
-        color: var(--buttonLabel);
-        font-size: .8em;
-        font-weight: bold;
-        line-height: 24px;
-        text-align: center;
+      progress {
+        accent-color: var(--buttonActive);
+        width: calc(var(--buttonSize) * 15);
+      }
+      
+      .alertMsg {
+        left:10%;
+        bottom: var(--buttonDbl);
+        position:absolute;
+        display:block;
+        color:var(--alertMsg);
+        z-index:20;
+        height: var(--buttonDbl);
       }
 
-      .extras {
-          display: none;
+      .header {
+        font-size: var(--headingSize);
+        padding-left: var(--buttonHalf);
+        font-weight:bold; 
       }
-
-      input[type=range]:active + output {
-        display: block;
-        -webkit-transform: translateX(180px);
+      
+      .subheader {
+        font-style: italic;
+        font-size: var(--subheadingSize);
+        padding-left: var(--buttonQuart);
       }
-              
-      .nav-toggle {
-          margin: 0 0 4px 4px;
-          font-size: 120%;
-          display: block;
-          margin-bottom: 12px;
-          padding-bottom: 8px;
-          border-bottom: 1px solid var(--itemBorder);
-      }
-
-      .menu-action {
-        display: none;
-      }
-
-      .menu-action + label + div {
-        padding: 10px 0 0 0;
-        margin: 6px 0 0 0;
-        border-top: 1px solid var(--itemBorder);
-      }
-
-      .menu-action:not(:checked) + label + div { 
-        display: none; 
-      }
-
-      .sep {
-        border: 1px solid var(--itemBorder);
-        height: 32px;
-        margin: 6px 8px 0 8px;
-      }
-      .vsep {
-        border: 1px solid var(--itemBorder);
-        margin: 10px 2px;
-      }
-
-      .info{
-        margin-top: 2px;
-      }
-      .info-group label {
-        color: var(--itemInactive);
-      }
-      .blinking {
-        animation: blinker 1.5s linear infinite;
-      }
-      #recording-indicator {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        padding: 4px;
-        margin: 9px;
-        background: var(--buttonReady);
-        border-radius: 16px;
-        border: 2px solid var(--itemBorder);
-      }
-
-      @keyframes blinker {
-        50% {
-          opacity: .4;
-        }
-      }
-
-      #stream-container {
-          margin: 4px 8px 42px 8px;
-          border: 1px solid var(--itemBorder);
-      }
-
+      
       .tab {
         display: flex;
         overflow: hidden;
@@ -635,64 +85,71 @@
       }
 
       .tab button {
+        background: var(--buttonReady);        
         float: left;
         border: none;
         outline: none;
         cursor: pointer;
-        padding:10px 10px;
+        padding: var(--buttonHalf);
         transition: 0.3s;
-        font-size: 17px;
+        font-size: calc(var(--buttonSize) * 1.1);
       }
-
+      
       .tab button.active {
-        box-shadow: 0 0 0 4px var(--buttonActive);
+        box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
         background: var(--buttonActive);
       }
       
       .tab button.hover {
-         background: var(--buttonHover);
+        background: var(--buttonHover);
       }
       
       .tab button.disabled {
-          cursor: default;
-          background: var(--itemInactive)
-       }
-       
+        cursor: default;
+        background: var(--itemInactive)
+      }
+      
       .tabcontent {
         display: none;
       }
-      
-     .grid-cols3 {
-        grid-template-columns: 220px 200px 200px;
+
+      .grid-cols3 {
+        grid-template-columns: calc(var(--buttonSize) * 14) calc(var(--buttonSize) * 12) calc(var(--buttonSize) * 12);
       }
 
-     .grid-cols4 {
-        grid-template-columns: 150px 150px 150px 150px
-      }
-      
-      .cfgTitle {
-        grid-column: 1/5;
-        text-align: left;
+      .grid-cols4 {
+        grid-template-columns: calc(var(--buttonSize) * 10) calc(var(--buttonSize) * 10) calc(var(--buttonSize) * 10) calc(var(--buttonSize) * 10)
       }
 
       .grid-cols3, .grid-cols4 {
         display: grid;
         background: none;
         text-align: center;
-        font-size: 30px;
+        font-size: var(--inputSize);
+        fill: var(--buttonLabel);
         border: 0px solid var(--itemBorder);
         dominant-baseline: middle;
         text-anchor: middle;
       }
       
+      .cfgTitle {
+        grid-column: 1/5;
+        text-align: left;
+      }
+      
+      svg {
+        width: calc(var(--buttonSize) * 8);
+        height: var(--buttonDbl);
+      }
+      
       rect {
-         fill: var(--buttonReady);
-         width: 100%;
-         height: 100%; 
-         x: 0;
-         y: 0;
-         rx: 5%;
-       }
+        fill: var(--buttonReady);
+        width: 100%;
+        height: 100%; 
+        x: 0;
+        y: 0;
+        ry: 15%;
+      }
       
       rect:active {
         fill: var(--buttonActive);
@@ -703,9 +160,547 @@
       }
     
       text {
-        font-size: 17px; 
+        font-size: var(--buttonSize); 
         fill: var(--buttonText);
+        transform: translate(50%,50%);
         pointer-events: none;
+      } 
+     
+      .navtop{
+        list-style: none;
+        border: 1px solid var(--itemBorder);
+        border-radius: var(--buttonQuart);
+        padding: var(--buttonQuart);
+        margin-top: var(--buttonHalf);
+      }
+      .navtop li {
+       float: left;
+       position: relative;
+      }
+
+      nav.menu {
+        display: grid;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        min-width: calc(var(--buttonSize) * 20);
+        background: var(--menuBackground);
+        padding: var(--buttonHalf);
+        border-radius: 0 var(--buttonQuart) var(--buttonQuart) var(--buttonQuart);
+        margin-bottom: var(--buttonQuart);
+        border: 1px solid var(--itemBorder);
+      }
+      nav.menu.buttons {
+        min-width: calc(var(--buttonSize) * 25);
+      }
+      nav.menu.panel {
+        display: none;
+        min-height: calc(var(--buttonSize) * 20);
+      }
+      nav.menu.panel.active {
+        display: block;
+      }
+      
+      nav.quick-nav {
+        width: var(--buttonDbl);
+        height: var(--buttonDbl);
+        margin: var(--buttonHalf) var(--buttonHalf); var(--buttonHalf) var(--buttonHalf);
+        border: 1px solid var(--itemBorder);
+        border-radius: var(--buttonQuart);
+        cursor: pointer;
+        font-size: calc(var(--buttonSize) * 1.5);
+        padding: var(--buttonQuart) var(--buttonQuart) var(--buttonQuart) var(--buttonQuart);
+        background: var(--buttonReady);
+      }
+
+      nav.quick-nav:hover {
+        background: var(--buttonHover);
+      }
+
+      nav.quick-nav.active {
+        box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
+        background: var(--buttonActive);
+      }
+       
+      nav#maintoolbar {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        overflow: auto;
+      }
+      
+      .nav-toggle {
+        margin: 0 0 var(--buttonQuart) var(--buttonQuart);
+        font-size:var(--headingSize);
+        display: block;
+        margin-bottom: calc(var(--buttonSize) * 3/4);
+        padding-bottom: var(--buttonHalf);
+        border-bottom: 1px solid var(--itemBorder);
+      }
+                  
+      section#main {
+        display: flex;
+        flex-direction: column;
+      }
+      section#header {
+        min-width: calc(var(--buttonSize) * 20);
+        background: var(--menuBackground);
+        margin-bottom: 2px;
+        padding: 1px 1px;
+        display: flex;
+        flex-wrap: wrap;
+        border-radius: 2px;
+        justify-content: space-between;
+      }                       
+      section#title{
+        display: flex;
+      }
+      section#footer {
+        position: fixed;
+        bottom: 0;
+        width: 97%;
+        min-width: calc(var(--buttonSize) * 20);
+        background: var(--menuBackground);
+        margin-top: 0px;
+        padding: var(--buttonQuart) var(--buttonHalf);
+        display: flex;
+        flex-wrap: wrap;
+        border-radius: var(--buttonQuart) var(--buttonQuart) 0 0;
+        justify-content: space-between;
+        font-size: var(--footerSize);
+        z-index: 4;
+        border-top: 1px solid var(--itemBorder);
+        border-left: 1px solid var(--itemBorder);
+        border-right: 1px solid var(--itemBorder);
+        border-bottom: none;
+        text-align: center; 
+      }
+      
+      section#buttons {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: center;
+      }
+
+      #foot-spacer {
+        height: calc(var(--buttonSize) * 4);
+      }
+      
+      .info-group {
+        position: relative;                               
+        margin: var(--buttonQuart) 0;
+      }
+      .info{
+        margin-top: 2px;
+      }
+      .info-group label {
+        color: var(--itemInactive);
+      }
+      
+      .menu-action {
+        display: none;
+      }
+
+      .menu-action + label + div {
+        padding: var(--buttonHalf) 0 0 0;
+        margin: var(--buttonQuart) 0 0 0;
+        border-top: 1px solid var(--itemBorder);
+      }
+
+      .menu-action:not(:checked) + label + div { 
+        display: none; 
+      }
+
+      .sep {
+        border: 1px solid var(--itemBorder);
+        height: var(--buttonDbl);
+        margin: var(--buttonQuart) var(--buttonQuart) 0 var(--buttonQuart);
+      }
+      .vsep {
+        border: 1px solid var(--itemBorder);
+        margin: var(--buttonHalf) 2px;
+      }
+
+      #menu-top.menu-floating nav.menu.panel {
+        border-radius: 0 var(--buttonQuart) var(--buttonQuart) var(--buttonQuart);
+      }
+      #menu-top.menu-pinned nav.menu.panel {
+        border-radius: var(--buttonQuart) var(--buttonQuart) var(--buttonQuart);
+        height: 110%;
+        left: -1px;
+        position: relative;
+      }
+      #menu-container {
+        position: relative;
+        min-width: calc(var(--buttonSize) * 4);
+        min-height: calc(var(--buttonSize) * 20);
+        border-radius: var(--buttonQuart);
+        left:var(--buttonQuart);
+        top: var(--buttonQuart);
+      }
+      #menu-container.menu-floating {
+        display: table;
+      }
+      #menu-container.menu-pinned {
+        display: flex;
+      }
+      #menu-top {
+        display: inline-grid;
+      }
+      #menu-top.menu-floating {
+        position: absolute;
+        left: calc(var(--buttonSize) * 4);
+        z-index: 2;
+      }
+      #menu-top.menu-pinned {
+        position: initial;
+        left: initial;
+        float: left;
+        z-index: 4;
+        border-left: none;
+      }
+      #menu-selector {
+        z-index: 4;
+        background: var(--menuBackground);
+        width: calc(var(--buttonSize) * 4);
+      }
+      #menu-selector.menu-floating {
+        position: absolute;
+      }
+      #menu-selector.menu-pinned {
+        position: relative;
+        float: left;
+        height: 100%;
+        border-right: none;
+        z-index: 5;
+      }
+      .menu-floating.menu-open {
+        border-radius: var(--buttonQuart) 0 0 var(--buttonQuart);
+        border: 1px solid var(--itemBorder);
+        border-right: none;
+      }
+      .menu-floating.menu-closed {
+        border-radius: var(--buttonQuart);
+        border: 1px solid var(--itemBorder);
+      }
+      .menu-pinned.menu-open {
+        border-radius: var(--buttonQuart) 0 0 var(--buttonQuart);
+        border: 1px solid var(--itemBorder);
+      }
+      .menu-pinnded.menu-closed {
+        border-radius: var(--buttonQuart);
+        border: 1px solid var(--itemBorder);
+      }
+      .pin-menu {
+        width: calc(var(--buttonSize) * 3/2);
+        height: calc(var(--buttonSize) * 3/2);
+        float: right;
+        cursor: pointer;
+      }
+
+      button {
+        display: block;
+        margin: var(--buttonQuart);
+        padding: var(--buttonQuart);
+        border: 0;
+        line-height: var(--headingSize);
+        cursor: pointer;
+        color: var(--buttonText);
+        background: var(--buttonReady);
+        border-radius: var(--buttonQuart);
+        font-size: var(--buttonSize);
+        outline: 0
+      }
+
+      button:active {
+       box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
+       background: var(--buttonActive);
+      }
+
+      button:hover {
+        background: var(--buttonHover);
+      }
+
+      button:disabled {
+        cursor: default;
+        background: var(--itemInactive)
+      }
+      
+      .input-group {
+        position: relative;
+        display: flex;
+        flex-wrap: nowrap;
+        line-height: var(--buttonDbl);
+        margin-top: var(--buttonHalf);
+      }
+      
+      .input-group>label {
+        display: inline-block;
+        padding-right: var(--buttonHalf);
+        min-width: 40%;
+      }
+      
+      .input-group>input {
+        width: 100%;
+      }
+
+      .input-group input,.input-group select {
+        flex-grow: 1
+      }
+      
+      .input-group>input[type=range]  {
+        min-width: calc(var(--buttonSize) * 7);  
+      }
+      
+      input, #applog, #sdlog {
+        font: var(--inputSize) 'Courier New';
+        font-weight:bold;
+        color: var(--inputText);
+        background: var(--inputBackground);
+        min-width: calc(var(--buttonSize) * 10);     
+      }
+
+      input {
+        height: calc(var(--inputSize) * 1.5);
+        margin: 0 0 var(--buttonHalf) 0;
+        border-radius: var(--buttonQuart);
+      }
+      
+      input[type=range] {
+        -webkit-appearance: none;
+        font-size: var(--buttonSize);
+        width: 100%;
+        height: var(--buttonHalf);
+        background: var(--menuBackground);
+        cursor: pointer;
+        margin-top: calc(var(--buttonSize) * 3/4);
+      }
+
+      input[type=range]:focus {
+        outline: 0
+      }
+      
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 2px;
+        cursor: pointer;
+        background: var(--inputBackground); 
+        border-radius: var(--buttonHalf);
+      }
+
+      input[type=range]::-webkit-slider-thumb {
+        height: var(--buttonSize);
+        width: var(--buttonSize);
+        border-radius: 50%;
+        background: var(--buttonReady); 
+        cursor: pointer;
+        -webkit-appearance: none;
+        margin-top: calc(-1 * var(--buttonHalf));
+      }
+      input[type=range]:focus::-webkit-slider-runnable-track {
+        background: var(--inputBackground); 
+      }
+
+      .range-value{
+        position: absolute;
+        top: -50%;
+      }
+
+      .range-value span{
+        width: var(--buttonDbl);
+        height: var(--buttonSize);
+        line-height: var(--buttonSize);
+        text-align: center;
+        background: var(--buttonReady); 
+        color: var(--buttonText); 
+        font-size: var(--footerSize);
+        display: block;
+        position: absolute;
+        left: 50%;
+        transform: translate(-50%, 0);
+        border-radius: var(--buttonQuart);
+        top: var(--buttonHalf);            
+      }
+
+      .range-max,.range-min {
+        display: inline-block;
+        padding: 0 var(--buttonQuart);
+      }
+
+
+      /* checkbox toggle switch slider */
+            
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: calc(var(--buttonSize) * 2);
+        height: var(--buttonSize);
+        top: var(--buttonHalf);
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        border-radius: var(--buttonSize);
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--itemInactive);
+        width: calc(var(--buttonSize) * 3);                      
+        transition: .4s;
+      }
+
+      .slider:before {
+        position: absolute;
+        border-radius: 50%;
+        content: "";
+        height: var(--buttonSize);
+        width: var(--buttonSize);
+        left: var(--buttonQuart);
+        background: var(--inputBackground);
+        transition: .4s;
+      }
+
+      input:checked + .slider {
+        background-color: var(--buttonActive);
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(calc(var(--buttonSize)*1.5));
+      }
+      
+      #applog, #sdlog {
+        height:90%;
+        width:90%;
+        border:2px solid var(--itemBorder);
+        overflow:auto;
+        background: var(--inputBackground);
+      }
+      
+      select {
+        border: 1px solid var(--menuBackground);
+        font-size: var(--inputSize);
+        outline: 0;
+        border-radius: var(--buttonQuart);
+        margin-top: 2px;
+      }
+      
+      .selectField {
+         height: calc(var(--inputSize) * 1.5);
+      }
+      
+      table {
+        border-collapse:collapse; 
+        table-layout:fixed;
+        background: var(--menuBackground);
+        text-align: left;
+      }
+      
+      th {
+        font-weight:bold; 
+      }
+      
+      .config-group th, .config-group td {
+        border: 0;
+        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf); 
+        padding-left: var(--buttonSize);
+        line-height: var(--buttonDbl);
+        font-size: var(--buttonSize);
+      }
+      
+      .configGroup td input[type="number"] {
+        font-size: var(--buttonSize);
+      }
+      
+      .blinking {
+        animation: blinker 1.5s linear infinite;
+      }
+
+      @keyframes blinker {
+        50% {
+          opacity: .4;
+        }
+      }
+      
+      figure {
+        padding: 0px;
+        margin: 0; 
+        width: 100%;
+        height: auto;
+        margin-block-start: 0;
+        margin-block-end: 0;
+        margin-inline-start: 0;
+        margin-inline-end: 0;
+      }
+      
+      .image-container {
+        position: relative;
+      }
+
+      figure img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: var(--buttonQuart);
+      }
+      
+      #content {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch
+      }
+
+      #sidebar{
+        margin: 0px;
+        padding: 0px;         
+        width: 100%;
+      } 
+
+      @media (min-width: 50rem) and (orientation:landscape) {
+        #content {
+          display:flex;
+          flex-wrap: nowrap;
+          align-items: stretch
+        }
+        #sidebar {
+          width: auto;
+        }                                
+      }
+      
+      #stream-container {
+        margin: var(--buttonQuart) var(--buttonHalf); calc(var(--buttonSize) * 3) var(--buttonHalf);
+        border: 1px solid var(--itemBorder);
+      }
+      
+      .streamSize {
+        position: absolute;
+        top: var(--buttonQuart);
+        background: var(--buttonReady);
+        width: var(--buttonSize);
+        height: var(--buttonSize);
+        border-radius: calc(var(--buttonSize) * 6);
+        color: var(--buttonText);
+        text-align: center;
+        line-height: var(--buttonSize);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      #recording-indicator {
+        display: inline-block;
+        width: calc(var(--buttonSize) * 3/4);
+        height: calc(var(--buttonSize) * 3/4);
+        padding: var(--buttonQuart);
+        margin: var(--buttonHalf);
+        background: var(--buttonReady);
+        border-radius: var(--buttonSize);
+        border: 2px solid var(--itemBorder);
       }
 
     </style>
@@ -714,7 +709,7 @@
   <body>
     <div class="tab">
       <ul class="navtop">
-        <button class="tablinks camTab active" name="camModel">Camera</button>
+        <button class="tablinks camTab active" name="mainPage">Camera</button>
         <button class="tablinks" name="ShowLog">Show Log</button>
         <button class="tablinks" name="EditConfig">Edit Config</button>
         <button class="tablinks" name="OTAUpload">OTA Upload</button>
@@ -723,18 +718,18 @@
         <nav id="maintoolbar">
           <ul class="navtop">
             <li><span id="recording-indicator" style="float: right; display: none;"></span></li>
-            <li><button id="forceRecord" class="default-action" style="float:right;">➤&nbsp;Start Recording</button></li>   
+            <li><button id="forceRecord" style="float:right;">➤&nbsp;Start Recording</button></li>   
             <li><div class="sep"></div></li>
-            <li><button id="forceStream" class="default-action local" style="float:right;">➤&nbsp;Start Stream</button></li>
+            <li><button id="forceStream" class="local" style="float:right;">➤&nbsp;Start Stream</button></li>
             <li><button id="get-still" class="local" style="float:right;">Get Still</button></li>
             <li><div class="sep"></div></li>
-            <li><button id="forcePlayback" class="default-action local" style="float:right;" disabled="disabled" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li>
+            <li><button id="forcePlayback" class="local" style="float:right;" disabled="disabled" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li>
           </ul>
-         </nav>
-       </section>
-     </div>
+        </nav>
+      </section>
+    </div>
     
-    <div id="camModel" class="tabcontent" style="display:block">
+    <div id="mainPage" class="tabcontent" style="display:block">
       <div id="content">
         <div id="sidebar">
           <div id="menu-container" class="menu-pinned">
@@ -750,10 +745,11 @@
                 <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
                 <div class="pin-menu" title="Pin / unpin menu">📌</div>
                 <label for="control-cb" class="nav-toggle">📷&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
+                <div class='addButtons'></div>
                 <div>                    
                   <div class="input-group" id="framesize-group">
                     <label for="framesize">Resolution</label>
-                    <select id="framesize" class="default-action">
+                    <select id="framesize" class="selectField">
                       <option class="OV5640 hidden" value="21">QSXGA(2560x1920)</option>
                       <option class="OV5640 hidden" value="20">P_FHD(1080x1920)</option>
                       <option class="OV5640 hidden" value="19">WQXGA(2560x1600)</option>
@@ -779,46 +775,48 @@
                       </div>
                     </select>
                   </div>
+
+                 
                   <div class="input-group" id="fps-group">
                       <label for="fps">FPS</label>
                       <div class="range-min">1</div>
-                      <input title="Set camera required frames per second" type="range" id="fps" min="1" max="30" value="10" class="default-action">
-                      <output name="rangeVal">15</output>
+                      <input title="Set camera required frames per second" type="range" id="fps" min="1" max="30" value="10">
+                      <div class="range-value" name="rangeVal"></div>
                       <div class="range-max">30</div>
                   </div>
                   <div class="input-group" id="quality-group">
                       <label for="quality">Quality</label>
                       <div class="range-min">4</div>
-                      <input title="Set the recording quality" type="range" id="quality" min="4" max="63" value="10" class="default-action">
-                      <output name="rangeVal">10</output>
+                      <input title="Set the recording quality" type="range" id="quality" min="4" max="63" value="10">
+                      <div class="range-value" name="rangeVal"></div>
                       <div class="range-max">63</div>
                   </div>                          
                   <div class="input-group" id="micGain-group">
                     <label for="micGain">Microphone Gain</label>
                     <div class="range-min">0</div>
-                    <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0" class="default-action">
-                    <output name="rangeVal">0</output>
+                    <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">10</div>
                   </div>
                   <div class="input-group" id="CamTilt-group">
                     <label for="camTilt">Camera Tilt</label>
                     <div class="range-min">0</div>
-                    <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90" class="default-action">
-                    <output name="rangeVal">90</output>
+                    <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">180</div>
                   </div>
                   <div class="input-group" id="CamPan-group">
                     <label for="camPan">Camera Pan</label>
                     <div class="range-min">0</div>
-                    <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90" class="default-action">
-                    <output name="rangeVal">90</output>
+                    <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">180</div>
                   </div>
                   <div class="input-group" id="lamp-group">
                     <label for="lamp">Lamp</label>
                     <div class="range-min">0</div>
-                     <input title="Control onboard lamp led brightness" type="range" id="lampLevel" min="0" max="15" value="0" class="default-action">
-                     <output name="rangeVal">0</output>
+                     <input title="Control onboard lamp led brightness" type="range" id="lampLevel" min="0" max="15" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">15</div>
                   </div>
                 </div>
@@ -827,53 +825,54 @@
                 <input type="checkbox" id="settings-cb" class="menu-action">
                 <div class="pin-menu" title="Pin / unpin menu">📌</div>
                 <label for="settings-cb" class="nav-toggle">📺&nbsp;&nbsp;Picture Settings&nbsp;&nbsp;</label>
+                <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="xclk-group">
                       <label for="set-xclk">Clock MHz</label>
                       <div class="text">
-                          <input id="xclkMhz" title="Set camera clock speed in MHz" type="text" minlength="1" maxlength="2" size="2" value="20">
+                          <input id="xclkMhz" title="Set camera clock speed in MHz" type="number" minlength="1" maxlength="2" size="2" value="20">
                       </div>
                   </div>
                   <div class="input-group" id="brightness-group">
                     <label for="brightness">Brightness</label>
                     <div class="range-min">-2</div>
-                    <input type="range" id="brightness" min="-2" max="2" value="0" class="default-action">
-                    <output name="rangeVal">0</output>
+                    <input type="range" id="brightness" min="-2" max="2" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">2</div>
                   </div>
                   <div class="input-group" id="contrast-group">
                     <label for="contrast">Contrast</label>
                     <div class="range-min">-2</div>
-                    <input type="range" id="contrast" min="-2" max="2" value="0" class="default-action">
-                    <output name="rangeVal">0</output>
+                    <input type="range" id="contrast" min="-2" max="2" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">2</div>
                   </div>
                   <div class="input-group" id="saturation-group">
                     <label for="saturation">Saturation</label>
                     <div class="range-min">-2</div>
-                    <input type="range" id="saturation" min="-2" max="2" value="0" class="default-action">
-                    <output name="rangeVal">0</output>
+                    <input type="range" id="saturation" min="-2" max="2" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">2</div>
                   </div>
                   <div class="OV3660 OV5640 hidden">
                     <div class="input-group" id="sharpness-group">
                       <label for="sharpness">Sharpness</label>
                       <div class="range-min">-3</div>
-                      <input type="range" id="sharpness" min="-3" max="3" value="0" class="default-action">
-                      <output name="rangeVal">0</output>
+                      <input type="range" id="sharpness" min="-3" max="3" value="0">
+                      <div class="range-value" name="rangeVal"></div>
                       <div class="range-max">3</div>
                     </div>
                     <div class="input-group" id="denoise-group">
                       <label for="denoise">De-Noise</label>
                       <div class="range-min">Auto</div>
-                      <input type="range" id="denoise" min="0" max="8" value="0" class="default-action">
-                      <output name="rangeVal">0</output>
+                      <input type="range" id="denoise" min="0" max="8" value="0">
+                      <div class="range-value" name="rangeVal"></div>
                       <div class="range-max">8</div>
                     </div>
                   </div>
                   <div class="input-group" id="special_effect-group">
                     <label for="special_effect">Special Effect</label>
-                    <select id="special_effect" class="default-action">
+                    <select id="special_effect" class="selectField">
                       <option value="0" selected="selected">No Effect</option>
                       <option value="1">Negative</option>
                       <option value="2">Grayscale</option>
@@ -886,20 +885,20 @@
                   <div class="input-group" id="awb-group">
                       <label for="awb">AWB Enable</label>
                       <div class="switch">
-                          <input id="awb" type="checkbox" class="default-action" checked="checked">
+                          <input id="awb" type="checkbox" checked="checked">
                           <label class="slider" for="awb"></label>
                       </div>
                   </div>
                   <div class="input-group" id="awb_gain-group">
                     <label for="awb_gain" id="awbg_lab">AWB Gain</label>
                     <div class="switch">
-                      <input id="awb_gain" type="checkbox" class="default-action" checked="checked">
+                      <input id="awb_gain" type="checkbox" checked="checked">
                       <label class="slider" for="awb_gain"></label>
                     </div>
                   </div>
                   <div class="input-group" id="wb_mode-group">
                     <label for="wb_mode">AWB Mode</label>
-                    <select id="wb_mode" class="default-action">
+                    <select id="wb_mode" class="selectField">
                       <option value="0" selected="selected">Auto</option>
                       <option value="1">Sunny</option>
                       <option value="2">Cloudy</option>
@@ -910,105 +909,105 @@
                   <div class="input-group" id="aec-group">
                     <label for="aec">AEC Enable</label>
                     <div class="switch">
-                      <input id="aec" type="checkbox" class="default-action" checked="checked">
+                      <input id="aec" type="checkbox" checked="checked">
                       <label class="slider" for="aec"></label>
                     </div>
                   </div>
                   <div class="input-group" id="aec_value-group">
                     <label for="aec_value">Manual Exposure</label>
                     <div class="range-min">0</div>
-                    <input type="range" id="aec_value" min="0" max="1200" value="204" class="default-action">
-                    <output name="rangeVal">204</output>
+                    <input type="range" id="aec_value" min="0" max="1200" value="204">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">1200</div>
                   </div>
                   <div class="input-group" id="ae_level-group">
                     <label for="ae_level">Exposure Level</label>
                     <div class="range-min">-2</div>
-                    <input type="range" id="ae_level" min="-2" max="2" value="0" class="default-action">
-                    <output name="rangeVal">0</output>
+                    <input type="range" id="ae_level" min="-2" max="2" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">2</div>
                   </div>
                   <div class="input-group" id="aec2-group">
                     <label for="aec2" id="aec2_lab">AEC DSP</label>
                     <div class="switch">
-                      <input id="aec2" type="checkbox" class="default-action" checked="checked">
+                      <input id="aec2" type="checkbox" checked="checked">
                       <label class="slider" for="aec2"></label>
                     </div>
                   </div>
                   <div class="input-group" id="dcw-group">
-                    <label for="dcw" id="dcw_lab">DCW (Downsize EN)</label>
+                    <label for="dcw" id="dcw_lab">DCW (Downsize)</label>
                     <div class="switch">
-                      <input id="dcw" type="checkbox" class="default-action" checked="checked">
+                      <input id="dcw" type="checkbox" checked="checked">
                       <label class="slider" for="dcw"></label>
-                    </div>
+                    </div>  
                   </div>
                   <div class="input-group" id="agc-group">
                     <label for="agc">AGC Enable</label>
                     <div class="switch">
-                      <input id="agc" type="checkbox" class="default-action" checked="checked">
+                      <input id="agc" type="checkbox" checked="checked">
                       <label class="slider" for="agc"></label>
                     </div>
                   </div>
                   <div class="input-group hidden" id="agc_gain-group">
                     <label for="agc_gain">Gain</label>
                     <div class="range-min">1x</div>
-                    <input type="range" id="agc_gain" min="0" max="30" value="5" class="default-action">
-                    <output name="rangeVal">5</output>
+                    <input type="range" id="agc_gain" min="0" max="30" value="5">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">31x</div>
                   </div>
                   <div class="input-group" id="gainceiling-group">
                     <label for="gainceiling">Gain Ceiling</label>
                     <div class="range-min">2x</div>
-                    <input type="range" id="gainceiling" min="0" max="6" value="0" class="default-action">
-                    <output name="rangeVal">0</output>
+                    <input type="range" id="gainceiling" min="0" max="6" value="0">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">128x</div>
                   </div>       
                   <div class="input-group" id="lenc-group">
                     <label for="lenc">Lens Correction</label>
                     <div class="switch">
-                      <input id="lenc" type="checkbox" class="default-action" checked="checked">
+                      <input id="lenc" type="checkbox" checked="checked">
                       <label class="slider" for="lenc"></label>
                     </div>
                   </div>
                   <div class="input-group" id="hmirror-group">
                     <label for="hmirror">H-Mirror</label>
                     <div class="switch">
-                      <input id="hmirror" type="checkbox" class="default-action" checked="checked">
+                      <input id="hmirror" type="checkbox" checked="checked">
                       <label class="slider" for="hmirror"></label>
                     </div>
                   </div>
                   <div class="input-group" id="vflip-group">
                     <label for="vflip">V-Flip</label>
                     <div class="switch">
-                      <input id="vflip" type="checkbox" class="default-action" checked="checked">
+                      <input id="vflip" type="checkbox" checked="checked">
                       <label class="slider" for="vflip"></label>
                     </div>
                   </div>
                   <div class="input-group" id="colorbar-group">
                     <label for="colorbar">Color Bar</label>
                     <div class="switch">
-                      <input id="colorbar" type="checkbox" class="default-action">
+                      <input id="colorbar" type="checkbox">
                       <label class="slider" for="colorbar"></label>
                     </div>
                   </div>
                   <div class="input-group" id="bpc-group">
                     <label for="bpc">BPC</label>
                     <div class="switch">
-                      <input id="bpc" type="checkbox" class="default-action" checked="checked">
+                      <input id="bpc" type="checkbox" checked="checked">
                       <label class="slider" for="bpc"></label>
-                  </div>
+                    </div>
                   </div>
                   <div class="input-group" id="wpc-group">
                     <label for="wpc">WPC</label>
                     <div class="switch">
-                      <input id="wpc" type="checkbox" class="default-action" checked="checked">
+                      <input id="wpc" type="checkbox" checked="checked">
                       <label class="slider" for="wpc"></label>
                     </div>
                   </div>
                   <div class="input-group" id="raw_gma-group">
                     <label for="raw_gma">GMA Enable</label>
                     <div class="switch">
-                      <input id="raw_gma" type="checkbox" class="default-action" checked="checked">
+                      <input id="raw_gma" type="checkbox" checked="checked">
                       <label class="slider" for="raw_gma"></label>
                     </div>
                   </div>                  
@@ -1018,54 +1017,55 @@
                 <input type="checkbox" id="motion-cb" class="menu-action">
                 <div class="pin-menu" title="Pin / unpin menu">📌</div>
                 <label for="motion-cb" class="nav-toggle">👀&nbsp;&nbsp;Motion Detect & Recording&nbsp;&nbsp;</label>
+                <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="motion-group">
-                    <label for="enableMotion">Enable motion detect</label>
+                    <label for="enableMotion">Motion detect</label>
                     <div class="switch">
-                      <input id="enableMotion" type="checkbox" class="default-action">
+                      <input id="enableMotion" type="checkbox">
                       <label title="Enable/disable motion detection" class="slider" for="enableMotion"></label>
                     </div>
                   </div>
                   <div class="input-group" id="motion-group">
                     <label for="motion">Motion Sensitivity</label>
                     <div class="range-min">1</div>
-                    <input title="Set motion detection sensitivity" type="range" id="motionVal" min="1" max="10" value="7" class="default-action">
-                    <output name="rangeVal">7</output>
+                    <input title="Set motion detection sensitivity" type="range" id="motionVal" min="1" max="10" value="7">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">10</div>
                   </div> 
                   <div class="input-group" id="minf-group">
                     <label for="minf">Min Seconds</label>
                     <div class="range-min">0</div>
-                    <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5" class="default-action">
-                    <output name="rangeVal">5</output>
+                    <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">20</div>
                   </div>                     
                   <div class="input-group" id="record-group">
                       <label for="record">Save Capture</label>
                       <div class="switch">
-                        <input id="record" type="checkbox" class="default-action">
+                        <input id="record" type="checkbox">
                         <label title="Enable recording on motion detection" class="slider" for="record"></label>
                       </div>
                   </div> 
                   <div class="input-group" id="dbgMotion-group">
                     <label for="dbgMotion">Show Motion</label>
                     <div class="switch">
-                      <input id="dbgMotion" type="checkbox" class="default-action">
+                      <input id="dbgMotion" type="checkbox">
                       <label title="Display detected camera motion" class="slider" for="dbgMotion"></label>
                     </div>
                   </div>
                   <div class="input-group" id="lswitch-group">
                     <label for="lswitch">Night Switch</label>
                     <div class="range-min">0</div>
-                    <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10" class="default-action">
-                    <output name="rangeVal">10</output>
+                    <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10">
+                    <div class="range-value" name="rangeVal"></div>
                     <div class="range-max">100</div>
                   </div> 
                   <div class="vsep"></div>
                   <div class="input-group" id="tlapse-group">
                     <label for="timeLapseOn">Time Lapse</label>
                     <div class="switch">
-                      <input id="timeLapseOn" type="checkbox" class="default-action">
+                      <input id="timeLapseOn" type="checkbox">
                       <label title="Enable time lapse recording" class="slider" for="timeLapseOn"></label>
                     </div>
                   </div>                
@@ -1078,7 +1078,7 @@
                 <div>
                   <div class="input-group" id="sfiles-group" style="display: grid;">
                     <label for="sfiles">Select folder / file</label>                          
-                    <select title="Select sd card file or folder" id="sfile" size="16" style="font-size: 90%;">
+                    <select title="Select sd card file or folder" id="sfile" size="15">
                       <option value="/~reset" selected="selected">-- Select --</option>
                       <option value="/">Get Folders</option>
                       <option value="/~current">List current (today)</option>
@@ -1086,22 +1086,22 @@
                     </select>
                   </div>
                   <div>
-                    <progress id="progressBar" value='0' max='100' class="default-action info"></progress>%
+                    <progress id="progressBar" value='0' max='100' class="info"></progress>%
                   </div>
-                  <br/>
+                  <br>
                   <section id="buttons">
-                    <button class="local" title="Download selected file from sd card" id="download" style="float:right; " value="1">Download</button>
-                    <button class="local" title="Upload selected file/folder to ftp server" id="upload" style="float:left; " value="1">Ftp Upload</button>
-                    <button class="local" title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left; " value="1">Ftp Move</button>
-                    <button class="local" title="Delete selected file/folder from sd card" id="delete" style="float:right; " value="1">Delete</button>
+                    <button class="local" title="Download selected file from sd card" id="download" style="float:right" value="1">Download</button>
+                    <button class="local" title="Upload selected file/folder to ftp server" id="upload" style="float:left" value="1">Ftp Upload</button>
+                    <button class="local" title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left" value="1">Ftp Move</button>
+                    <button class="local" title="Delete selected file/folder from sd card" id="delete" style="float:right" value="1">Delete</button>
                   </section>
-                  <br/>
+                  <br>
                   <div class="input-group" id="autoUpload-group">
-                      <label for="autoUpload">Auto upload</label>
-                      <div class="switch">
-                        <input id="autoUpload" type="checkbox" class="default-action">
-                        <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
-                      </div>
+                    <label for="autoUpload">Auto upload</label>
+                    <div class="switch">
+                      <input id="autoUpload" type="checkbox">
+                      <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
+                    </div>
                   </div>
                 </div>
               </nav>
@@ -1109,41 +1109,35 @@
                 <input type="checkbox" id="other-cb" class="menu-action">
                 <div class="pin-menu" title="Pin / unpin menu">📌</div>
                 <label for="other-cb" class="nav-toggle">🔧&nbsp;&nbsp;Access Settings&nbsp;&nbsp;</label>
+                <div class='addButtons'></div>
                 <div>
-                  <section id="buttons">
-                    <button id="save" style="float:right;">Save settings</button>
-                    <button id="reboot" style="float:right;">Reboot ESP</button>
-                  </section>
-                </div>  
-                <br/>
-                <div>
-                  <h3>Network settings</h3>
+                  <div class="subheader">Network settings</div>
                   <div class="input-group" id="wifi-group">
                     <label for="hostName">Host Name</label>
-                    <input id="hostName" name="hostName" length=32 placeholder="Host name" class="default-action">
+                    <input id="hostName" name="hostName" length=32 placeholder="Host name">
                   </div>
                   <div class="input-group" id="wifi-group">
                     <label for="ST_SSID">SSID</label>
-                    <input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID" class="default-action">
+                    <input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID">
                   </div>
                   <div class="input-group" id="wifi-group">
                     <label for="ST_Pass">Password</label>
-                    <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password" class="default-action">
+                    <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password">
                   </div>
                   <br>
-                  <h3>Clock settings</h3>
+                  <div class="subheader">Clock settings</div>
                   <div class="input-group" id="time-group">
                     <label for="timezone">Time zone</label>
-                    <input id="timezone" name="timezone" length=64 placeholder="Time zone string" class="default-action">
+                    <input id="timezone" name="timezone" length=64 placeholder="Time zone string">
                   </div>
                   <div class="input-group" id="time-group">
                     <label for="timezoneSel">Time zone select</label>
-                    <select id="timezoneSel" name="timezoneSel">
+                    <select id="timezoneSel" name="timezoneSel" class="selectField">
                       <option value="" selected>&nbsp;-- Select --</option>
                       <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
-                      <option value="GMT-1BST,M3.5.0/01,M10.5.0/02">Europe/Belfast</option>
+                      <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/Belfast</option>
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
-                      <option value="GMT-1BST,M3.5.0/1,M10.5.0">Europe/London</option>
+                      <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London</option>
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
                       <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
@@ -1174,63 +1168,59 @@
                       <option value="<+12>-12">GMT+12:00</option>                                  
                     </select>
                   </div>
-                  <div class="input-group extras" id="time-group">
-                    <label for="clockUTC">Camera UTC</label>
-                    <input id="clockUTC" name="clockUTC" length=20 style="max-width:124px" class="default-action">
-                  </div>
                   <br>                          
-                  <h3>Ftp settings</h3>
+                  <div class="subheader">Ftp settings</div>
                   <div class="input-group" id="ftp-group">
                     <label for="ftp_server">Ftp Server</label>
-                    <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name" class="default-action">
+                    <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name">
                   </div>
                   <div class="input-group" id="ftp-group">
                     <label for="ftp_port">Ftp port</label>
-                    <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port" class="default-action">
+                    <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port">
                   </div>                          
                   <div class="input-group" id="ftp-group">
                     <label for="ftp_user">Ftp user name</label>
-                    <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name" class="default-action">
+                    <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name">
                   </div>
                   <div class="input-group" id="ftp-group">
                     <label for="FTP_Pass">Ftp password</label>
-                    <input id="FTP_Pass" name="FTP_Pass" length=32 placeholder="Ftp password" class="default-action">
+                    <input id="FTP_Pass" name="FTP_Pass" length=32 placeholder="Ftp password">
                   </div>
                   <div class="input-group" id="ftp-group">
                     <label for="ftp_wd">Ftp root dir</label>
-                    <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory" class="default-action">
+                    <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory">
                   </div>                          
                   <br>
-                  <h3>SMTP settings</h3>
+                  <div class="subheader">SMTP settings</div>
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_server">SMTP server</label>
-                    <input id="smtp_server" name="smtp_server" length=32 placeholder="smtp server name" class="default-action">
+                    <input id="smtp_server" name="smtp_server" length=32 placeholder="smtp server name">
                   </div>
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_port">SMTP port</label>
-                    <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port" class="default-action">
+                    <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port">
                   </div>                          
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_login">SMTP login</label>
-                    <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email" class="default-action">
+                    <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email">
                   </div>
                   <div class="input-group" id="smtp-group">
                     <label for="SMTP_Pass">SMTP password</label>
-                    <input id="SMTP_Pass" name="SMTP_Pass" length=32 placeholder="smtp password" class="default-action">
+                    <input id="SMTP_Pass" name="SMTP_Pass" length=32 placeholder="smtp password">
                   </div>
                   <div class="input-group" id="ftp-group">
                     <label for="smtp_email">SMTP email</label>
-                    <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to" class="default-action">
+                    <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to">
                   </div>   
                   <br>
-                  <h3>Authentication settings</h3>
+                  <div class="subheader">Authentication settings</div>
                   <div class="input-group" id="auth-group">
                       <label for="Auth_Name">Web login</label>
-                      <input id="Auth_Name" name="Auth_Name" length=32 placeholder="Authentication user name" class="default-action">
+                      <input id="Auth_Name" name="Auth_Name" length=32 placeholder="Authentication user name">
                   </div>
                   <div class="input-group" id="auth-group">
                       <label for="Auth_Pass">Web password</label>
-                      <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password" class="default-action">
+                      <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password">
                   </div>                      
                 </div>
               </nav>
@@ -1252,187 +1242,196 @@
         </figure>
       </div>
         <section id="footer">
-          <div class="info-group center" id="fw_version-group">
+          <div class="info-group center">
               <label for="fw_version">Version</label>
-              <div id="fw_version" class="default-action info displayonly">&nbsp;</div>
+              <div id="fw_version" class="info displayonly">&nbsp;</div>
           </div>
-          <div class="info-group center" id="llevel-group">
+          <div class="info-group center">
               <label for="llevel">Ambient&nbsp;Light</label>
-              <div id="llevel" class="default-action info displayonly">&nbsp;</div>
+              <div id="llevel" class="info displayonly">&nbsp;</div>
           </div>
-          <div class="info-group center" id="night-group">
+          <div class="info-group center">
               <label for="night">Night&nbsp;Time</label>
-              <div id="night" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="night" class="info displayonly">&nbsp;</div>
           </div>
-          <div class="info-group center" id="atemp-group">
+          <div class="info-group center">
               <label for="atemp">Camera&nbsp;Temp</label>
-              <div id="atemp" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="atemp" class="info displayonly">&nbsp;</div>
           </div> 
-          <div class="info-group center" id="batt-group">
+          <div class="info-group center">
               <label for="battv">Battery&nbsp;Voltage</label>
-              <div id="battv" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="battv" class="info displayonly">&nbsp;</div>
           </div> 
-          <div class="info-group center" id="clock-group">
+          <div class="info-group center">
               <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
-              <div id="clock" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="clock" class="info displayonly">&nbsp;</div>
           </div>
-          <div class="info-group center" id="uptime-group">
+          <div class="info-group center">
               <label for="up_time">Up&nbsp;time</label>
-              <div id="up_time" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="up_time" class="info displayonly">&nbsp;</div>
           </div>                                                 
-          <div class="info-group center" id="rssi-group">
+          <div class="info-group center">
               <label for="wifi_rssi">Signal&nbsp;Strength</label>
-              <div id="wifi_rssi" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="wifi_rssi" class="info displayonly">&nbsp;</div>
           </div>
-          <div class="info-group center" id="heap-group">
+          <div class="info-group center">
               <label for="free_heap">Free&nbsp;heap</label>
-              <div id="free_heap" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="free_heap" class="info displayonly">&nbsp;</div>
           </div>  
-          <div class="info-group center" id="heap-group">
+          <div class="info-group center">
               <label for="free_psram">Free&nbsp;PSRAM</label>
-              <div id="free_psram" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="free_psram" class="info displayonly">&nbsp;</div>
           </div>                 
-          <div class="info-group center" id="total-group">
+          <div class="info-group center">
               <label for="total_bytes">Total&nbsp;space</label>
-              <div id="total_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="total_bytes" class="info displayonly">&nbsp;</div>
           </div>                
-          <div class="info-group center" id="used-group">
+          <div class="info-group center">
               <label for="used_bytes">Used&nbsp;space</label>
-              <div id="used_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="used_bytes" class="info displayonly">&nbsp;</div>
           </div>
-          <div class="info-group center" id="free-group">
+          <div class="info-group center">
               <label for="free_bytes">Free&nbsp;space</label>
-              <div id="free_bytes" class="default-action info displayonly" name="textonly">&nbsp;</div>
+              <div id="free_bytes" class="info displayonly">&nbsp;</div>
           </div>   
         </section>                         
       </section> 
     </div>
     
     <div id="ShowLog" class="tabcontent">
-      <br/><br/>
+      <br><br>
       <div class="grid-cols3">
-        <div class="input-group" id="debugging-group" style="font-size: 20px; text-align: left">
-          <label for="wsMode" title="Enable logging to websocket">Log to browser:</label>
+        <div class="input-group" style="text-align: left">
+          <label for="wsMode" class="header" title="Enable logging to websocket">Log to browser:</label>
           <div class="switch">
               <input class="local" id="wsMode" type="checkbox">
               <label title="Output log to WS" class="slider" for="wsMode"></label>
           </div>   
         </div>
         <div>
-          <svg width="150" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="clearWSlog" x="50%" y="50%">Clear WS Log</text>
+            <text class="local" id="clearWSlog">Clear WS Log</text>
           </svg>
         </div>
-        <div class="input-group" id="dbg-group" style="font-size: 20px; text-align: left">
-          <label for="dbgVerbose" title="Set verbose logging">Verbose:</label>
+        <div class="input-group" id="dbg-group" style="text-align: left">
+          <label for="dbgVerbose" class="header" title="Set verbose logging">Verbose:</label>
           <div class="switch">
-            <input id="dbgVerbose" type="checkbox" class="default-action">
+            <input id="dbgVerbose" type="checkbox">
             <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
           </div>
         </div>
       </div>
       <pre id='applog' style="height:50vh;"></pre>
-      </br/>
+      <br>
       <div class="grid-cols3">
-        <div class="input-group" id="debugging-group" style="font-size: 20px; text-align: left">
-          <label for="logMode" title="Enable logging to sd card">Log to SD card:</label>
+        <div class="input-group" style="text-align: left">
+          <label for="logMode" class="header" title="Enable logging to sd card">Log to SD card:</label>
           <div class="switch">
-              <input id="logMode" type="checkbox" class="default-action">
+              <input id="logMode" type="checkbox">
               <label title="Output log to SD" class="slider" for="logMode"></label>
           </div>  
         </div> 
         <div>
-          <svg width="150" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="clearSDlog" x="50%" y="50%">Clear SD Log</text>
+            <text class="local" id="clearSDlog">Clear SD Log</text>
           </svg>
         </div>
         <div>
-          <svg width="150" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="refreshSDlog" x="50%" y="50%">Retrieve SD Log</text>
+            <text class="local" id="refreshSDlog">Retrieve SD Log</text>
           </svg>
         </div>
       </div>
       <pre id='sdlog' style="height:50vh;"></pre>
     </div>
+    <br>
     
     <div id="EditConfig" class="tabcontent">
-      <h2>Control</h2>
+      <div class="header">Control</div>
+      <br>
       <div class="grid-cols4">
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text id="save" x="50%" y="50%">Save</text>
+            <text id="save" class="midText">Save</text>
           </svg>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text id="reset" x="50%" y="50%">Reboot ESP</text>
+            <text id="reset" class="midText">Reboot ESP</text>
           </svg>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text id="deldata" x="50%" y="50%">Reload /data</text>
+            <text id="deldata" class="midText">Reload /data</text>
           </svg>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text id="clear" x="50%" y="50%">Clear NVS</text>
+            <text id="clear" class="midText">Clear NVS</text>
           </svg>
         </div>
         <div class="cfgTitle">
-          <br/>
-          <h2>Settings</h2>
-          <h3>Press a button to view or modify settings (changed values are not validated)</h3>
-          <h3>Press Save button to make changes permanent</h3>
+          <br>
+          <div class="header">Settings</div>
+          <div class="subheader">Press a button to view or modify settings (changed values are not validated)</div>
+          <div class="subheader">Press Save button to make changes permanent</div>
+          <br>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="wifi" x="50%" y="50%">Wifi</text>
+            <text class="local midText" id="wifi">Wifi</text>
           </svg>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="motion" x="50%" y="50%">Motion</text>
+            <text class="local midText" id="motion">Motion</text>
           </svg>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="peripherals" x="50%" y="50%">Peripherals</text>
+            <text class="local midText" id="peripherals">Peripherals</text>
           </svg>
         </div>
         <div>
-          <svg width="120" height="40">
+          <svg>
             <rect/>
-            <text class="local" id="other" x="50%" y="50%">Other</text>
+            <text class="local midText" id="other">Other</text>
           </svg>
         </div>
       </div>
-      <div class="configGroup">
-        <p id='configTable'></p>
+      <div>
+        <p class='config-group'></p>
       </div>
     </div>
            
     <div id="OTAUpload" class="tabcontent">
-      <br/><br/>
+      <br><br>
       <form id="upload_form" enctype="multipart/form-data" method="post">
         <input class="local" type="file" name="otafile" id="otafile">
-        <br/><br/>
-        <progress id="progressOta" value="0" max="100" style="width:300px;"></progress>%
-        <h3 id="status"></h3>
+        <br><br>
+        <progress id="progressOta" value="0" max="100"></progress>%
+        <div class="subheader" id="status"></div>
         <p id="loaded_n_total"></p>
       </form>
     </div>   
+        
+    <div class="alertMsg">
+      <span id="alertText"></span>
+    </div>
+    
     <script>
       document.addEventListener('DOMContentLoaded', function (event) {
+        'use strict'
 
         /*********** initialisation  ***********/
         
@@ -1442,12 +1441,14 @@
         let ws = null;
         let hbTimer = null;
         let updateData = {}; // receives json for status data as key val pairs
+        let statusData = {}; // stores all status data as key val pair    
         let cfgGroupNow = -1;
         let loggingOn = false;
         const CLASS = 0;
         const ID = 1;
         const $ = document.querySelector.bind(document);
         const $$ = document.querySelectorAll.bind(document);
+        const baseFontSize = parseInt(window.getComputedStyle($('body')).fontSize); 
         
         const streamUrl = baseHost + ':81';
         let imgSize = { width: 0, height: 0 };
@@ -1459,6 +1460,7 @@
         
         function initialise() {
           try {
+            addButtons();
             setListeners();
             // initWebSocket();
             loadStatus(""); 
@@ -1486,6 +1488,7 @@
           sendCmd("H");
           clearTimeout(hbTimer);
           hbTimer = setTimeout(heartbeat, refreshInterval);
+          $('#alertText').innerHTML = "";     
         }
         
         // connect to websocket server
@@ -1517,7 +1520,7 @@
           // event.codes:
           //   1006 if server not available, or another web page is already open
           //   1005 if closed from app
-          if (event.code == 1006) alert("Closed websocket as a newer connection was made, refresh browser page");
+          if (event.code == 1006) {} //alert("Closed websocket as a newer connection was made, refresh browser page");
           else if (event.code != 1005) initWebSocket(); // retry if any other reason
         }
         
@@ -1535,8 +1538,9 @@
           $('#' + e.name).style.display = "inherit";
           $$('.tablinks').forEach(el => {el.classList.remove("active");});
           e.classList.add("active");
-          if (e.name == 'camModel') show($('#main'));
+          if (e.name == 'mainPage') show($('#main'));
           else hide($('#main'));
+          $$('input[type=range]').forEach(el => {rangeMarker(el);});
         }
 
         function accordian(accId) {
@@ -1545,11 +1549,31 @@
           if (panel.style.display === "inherit") panel.style.display = "none";
           else panel.style.display = "inherit";
         }
+       
+        function rangeMarker(range) {
+          const rangeVal = $('#'+range.id).parentElement.children.rangeVal;
+          const rangeFontSize = parseInt(window.getComputedStyle($('input[type=range]')).fontSize); 
+          let position = (range.clientWidth - rangeFontSize) * (range.value - range.min) / (range.max - range.min);
+          position += range.offsetLeft + (rangeFontSize / 2);
+          rangeVal.innerHTML = '<span>'+range.value+'</span>';
+          rangeVal.style.left = 'calc('+position+'px)';
+       }
+        
+        function addButtons() {
+          // add commmon buttons to relevant sections
+          $$('.addButtons').forEach(el => {
+            el.innerHTML = '<section id="buttons">'
+              +'<button id="save" style="float:right;" value="1">Save Settings</button>'
+              +'<button id="reset" style="float:right;" value="1">Reboot ESP</button>'
+            +'</section><br>'
+          });
+        }
         
         /*********** data processing functions ***********/
         
         async function loadStatus(specifier) {
           // request and load current status from app
+          $$('input[type=range]').forEach(el => {rangeMarker(el);});
           const response = await fetch(baseHost+'/status'+specifier);
           if (response.ok) {
             updateData = await response.json();
@@ -1577,29 +1601,25 @@
               if (eli.type === 'checkbox') eli.checked = !!Number(value);
               else if (eli.type === 'range') {
                 eli.value = value; 
-                eli.parentElement.children.rangeVal.value = value;
+                rangeMarker(eli); 
               }
               else if (eli.type === 'option') eli.selected = true;
               else eli.value = value; 
             }
+            statusData[key] = value;
             processStatus(ID, key, value, false);
           });
         }
         
         async function sendUpdates(doAction) {    
-          // send bulk updates to app
-          let jarray = {};
-          jarray["action"] = doAction;
-          // get each required update element and obtain id/name and value into array to send as json
-          $$('.update-action').forEach(el => {
-            if (el.nodeName == "INPUT") jarray[el.getAttribute('id')] = el.value.trim();
-          });
-          // send as json to server
-          await fetch(baseHost + '/update', {
+          // send bulk updates to app as json 
+          statusData['action'] = doAction;
+          const response = await fetch(baseHost + '/update', {
             method: 'POST', 
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(jarray),
+            body: JSON.stringify(statusData),
           });
+          if (!response.ok) console.log(response.status);
         } 
         
         /*********** utility functions ***********/
@@ -1613,7 +1633,7 @@
           };
         }
         
-        const debounceSendControl = debounce((query) => fetch(baseHost + encodeURI('/control?' + query)));
+        const debounceSendControl = debounce((key, value) => sendControl(key, value));
         
         function sleep(ms) {
           return new Promise(resolve => setTimeout(resolve, ms));
@@ -1651,42 +1671,41 @@
         
         function setListeners() {
         
-          // event listener for click events
+          // click events
          document.addEventListener("click", function (event) {
             const e = event.target;
             // svg rect elements, use id of its following text node
             if (e.nodeName == 'rect') processStatus(ID, e.nextElementSibling.id, 1);
             // tab buttons, use name as target id 
             else if (e.classList.contains('tablinks')) openTab(e);
+            // other buttons
             else if (e.tagName == 'BUTTON') processStatus(ID, e.id, e.value);
             // navigation and presentation icons
             else if (e.tagName == 'NAV' || e.tagName == 'DIV') processStatus(CLASS, e.classList.value, e.id);
             else if (e.nodeName == 'INPUT' || e.nodeName == 'SELECT') {/*ignore*/}
-            //else console.log("unhandled click tag type " + e.tagName + " for " + e.id);
           });
           
-          // event listener for change events
+          // change events
           document.addEventListener("change", function (event) {
-            const value = event.target.value.trim();
             const e = event.target;
+            const value = e.value.trim();
             const et = event.target.type;
             // input fields of given class 
             if (e.nodeName == 'INPUT') {  
               if (e.type === 'checkbox') processStatus(ID, e.id, e.checked ? 1 : 0);
               else if (et === 'button' || et === 'file') processStatus(ID, e.id, 1);
-              else if (et === 'radio') {if (e.checked) processStatus(ID, e.id, value);} 
+              else if (et === 'radio') { if (e.checked) processStatus(ID, e.name, value); } 
               else if (e.hasAttribute('id')) processStatus(ID, e.id, value);
             }
             else if (e.tagName == 'SELECT') processStatus(ID, e.id, value);
-            //else console.log("unhandled change tag type " + e.tagName + " for " + e.id);
           });
           
-          // event listener for input events
+          // input events
           document.addEventListener("input", function (event) {
             if (event.target.type === 'range') rangeMarker(event.target);
           });
           
-          // event listener for user command entered on Log tab
+          // user command entered on Log tab
           document.addEventListener("keydown", function (event) {
             if (event.target.id == 'txtCmd') {
               let keyPress = event.keyCode || event.which;
@@ -1694,7 +1713,12 @@
             }
           });
           
-          // event listener to close web socket on leaving page
+          // recalc range marker positions 
+          window.addEventListener('resize', function (event) {
+            $$('input[type=range]').forEach(el => {rangeMarker(el);});
+          });
+          
+          // close web socket on leaving page
           window.addEventListener('beforeunload', function (event) {
             if (ws) closeWS();
           });      
@@ -1723,11 +1747,11 @@
             let logText = fromUser ? "[" + date.toLocaleTimeString() + " Web] " : "";
             logText += reqStr + "\n";
             // append to log display 
-            let log = document.getElementById('applog');
+            let log = $('#applog');
             let new_node = document.createTextNode(logText);
             log.append(new_node);
             // auto scroll new entry unless scroll bar is not at bottom
-            const bottom = 40; // double font size
+            const bottom = 2 * baseFontSize;// 2 lines
             const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
             if (pos < bottom) log.scrollTop = log.scrollHeight;
           }
@@ -1774,7 +1798,7 @@
         
         function buildTable(configData, cfgGroup) {
           // dynamically build table of editable settings
-          const divShowData = $('#configTable');
+          const divShowData = $('.config-group');
           divShowData.innerHTML = "";
           if (cfgGroupNow != cfgGroup) {
             cfgGroupNow = cfgGroup;
@@ -1788,19 +1812,58 @@
               tr.appendChild(th);
             }
 
-            // add each setting as a row containing setting name and setting value
-            let newRow = 1;
-            Object.keys(configData).forEach( key => {
+            // add each setting as a row containing setting label and setting value
+            let nextPair = 3;
+            let saveKey, saveVal;
+            Object.entries(configData).forEach(([key, value]) => {
               if (key != "cfgGroup") { // skip over this entry 
-                if (newRow) tr = table.insertRow(-1);
-                let tabCell = tr.insertCell(-1);
-                if (newRow) {
-                  tabCell.innerHTML = configData[key]; // name of setting
-                  newRow = 0;
+                if (nextPair == 3) {
+                  // new row
+                  tr = table.insertRow(-1);
+                  nextPair = 0;
+                }
+                if (nextPair == 0) {
+                  // save key and value
+                  saveKey = key;
+                  saveVal = value;
+                  nextPair = 1;
+                } else if (nextPair == 1) {
+                  // insert label for setting
+                  tr.insertCell(-1).innerHTML = value; 
+                  nextPair = 2;
                 } else {
-                  // input field for value of setting
-                  tabCell.innerHTML = '<input type="text" class="configItem" id="' + key + '" value="' + configData[key] +'">'; 
-                  newRow = 1;
+                  // get input field type and build html
+                  let inputHtml;
+                  switch (value.charAt(0)) {
+                    case 'T':
+                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
+                    break;
+                    case 'N':
+                      inputHtml = '<input type="number" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
+                    break;
+                    case 'S': 
+                      // build drop down select
+                      inputHtml = '<select id="' + saveKey + '" class="selectField">';
+                      value.substring(2).split(":").forEach(opt => {
+                        inputHtml += '<option value="' + opt + '" ' + (saveVal == opt ? 'selected="selected"' : '') + '>' + opt + '</option>';
+                      });
+                      inputHtml += '</select>';
+                    break;
+                    case 'C':
+                      // format checkbox as slider
+                      inputHtml = '<div class="switch"><input type="checkbox" class="configItem" id="' + saveKey;
+                      inputHtml += '" value="'+ saveVal +'"' + (saveVal == 1 ? ' checked' : '') + '>';
+                      inputHtml += '<label class="slider" for="' + saveKey + '"></label></div>';
+                    break;
+                    case 'R': // read only
+                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" readonly>';
+                    break;
+                    default:
+                      console.log("Unhandled config input type " + value);
+                    break;
+                  }
+                  tr.insertCell(-1).innerHTML = inputHtml;
+                  nextPair = 3;
                 }
               }
             })
@@ -1859,12 +1922,14 @@
           if (dest == ID) {
             // operation based on ID
             if (key == "wifi") getConfig("0");
-            else if (key == "otafile") otaUploadFile();
-            else if (key == "clearWSlog") $('#applog').innerHTML = "";
-            else if (key == "clockUTC") checkTime(value);
             else if (key == "hostName") document.title = value;
+            else if (key == "otafile") otaUploadFile();
+            else if (key == "alertMsg") $('#alertText').innerHTML = value;
+            else if (key == "clearWSlog") $('#applog').innerHTML = "";
+            else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
             else if (key == "refreshVal") refreshInterval = value * 1000; 
-            else if (key == "camModel") customButtons(key, value);
+            else if (key == "clockUTC") checkTime(value);
+            else if (key == "mainPage") customButtons(key, value);
             else if (key == "peripherals") getConfig("0123");
             else if (key == "motion") getConfig("01");
             else if (key == "other") getConfig("012");
@@ -1874,17 +1939,17 @@
             else if (key == 'timezoneSel') fromUser = setTz(value);
             else if (key == "framesize") fromUser = setFrameSize(key, value, fromUser);
             else if (key == "get-still") getStill();
-            else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
             else if (key == "download") $("#download").value.includes('.') ? window.location.href='/control?download=1' : null;
             else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
-            else if (key == "aec") value ? hide($('#aec_value-group')) : show($('#aec_value-group'));
+            else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
             else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
             else if (key == "agc") setAgc(key, value);
             else if (key == "forceRecord") value = recordAction(key);
+            else if (key == "showRecord") setRecIndicator(value);
             else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
             else if (key == "forceStream") streamAction(key);
             
-            if (fromUser && !$('#'+key).classList.contains("local")) sendControl(key, value); 
+            if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
           } 
           else if (dest == CLASS) {
             // operations based on class
@@ -1909,7 +1974,7 @@
               // change button labels
               $('#aec2_lab').innerHTML = "AEC DSP";
               $('#awbg_lab').innerHTML = "AWB Gain";
-              $('#dcw_lab').innerHTML = "DCW (Downsize EN)";
+              $('#dcw_lab').innerHTML = "DCW (Downsize)";
               // change range slider parameters
               changeRange('brightness', "-2", "2", "0");
               changeRange('contrast', "-2", "2", "0");
@@ -1958,7 +2023,7 @@
         function navigation(key) { 
           const i = $('#'+key); // the clicked icon
           const m = $('#'+i.getAttribute('name')); // the associated menu 
-          
+
           // toggle selected icon as active, others inactive
           i.classList.toggle('active');
           $$('nav.quick-nav:not(#'+i.id+')').forEach(el => {el.classList.remove('active')});   
@@ -1971,6 +2036,7 @@
           if (isActive(i)) {
             $('#menu-selector').classList.remove('menu-closed');
             $('#menu-selector').classList.add('menu-open');
+            m.querySelectorAll('input[type=range]').forEach(el => {rangeMarker(el);});
           } else {
             $('#menu-selector').classList.add('menu-closed');
             $('#menu-selector').classList.remove('menu-open');
@@ -1991,19 +2057,7 @@
             });
           }
         }
-        
-        function rangeMarker(e) {
-          // show value marker for range sliders
-          controlMin = e.min;
-          controlMax = e.max;
-          controlVal = e.value;
-          const range = controlMax - controlMin;
-          const position = (controlVal - controlMin) / range * 30;
-          const output = e.nextElementSibling; // assumes next element is output tag
-          output.style.cssText = 'left: calc(' + position + '%)';
-          output.value = controlVal;
-        }
-        
+
         /************** stream functions ****************/
         
         const view = $('#stream')
@@ -2039,13 +2093,10 @@
           // check when stream ends to close it
           let running = true;
           while (running) {
-            try {
-              await view.decode();
-            } catch {
-              running = false;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            try { await view.decode(); }
+            catch { running = false; }
           }
+          await new Promise((resolve) => setTimeout(resolve, 500));
           stopAll();
         }
         
@@ -2100,6 +2151,18 @@
           streamButton.innerHTML ="➤&nbsp;Start Stream";
           streamButton.classList.remove('blinking');
           hide(viewContainer);
+        }
+        
+        function setRecIndicator(value) {
+          // indicate if motion capture is being recorded
+          if (value && recordingIndicator.classList.contains("hidden")) {
+            show(recordingIndicator);
+            recordingIndicator.classList.add("blinking");
+          } 
+          else if (!value && !recordingIndicator.classList.contains("hidden")) {
+            recordingIndicator.classList.remove("blinking");
+            hide(recordingIndicator);
+          }
         }
         
         function stopAll() {
@@ -2166,11 +2229,11 @@
             if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) document.exitFullscreen();
             
             // locate size buttons on screen
-            let buttonPos = 5;  
+            let buttonPos = baseFontSize / 4;
             $$('.streamSize').forEach(el => {
               if (el.id != selectedSize) {
                 el.style.right = buttonPos + 'px'; 
-                buttonPos += 20;
+                buttonPos += baseFontSize * 1.25;
                 show(el);
               } else hide(el);
             });
@@ -2225,6 +2288,7 @@
               }
             });
           } else console.log(response.status);
+          await new Promise((resolve) => setTimeout(resolve, 500));
           $$('*').forEach(el => { el.style.cursor = ("default")});
         }
         
@@ -2240,10 +2304,17 @@
           if (value) {
             show($('#gainceiling-group'));
             hide($('#agc_gain-group'));
+            rangeMarker($('#gainceiling'));
           } else {
             hide($('#gainceiling-group'));
             show($('#agc_gain-group'));
+            rangeMarker($('#agc_gain'));
           }
+        }
+        
+        function showAec() {
+          show($('#aec_value-group'));
+          rangeMarker($('#aec_value'));
         }
 
         function checkTime(value) {
