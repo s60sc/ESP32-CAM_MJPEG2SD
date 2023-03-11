@@ -29,7 +29,7 @@
         --pageBackground:#181818; /* nearly black */
         
         /* element sizes */
-        --bodySize: 1rem; /* used as basis for element sizes and padding */
+        --bodySize:1rem; /* used as basis for element, padding, and font sizes */
         --buttonSize: var(--bodySize);
         --buttonHalf: calc(var(--buttonSize) / 2);
         --buttonQuart: calc(var(--buttonSize) / 4);
@@ -52,7 +52,6 @@
       }
       
       progress {
-        accent-color: var(--buttonActive);
         width: calc(var(--buttonSize) * 15);
       }
       
@@ -250,7 +249,7 @@
         flex-wrap: wrap;
         border-radius: 2px;
         justify-content: space-between;
-      }                       
+      } 
       section#title{
         display: flex;
       }
@@ -458,6 +457,10 @@
         background: var(--inputBackground);
         min-width: calc(var(--buttonSize) * 10);     
       }
+      
+      input[type="radio"], input[type="checkbox"], progress {
+        accent-color: var(--buttonActive);
+      }
 
       input {
         height: calc(var(--inputSize) * 1.5);
@@ -465,6 +468,8 @@
         border-radius: var(--buttonQuart);
       }
       
+      /*** range slider ***/
+
       input[type=range] {
         -webkit-appearance: none;
         font-size: var(--buttonSize);
@@ -496,19 +501,15 @@
         -webkit-appearance: none;
         margin-top: calc(-1 * var(--buttonHalf));
       }
-      input[type=range]:focus::-webkit-slider-runnable-track {
-        background: var(--inputBackground); 
-      }
 
-      .range-value{
-        position: absolute;
-        top: -50%;
+       input[type=range]:focus::-webkit-slider-runnable-track {
+        background: var(--inputBackground);
       }
-
-      .range-value span{
+  
+      div[name="rangeVal"] {
         width: var(--buttonDbl);
         height: var(--buttonSize);
-        line-height: var(--buttonSize);
+        line-height: 150%;
         text-align: center;
         background: var(--buttonReady); 
         color: var(--buttonText); 
@@ -517,16 +518,16 @@
         position: absolute;
         left: 50%;
         transform: translate(-50%, 0);
-        border-radius: var(--buttonQuart);
-        top: var(--buttonHalf);            
+        border-radius: 25%;
+        top: -25%; 
       }
 
-      .range-max,.range-min {
+       div[name="rangeMin"], div[name="rangeMax"] {
         display: inline-block;
         padding: 0 var(--buttonQuart);
       }
-
-
+                                 
+ 
       /* checkbox toggle switch slider */
             
       .switch {
@@ -616,6 +617,15 @@
       
       .configGroup td input[type="number"] {
         font-size: var(--buttonSize);
+      }
+      
+      input.configItem[type="radio"] {
+        min-width: var(--buttonSize); 
+      }
+      
+      input.configItem[type="number"] {
+        min-width: calc(var(--buttonSize) * 3); 
+        width: calc(var(--buttonSize) * 3); 
       }
       
       .blinking {
@@ -775,49 +785,29 @@
                       </div>
                     </select>
                   </div>
-
-                 
                   <div class="input-group" id="fps-group">
                       <label for="fps">FPS</label>
-                      <div class="range-min">1</div>
                       <input title="Set camera required frames per second" type="range" id="fps" min="1" max="30" value="10">
-                      <div class="range-value" name="rangeVal"></div>
-                      <div class="range-max">30</div>
                   </div>
                   <div class="input-group" id="quality-group">
                       <label for="quality">Quality</label>
-                      <div class="range-min">4</div>
                       <input title="Set the recording quality" type="range" id="quality" min="4" max="63" value="10">
-                      <div class="range-value" name="rangeVal"></div>
-                      <div class="range-max">63</div>
                   </div>                          
                   <div class="input-group" id="micGain-group">
                     <label for="micGain">Microphone Gain</label>
-                    <div class="range-min">0</div>
                     <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">10</div>
                   </div>
                   <div class="input-group" id="CamTilt-group">
                     <label for="camTilt">Camera Tilt</label>
-                    <div class="range-min">0</div>
                     <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">180</div>
                   </div>
                   <div class="input-group" id="CamPan-group">
                     <label for="camPan">Camera Pan</label>
-                    <div class="range-min">0</div>
                     <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">180</div>
                   </div>
                   <div class="input-group" id="lamp-group">
                     <label for="lamp">Lamp</label>
-                    <div class="range-min">0</div>
                      <input title="Control onboard lamp led brightness" type="range" id="lampLevel" min="0" max="15" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">15</div>
                   </div>
                 </div>
               </nav>
@@ -835,39 +825,25 @@
                   </div>
                   <div class="input-group" id="brightness-group">
                     <label for="brightness">Brightness</label>
-                    <div class="range-min">-2</div>
                     <input type="range" id="brightness" min="-2" max="2" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">2</div>
                   </div>
                   <div class="input-group" id="contrast-group">
                     <label for="contrast">Contrast</label>
-                    <div class="range-min">-2</div>
                     <input type="range" id="contrast" min="-2" max="2" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">2</div>
                   </div>
                   <div class="input-group" id="saturation-group">
                     <label for="saturation">Saturation</label>
-                    <div class="range-min">-2</div>
                     <input type="range" id="saturation" min="-2" max="2" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">2</div>
                   </div>
                   <div class="OV3660 OV5640 hidden">
                     <div class="input-group" id="sharpness-group">
                       <label for="sharpness">Sharpness</label>
-                      <div class="range-min">-3</div>
                       <input type="range" id="sharpness" min="-3" max="3" value="0">
-                      <div class="range-value" name="rangeVal"></div>
-                      <div class="range-max">3</div>
                     </div>
                     <div class="input-group" id="denoise-group">
                       <label for="denoise">De-Noise</label>
-                      <div class="range-min">Auto</div>
+                      <div name="rangeMin">Auto</div>
                       <input type="range" id="denoise" min="0" max="8" value="0">
-                      <div class="range-value" name="rangeVal"></div>
-                      <div class="range-max">8</div>
                     </div>
                   </div>
                   <div class="input-group" id="special_effect-group">
@@ -915,17 +891,11 @@
                   </div>
                   <div class="input-group" id="aec_value-group">
                     <label for="aec_value">Manual Exposure</label>
-                    <div class="range-min">0</div>
                     <input type="range" id="aec_value" min="0" max="1200" value="204">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">1200</div>
                   </div>
                   <div class="input-group" id="ae_level-group">
                     <label for="ae_level">Exposure Level</label>
-                    <div class="range-min">-2</div>
                     <input type="range" id="ae_level" min="-2" max="2" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">2</div>
                   </div>
                   <div class="input-group" id="aec2-group">
                     <label for="aec2" id="aec2_lab">AEC DSP</label>
@@ -950,17 +920,15 @@
                   </div>
                   <div class="input-group hidden" id="agc_gain-group">
                     <label for="agc_gain">Gain</label>
-                    <div class="range-min">1x</div>
+                    <div name="rangeMin">1x</div>
                     <input type="range" id="agc_gain" min="0" max="30" value="5">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">31x</div>
+                    <div name="rangeMax">31x</div>
                   </div>
                   <div class="input-group" id="gainceiling-group">
                     <label for="gainceiling">Gain Ceiling</label>
-                    <div class="range-min">2x</div>
+                    <div name="rangeMin">2x</div>
                     <input type="range" id="gainceiling" min="0" max="6" value="0">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">128x</div>
+                    <div name="rangeMax">128x</div>
                   </div>       
                   <div class="input-group" id="lenc-group">
                     <label for="lenc">Lens Correction</label>
@@ -1028,17 +996,11 @@
                   </div>
                   <div class="input-group" id="motion-group">
                     <label for="motion">Motion Sensitivity</label>
-                    <div class="range-min">1</div>
                     <input title="Set motion detection sensitivity" type="range" id="motionVal" min="1" max="10" value="7">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">10</div>
                   </div> 
                   <div class="input-group" id="minf-group">
                     <label for="minf">Min Seconds</label>
-                    <div class="range-min">0</div>
                     <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">20</div>
                   </div>                     
                   <div class="input-group" id="record-group">
                       <label for="record">Save Capture</label>
@@ -1056,10 +1018,7 @@
                   </div>
                   <div class="input-group" id="lswitch-group">
                     <label for="lswitch">Night Switch</label>
-                    <div class="range-min">0</div>
                     <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10">
-                    <div class="range-value" name="rangeVal"></div>
-                    <div class="range-max">100</div>
                   </div> 
                   <div class="vsep"></div>
                   <div class="input-group" id="tlapse-group">
@@ -1410,7 +1369,7 @@
         </div>
       </div>
       <div>
-        <p class='config-group'></p>
+        <p class='config-group' id='Cfg'></p>
       </div>
     </div>
            
@@ -1435,22 +1394,30 @@
 
         /*********** initialisation  ***********/
         
-        const baseHost = document.location.origin;
-        const wsServer = "ws://" + document.location.host + ":80/ws";
+        const webPort = 80;
+        const otaPort = 82;
+        const streamPort = 81;
+        const baseHost = document.location.hostname;
+        const webHost = "http://" + baseHost;
+        const webServer = webHost + ":" + webPort;
+        const wsServer = "ws://" + baseHost + ":" + webPort + "/ws";
+        const otaServer = webHost + ":" + otaPort;
+        const streamServer = webHost + ':' + streamPort;
+        
         let refreshInterval = 5000;
         let ws = null;
         let hbTimer = null;
         let updateData = {}; // receives json for status data as key val pairs
-        let statusData = {}; // stores all status data as key val pair    
+        let statusData = {}; // stores all status data as key val pairs
         let cfgGroupNow = -1;
         let loggingOn = false;
+        let prevKey = '';
         const CLASS = 0;
         const ID = 1;
         const $ = document.querySelector.bind(document);
         const $$ = document.querySelectorAll.bind(document);
         const baseFontSize = parseInt(window.getComputedStyle($('body')).fontSize); 
         
-        const streamUrl = baseHost + ':81';
         let imgSize = { width: 0, height: 0 };
         let fitSize = { width: 0, height: 0 };
         let cameraModel = "OV2640";
@@ -1461,11 +1428,15 @@
         function initialise() {
           try {
             addButtons();
+            addRangeData();
             setListeners();
             // initWebSocket();
             loadStatus(""); 
             if (hbTimer == null) setTimeout(refreshStatus, refreshInterval);
-          } catch (error) {showLog("Error: " + error.message);}
+          } catch (error) {
+            showLog("Error: " + error.message);
+            alert("Error: " + error.message);
+          }
         }
         
         /*********** websocket functions ***********/
@@ -1487,8 +1458,7 @@
           if (ws.readyState !== 1) return;
           sendCmd("H");
           clearTimeout(hbTimer);
-          hbTimer = setTimeout(heartbeat, refreshInterval);
-          $('#alertText').innerHTML = "";     
+          hbTimer = setTimeout(heartbeat, refreshInterval);  
         }
         
         // connect to websocket server
@@ -1527,7 +1497,7 @@
         async function closeWS() {
           ws.send('K');
           await sleep(500);
-          ws.close();
+          if (ws != null) ws.close();
         }
         
         /*********** page layout functions ***********/
@@ -1538,9 +1508,10 @@
           $('#' + e.name).style.display = "inherit";
           $$('.tablinks').forEach(el => {el.classList.remove("active");});
           e.classList.add("active");
-          if (e.name == 'mainPage') show($('#main'));
-          else hide($('#main'));
-          $$('input[type=range]').forEach(el => {rangeMarker(el);});
+          try {
+            if (e.name == 'mainPage') show($('#main'));
+            else hide($('#main'));
+          } catch {}
         }
 
         function accordian(accId) {
@@ -1550,14 +1521,37 @@
           else panel.style.display = "inherit";
         }
        
-        function rangeMarker(range) {
-          const rangeVal = $('#'+range.id).parentElement.children.rangeVal;
+         function rangeSlider(el, isPos = true, statusVal = null) {
+          // update range slider marker position and value 
+          const rangeVal = el.parentElement.children.rangeVal;
+          if (statusVal != null) rangeVal.innerHTML = statusVal;
+          const currVal = isPos ? parseFloat(el.value) : parseFloat(rangeVal.innerHTML);
+          const minval = parseFloat(el.min);
+          const maxval = parseFloat(el.max);
+          const decPlaces = (el.step > 0 && el.step < 1) || el.step == 'any' ? 1 : 0;
+          if (el.classList.contains('logslider')) {
+            // range value is logarithmic
+            const minlog = Math.log(minval);
+            const maxlog = Math.log(maxval) ;
+            const scale = (maxlog - minlog) / (maxval - minval);
+            // if isPos then get value from slider positional change by user, else set slider position from initial value.
+            if (isPos) rangeVal.innerHTML = Math.exp((currVal - minval) * scale + minlog).toFixed(decPlaces);
+            else el.value = minval + ((currVal == 0 ? 0 : Math.log(currVal)) - minlog) / scale; 
+          } else rangeVal.innerHTML = parseFloat(el.value).toFixed(decPlaces);
+          
+          // position for range marker
           const rangeFontSize = parseInt(window.getComputedStyle($('input[type=range]')).fontSize); 
-          let position = (range.clientWidth - rangeFontSize) * (range.value - range.min) / (range.max - range.min);
-          position += range.offsetLeft + (rangeFontSize / 2);
-          rangeVal.innerHTML = '<span>'+range.value+'</span>';
+          let position = (el.clientWidth - rangeFontSize) * (el.value - minval) / (maxval - minval); 
+          position += el.offsetLeft + (rangeFontSize / 2);
           rangeVal.style.left = 'calc('+position+'px)';
-       }
+        }
+        
+        let observer = new IntersectionObserver ( function(entries) {
+          // recalc each range slider that becomes visible
+            entries.forEach(el => { if (el.isIntersecting === true) rangeSlider(el['target']); });
+          }, { threshold: [0] }
+        );
+        $$('input[type=range]').forEach(el => { observer.observe(el); });
         
         function addButtons() {
           // add commmon buttons to relevant sections
@@ -1569,12 +1563,21 @@
           });
         }
         
+         function addRangeData() {
+          // add labelling for rangle sliders
+          $$('input[type="range"]').forEach(el => {
+            if (!isDefined(el.parentElement.children.rangeMin)) el.insertAdjacentHTML("beforebegin", '<div name="rangeMin"/>'+el.min+'</div>');
+            el.insertAdjacentHTML("afterend", '<div name="rangeVal">'+el.value+'</div>');
+            if (!isDefined(el.parentElement.children.rangeMax)) el.insertAdjacentHTML("afterend", '<div name="rangeMax"/>'+el.max+'</div>');
+            rangeSlider(el, false);
+          });
+        } 
+
         /*********** data processing functions ***********/
         
         async function loadStatus(specifier) {
           // request and load current status from app
-          $$('input[type=range]').forEach(el => {rangeMarker(el);});
-          const response = await fetch(baseHost+'/status'+specifier);
+          const response = await fetch(webServer+'/status'+specifier);
           if (response.ok) {
             updateData = await response.json();
             updateStatus();
@@ -1599,10 +1602,7 @@
             else if (eld) {if (eld.classList.contains('displayonly')) eld.innerHTML = value;} // display text 
             else if (eli != null) { // input fields
               if (eli.type === 'checkbox') eli.checked = !!Number(value);
-              else if (eli.type === 'range') {
-                eli.value = value; 
-                rangeMarker(eli); 
-              }
+              else if (eli.type === 'range') rangeSlider(eli, false, value); 
               else if (eli.type === 'option') eli.selected = true;
               else eli.value = value; 
             }
@@ -1614,7 +1614,7 @@
         async function sendUpdates(doAction) {    
           // send bulk updates to app as json 
           statusData['action'] = doAction;
-          const response = await fetch(baseHost + '/update', {
+          const response = await fetch(webServer + '/update', {
             method: 'POST', 
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(statusData),
@@ -1667,6 +1667,16 @@
           return (typeof variable === 'undefined' || variable === null ) ? false : true;
         }
         
+        async function showAlert(value) {
+          $('#alertText').innerHTML = value;
+          await sleep(5000);
+          $('#alertText').innerHTML = "";
+        }
+        
+        function dbg(msg) {
+          console.log('***** '+msg);
+        }
+        
         /*********** command processing ***********/
         
         function setListeners() {
@@ -1702,7 +1712,7 @@
           
           // input events
           document.addEventListener("input", function (event) {
-            if (event.target.type === 'range') rangeMarker(event.target);
+            if (event.target.type === 'range') rangeSlider(event.target);
           });
           
           // user command entered on Log tab
@@ -1715,13 +1725,14 @@
           
           // recalc range marker positions 
           window.addEventListener('resize', function (event) {
-            $$('input[type=range]').forEach(el => {rangeMarker(el);});
+            $$('input[type=range]').forEach(el => { rangeSlider(el); });
           });
           
           // close web socket on leaving page
           window.addEventListener('beforeunload', function (event) {
             if (ws) closeWS();
-          });      
+          });   
+          
         }
         
         function sendWsCmd() {
@@ -1770,14 +1781,14 @@
         async function sendControl(key, value) {
           // send only  
           if (value != null) {
-            const response = await fetch(encodeURI(baseHost + "/control?" + key + "=" + value));
+            const response = await fetch(encodeURI(webServer + "/control?" + key + "=" + value));
             if (!response.ok) console.log(response.status);
           }
         }
         
         async function sendControlResp(key, value) {
           // send and apply response
-          const response = await fetch(encodeURI(baseHost + "/control?" + key + "=" + value));
+          const response = await fetch(encodeURI(webServer + "/control?" + key + "=" + value));
           if (response.ok) {
             updateData = await response.json();
             updateStatus();
@@ -1834,6 +1845,7 @@
                 } else {
                   // get input field type and build html
                   let inputHtml;
+                  let valCntr = 0;
                   switch (value.charAt(0)) {
                     case 'T':
                       inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
@@ -1843,9 +1855,11 @@
                     break;
                     case 'S': 
                       // build drop down select
+                      valCntr = 0;
                       inputHtml = '<select id="' + saveKey + '" class="selectField">';
                       value.substring(2).split(":").forEach(opt => {
-                        inputHtml += '<option value="' + opt + '" ' + (saveVal == opt ? 'selected="selected"' : '') + '>' + opt + '</option>';
+                        inputHtml += '<option value="' + valCntr + '" ' + (saveVal == valCntr ? 'selected="selected"' : '') + '>' + opt + '</option>';
+                        valCntr++;
                       });
                       inputHtml += '</select>';
                     break;
@@ -1855,8 +1869,25 @@
                       inputHtml += '" value="'+ saveVal +'"' + (saveVal == 1 ? ' checked' : '') + '>';
                       inputHtml += '<label class="slider" for="' + saveKey + '"></label></div>';
                     break;
-                    case 'R': // read only
+                    case 'D': // display only
                       inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" readonly>';
+                    break;
+                    case 'R': // R:min:max:step
+                      // format number as range slider 
+                      const range = value.substring(2).split(":");
+                      inputHtml = '<div class="input-group">';
+                      inputHtml += '<input type="range" class="configItem" id="' + saveKey + '" min="' + range[0] + '" max="' + range[1];
+                      inputHtml += '" step="' + range[2] + '" value="' + saveVal + '"><div name="rangeVal">' + saveVal + '</div></div>';
+                    break;
+                    case 'B': // B:lab1:lab2:etc
+                      // radio button group
+                      valCntr = 0;
+                      inputHtml = '';
+                      value.substring(2).split(":").forEach(opt => {
+                        inputHtml += opt + '<input type="radio" class="configItem" name="' + saveKey + '" value="' + valCntr +
+                          (saveVal == valCntr ? '" checked>' : '">');
+                        valCntr++;
+                      });
                     break;
                     default:
                       console.log("Unhandled config input type " + value);
@@ -1887,7 +1918,7 @@
             ajax.addEventListener("load", completeHandler, false);
             ajax.addEventListener("error", errorHandler, false);
             ajax.addEventListener("abort", abortHandler, false);
-            ajax.open("POST", baseHost + ':82/upload');
+            ajax.open("POST", otaServer +  '/upload');
             ajax.send(formdata);
           } else console.log(response.status); 
         }
@@ -1917,14 +1948,15 @@
         
         /************* App specific ***************/
         
-        function processStatus(dest, key, value, fromUser = true) {
+        async function processStatus(dest, key, value, fromUser = true) {
           // process change to status value
           if (dest == ID) {
+if (fromUser) console.log("key "+key + " val "+value);
             // operation based on ID
             if (key == "wifi") getConfig("0");
             else if (key == "hostName") document.title = value;
             else if (key == "otafile") otaUploadFile();
-            else if (key == "alertMsg") $('#alertText').innerHTML = value;
+            else if (key == "alertMsg") showAlert(value);
             else if (key == "clearWSlog") $('#applog').innerHTML = "";
             else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
             else if (key == "refreshVal") refreshInterval = value * 1000; 
@@ -1948,7 +1980,7 @@
             else if (key == "showRecord") setRecIndicator(value);
             else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
             else if (key == "forceStream") streamAction(key);
-            
+            else if (key == 'save') await sleep(600); // allow last input to debounce
             if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
           } 
           else if (dest == CLASS) {
@@ -1983,8 +2015,8 @@
               changeRange('gainceiling', "0", "6", "0");
               changeRange('aec_value', "0", "1200", "204");
               changeRange('agc_gain', "0", "30", "5", true);
-              $('#gainceiling-group div.range-min').innerHTML = '2x';
-              $('#gainceiling-group div.range-max').innerHTML = '128x';
+              $('#gainceiling').parentElement.children.rangeMin.innerHTML = '2x';
+              $('#gainceiling').parentElement.children.rangeMax.innerHTML = '128x';
               
             } else if (cameraModel == "OV3660" || cameraModel == "OV5640") {
               // change button labels
@@ -2013,11 +2045,12 @@
         
         function changeRange(id, min, max, val, isX = false) {
           // set parameters for range slider
-          $('#'+id).min = min;
-          $('#'+id).max = max;
-          $('#'+id).value = val;
-          $('#'+id+'-group div.range-min').innerHTML = isX ? (parseInt(min)+1)+'x' : min;
-          $('#'+id+'-group div.range-max').innerHTML = isX ? (parseInt(max)+1)+'x' : max;
+          const range = $('#'+id);
+          range.min = min;
+          range.max = max;
+          range.value = val;
+          range.parentElement.children.rangeMin.innerHTML = isX ? (parseInt(min)+1)+'x' : min;
+          range.parentElement.children.rangeMax.innerHTML = isX ? (parseInt(max)+1)+'x' : max;
         }
            
         function navigation(key) { 
@@ -2036,7 +2069,6 @@
           if (isActive(i)) {
             $('#menu-selector').classList.remove('menu-closed');
             $('#menu-selector').classList.add('menu-open');
-            m.querySelectorAll('input[type=range]').forEach(el => {rangeMarker(el);});
           } else {
             $('#menu-selector').classList.add('menu-closed');
             $('#menu-selector').classList.remove('menu-open');
@@ -2069,7 +2101,7 @@
 
         function getStill() {
           stopAll();
-          view.src = streamUrl+"/stream?random="+Date.now(); 
+          view.src = streamServer + "/stream?random="+Date.now(); 
           showView(false);
         }
        
@@ -2105,7 +2137,7 @@
           playbackButton.classList.add("active");
           playbackButton.innerHTML = "▢&nbsp;Stop Playback";
           playbackButton.classList.add("blinking");
-          view.src = streamUrl+'/stream?source=file'; 
+          view.src = streamServer + '/stream?source=file'; 
           checkStream();
           showView(true);
         }
@@ -2138,7 +2170,7 @@
         function activateStreamButton() {
           stopAll();
           streamButton.classList.add("active");
-          view.src = streamUrl+'/stream?source=sensor'; 
+          view.src = streamServer + '/stream?source=sensor'; 
           streamButton.innerHTML = "▢&nbsp;Stop Stream";
           streamButton.classList.add('blinking');
           showView(false);
@@ -2276,7 +2308,7 @@
         async function getFiles(filePath) {
           // get list of files / folders
           $$('*').forEach(el => { el.style.cursor = ("wait")});
-          const response = await fetch(encodeURI(baseHost + '/control?sfile='+filePath));
+          const response = await fetch(encodeURI(webServer + '/control?sfile='+filePath));
           if (response.ok) {
             const fileData = await response.json();
             Object.entries(fileData).forEach(([key, value]) => {
@@ -2304,17 +2336,17 @@
           if (value) {
             show($('#gainceiling-group'));
             hide($('#agc_gain-group'));
-            rangeMarker($('#gainceiling'));
+            rangeSlider($('#gainceiling'));
           } else {
             hide($('#gainceiling-group'));
             show($('#agc_gain-group'));
-            rangeMarker($('#agc_gain'));
+            rangeSlider($('#agc_gain'));
           }
         }
         
         function showAec() {
           show($('#aec_value-group'));
-          rangeMarker($('#aec_value'));
+          rangeSlider($('#aec_value'));
         }
 
         function checkTime(value) {

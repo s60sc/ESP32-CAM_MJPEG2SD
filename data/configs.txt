@@ -84,7 +84,7 @@ smtpUse~0~2~C~Enable email sending
 smtpFrame~5~2~N~Frame number image sent in email
 smtpMaxEmails~10~2~N~Max daily emails
 sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
-sdFreeSpaceMode~1~2~S:0:1:2~Action mode on SD min free
+sdFreeSpaceMode~1~2~S:No Check:Delete oldest:Ftp then delete~Action mode on SD min free
 formatIfMountFailed~0~2~C~Format file system on failure
 allowSpaces~0~2~C~Allow whitespace in configs.txt
 useIOextender~0~3~C~Use another ESP as IO Extender
