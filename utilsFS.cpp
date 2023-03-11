@@ -94,6 +94,9 @@ bool startStorage() {
     if ((fs::LittleFSFS*)&STORAGE == &LittleFS) {
       strcpy(fsType, "LittleFS");
       res = LittleFS.begin(formatIfMountFailed);
+      ramLogPrep();
+      // create data folder if not present
+      if (res && !LittleFS.exists(DATA_DIR)) LittleFS.mkdir(DATA_DIR);
     }
 #endif
     if (res) {  
@@ -124,9 +127,7 @@ void getOldestDir(char* oldestDir) {
   while (file) {
     if (file.isDirectory() && strstr(file.name(), "System") == NULL // ignore Sys Vol Info
         && strstr(DATA_DIR, file.name()) == NULL) { // ignore data folder
-      if (strcmp(oldestDir, file.path()) > 0) {
-      strcpy(oldestDir, file.path()); 
-      }
+      if (strcmp(oldestDir, file.path()) > 0) strcpy(oldestDir, file.path()); 
     }
     file = root.openNextFile();
   }
@@ -140,8 +141,12 @@ void inline getFileDate(File file, char* fileDate) {
   strftime(fileDate, sizeof(fileDate), "%Y-%m-%d %H:%M:%S", &lt);
 }
 
+size_t getFreeSpace() {
+  return STORAGE.totalBytes() - STORAGE.usedBytes();
+}
+
 bool checkFreeSpace() { 
-  // Check for sufficient space on SD card
+  // Check for sufficient space on storage
   bool res = false;
   size_t freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
   if (!sdFreeSpaceMode && freeSize < sdMinCardFreeSpace) 
@@ -157,7 +162,7 @@ bool checkFreeSpace() {
 #endif
       deleteFolderOrFile(oldestDir);
     }
-    LOG_INF("Card free space: %uMB", freeSize);
+    LOG_INF("Storage free space: %uMB", freeSize);
     res = true;
   }
   return res;
@@ -258,6 +263,7 @@ void deleteFolderOrFile(const char* deleteThis) {
       || strstr("/", deleteThis) != NULL)) {
     df.close();   
     LOG_ERR("Deletion of %s not permitted", deleteThis);
+    delay(1000); // reduce thrashing on same error
     return;
   }  
   LOG_INF("Deleting : %s", deleteThis);
@@ -279,5 +285,8 @@ void deleteFolderOrFile(const char* deleteThis) {
     // Remove the folder
     if (df.isDirectory()) LOG_ALT("Folder %s %sdeleted", deleteThis, STORAGE.rmdir(deleteThis) ? "" : "not ");
     else df.close();
-  } else LOG_ALT("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
+  } else {
+    df.close();
+    LOG_ALT("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
+  }
 }

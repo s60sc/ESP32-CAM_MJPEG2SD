@@ -92,12 +92,16 @@ static void onWiFiEvent(WiFiEvent_t event) {
   else if (event == ARDUINO_EVENT_WIFI_STA_START) LOG_INF("Wifi Station started, connecting to: %s", ST_SSID);
   else if (event == ARDUINO_EVENT_WIFI_STA_STOP) LOG_INF("Wifi Station stopped %s", ST_SSID);
   else if (event == ARDUINO_EVENT_WIFI_AP_START) {
-    APstarted = true;
-    LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+    if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
+      LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", AP_SSID, WiFi.softAPIP().toString().c_str());
+      APstarted = true;
+    }
   }
   else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
-    LOG_INF("Wifi AP stopped: %s", WiFi.softAPSSID().c_str());
-    APstarted = false;
+    if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
+      LOG_INF("Wifi AP stopped: %s", AP_SSID);
+      APstarted = false;
+    }
   }
   else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) LOG_INF("Wifi Station IP, use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
   else if (event == ARDUINO_EVENT_WIFI_STA_LOST_IP) LOG_INF("Wifi Station lost IP");
@@ -112,7 +116,6 @@ static void onWiFiEvent(WiFiEvent_t event) {
 static bool setWifiAP() {
   if (!APstarted) {
     // Set access point with static ip if provided
-    WiFi.softAPdisconnect(false); // kill rogue connections on startup
     if (strlen(AP_ip) > 1) {
       LOG_INF("Set AP static IP :%s, %s, %s", AP_ip, AP_gw, AP_sn);  
       IPAddress _ip, _gw, _sn, _ns1 ,_ns2;
@@ -129,7 +132,6 @@ static bool setWifiAP() {
 
 static bool setWifiSTA() {
   // set station with static ip if provided
-  WiFi.disconnect(false);
   if (strlen(ST_SSID)) { 
     if (strlen(ST_ip) > 1) {
       IPAddress _ip, _gw, _sn, _ns1, _ns2;
@@ -157,8 +159,10 @@ bool startWifi(bool firstcall) {
     WiFi.mode(WIFI_AP_STA);
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
     WiFi.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
-    WiFi.onEvent(onWiFiEvent);
+    WiFi.softAPdisconnect(false); // kill rogue AP on startup
+    WiFi.disconnect(true);
     WiFi.setHostname(hostName);
+    WiFi.onEvent(onWiFiEvent);
   }
   bool station = setWifiSTA();
   debugMemory("setWifiSTA");
@@ -191,7 +195,7 @@ bool startWifi(bool firstcall) {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
-  doIOextPing();
+  doAppPing();
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
@@ -232,6 +236,43 @@ void stopPing() {
     pingHandle = NULL;
   }
 }
+
+const char* extIpHost = "checkip.dyndns.org";
+const int ipAddrLen = 16;
+char ipExtAddr[ipAddrLen] = {"Not assigned"};
+
+void getExtIP() {
+  // Get external IP address
+  WiFiClient hclient;
+  if (hclient.connect(extIpHost, 80)) {
+    // send the request to the server
+    hclient.print("GET / HTTP/1.0\r\n Host: ");
+    hclient.print(extIpHost);
+    hclient.print("\r\nConnection: close\r\n\r\n");
+    // Read all the lines of the reply from server
+    uint32_t startAttemptTime = millis();
+    while (!hclient.available() && millis() - startAttemptTime < 5000) delay(500);
+    if (hclient.available()) {
+      String newExtIp = "";
+      while (hclient.available()) newExtIp += hclient.readStringUntil('\r');
+      if (newExtIp.length()) {
+        if (strstr(newExtIp.c_str(), "200 OK") != NULL) {
+          int startPt = newExtIp.lastIndexOf("Address: ") + String("Address: ").length();
+          int endPt =  newExtIp.lastIndexOf("</body>");
+          newExtIp = newExtIp.substring(startPt, endPt).c_str();
+          if (strcmp(newExtIp.c_str(), ipExtAddr)) {
+            // external IP changed
+            strncpy(ipExtAddr, newExtIp.c_str(), ipAddrLen-1);
+            LOG_INF("External IP changed: %s", ipExtAddr); 
+          }
+        } else LOG_ERR("Bad request response");
+      } else LOG_ERR("External IP not retrieved");
+    } else LOG_ERR("External IP no response");
+    hclient.stop();
+  } else LOG_ERR("ExtIP connection failed");
+  LOG_INF("Current External IP: %s", ipExtAddr);
+}
+
 
 /************************** NTP  **************************/
 
@@ -295,7 +336,6 @@ void formatElapsedTime(char* timeStr, uint32_t timeVal) {
   sprintf(timeStr, "%u-%02u:%02u:%02u", days, hours, mins, secs);
 }
 
-
 /********************** misc functions ************************/
 
 bool changeExtension(char* outName, const char* inName, const char* newExt) {
@@ -312,13 +352,12 @@ bool changeExtension(char* outName, const char* inName, const char* newExt) {
 }
 
 void showProgress() {
-  // show progess as dots if not verbose
+  // show progess as dots 
   static uint8_t dotCnt = 0;
-  Serial.print("."); // progress marker
+  logPrint("."); // progress marker
   if (++dotCnt >= 50) {
     dotCnt = 0;
-    Serial.println("");
-    Serial.flush();
+    logPrint("\n");
   }
 }
 
@@ -341,7 +380,7 @@ void listBuff (const uint8_t* b, size_t len) {
   else {
     for (size_t i = 0; i < len; i += 16) {
       int linelen = (len - i) < 16 ? (len - i) : 16;
-      for (size_t k = 0; k < linelen; k++) printf(" %02x", b[i+k]);
+      for (size_t k = 0; k < linelen; k++) logPrint(" %02x", b[i+k]);
       puts(" ");
     }
   }
@@ -381,10 +420,18 @@ void checkMemory() {
   LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
 
+
+uint32_t checkStackUse(TaskHandle_t thisTask) {
+  // get minimum free stack size for task since started
+  uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(thisTask);
+  LOG_INF("Task %s min stack space: %u\n", pcTaskGetTaskName(thisTask), freeStack);
+  return freeStack;
+}
+
 void debugMemory(const char* caller) {
   if (CHECK_MEM) {
     delay(FLUSH_DELAY);
-    printf("%s > Free: heap %u, block: %u, pSRAM %u\n", caller, ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
+    logPrint("%s > Free: heap %u, block: %u, pSRAM %u\n", caller, ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
   }
 }
 
@@ -395,7 +442,22 @@ void doRestart(const char* restartStr) {
   ESP.restart();
 }
 
-float smooth(float latestVal, float smoothedVal, float alpha) {
+uint16_t smoothAnalog(int analogPin) {
+  // get averaged analog pin value 
+  uint32_t level = 0; 
+  if (analogPin > 0) {
+    for (int j = 0; j < ADC_SAMPLES; j++) level += analogRead(analogPin); 
+    level /= ADC_SAMPLES;
+  }
+  return level;
+}
+
+void setupADC() {
+  analogSetAttenuation(ADC_ATTEN);
+  analogReadResolution(ADC_BITS);
+}
+
+float smoothSensor(float latestVal, float smoothedVal, float alpha) {
   // simple Exponential Moving Average filter 
   // where alpha between 0.0 (max smooth) and 1.0 (no smooth)
   return (latestVal * alpha) + smoothedVal * (1.0 - alpha);
@@ -421,11 +483,46 @@ static SemaphoreHandle_t logMutex = NULL;
 static int logWait = 100; // ms
 bool useLogColors = false;  // true to colorise log messages (eg if using idf.py, but not arduino)
 
-#define LOG_FORMAT_BUF_LEN 512
 #define WRITE_CACHE_CYCLE 5
 bool logMode = false; // 
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
+
+// RAM memory based logging
+char* messageLog; // used to hold system message log
+uint16_t mlogEnd = 0;
+uint16_t mlogLen = 0;
+bool mlogCycle = false; // if cycled thru log end
+
+static void ramLogClear() {
+  if (mlogLen) {
+    mlogEnd = 0;
+    mlogCycle = false; 
+    messageLog[0] = '\0';
+    LOG_INF("Setup RAM based log");
+  }
+}
+
+
+void ramLogPrep() {
+  logMode = true;
+  mlogLen = RAM_LOG_LEN;
+  messageLog = (char*)malloc(mlogLen);
+  ramLogClear();
+}
+
+static void ramLogStore(size_t msgLen) {
+  // save log entry in ram buffer
+  if (mlogEnd + msgLen > RAM_LOG_LEN - 2) {
+    // log needs to roll over cyclic buffer, before saving message
+    mlogEnd = 0;
+    mlogCycle = true;
+    strcpy(messageLog, outBuf);
+    messageLog[RAM_LOG_LEN-1] = '\n'; // so that newline at end of final whitespace
+    messageLog[RAM_LOG_LEN-2] = '\0'; // ensure there is always a terminator
+  } else strcat(messageLog, outBuf);
+  mlogEnd += msgLen;
+}
 
 void flush_log(bool andClose) {
   if (log_remote_fp != NULL) {
@@ -451,11 +548,14 @@ static void remote_log_init_SD() {
 }
 
 void reset_log() {
+  ramLogClear();
 #if !CONFIG_IDF_TARGET_ESP32C3
-  flush_log(true); // Close log file
-  SD_MMC.remove(LOG_FILE_PATH);
-  LOG_INF("Cleared log file");
-  if (logMode) remote_log_init_SD();   
+  if (log_remote_fp != NULL) {
+    flush_log(true); // Close log file
+    SD_MMC.remove(LOG_FILE_PATH);
+    LOG_INF("Cleared log file");
+    if (logMode) remote_log_init_SD();   
+  }
 #endif
 }
 
@@ -463,7 +563,7 @@ void remote_log_init() {
   // setup required log mode
   if (logMode) {
     flush_log(false);
-    remote_log_init_SD();
+    remote_log_init_SD(); // store log on sd card
   } else flush_log(true);
 }
 
@@ -496,11 +596,13 @@ void logPrint(const char *format, ...) {
     }
     if (monitorOpen) Serial.print(outBuf); 
     else delay(10); // allow time for other tasks
-    // output to SD if file opened
-    if (log_remote_fp != NULL) {
-      fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
-      // periodic sync to SD
-      if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
+    if (logMode) {
+      if (log_remote_fp != NULL) {
+        // output to SD if file opened
+        fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
+        // periodic sync to SD
+        if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
+      } else ramLogStore(msgLen); // store in ram instead
     }
     // output to web socket if open
     outBuf[msgLen - 1] = 0; // lose final '/n'
@@ -515,13 +617,11 @@ void logSetup() {
   Serial.begin(115200);
   Serial.setDebugOutput(false);
   Serial.println(); 
-  debugMemory("init");
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
   xSemaphoreGive(logMutex);
-  xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle);
-  debugMemory("logSetup");
+  xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle); 
 }
 
 void formatHex(const char* inData, size_t inLen) {
@@ -531,6 +631,14 @@ void formatHex(const char* inData, size_t inLen) {
   formatted[(inLen * 3)] = 0; // terminator
   LOG_INF("Hex: %s", formatted);
 }
+
+const char* espErrMsg(esp_err_t errCode) {
+  // convert esp error code to text
+  static char errText[100];
+  esp_err_to_name_r(errCode, errText, 100);
+  return errText;
+}
+
 
 /****************** base 64 ******************/
 

@@ -8,8 +8,6 @@
 
 #define MAX_PAYLOAD_LEN 1000 // bigger than biggest websocket msg
 #define DATA_UPDATE 999
-#define OTAport 82
-static WebServer otaServer(OTAport); 
 
 static esp_err_t fileHandler(httpd_req_t* req, bool download = false);
 static void startOTAserver();
@@ -20,7 +18,8 @@ static char value[FILE_NAME_LEN];
 static char retainAction[2];
 int refreshVal = 5000; // msecs
 
-static httpd_handle_t httpServer = NULL; // web server listens on port 80
+static WebServer otaServer(OTA_PORT); 
+static httpd_handle_t httpServer = NULL; // web server port 
 static int fdWs = -1; //websocket sockfd
 static httpd_ws_frame_t wsPkt;
 
@@ -46,7 +45,6 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
   // send file contents to browser
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   File df = fp.open(inFileName);
-
   if (!df) {
     df.close();
     const char* resp_str = "File does not exist or cannot be opened";
@@ -61,9 +59,9 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
     httpd_resp_set_type(req, "application/octet");
     char contentDisp[FILE_NAME_LEN + 50];
     char contentLength[10];
-    sprintf(contentDisp, "attachment; filename=%s", inFileName);
+    snprintf(contentDisp, FILE_NAME_LEN + 50, "attachment; filename=%s", inFileName);
     httpd_resp_set_hdr(req, "Content-Disposition", contentDisp);
-    sprintf(contentLength, "%i", df.size());
+    snprintf(contentLength, 10, "%i", df.size());
     httpd_resp_set_hdr(req, "Content-Length", contentLength);
   }
   
@@ -78,6 +76,25 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
   return ESP_OK;
 }
 
+static void displayLog(httpd_req_t *req) {
+  // output ram log to browser
+  // prep log start point
+  int startPtr = (mlogCycle) ? mlogEnd  : 0; 
+  int endPtr = mlogEnd;
+  httpd_resp_set_type(req, "text/plain"); 
+  
+  // output log in chunks
+  do {
+    int maxChunk = endPtr > startPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr - 1;
+    size_t chunk = std::min(CHUNKSIZE, maxChunk);  
+    if (chunk > 0) httpd_resp_send_chunk(req, messageLog + startPtr, chunk); 
+    startPtr += chunk;
+    if (startPtr == RAM_LOG_LEN - 1) startPtr = 0;
+  } while (startPtr != endPtr);
+  httpd_resp_send_chunk(req, NULL, 0);
+}
+
+
 static esp_err_t indexHandler(httpd_req_t* req) {
   strcpy(inFileName, INDEX_PAGE_PATH);
   // first check if a startup failure needs to be reported
@@ -86,7 +103,7 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     return httpd_resp_send(req, startupFailure, HTTPD_RESP_USE_STRLEN);
   }
   // Show wifi wizard if not setup, using access point mode  
-  if (!fp.exists(CONFIG_FILE_PATH) && WiFi.status() != WL_CONNECTED) {
+  if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");                              
     return httpd_resp_send(req, defaultPage_html, HTTPD_RESP_USE_STRLEN);
@@ -96,7 +113,7 @@ static esp_err_t indexHandler(httpd_req_t* req) {
       // authentication required
       size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
       char credentials[credLen];
-      sprintf(credentials, "%s:%s", Auth_Name, Auth_Pass);
+      snprintf(credentials, credLen, "%s:%s", Auth_Name, Auth_Pass);
       size_t authLen = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
       if (authLen) {
         // check credentials supplied are valid
@@ -138,9 +155,7 @@ static esp_err_t webHandler(httpd_req_t* req) {
   urlDecode(variable);
 
   // check file extension to determine required processing before response sent to browser
-  if (!strcmp(variable, "LOG.htm")) {
-    flush_log(false);
-  } else if (!strcmp(variable, "OTA.htm")) {
+  if (!strcmp(variable, "OTA.htm")) {
     // request for built in OTA page, if index html defective
     httpd_resp_set_type(req, "text/html"); 
     return httpd_resp_send(req, otaPage_html, HTTPD_RESP_USE_STRLEN);
@@ -174,7 +189,8 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   // process control query from browser 
   // obtain key from query string
   extractQueryKey(req, variable);
-  if (!strcmp(variable, "startOTA")) startOTAserver();
+  if (!strcmp(variable, "displayLog")) displayLog(req);
+  else if (!strcmp(variable, "startOTA")) startOTAserver();
   else {
     strcpy(value, variable + strlen(variable) + 1); // value points to second part of string
     if (!strcmp(variable, "reset")) {
@@ -323,9 +339,12 @@ void startWebServer() {
 #if CONFIG_IDF_TARGET_ESP32S3
   config.stack_size = 1024 * 8;
 #endif  
+  config.server_port = WEB_PORT;
+  config.ctrl_port = WEB_PORT; 
+  config.lru_purge_enable = true;
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
-   httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
-   httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
+  httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
+  httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
   httpd_uri_t updateUri = {.uri = "/update", .method = HTTP_POST, .handler = updateHandler, .user_ctx = NULL};
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
   httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
@@ -417,7 +436,7 @@ static void otaFinish() {
 
 static void OTAtask(void* parameter) {
   // receive OTA upload details
-  LOG_INF("Starting OTA server on port: %u", OTAport);
+  LOG_INF("Starting OTA server on port: %u", OTA_PORT);
   otaServer.on("/upload", HTTP_OPTIONS, sendCrossOriginHeader); 
   otaServer.on("/upload", HTTP_POST, otaFinish, uploadHandler);
   otaServer.begin();

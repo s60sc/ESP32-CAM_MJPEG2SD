@@ -76,7 +76,7 @@ static void startMic() {
   i2s_mic_pins = {
     .bck_io_num = micSckPin,
     .ws_io_num = micWsPin,
-    .data_out_num = -1,
+    .data_out_num = I2S_PIN_NO_CHANGE,
     .data_in_num = micSdPin
   };
   i2s_set_pin(I2S_MIC, &i2s_mic_pins);

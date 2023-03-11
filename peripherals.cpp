@@ -81,8 +81,9 @@ int voltDivider; // set battVoltageDivider value to be divisor of input voltage 
 int voltLow; // voltage level at which to send out email alert
 int voltInterval; // interval in minutes to check battery voltage
 
-void doIOextPing() {
-  // called from pingSuccess() to check that IO_Extender is available
+
+void doIOExtPing() {
+  // check that IO_Extender is available
   if (useIOextender && !IS_IO_EXTENDER) {
     // client sends ping
     if (!extIOpinged) LOG_WRN("IO_Extender failed to ping");
@@ -91,7 +92,6 @@ void doIOextPing() {
     // extIOpinged set by setPeripheralResponse() from io extender
   }
 }
-
 
 // individual pin sensor / controller functions
 
@@ -236,7 +236,7 @@ static void DS18B20task(void* pvParameters) {
 #endif
 }
 
-static void prepTemperature() {
+void prepTemperature() {
 #if defined(INCLUDE_DS18B20)
   if (ds18b20Pin < EXTPIN) {
     if (ds18b20Pin) {
@@ -274,11 +274,17 @@ float readTemperature(bool isCelsius) {
   return (dsTemp > NO_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 }
 
+float getNTCcelsius (uint16_t resistance, float oldTemp) {
+  // convert NTC thermistor resistance reading to celsius
+  double Temp = log(resistance);
+  Temp = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * Temp * Temp )) * Temp);
+  Temp = (Temp == 0) ? oldTemp : Temp - 273.15; // if 0 then didnt get a reading
+  return (float) Temp;
+}
 
 /************ battery monitoring ************/
 // Read voltage from battery connected to ADC pin
 // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
-#define ADC_BITS 12
 static float currentVoltage = -1.0; // no monitoring
 
 float readVoltage()  {
@@ -293,7 +299,7 @@ static void battTask(void* parameter) {
   while (true) {
     static bool sentEmailAlert = false;
     // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
-    currentVoltage = (float)(analogRead(voltPin)) * 3.3 * voltDivider / pow(2, ADC_BITS);
+    currentVoltage = (float)(smoothAnalog(voltPin)) * 3.3 * voltDivider / pow(2, ADC_BITS);
 
 #ifdef INCLUDE_SMTP
     if (currentVoltage < voltLow && !sentEmailAlert) {
@@ -309,14 +315,13 @@ static void battTask(void* parameter) {
   vTaskDelete(NULL);
 }
 
-static void setupADC() {
+static void setupBatt() {
   if (voltUse && (voltPin < EXTPIN)) {
     if (voltPin) {
-      analogSetPinAttenuation(voltPin, ADC_11db);
-      analogReadResolution(ADC_BITS);
+      setupADC();
       xTaskCreate(&battTask, "battTask", 2048, NULL, 1, NULL);
       LOG_INF("Monitor batt voltage");
-      debugMemory("setupADC");
+      debugMemory("setupBatt");
     } else LOG_WRN("No voltage pin defined");
   }
 }
@@ -468,7 +473,7 @@ static void prepPIR() {
 
 void prepPeripherals() {
   // initial setup of each peripheral on client or extender
-  setupADC();
+  setupBatt();
   prepUart();
   setupLamp();
   prepPIR();

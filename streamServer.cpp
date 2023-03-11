@@ -11,12 +11,12 @@
 #define JPEG_BOUNDARY "\r\n--" BOUNDARY_VAL "\r\n"
 #define JPEG_TYPE "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n"
 #define HDR_BUF_LEN 64
+
 static const size_t boundaryLen = strlen(JPEG_BOUNDARY);
 static char hdrBuf[HDR_BUF_LEN];
 static fs::FS fpv = STORAGE;
 bool forcePlayback = false;
-
-static httpd_handle_t streamServer = NULL; // streamer listens on port 81
+static httpd_handle_t streamServer = NULL; 
 
 esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value) {
   // update handling requiring response specific to mjpeg2sd
@@ -151,8 +151,9 @@ if (psramFound()) heap_caps_malloc_extmem_enable(0);
   config.stack_size = 1024 * 8;
 #endif
   httpd_uri_t streamUri = {.uri = "/stream", .method = HTTP_GET, .handler = streamHandler, .user_ctx = NULL};
-  config.server_port += 1;
-  config.ctrl_port += 1;
+  config.server_port = STREAM_PORT;
+  config.ctrl_port = STREAM_PORT; // not used
+  config.lru_purge_enable = true;
   if (httpd_start(&streamServer, &config) == ESP_OK) {
     httpd_register_uri_handler(streamServer, &streamUri);
     LOG_INF("Starting streaming server on port: %u", config.server_port);

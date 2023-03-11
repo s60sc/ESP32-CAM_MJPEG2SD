@@ -4,7 +4,6 @@
 *
 * s60sc 2020 - 2023
 */
-// built using arduino-esp32 stable release v2.0.6
 
 #include "appGlobals.h"
 #include "camera_pins.h"

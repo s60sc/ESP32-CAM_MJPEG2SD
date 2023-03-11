@@ -566,7 +566,7 @@ mjpegStruct getNextFrame(bool firstCall) {
   } else {
     // finished, close SD file used for streaming
     playbackFile.close();
-    printf("\n");
+    logPrint("\n");
     if (!completedPlayback) LOG_INF("Force close playback");
     uint32_t playDuration = (millis() - sTime) / 1000;
     uint32_t totBusy = wTimeTot + fTimeTot + hTimeTot;

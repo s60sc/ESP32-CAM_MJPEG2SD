@@ -12,6 +12,15 @@
   controlHandler: 
     browser -> updateStatus+updateAppStatus -> updateConfigVect -> vector -> saveConfigVect -> file 
                                             -> vars
+                                            
+  config field types:
+  - T : Text
+  - N : Number
+  - S : Select options S:lab1:lab2:etc
+  - C : Checkbox (as slider)
+  - D : Display only
+  - R : Range (as slider) R:min:max:step
+  - B : Radio Buttons B:lab1:lab2:etc
 
   s60sc 2022
 */
@@ -51,7 +60,7 @@ static int getKeyPos(std::string thisKey) {
   );
   int keyPos = std::distance(configs.begin(), lower); 
   if (thisKey == configs[keyPos][0]) return keyPos;
-  else LOG_DBG("Key %s not found", thisKey.c_str()); 
+//  else LOG_DBG("Key %s not found", thisKey.c_str()); 
   return -1; // not found
 }
 
@@ -110,20 +119,23 @@ static void saveConfigVect() {
       // recreate config file with updated content
       if (!strcmp(row[0].c_str() + strlen(row[0].c_str()) - 5, "_Pass")) 
         // replace passwords with asterisks
-        sprintf(configLine, "%s%c%.*s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, strlen(row[1].c_str()), FILLSTAR, DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
-      else sprintf(configLine, "%s%c%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
+        snprintf(configLine, FILE_NAME_LEN + 100, "%s%c%.*s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, strlen(row[1].c_str()), FILLSTAR, DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
+      else snprintf(configLine, FILE_NAME_LEN + 100, "%s%c%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
       file.write((uint8_t*)configLine, strlen(configLine));
     }
-    file.close();
     LOG_ALT("Config file saved");
   }
+  file.close();
 }
 
 static bool loadConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_READ);
   if (!file || !file.size()) {
     LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
-    if (!file.size()) STORAGE.remove(CONFIG_FILE_PATH);
+    if (!file.size()) {
+      file.close();
+      STORAGE.remove(CONFIG_FILE_PATH);
+    }
     return false;
   } else {
     // force vector into psram if available
@@ -142,8 +154,8 @@ static bool loadConfigVect() {
     );
     // return malloc to default 
     if (psramFound()) heap_caps_malloc_extmem_enable(4096);
-    file.close();
   }
+  file.close();
   return true;
 }
 
@@ -179,7 +191,6 @@ static bool loadPrefs() {
     savePrefs(); // if prefs do not yet exist
     return false;
   }
-
   if (!strlen(ST_SSID)) {
      // first call only after instal
     prefs.getString("ST_SSID", ST_SSID, MAX_PWD_LEN);
@@ -187,6 +198,7 @@ static bool loadPrefs() {
   } 
 
   prefs.getString("ST_Pass", ST_Pass, MAX_PWD_LEN);
+  updateConfigVect("ST_Pass", ST_Pass);
   prefs.getString("AP_Pass", AP_Pass, MAX_PWD_LEN);
   prefs.getString("Auth_Pass", Auth_Pass, MAX_PWD_LEN); 
 #ifdef INCLUDE_FTP
@@ -219,6 +231,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "AP_ip")) strcpy(AP_ip, value);
   else if(!strcmp(variable, "AP_gw")) strcpy(AP_gw, value);
   else if(!strcmp(variable, "AP_sn")) strcpy(AP_sn, value);
+  else if(!strcmp(variable, "AP_SSID")) strcpy(AP_SSID, value);
   else if(!strcmp(variable, "AP_Pass") && strchr(value, '*') == NULL) strcpy(AP_Pass, value); 
   else if(!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
   else if(!strcmp(variable, "allowSpaces")) allowSpaces = (bool)intVal;
@@ -266,7 +279,7 @@ void updateStatus(const char* variable, const char* _value) {
     saveConfigVect();
   } else {
     res = updateAppStatus(variable, value);
-    if (!res) LOG_DBG("Unrecognised config: %s", variable);
+//    if (!res) LOG_DBG("Unrecognised config: %s", variable);
   }
   if (res) updateConfigVect(variable, value);  
 }
@@ -304,11 +317,14 @@ void buildJsonString(uint8_t filter) {
     // build json string for requested config group
     uint8_t cfgGroup = filter - 10; // filter number is length of url query string, config group number is length of string - 10
     p += sprintf(p, "\"cfgGroup\":\"%u\",", cfgGroup);
+    char pwdHide[MAX_PWD_LEN];
     for (const auto& row : configs) {
       if (atoi(row[2].c_str()) == cfgGroup) {
+        strncpy(pwdHide, FILLSTAR, strlen(row[1].c_str()));
+        pwdHide[strlen(row[1].c_str())] = 0;
         // for each config item, list - key:value, key:label text, key:type identifier
-        p += sprintf(p, "\"%s\":\"%s\",\"lab%s\":\"%s\",\"typ%s\":\"%s\",",  row[0].c_str(),
-          row[1].c_str(), row[0].c_str(), row[4].c_str(), row[0].c_str(), row[3].c_str()); 
+        p += sprintf(p, "\"%s\":\"%s\",\"lab%s\":\"%s\",\"typ%s\":\"%s\",", row[0].c_str(),
+          strstr(row[0].c_str(), "_Pass") == NULL ? row[1].c_str() : pwdHide, row[0].c_str(), row[4].c_str(), row[0].c_str(), row[3].c_str()); 
       }
     }
   }
@@ -331,14 +347,18 @@ bool loadConfig() {
   if (jsonBuff == NULL) {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
+  char variable[32] = {0,};
+  char value[FILE_NAME_LEN] = {0,};
   if (loadConfigVect()) {
     retrieveConfigVal("appId", appId);
     if (strcmp(appId, APP_NAME)) {
+      // cleanup storage for different app
       sprintf(startupFailure, "Wrong configs.txt file, expected %s, got %s", APP_NAME, appId);
+      deleteFolderOrFile(DATA_DIR);
+      savePrefs(false);
       return false;
     }
     loadPrefs(); // overwrites any corresponding entries in config
-  
     // set default hostname and AP SSID if config is null
     retrieveConfigVal("hostName", hostName);
     if (!strlen(hostName)) {
@@ -351,12 +371,13 @@ bool loadConfig() {
     }
   
     // load variables from stored config vector
-    char variable[32] = {0,};
-    char value[FILE_NAME_LEN] = {0,};
     while (getNextKeyVal(variable, value)) updateStatus(variable, value);
     configLoaded = true;
     debugMemory("loadConfig");
     return true;
   }
+  // no config file
+  loadPrefs(); 
+  while (getNextKeyVal(variable, value)) updateStatus(variable, value);
   return false;
 }

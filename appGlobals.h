@@ -31,18 +31,23 @@
 //#define CAMERA_MODEL_ESP32S2_CAM_BOARD
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 
+// web server ports
+#define WEB_PORT 80 // app control
+#define STREAM_PORT 81 // camera images
+#define OTA_PORT 82 // OTA update
+
 /**************************************************************************/
 
 /************************ Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.4"
+#define APP_VER "8.5"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -76,12 +81,17 @@
 #define STORAGE SD_MMC // one of: SPIFFS LittleFS SD_MMC 
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
+#define RAM_LOG_LEN 5000 // size of ram stored system message log in bytes
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_SD
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
+
+#define ADC_BITS 12
+#define ADC_ATTEN ADC_11db
+#define ADC_SAMPLES 16
 
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 // pins configured for SD card on this camera board
@@ -114,6 +124,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = 
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
+void doIOExtPing();
 esp_err_t extractQueryKey(httpd_req_t *req, char* variable);
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
@@ -217,9 +228,6 @@ extern int servoTiltPin;
 extern int ds18b20Pin; // if INCLUDE_DS18B20 uncommented
 // batt monitoring 
 extern int voltPin; 
-
-
-
 
 // microphone recording
 extern int micSckPin; // I2S SCK

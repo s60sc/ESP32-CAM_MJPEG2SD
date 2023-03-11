@@ -218,3 +218,7 @@ bool appDataFiles() {
   // callback from setupAssist.cpp, for any app specific files 
   return true;
 }
+
+void doAppPing() {
+  doIOExtPing();
+}

@@ -139,7 +139,7 @@ void uartClientTask(void *arg) {
 bool externalPeripheral(byte pinNum, uint32_t outputData) {
   // used by client to communicate with external peripheral
   if (pinNum >= EXTPIN) {
-    if (useIOextender && !IS_IO_EXTENDER ) {
+    if (useIOextender && !IS_IO_EXTENDER) {
       xSemaphoreTake(writeMutex, portMAX_DELAY);
       // load uart TX buffer with peripheral data to send
       uartBuffTx[2] = pinNum;
