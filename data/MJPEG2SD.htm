@@ -1,4 +1,4 @@
-	
+		
 <!doctype html>  
 <!-- 
   s60sc 2022, 2023
@@ -1524,7 +1524,7 @@
          function rangeSlider(el, isPos = true, statusVal = null) {
           // update range slider marker position and value 
           const rangeVal = el.parentElement.children.rangeVal;
-          if (statusVal != null) rangeVal.innerHTML = statusVal;
+          if (statusVal != null) el.value = statusVal;
           const currVal = isPos ? parseFloat(el.value) : parseFloat(rangeVal.innerHTML);
           const minval = parseFloat(el.min);
           const maxval = parseFloat(el.max);
@@ -1951,7 +1951,6 @@
         async function processStatus(dest, key, value, fromUser = true) {
           // process change to status value
           if (dest == ID) {
-if (fromUser) console.log("key "+key + " val "+value);
             // operation based on ID
             if (key == "wifi") getConfig("0");
             else if (key == "hostName") document.title = value;
