@@ -313,8 +313,11 @@ static bool closeAvi() {
     LOG_INF("File open / completion times: %u ms / %u ms", oTime, cTime);
     LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
     checkMemory();
-    LOG_INF("*************************************");
-
+    LOG_INF("*************************************");    
+#ifdef INCLUDE_MQTT
+    sprintf(jsonBuff, "{\"%s\" : \"%s\", \"%s\" : \"%s\"}", "RECORD","OFF","TIME",esp_log_system_timestamp());    
+    mqttPublish(jsonBuff);
+#endif
     if (autoUpload) ftpFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
     checkFreeSpace();
     char subjectMsg[50];
@@ -338,7 +341,6 @@ static boolean processFrame() {
   uint32_t dTime = millis();
   bool finishRecording = false;
   camera_fb_t* fb = esp_camera_fb_get();
-
   if (fb == NULL) return false;
   timeLapse(fb);
   // determine if time to monitor, then get motion capture status
@@ -363,6 +365,10 @@ static boolean processFrame() {
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
+#ifdef INCLUDE_MQTT
+    sprintf(jsonBuff, "{\"%s\" : \"%s\", \"%s\" : \"%s\"}", "RECORD","ON","TIME",esp_log_system_timestamp());    
+    mqttPublish(jsonBuff);
+#endif
       openAvi();
       wasCapturing = true;
     }
@@ -640,7 +646,7 @@ bool prepRecording() {
   readSemaphore = xSemaphoreCreateBinary();
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
-  motionMutex = xSemaphoreCreateMutex();
+  motionMutex = xSemaphoreCreateMutex();  
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
   else {
