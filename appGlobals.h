@@ -47,7 +47,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.5"
+#define APP_VER "8.5.1"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -85,6 +85,7 @@
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_SD
+#define INCLUDE_MQTT
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
@@ -257,9 +258,18 @@ extern TaskHandle_t servoHandle;
 extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t ftpHandle;
-extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
 
+// Websocket server
+#ifdef INCLUDE_MQTT
+  extern char mqtt_broker[];
+  extern char mqtt_port[];
+  extern char mqtt_user[];
+  extern char mqtt_user_pass[];
+  extern char mqtt_topic_prefix[];  
+  void startMqttClient();  
+  void mqttPublish(const char *payload);
+#endif
 
 /************************** structures ********************************/
 
