@@ -315,7 +315,7 @@ static bool closeAvi() {
     checkMemory();
     LOG_INF("*************************************");    
 #ifdef INCLUDE_MQTT
-    sprintf(jsonBuff, "{\"%s\" : \"%s\", \"%s\" : \"%s\"}", "RECORD","OFF","TIME",esp_log_system_timestamp());    
+    sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "RECORD","OFF","TIME",esp_log_system_timestamp());    
     mqttPublish(jsonBuff);
 #endif
     if (autoUpload) ftpFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
@@ -366,7 +366,7 @@ static boolean processFrame() {
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
 #ifdef INCLUDE_MQTT
-    sprintf(jsonBuff, "{\"%s\" : \"%s\", \"%s\" : \"%s\"}", "RECORD","ON","TIME",esp_log_system_timestamp());    
+    sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "RECORD","ON","TIME",esp_log_system_timestamp());    
     mqttPublish(jsonBuff);
 #endif
       openAvi();
