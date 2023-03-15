@@ -365,6 +365,7 @@ bool loadConfig() {
       sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
       updateConfigVect("hostName", hostName);
     }
+    retrieveConfigVal("AP_SSID", AP_SSID);
     if (!strlen(AP_SSID)) {
       strcpy(AP_SSID, hostName);
       updateConfigVect("AP_SSID", AP_SSID);
