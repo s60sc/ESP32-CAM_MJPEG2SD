@@ -166,8 +166,6 @@ bool startWifi(bool firstcall) {
   }
   bool station = setWifiSTA();
   debugMemory("setWifiSTA");
-  if (!station || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use
-  debugMemory("setWifiAP");
   if (station) {
     // connect to Wifi station
     uint32_t startAttemptTime = millis();
@@ -179,6 +177,10 @@ bool startWifi(bool firstcall) {
     }
     if (pingHandle == NULL) startPing();
     debugMemory("startPing");
+  }
+  if (allowAP) {
+    setWifiAP(); // AP allowed if no Station SSID eg on first time use
+    debugMemory("setWifiAP");
   }
 #if CONFIG_IDF_TARGET_ESP32S3
   setupMdnsHost(); // not on ESP32 as uses 6k of heap
