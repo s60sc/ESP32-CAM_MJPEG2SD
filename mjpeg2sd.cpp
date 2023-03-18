@@ -365,10 +365,10 @@ static boolean processFrame() {
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
-#ifdef INCLUDE_MQTT
-    sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "RECORD","ON","TIME",esp_log_system_timestamp());    
-    mqttPublish(jsonBuff);
-#endif
+  #ifdef INCLUDE_MQTT
+      sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "RECORD","ON","TIME",esp_log_system_timestamp());    
+      mqttPublish(jsonBuff);
+  #endif
       openAvi();
       wasCapturing = true;
     }
