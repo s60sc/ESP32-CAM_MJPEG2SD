@@ -2,7 +2,7 @@
 #ifdef INCLUDE_MQTT
 #include "mqtt_client.h"
 
-char mqtt_broker[16] = "";                   //Mqtt server ip to connect.  
+char mqtt_broker[32] = "";                   //Mqtt server ip to connect.  
 char mqtt_port[5] = "";                      //Mqtt server port to connect.  
 char mqtt_user[32] = "";                     //Mqtt server username.  
 char mqtt_user_pass[MAX_PWD_LEN] = "";       //Mqtt server password.  
@@ -17,7 +17,7 @@ char mqtt_topic_prefix[FILE_NAME_LEN] = "";  //Mqtt server topic to pulish paylo
 #define MQTT_RETAIN 0
 #define MQTT_QOS 1
 
-bool mqttEnabled = false;         //Is configured
+bool mqtt_active = false;         //Is enabled
 bool mqttRunning = false;         //Is mqtt task running
 bool mqttConnected = false;       //Is connected to broker?
 esp_mqtt_client_handle_t mqtt_client = nullptr;
@@ -119,7 +119,7 @@ void checkForRemoteQuerry() {
 
 static void mqttTask(void* parameter) { 
   LOG_INF("Mqtt task start"); 
-  while (mqttEnabled) {
+  while (mqtt_active) {
     //LOG_DBG("Waiting for signal..");
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     //LOG_DBG("Wake..");
@@ -138,13 +138,14 @@ static void mqttTask(void* parameter) {
   vTaskDelete(NULL);
 }
 
-void stopMqtt(){
-    if (mqtt_client == nullptr) return;    
+void stopMqttClient(){
+    if (mqtt_client == nullptr) return;
+    int id = esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC_LWT.c_str(), "offline", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
+    delay(1000);
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_disconnect(mqtt_client));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_stop(mqtt_client));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_destroy(mqtt_client));
-    mqttEnabled = false;
-    LOG_INF("Stopping..%u", mqttTaskHandle);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_destroy(mqtt_client));    
+    LOG_INF("Stopping task..%u", mqttTaskHandle);
     if ( mqttTaskHandle != NULL ) {
       LOG_DBG("Unlock task..");
       xTaskNotifyGive(mqttTaskHandle); //Unblock task
@@ -157,15 +158,14 @@ void stopMqtt(){
     mqtt_client = nullptr;
 }
 
-void startMqttClient(void){
-  mqttEnabled = (strlen(mqtt_broker) > 0);
-  if(!mqttEnabled){
-    LOG_ERR("MQTT not configured..");
+void startMqttClient(void){  
+  if(!mqtt_active){
+    LOG_DBG("MQTT not active..");
     return;
   }
   
   if (mqttConnected) {
-    LOG_DBG("MQTT is running.. Exiting");
+    LOG_DBG("MQTT already running.. Exiting");
     return;
   }
     
@@ -203,12 +203,12 @@ void startMqttClient(void){
         esp_mqtt_client_subscribe(mqtt_client, MQTT_TOPIC_CMD.c_str(), 1);
         LOG_INF("Mqtt subscribed: %s", MQTT_TOPIC_CMD.c_str() );
         ///Create a mqtt task
-        mqttEnabled = true;
         BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", 4096, NULL, 1, &mqttTaskHandle);
         LOG_INF("Created mqtt task: %u", xReturned );
+        mqttRunning = true;
     }
   }else{
-    stopMqtt();
+    stopMqttClient();
   }
 }
 #endif
