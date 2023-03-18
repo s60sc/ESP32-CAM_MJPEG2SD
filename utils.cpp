@@ -196,7 +196,7 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
   #ifdef INCLUDE_MQTT
-    startMqttClient();
+    if(mqtt_active) startMqttClient();
   #endif
   doAppPing();
 }
