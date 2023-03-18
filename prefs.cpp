@@ -152,49 +152,7 @@ static bool loadConfigVect() {
       const std::vector<std::string> &a, const std::vector<std::string> &b) {
       return a[0] < b[0];}
     );
-    #ifdef INCLUDE_MQTT
-        LOG_INF("Checking mqtt keys");
-        bool addedKey = false;
-        if(getKeyPos(std::string("mqtt_broker")) < 0){      
-          std::string vec = std::string("mqtt_broker::2:T:Mqtt server ip to connect");
-          std::replace( vec.begin(), vec.end(), ':', DELIM);
-          loadVectItem(vec);
-          addedKey = true;
-        }
-        if(getKeyPos(std::string("mqtt_port")) < 0){      
-          std::string vec = std::string("mqtt_port:1883:2:N:Mqtt server port");
-          std::replace( vec.begin(), vec.end(), ':', DELIM);
-          loadVectItem(vec);
-          addedKey = true;      
-        }
-        if(getKeyPos(std::string("mqtt_user")) < 0){      
-          std::string vec = std::string("mqtt_user::2:T:Mqtt user name");
-          std::replace( vec.begin(), vec.end(), ':', DELIM);
-          loadVectItem(vec);
-          addedKey = true;      
-        }
-        if(getKeyPos(std::string("mqtt_user_pass")) < 0){      
-          std::string vec = std::string("mqtt_user_pass::2:T:Mqtt user password");
-          std::replace( vec.begin(), vec.end(), ':', DELIM);
-          loadVectItem(vec);
-          addedKey = true;      
-        }
-        if(getKeyPos(std::string("mqtt_topic_prefix")) < 0){      
-          std::string vec = std::string("mqtt_topic_prefix:homeassistant/sensor/:2:T:Mqtt topic path prefix");
-          std::replace( vec.begin(), vec.end(), ':', DELIM);
-          loadVectItem(vec);
-          addedKey = true;      
-        }
-        if(addedKey){
-          LOG_INF("Added mqtt config vectors");
-          // sort vector by key (element 0 in row)
-          std::sort(configs.begin(), configs.end(), [] (
-            const std::vector<std::string> &a, const std::vector<std::string> &b) {
-            return a[0] < b[0];}
-          );
-          saveConfigVect();          
-        }
-    #endif  
+   
     // return malloc to default 
     if (psramFound()) heap_caps_malloc_extmem_enable(4096);
   }
@@ -261,7 +219,7 @@ void updateStatus(const char* variable, const char* _value) {
   char value[FILE_NAME_LEN];
   strcpy(value, _value);  
 #ifdef INCLUDE_MQTT
-  char buff[64];
+  char buff[FILE_NAME_LEN * 2];
   sprintf(buff,"%s=%s",variable, value);
   mqttPublish(buff);
 #endif
@@ -323,6 +281,11 @@ void updateStatus(const char* variable, const char* _value) {
     doRestart("user requested restart after data deletion"); 
   }
 #ifdef INCLUDE_MQTT
+  else if(!strcmp(variable, "mqtt_active")){
+    mqtt_active = (bool)intVal;
+    if(mqtt_active) startMqttClient();
+    else stopMqttClient();
+  } 
   else if(!strcmp(variable, "mqtt_broker")) strcpy(mqtt_broker, value);
   else if(!strcmp(variable, "mqtt_port")) strcpy(mqtt_port, value);
   else if(!strcmp(variable, "mqtt_user")) strcpy(mqtt_user, value);
