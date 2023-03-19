@@ -1705,6 +1705,7 @@
               if (e.type === 'checkbox') processStatus(ID, e.id, e.checked ? 1 : 0);
               else if (et === 'button' || et === 'file') processStatus(ID, e.id, 1);
               else if (et === 'radio') { if (e.checked) processStatus(ID, e.name, value); } 
+              else if (et === 'range') processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML); 
               else if (e.hasAttribute('id')) processStatus(ID, e.id, value);
             }
             else if (e.tagName == 'SELECT') processStatus(ID, e.id, value);
