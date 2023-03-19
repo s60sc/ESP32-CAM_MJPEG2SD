@@ -9,9 +9,9 @@ bool updateAppStatus(const char* variable, const char* value) {
   esp_err_t res = ESP_OK; 
   sensor_t* s = esp_camera_sensor_get();
   int intVal = atoi(value);
+  float fltVal = atof(value);
   if(!strcmp(variable, "minf")) minSeconds = intVal; 
   else if(!strcmp(variable, "stopStream")) stopPlaying();
-  else if(!strcmp(variable, "lampLevel")) setLamp(intVal);
   else if(!strcmp(variable, "motionVal")) motionVal = intVal;
   else if(!strcmp(variable, "moveStartChecks")) moveStartChecks = intVal;
   else if(!strcmp(variable, "moveStopSecs")) moveStopSecs = intVal;
@@ -53,8 +53,19 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
   else if(!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
   else if(!strcmp(variable, "pirUse")) pirUse = (bool)intVal;
-  else if(!strcmp(variable, "lampUse")) lampUse = (bool)intVal;
-  else if(!strcmp(variable, "lampAuto")) lampAuto = (bool)intVal;
+  else if(!strcmp(variable, "lampLevel")) {
+    lampLevel = intVal;
+    if (!lampAuto) setLamp(lampLevel);
+  }
+  else if (!strcmp(variable, "lampUse")) {
+    lampUse = (bool)intVal;
+    if (!lampAuto) setLamp(lampLevel);
+  }
+  else if (!strcmp(variable, "lampAuto")) {
+    lampAuto = (bool)intVal;
+    if (lampAuto) setLamp(0);
+    else setLamp(lampLevel);
+  }
   else if(!strcmp(variable, "servoUse")) servoUse = (bool)intVal;
   else if(!strcmp(variable, "voltUse")) voltUse = (bool)intVal;
   else if(!strcmp(variable, "micUse")) micUse = (bool)intVal;
@@ -73,20 +84,10 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "servoMinPulseWidth")) servoMinPulseWidth = intVal;
   else if(!strcmp(variable, "servoMaxPulseWidth")) servoMaxPulseWidth = intVal;
   else if(!strcmp(variable, "voltDivider")) voltDivider = intVal;
-  else if(!strcmp(variable, "voltLow")) voltLow = intVal;
+  else if(!strcmp(variable, "voltLow")) voltLow = fltVal;
   else if(!strcmp(variable, "voltInterval")) voltInterval = intVal;
   else if(!strcmp(variable, "camPan")) setCamPan(intVal);
   else if(!strcmp(variable, "camTilt")) setCamTilt(intVal);
-  
-  // Other settings
-  else if(!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
-  else if(!strcmp(variable, "timezone")) strcpy(timezone, value);
-  else if(!strcmp(variable, "ntpServer")) strcpy(ntpServer, value);
-  else if(!strcmp(variable, "smtpFrame")) smtpFrame = intVal;
-  else if(!strcmp(variable, "smtpMaxEmails")) smtpMaxEmails = intVal;
-  else if(!strcmp(variable, "sdMinCardFreeSpace")) sdMinCardFreeSpace = intVal;
-  else if(!strcmp(variable, "sdFreeSpaceMode")) sdFreeSpaceMode = intVal;
-  else if(!strcmp(variable, "formatIfMountFailed")) formatIfMountFailed = (bool)intVal;
 
   // camera settings
   else if(!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
@@ -197,17 +198,7 @@ void buildAppJsonString(bool filter) {
     p += sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
     p += sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
   }
-  time_t currEpoch = getEpoch();
-  p += sprintf(p, "\"clockUTC\":\"%u\",", (uint32_t)currEpoch); 
-  char timeBuff[20];
-  strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
-  p += sprintf(p, "\"clock\":\"%s\",", timeBuff);
-  formatElapsedTime(timeBuff, millis());
-  p += sprintf(p, "\"up_time\":\"%s\",", timeBuff);   
-  p += sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
-  p += sprintf(p, "\"free_psram\":\"%u KB\",", (ESP.getFreePsram() / 1024));    
-  p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
-  p += sprintf(p, "\"refreshVal\":%u,", refreshVal);  
+  p += sprintf(p, "\"free_psram\":\"%u KB\",", (ESP.getFreePsram() / 1024));     
   p += sprintf(p, "\"progressBar\":%u,", percentLoaded);  
   if (percentLoaded == 100) percentLoaded = 0;
   //p += sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 

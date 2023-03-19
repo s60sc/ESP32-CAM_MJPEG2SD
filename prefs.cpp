@@ -219,51 +219,60 @@ void updateStatus(const char* variable, const char* _value) {
   strcpy(value, _value);
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strcpy(hostName, value);
-  else if(!strcmp(variable, "ST_SSID")) strcpy(ST_SSID, value);
-  else if(!strcmp(variable, "ST_Pass") && strchr(value, '*') == NULL) strcpy(ST_Pass, value);
-  else if(!strcmp(variable, "ST_ip")) strcpy(ST_ip, value);
-  else if(!strcmp(variable, "ST_gw")) strcpy(ST_gw, value);
-  else if(!strcmp(variable, "ST_sn")) strcpy(ST_sn, value);
-  else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns1, value);
-  else if(!strcmp(variable, "ST_ns1")) strcpy(ST_ns2, value);
-  else if(!strcmp(variable, "Auth_Name")) strcpy(Auth_Name, value);
-  else if(!strcmp(variable, "Auth_Pass") && strchr(value, '*') == NULL) strcpy(Auth_Pass, value);
-  else if(!strcmp(variable, "AP_ip")) strcpy(AP_ip, value);
-  else if(!strcmp(variable, "AP_gw")) strcpy(AP_gw, value);
-  else if(!strcmp(variable, "AP_sn")) strcpy(AP_sn, value);
-  else if(!strcmp(variable, "AP_SSID")) strcpy(AP_SSID, value);
-  else if(!strcmp(variable, "AP_Pass") && strchr(value, '*') == NULL) strcpy(AP_Pass, value); 
-  else if(!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
-  else if(!strcmp(variable, "allowSpaces")) allowSpaces = (bool)intVal;
+  else if (!strcmp(variable, "ST_SSID")) strcpy(ST_SSID, value);
+  else if (!strcmp(variable, "ST_Pass") && strchr(value, '*') == NULL) strcpy(ST_Pass, value);
+  else if (!strcmp(variable, "ST_ip")) strcpy(ST_ip, value);
+  else if (!strcmp(variable, "ST_gw")) strcpy(ST_gw, value);
+  else if (!strcmp(variable, "ST_sn")) strcpy(ST_sn, value);
+  else if (!strcmp(variable, "ST_ns1")) strcpy(ST_ns1, value);
+  else if (!strcmp(variable, "ST_ns1")) strcpy(ST_ns2, value);
+  else if (!strcmp(variable, "Auth_Name")) strcpy(Auth_Name, value);
+  else if (!strcmp(variable, "Auth_Pass") && strchr(value, '*') == NULL) strcpy(Auth_Pass, value);
+  else if (!strcmp(variable, "AP_ip")) strcpy(AP_ip, value);
+  else if (!strcmp(variable, "AP_gw")) strcpy(AP_gw, value);
+  else if (!strcmp(variable, "AP_sn")) strcpy(AP_sn, value);
+  else if (!strcmp(variable, "AP_SSID")) strcpy(AP_SSID, value);
+  else if (!strcmp(variable, "AP_Pass") && strchr(value, '*') == NULL) strcpy(AP_Pass, value); 
+  else if (!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
+  else if (!strcmp(variable, "allowSpaces")) allowSpaces = (bool)intVal;
 #ifdef INCLUDE_FTP
-  else if(!strcmp(variable, "ftp_server")) strcpy(ftp_server, value);
-  else if(!strcmp(variable, "ftp_port")) ftp_port = intVal;
-  else if(!strcmp(variable, "ftp_user")) strcpy(ftp_user, value);
-  else if(!strcmp(variable, "FTP_Pass") && strchr(value, '*') == NULL) strcpy(FTP_Pass, value);
-  else if(!strcmp(variable, "ftp_wd")) strcpy(ftp_wd, value);
+  else if (!strcmp(variable, "ftp_server")) strcpy(ftp_server, value);
+  else if (!strcmp(variable, "ftp_port")) ftp_port = intVal;
+  else if (!strcmp(variable, "ftp_user")) strcpy(ftp_user, value);
+  else if (!strcmp(variable, "FTP_Pass") && strchr(value, '*') == NULL) strcpy(FTP_Pass, value);
+  else if (!strcmp(variable, "ftp_wd")) strcpy(ftp_wd, value);
 #endif
 #ifdef INCLUDE_SMTP
-  else if(!strcmp(variable, "smtpUse")) smtpUse = (bool)intVal;
-  else if(!strcmp(variable, "smtp_login")) strcpy(smtp_login, value);
-  else if(!strcmp(variable, "smtp_server")) strcpy(smtp_server, value);
-  else if(!strcmp(variable, "smtp_email")) strcpy(smtp_email, value);
-  else if(!strcmp(variable, "SMTP_Pass") && strchr(value, '*') == NULL) strcpy(SMTP_Pass, value);
-  else if(!strcmp(variable, "smtp_port")) smtp_port = intVal;
+  else if (!strcmp(variable, "smtpUse")) smtpUse = (bool)intVal;
+  else if (!strcmp(variable, "smtp_login")) strcpy(smtp_login, value);
+  else if (!strcmp(variable, "smtp_server")) strcpy(smtp_server, value);
+  else if (!strcmp(variable, "smtp_email")) strcpy(smtp_email, value);
+  else if (!strcmp(variable, "SMTP_Pass") && strchr(value, '*') == NULL) strcpy(SMTP_Pass, value);
+  else if (!strcmp(variable, "smtp_port")) smtp_port = intVal;
+  else if (!strcmp(variable, "smtpFrame")) smtpFrame = intVal;
+  else if (!strcmp(variable, "smtpMaxEmails")) smtpMaxEmails = intVal;
 #endif
-  else if(!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
-  else if(!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
-  else if(!strcmp(variable, "dbgVerbose")) {
+  // Other settings
+  else if (!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
+  else if (!strcmp(variable, "timezone")) strcpy(timezone, value);
+  else if (!strcmp(variable, "ntpServer")) strcpy(ntpServer, value);
+  else if (!strcmp(variable, "sdMinCardFreeSpace")) sdMinCardFreeSpace = intVal;
+  else if (!strcmp(variable, "sdFreeSpaceMode")) sdFreeSpaceMode = intVal;
+  else if (!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
+  else if (!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
+  else if (!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
   } 
-  else if(!strcmp(variable, "logMode")) {
+  else if (!strcmp(variable, "logMode")) {
     logMode = (bool)intVal; 
     remote_log_init();
   }
-  else if(!strcmp(variable, "refreshVal")) refreshVal = intVal; 
-  else if(!strcmp(variable, "resetLog")) reset_log(); 
-  else if(!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
-  else if(!strcmp(variable, "deldata")) {  
+  else if (!strcmp(variable, "refreshVal")) refreshVal = intVal; 
+  else if (!strcmp(variable, "formatIfMountFailed")) formatIfMountFailed = (bool)intVal;
+  else if (!strcmp(variable, "resetLog")) reset_log(); 
+  else if (!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
+  else if (!strcmp(variable, "deldata")) {  
     if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
     else {
       // manually specified file, eg control?deldata=favicon.ico
@@ -295,6 +304,17 @@ void buildJsonString(uint8_t filter) {
     p += sprintf(p, "\"cfgGroup\":\"-1\",");
     p += sprintf(p, "\"alertMsg\":\"%s\",", alertMsg); 
     alertMsg[0] = 0;
+    // generic footer
+    time_t currEpoch = getEpoch(); 
+    p += sprintf(p, "\"clockUTC\":\"%u\",", (uint32_t)currEpoch); 
+    char timeBuff[20];
+    strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+    p += sprintf(p, "\"clock\":\"%s\",", timeBuff);
+    formatElapsedTime(timeBuff, millis());
+    p += sprintf(p, "\"up_time\":\"%s\",", timeBuff);   
+    p += sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
+    p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
+    p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
 
     if (!filter) {
       // populate first part of json string from config vect
@@ -310,8 +330,6 @@ void buildJsonString(uint8_t filter) {
   #ifdef INCLUDE_SMTP
       p += sprintf(p, "\"SMTP_Pass\":\"%.*s\",", strlen(SMTP_Pass), FILLSTAR);
   #endif
-      // other
-      p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
     }
   } else {
     // build json string for requested config group

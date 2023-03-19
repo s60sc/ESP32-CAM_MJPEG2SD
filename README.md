@@ -9,7 +9,7 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes up to version 8.5:
+Changes up to version 8.6:
 - Web page improvements and jQuery removed.
 - Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
 - Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
@@ -18,11 +18,12 @@ Changes up to version 8.5:
 - NTP server [configurable](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/151). 
 - Valid GitHub cert for https download
 - Improve AP stability
+- Improve [PIR auto lamp](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/183)
 
 
 ## Purpose
 
-The application enables video capture of motion detection or timelapse recording. Examples include security cameras or wildlife monitoring.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code.
+The application enables video capture of motion detection or timelapse recording. Examples include security cameras or wildlife monitoring.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
 
 Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 on a AI Thinker OV2640 board, set to maximum JPEG quality and highest clock rate.
 

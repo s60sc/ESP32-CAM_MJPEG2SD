@@ -259,9 +259,8 @@ static esp_err_t updateHandler(httpd_req_t *req) {
       }
     }
   } while (ret > 0);
-
-  if (parseJson(rxSize)) webAppSpecificHandler (req, "action", retainAction); 
   httpd_resp_send(req, NULL, 0); 
+  if (parseJson(rxSize)) webAppSpecificHandler (req, "action", retainAction); 
   return ESP_OK;
 }
 
@@ -406,7 +405,7 @@ static void uploadHandler() {
     if (cmd == DATA_UPDATE) {
       // web page update
       if (df.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        LOG_ERR("Failed to save %s on Storage", df.path());
+        LOG_ERR("Failed to save %s on Storage", filename.c_str());
         return;
       }
     } else {

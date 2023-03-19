@@ -78,7 +78,7 @@ int servoDelay; // control rate of change of servo angle using delay
 // configure battery monitor
 int voltDivider; // set battVoltageDivider value to be divisor of input voltage from resistor divider
                  // eg: 100k / 100k would be divisor value 2
-int voltLow; // voltage level at which to send out email alert
+float voltLow; // voltage level at which to send out email alert
 int voltInterval; // interval in minutes to check battery voltage
 
 
@@ -294,7 +294,6 @@ float readVoltage()  {
 }
 
 static void battTask(void* parameter) {
-  delay(20 * 1000); // allow time for esp32 to start up
   if (voltInterval < 1) voltInterval = 1;
   while (true) {
     static bool sentEmailAlert = false;
@@ -330,16 +329,18 @@ static void setupBatt() {
 
 #define RGB_BITS 24  // WS2812 has 24 bit color in RGB order
 #define LAMP_LEDC_CHANNEL 2 // Use channel not required by camera
+static bool lampInit = false;
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 static rmt_obj_t* rmtWS2812;
 static rmt_data_t ledData[RGB_BITS];
 #endif
 
-void setupLamp() {
+static void setupLamp() {
   // setup lamp LED according to board type
   // assumes led wired as active high (ESP32 lamp led on pin 4 is active high, signal led on pin 33 is active low)
   if ((lampPin < EXTPIN) && lampUse) {
     if (lampPin) {
+      lampInit = true;
 #if defined(CAMERA_MODEL_AI_THINKER)
       // High itensity white led
       ledcSetup(LAMP_LEDC_CHANNEL, 5000, 4);
@@ -347,7 +348,7 @@ void setupLamp() {
       LOG_INF("Setup Lamp Led for ESP32 Cam board");
 
 #elif defined(CAMERA_MODEL_ESP32S3_EYE)
-      // Single WS2812 RGB high intensity led
+      // Single WS2812 RGB high intensity led on pin 48
       rmtWS2812 = rmtInit(lampPin, true, RMT_MEM_64);
       if (rmtWS2812 == NULL) LOG_ERR("Failed to setup WS2812 with pin %u", lampPin);
       else {
@@ -368,16 +369,18 @@ void setupLamp() {
 }
 
 void setLamp(uint8_t lampVal) {
-  if (lampUse) {
-    lampLevel = lampVal;
+  // control lamp status
+  if (!lampUse) lampVal = 0;
+  if (!lampInit) setupLamp();
+  if (lampInit) {
 #if defined(CAMERA_MODEL_AI_THINKER)
     // set lamp brightness using PWM (0 = off, 15 = max)
-    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampLevel);
+    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
 
 #elif defined(CAMERA_MODEL_ESP32S3_EYE)
-    // Set white color and apply lampLevel (0 = off, 15 = max)
+    // Set white color and apply lampVal (0 = off, 15 = max)
     uint8_t RGB[3]; // each color is 8 bits
-    lampVal = lampLevel == 15 ? 255 : lampLevel * 16;
+    lampVal = lampVal == 15 ? 255 : lampVal * 16;
     for (uint8_t i = 0; i < 3; i++) {
       RGB[i] = lampVal;
       // apply WS2812 bit encoding pulse timing per bit
@@ -402,7 +405,7 @@ void setLamp(uint8_t lampVal) {
 #else
     // other board
     // set lamp brightness using PWM (0 = off, 15 = max)
-    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampLevel);
+    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
 #endif
   }
 }

@@ -42,12 +42,12 @@
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "132" // dev only
+#define STATIC_IP_OCTAL "133" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.5"
+#define APP_VER "8.6"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -88,10 +88,6 @@
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
-
-#define ADC_BITS 12
-#define ADC_ATTEN ADC_11db
-#define ADC_SAMPLES 16
 
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 // pins configured for SD card on this camera board
@@ -243,7 +239,7 @@ extern int servoMaxPulseWidth;
 
 // battery monitor
 extern int voltDivider;
-extern int voltLow;
+extern float voltLow;
 extern int voltInterval;
 
 // audio
