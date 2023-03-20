@@ -47,7 +47,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.6"
+#define APP_VER "8.6.1"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -85,6 +85,7 @@
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_SD
+#define INCLUDE_MQTT
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
@@ -253,10 +254,7 @@ extern TaskHandle_t servoHandle;
 extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t ftpHandle;
-extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
-
-
 /************************** structures ********************************/
 
 struct frameStruct {
