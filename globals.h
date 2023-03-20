@@ -80,6 +80,7 @@ void prepPeripherals();
 void prepSMTP();
 void prepTemperature();
 void prepUart();
+void print_wakeup_reason();
 void ramLogPrep();
 float readTemperature(bool isCelsius);
 float readVoltage();
@@ -181,6 +182,17 @@ extern UBaseType_t uxHighWaterMarkArr[];
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
 extern int sdFreeSpaceMode; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload to ftp and then delete folder on SD 
 extern bool formatIfMountFailed ; // Auto format the file system if mount failed. Set to false to not auto format.
+
+// ADC
+#define ADC_ATTEN ADC_11db
+#define ADC_SAMPLES 16
+#if CONFIG_IDF_TARGET_ESP32S3
+#define ADC_BITS 13
+#define MAX_ADC 8191 // maximum ADC value at given resolution
+#else
+#define ADC_BITS 12
+#define MAX_ADC 4095 // maximum ADC value at given resolution
+#endif
 
 /*********************** Log formatting ************************/
 

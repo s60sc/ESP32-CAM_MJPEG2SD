@@ -92,8 +92,8 @@ static void onWiFiEvent(WiFiEvent_t event) {
   else if (event == ARDUINO_EVENT_WIFI_STA_START) LOG_INF("Wifi Station started, connecting to: %s", ST_SSID);
   else if (event == ARDUINO_EVENT_WIFI_STA_STOP) LOG_INF("Wifi Station stopped %s", ST_SSID);
   else if (event == ARDUINO_EVENT_WIFI_AP_START) {
-    if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
-      LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", AP_SSID, WiFi.softAPIP().toString().c_str());
+    if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID) || !strlen(AP_SSID)) {
+      LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
       APstarted = true;
     }
   }
@@ -680,19 +680,37 @@ const char* encode64(const char* inp) {
 
 #include <esp_wifi.h>
 
+
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  switch(wakeup_reason) {
+    case ESP_SLEEP_WAKEUP_EXT0 : LOG_INF("Wakeup by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : LOG_INF("Wakeup by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : 
+      // expected wakeup reason from deep sleep
+      LOG_INF("Wakeup by internal timer"); 
+    break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : LOG_INF("Wakeup by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : LOG_INF("Wakeup by ULP program"); break;
+    case ESP_SLEEP_WAKEUP_GPIO: LOG_INF("Wakeup by GPIO"); break;    
+    case ESP_SLEEP_WAKEUP_UART: LOG_INF("Wakeup by UART"); break; 
+    default : LOG_INF("Wakeup by reset"); break;
+  }
+}
+
 void goToSleep(int wakeupPin, bool deepSleep) {
 #if !CONFIG_IDF_TARGET_ESP32C3
   // if deep sleep, restarts with reset
   // if light sleep, restarts by continuing this function
   LOG_INF("Going into %s sleep", deepSleep ? "deep" : "light");
   delay(100);
-  if (deepSleep) {
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 1); // wakeup on pin high
+  if (deepSleep) { 
+    if (wakeupPin >= 0) esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 1); // wakeup on pin high
     esp_deep_sleep_start();
   } else {
     // light sleep
     esp_wifi_stop();
-    gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // wakeup on pin high
+    if (wakeupPin >= 0) gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // wakeup on pin high
     esp_light_sleep_start();
   }
   // light sleep restarts here
