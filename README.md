@@ -9,7 +9,7 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes up to version 8.6:
+Changes up to version 8.6.1:
 - Web page improvements and jQuery removed.
 - Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
 - Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
@@ -18,7 +18,8 @@ Changes up to version 8.6:
 - NTP server [configurable](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/151). 
 - Valid GitHub cert for https download
 - Improve AP stability
-- Improve [PIR auto lamp](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/183)
+- Improve [PIR auto lamp](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/183)  
+- MQTT integration added by [@gemi254](https://github.com/gemi254), see [**MQTT**](#mqtt) section below.
 
 
 ## Purpose
@@ -201,3 +202,18 @@ P_FHD | 6
 
 The OV3660 has not been tested.
 
+## MQTT
+
+To enable MQTT, under __Edit Config__ -> __Others__, enter fields:
+* `Mqtt server ip to connect`
+* `Mqtt topic path prefix`
+* optionally `Mqtt user name` and `Mqtt user password`
+* Then set `Mqtt enabled` 
+
+Mqtt will auto connect if configuration is not blank on ping success.
+
+It will send messages e.g. Record On/Off Motion On/Off to the mqtt broker on channel /status.  
+topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/status -> {"MOTION":"ON", "TIME":"10:07:47.560"}`
+
+You can also publish control commands to the /cmd channel in order to control camera.  
+topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
