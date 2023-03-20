@@ -105,6 +105,9 @@ void updateStatus(const char* variable, const char* _value);
 void urlDecode(char* inVal);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 void wsAsyncSend(const char* wsData);
+void startMqttClient();  
+void stopMqttClient();  
+void mqttPublish(const char *payload);
 
 /******************** Global utility declarations *******************/
 
@@ -151,6 +154,14 @@ extern char SMTP_Pass[];
 extern char smtp_email[];
 extern char smtp_server[];
 extern uint16_t smtp_port;
+
+// Mqtt broker
+extern bool mqtt_active;
+extern char mqtt_broker[];
+extern char mqtt_port[];
+extern char mqtt_user[];
+extern char mqtt_user_Pass[];
+extern char mqtt_topic_prefix[];  
 
 // control sending emails 
 extern size_t smtpBufferSize;

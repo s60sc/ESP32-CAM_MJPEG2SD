@@ -152,7 +152,6 @@ static bool loadConfigVect() {
       const std::vector<std::string> &a, const std::vector<std::string> &b) {
       return a[0] < b[0];}
     );
-   
     // return malloc to default 
     if (psramFound()) heap_caps_malloc_extmem_enable(4096);
   }
@@ -181,6 +180,9 @@ static bool savePrefs(bool retain = true) {
 #ifdef INCLUDE_SMTP
   prefs.putString("SMTP_Pass", SMTP_Pass);
 #endif
+#ifdef INCLUDE_MQTT
+  prefs.putString("mqtt_user_Pass", mqtt_user_Pass);
+#endif
   prefs.end();
   LOG_INF("Saved preferences");
   return true;
@@ -208,6 +210,9 @@ static bool loadPrefs() {
 #ifdef INCLUDE_SMTP
   prefs.getString("SMTP_Pass", SMTP_Pass, MAX_PWD_LEN);
 #endif
+#ifdef INCLUDE_MQTT
+  prefs.getString("mqtt_user_Pass", mqtt_user_Pass, MAX_PWD_LEN);
+#endif
   prefs.end();
   return true;
 }
@@ -218,11 +223,11 @@ void updateStatus(const char* variable, const char* _value) {
   bool res = true;
   char value[FILE_NAME_LEN];
   strcpy(value, _value);  
-#ifdef INCLUDE_MQTT
-  char buff[FILE_NAME_LEN * 2];
-  sprintf(buff,"%s=%s",variable, value);
-  mqttPublish(buff);
-#endif
+  if(mqtt_active){
+    char buff[FILE_NAME_LEN * 2];
+    sprintf(buff,"%s=%s",variable, value);
+    mqttPublish(buff);
+  }
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strcpy(hostName, value);
   else if (!strcmp(variable, "ST_SSID")) strcpy(ST_SSID, value);
@@ -258,6 +263,18 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "smtpFrame")) smtpFrame = intVal;
   else if (!strcmp(variable, "smtpMaxEmails")) smtpMaxEmails = intVal;
 #endif
+#ifdef INCLUDE_MQTT
+  else if(!strcmp(variable, "mqtt_active")){
+    mqtt_active = (bool)intVal;
+    if(mqtt_active) startMqttClient();
+    else stopMqttClient();
+  } 
+  else if(!strcmp(variable, "mqtt_broker")) strcpy(mqtt_broker, value);
+  else if(!strcmp(variable, "mqtt_port")) strcpy(mqtt_port, value);
+  else if(!strcmp(variable, "mqtt_user")) strcpy(mqtt_user, value);
+  else if(!strcmp(variable, "mqtt_user_Pass")) strcpy(mqtt_user_Pass, value);
+  else if(!strcmp(variable, "mqtt_topic_prefix")) strcpy(mqtt_topic_prefix, value);
+#endif  
   // Other settings
   else if (!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
   else if (!strcmp(variable, "timezone")) strcpy(timezone, value);
@@ -289,18 +306,6 @@ void updateStatus(const char* variable, const char* _value) {
     }
     doRestart("user requested restart after data deletion"); 
   }
-#ifdef INCLUDE_MQTT
-  else if(!strcmp(variable, "mqtt_active")){
-    mqtt_active = (bool)intVal;
-    if(mqtt_active) startMqttClient();
-    else stopMqttClient();
-  } 
-  else if(!strcmp(variable, "mqtt_broker")) strcpy(mqtt_broker, value);
-  else if(!strcmp(variable, "mqtt_port")) strcpy(mqtt_port, value);
-  else if(!strcmp(variable, "mqtt_user")) strcpy(mqtt_user, value);
-  else if(!strcmp(variable, "mqtt_user_pass")) strcpy(mqtt_user_pass, value);
-  else if(!strcmp(variable, "mqtt_topic_prefix")) strcpy(mqtt_topic_prefix, value);
-#endif  
   else if (!strcmp(variable, "save")) {
     savePrefs();
     saveConfigVect();
@@ -347,6 +352,9 @@ void buildJsonString(uint8_t filter) {
   #endif
   #ifdef INCLUDE_SMTP
       p += sprintf(p, "\"SMTP_Pass\":\"%.*s\",", strlen(SMTP_Pass), FILLSTAR);
+  #endif
+  #ifdef INCLUDE_MQTT
+      p += sprintf(p, "\"mqtt_user_Pass\":\"%.*s\",", strlen(mqtt_user_Pass), FILLSTAR);
   #endif
     }
   } else {

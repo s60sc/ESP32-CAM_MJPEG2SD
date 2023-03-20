@@ -255,20 +255,6 @@ extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t ftpHandle;
 extern SemaphoreHandle_t motionMutex;
-
-// Websocket server
-#ifdef INCLUDE_MQTT
-  extern bool mqtt_active;
-  extern char mqtt_broker[];
-  extern char mqtt_port[];
-  extern char mqtt_user[];
-  extern char mqtt_user_pass[];
-  extern char mqtt_topic_prefix[];  
-  void startMqttClient();  
-  void stopMqttClient();  
-  void mqttPublish(const char *payload);
-#endif
-
 /************************** structures ********************************/
 
 struct frameStruct {

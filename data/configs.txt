@@ -115,5 +115,5 @@ mqtt_active~~2~C~~Mqtt enabled
 mqtt_broker~~2~T~Mqtt server ip to connect
 mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
-mqtt_user_pass~~2~T~Mqtt user password
+mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
