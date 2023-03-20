@@ -111,9 +111,9 @@ voltLow~3~3~N~Warning level for low voltage
 voltInterval~5~3~N~Voltage check interval (mins)
 voltPin~~3~N~ADC Pin used for battery voltage
 voltUse~0~3~C~Use Voltage check
-mqtt_active~~2~C~~Mqtt enabled
+mqtt_active~0~2~C~Mqtt enabled
 mqtt_broker~~2~T~Mqtt server ip to connect
 mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
-mqtt_user_Pass~~2~T~Mqtt user password
+mqtt_user_pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
