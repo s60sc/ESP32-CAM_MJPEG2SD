@@ -161,6 +161,7 @@ bool checkFreeSpace() {
       if (sdFreeSpaceMode == 2) ftpFileOrFolder(oldestDir); // Upload and then delete oldest folder
 #endif
       deleteFolderOrFile(oldestDir);
+      freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
     }
     LOG_INF("Storage free space: %uMB", freeSize);
     res = true;
