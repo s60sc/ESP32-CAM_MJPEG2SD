@@ -195,6 +195,7 @@ bool startWifi(bool firstcall) {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
+  if (mqtt_active) startMqttClient();
   doAppPing();
 }
 
@@ -420,6 +421,7 @@ void checkMemory() {
   LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
 
+
 uint32_t checkStackUse(TaskHandle_t thisTask) {
   // get minimum free stack size for task since started
   uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(thisTask);
@@ -621,6 +623,7 @@ void logSetup() {
   xSemaphoreGive(logSemaphore);
   xSemaphoreGive(logMutex);
   xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle); 
+  print_wakeup_reason();
 }
 
 void formatHex(const char* inData, size_t inLen) {
@@ -676,7 +679,7 @@ const char* encode64(const char* inp) {
 
 #include <esp_wifi.h>
 
-void print_wakeup_reason(){
+void print_wakeup_reason() {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
   switch(wakeup_reason) {
     case ESP_SLEEP_WAKEUP_EXT0 : LOG_INF("Wakeup by external signal using RTC_IO"); break;
@@ -700,7 +703,11 @@ void goToSleep(int wakeupPin, bool deepSleep) {
   LOG_INF("Going into %s sleep", deepSleep ? "deep" : "light");
   delay(100);
   if (deepSleep) { 
-    if (wakeupPin >= 0) esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 1); // wakeup on pin high
+    if (wakeupPin >= 0) {
+      // wakeup on pin high
+      pinMode(wakeupPin, INPUT_PULLDOWN);
+      esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 1); 
+    }
     esp_deep_sleep_start();
   } else {
     // light sleep
