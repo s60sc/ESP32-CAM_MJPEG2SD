@@ -40,10 +40,13 @@ bool pirUse; // true to use PIR for motion detection
 bool lampUse; // true to use lamp
 uint8_t lampLevel; // brightness of on board lamp led 
 bool lampAuto; // if true in conjunction with pirUse & lampUse, switch on lamp when PIR activated at night
+bool lampNight; // if true, lamp comes on at night
+int lampType; // how lamp is used
 bool servoUse; // true to use pan / tilt servo control
 bool voltUse; // true to report on ADC pin eg for for battery
 // microphone cannot be used on IO Extender
 bool micUse; // true to use external I2S microphone 
+bool wakeUse = false; // true to allow app to sleep and wake
 
 // Pins used by peripherals
 
@@ -55,6 +58,7 @@ bool micUse; // true to use external I2S microphone
 // sensors 
 int pirPin; // if pirUse is true
 int lampPin; // if lampUse is true
+int wakePin; // if wakeUse is true
 
 // Pan / Tilt Servos 
 int servoPanPin; // if servoUse is true

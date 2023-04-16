@@ -97,9 +97,12 @@ static bool wgetFile(const char* githubURL, const char* filePath, bool restart =
 bool checkDataFiles() {
   // Download any missing data files
   if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
-  bool res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
-  if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
-  if (res) res = appDataFiles();
+  bool res = false;
+  if (strlen(GITHUB_URL)) {
+    res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
+    if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
+    if (res) res = appDataFiles();
+  }
   return res;
 }
 

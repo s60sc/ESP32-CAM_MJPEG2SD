@@ -16,6 +16,7 @@ static const size_t boundaryLen = strlen(JPEG_BOUNDARY);
 static char hdrBuf[HDR_BUF_LEN];
 static fs::FS fpv = STORAGE;
 bool forcePlayback = false;
+bool isStreaming = false;
 static httpd_handle_t streamServer = NULL; 
 
 esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value) {
@@ -102,6 +103,7 @@ static esp_err_t streamHandler(httpd_req_t* req) {
   } else { 
     // live images
     do {
+      isStreaming = true;
       camera_fb_t* fb;
       if (dbgMotion) {
         // motion tracking stream, wait for new move mapping image
@@ -135,7 +137,7 @@ static esp_err_t streamHandler(httpd_req_t* req) {
       fb = NULL;  
       mjpegKB += jpgLen / 1024;
       if (res != ESP_OK) break;
-    } while (!singleFrame);
+    } while (!singleFrame && isStreaming);
     uint32_t mjpegTime = millis() - startTime;
     float mjpegTimeF = float(mjpegTime) / 1000; // secs
     if (singleFrame) LOG_INF("JPEG: %uB in %ums", jpgLen, mjpegTime);
@@ -158,8 +160,8 @@ if (psramFound()) heap_caps_malloc_extmem_enable(0);
     httpd_register_uri_handler(streamServer, &streamUri);
     LOG_INF("Starting streaming server on port: %u", config.server_port);
   } else LOG_ERR("Failed to start streaming server");
-if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
-debugMemory("startStreamserver");
+  if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
+  debugMemory("startStreamserver");
 }
 
  

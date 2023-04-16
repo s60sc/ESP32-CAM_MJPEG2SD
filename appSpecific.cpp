@@ -55,16 +55,19 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "pirUse")) pirUse = (bool)intVal;
   else if(!strcmp(variable, "lampLevel")) {
     lampLevel = intVal;
-    if (!lampAuto) setLamp(lampLevel);
+    if (!lampType) setLamp(lampLevel); // manual
   }
   else if (!strcmp(variable, "lampUse")) {
     lampUse = (bool)intVal;
-    if (!lampAuto) setLamp(lampLevel);
+    if (!lampType) setLamp(lampLevel); // manual
   }
-  else if (!strcmp(variable, "lampAuto")) {
-    lampAuto = (bool)intVal;
-    if (lampAuto) setLamp(0);
-    else setLamp(lampLevel);
+  else if (!strcmp(variable, "lampType")) {
+    lampType = intVal;
+    lampAuto = lampNight = false;
+    if (lampType == 1) lampAuto = true;
+    if (lampType == 2) lampNight = true;
+    if (!lampType) setLamp(lampLevel); // manual
+    else setLamp(0); 
   }
   else if(!strcmp(variable, "servoUse")) servoUse = (bool)intVal;
   else if(!strcmp(variable, "voltUse")) voltUse = (bool)intVal;
@@ -88,7 +91,9 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "voltInterval")) voltInterval = intVal;
   else if(!strcmp(variable, "camPan")) setCamPan(intVal);
   else if(!strcmp(variable, "camTilt")) setCamTilt(intVal);
-
+  else if(!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
+  else if(!strcmp(variable, "wakePin")) wakePin = intVal;
+  
   // camera settings
   else if(!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
   else if (s) {
@@ -212,4 +217,16 @@ bool appDataFiles() {
 
 void doAppPing() {
   doIOExtPing();
+  // check for night time actions
+  if (isNight(nightSwitch)) {
+    if (wakeUse && wakePin) {
+     // to use LDR on wake pin, connect it between pin and 3V3
+     // uses internal pulldown resistor as voltage divider
+     // but may need to add external pull down between pin
+     // and GND to alter required light level for wakeup
+     digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
+     goToSleep(wakePin, true);
+    }
+    if (lampNight) setLamp(lampLevel);
+  } else if (lampNight) setLamp(0);
 }

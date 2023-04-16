@@ -6,7 +6,6 @@
 */
 
 #include "appGlobals.h"
-#include "camera_pins.h"
 
 // camera board selected
 #if defined(CAMERA_MODEL_AI_THINKER)
@@ -121,7 +120,7 @@ static void prepCam() {
   debugMemory("prepCam");
 }
 
-void setup() { 
+void setup() {   
   logSetup();
   LOG_INF("=============== Starting ===============");
   if (!psramFound()) sprintf(startupFailure, "Startup Failure: Need PSRAM to be enabled");

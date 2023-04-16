@@ -5,11 +5,7 @@ char mqtt_broker[32] = "";                   //Mqtt server ip to connect.
 char mqtt_port[5] = "";                      //Mqtt server port to connect.  
 char mqtt_user[32] = "";                     //Mqtt server username.  
 char mqtt_user_Pass[MAX_PWD_LEN] = "";       //Mqtt server password.  
-char mqtt_topic_prefix[FILE_NAME_LEN] = "";  //Mqtt server topic to pulish payloads.  
-
-#define MQTT_TOPIC_STATUS String(String(mqtt_topic_prefix) + hostName + "/status")
-#define MQTT_TOPIC_LWT    String(String(mqtt_topic_prefix) + hostName + "/lwt")
-#define MQTT_TOPIC_CMD    String(String(mqtt_topic_prefix) + hostName + "/cmd")
+char mqtt_topic_prefix[FILE_NAME_LEN] = "";  //Mqtt server topic to publish payloads.  
 
 #define MQTT_LWT_QOS 2
 #define MQTT_LWT_RETAIN 1
@@ -21,28 +17,28 @@ bool mqttRunning = false;         //Is mqtt task running
 bool mqttConnected = false;       //Is connected to broker?
 esp_mqtt_client_handle_t mqtt_client = nullptr;
 static TaskHandle_t mqttTaskHandle = NULL;
-static char remoteQuery[128] = "";
+static char remoteQuery[FILE_NAME_LEN * 2] = "";
+static char lwt_topic[FILE_NAME_LEN];
+static char cmd_topic[FILE_NAME_LEN];
 static int mqttTaskDelay = 0;
+static char mqttPublishTopic[FILE_NAME_LEN] = "";
 
-void mqtt_client_publish(const char *topic, const char *payload){
+void mqtt_client_publish(const char* topic, const char* payload){
   if (!mqtt_client || !mqttConnected) return;
   int id = esp_mqtt_client_publish(mqtt_client, topic, payload, strlen(payload), MQTT_QOS, MQTT_RETAIN);
   LOG_DBG("Mqtt pub, topic:%s, ID:%d, length:%i", topic, id, strlen(payload));
   LOG_DBG("Mqtt pub, payload:%s", payload);
 }
-void mqttPublish(const char *payload){
-  static String mqttPublishTopic="";
-  //Called before load config?    
-  if(strlen(mqtt_topic_prefix)==0)  return; 
-  if(mqttPublishTopic=="") 
-    mqttPublishTopic = MQTT_TOPIC_STATUS;
-    
-  mqtt_client_publish(mqttPublishTopic.c_str(), payload);
+
+void mqttPublish(const char* payload) {
+  if (!strlen(mqtt_topic_prefix)) return; //Called before load config?    
+  if (!strlen(mqttPublishTopic)) sprintf(mqttPublishTopic, "%s%s/status", mqtt_topic_prefix, hostName);
+  mqtt_client_publish(mqttPublishTopic, payload);
 }
 
 static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data){
     LOG_INF("Mqtt connected");
-    int id = esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC_LWT.c_str(), "online", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
+    int id = esp_mqtt_client_publish(mqtt_client, lwt_topic, "online", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
     mqttConnected = true;
 }
 
@@ -76,7 +72,7 @@ static void mqtt_error_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 void checkForRemoteQuerry() {
-  //Execure remote querry i.e. dbgVerbose=1;framesize=7;fps=1
+  //Execute remote querry i.e. dbgVerbose=1;framesize=7;fps=1
   if(strlen(remoteQuery) > 0) {
     char* query = strtok(remoteQuery, ";");
     while (query != NULL) {
@@ -136,7 +132,7 @@ static void mqttTask(void* parameter) {
 void stopMqttClient(){
     if (mqtt_client == nullptr) return;
     if (mqttConnected){
-      int id = esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC_LWT.c_str(), "offline", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
+      int id = esp_mqtt_client_publish(mqtt_client, lwt_topic, "offline", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
       vTaskDelay(1000 / portTICK_RATE_MS);
     }
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_disconnect(mqtt_client));
@@ -171,9 +167,10 @@ void startMqttClient(void){
     return;
   }
   
-  String mqtt_uri = "mqtt://" + String(mqtt_broker) + ":" + String(mqtt_port) + "";
+  char mqtt_uri[FILE_NAME_LEN];
+  sprintf(mqtt_uri, "mqtt://%s:%s", mqtt_broker, mqtt_port);
  
-  esp_mqtt_client_config_t mqtt_cfg{.event_handle = NULL, .host = "", .uri = mqtt_uri.c_str(), .disable_auto_reconnect = false};
+  esp_mqtt_client_config_t mqtt_cfg{.event_handle = NULL, .host = "", .uri = mqtt_uri, .disable_auto_reconnect = false};
   mqtt_cfg.username = mqtt_user;
   mqtt_cfg.password = mqtt_user_Pass;
   mqtt_cfg.client_id = hostName;
@@ -181,12 +178,12 @@ void startMqttClient(void){
   mqtt_cfg.lwt_msg = "offline";
   mqtt_cfg.lwt_retain = MQTT_LWT_RETAIN;  
   
-  char lwt_topic[FILE_NAME_LEN];
-  sprintf(lwt_topic,"%s", MQTT_TOPIC_LWT.c_str());  
+  sprintf(lwt_topic, "%s%s/lwt", mqtt_topic_prefix, hostName);  
+  sprintf(cmd_topic, "%s%s/cmd", mqtt_topic_prefix, hostName);  
   mqtt_cfg.lwt_topic = lwt_topic;
  
   mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
-    LOG_INF("Mqtt connect to %s...", mqtt_uri.c_str());
+  LOG_INF("Mqtt connect to %s...", mqtt_uri);
   if (mqtt_client != NULL) {
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_CONNECTED, mqtt_connected_handler, NULL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DISCONNECTED, mqtt_disconnected_handler, NULL));
@@ -196,14 +193,14 @@ void startMqttClient(void){
         LOG_ERR("Mqtt start failed");
     }else{
         LOG_DBG("Mqtt started");        
-        int id = esp_mqtt_client_subscribe(mqtt_client, MQTT_TOPIC_CMD.c_str(), 1);
+        int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
         if(id==-1){
-          LOG_ERR("Mqtt failed to subscribe: %s", MQTT_TOPIC_CMD.c_str() );
+          LOG_ERR("Mqtt failed to subscribe: %s", cmd_topic );
           stopMqttClient();
           return;
         } 
-        else LOG_DBG("Mqtt subscribed: %s", MQTT_TOPIC_CMD.c_str() );
-        ///Create a mqtt task
+        else LOG_DBG("Mqtt subscribed: %s", cmd_topic );
+        // Create a mqtt task
         BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", 4096, NULL, 1, &mqttTaskHandle);
         LOG_INF("Created mqtt task: %u", xReturned );
         mqttRunning = true;

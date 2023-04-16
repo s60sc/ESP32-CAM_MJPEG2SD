@@ -31,6 +31,10 @@
 //#define CAMERA_MODEL_ESP32S2_CAM_BOARD
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 
+#include "camera_pins.h"
+
+#define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
+
 // web server ports
 #define WEB_PORT 80 // app control
 #define STREAM_PORT 81 // camera images
@@ -47,7 +51,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.6.1"
+#define APP_VER "8.6.3"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -65,7 +69,7 @@
 #define ONEMEG (1024 * 1024)
 #define MAX_PWD_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 120 // > number of entries in configs.txt
+#define MAX_CONFIGS 130 // > number of entries in configs.txt
 #define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
 
 #define FILE_EXT "avi"
@@ -85,7 +89,6 @@
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_SD
-#define INCLUDE_MQTT
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
@@ -129,6 +132,7 @@ void finishAudio(bool isValid);
 mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
+bool isNight(uint8_t nightSwitch);
 void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
 bool prepRecording();
@@ -183,6 +187,7 @@ extern float motionVal;  // motion sensitivity setting - min percentage of chang
 extern uint8_t nightSwitch; // initial white level % for night/day switching
 extern bool nightTime; 
 extern bool stopPlayback;
+extern bool isStreaming;
 extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)  
 extern bool timeLapseOn; // enable time lapse recording
 extern int maxFrames;
@@ -209,15 +214,20 @@ extern int uartRxdPin;
 extern bool pirUse; // true to use PIR for motion detection
 extern bool lampUse; // true to use lamp
 extern bool lampAuto; // if true in conjunction with usePir & useLamp, switch on lamp when PIR activated
+extern bool lampNight;
+extern int lampType;
 extern bool servoUse; // true to use pan / tilt servo control
 extern bool voltUse; // true to report on ADC pin eg for for battery
 // microphone cannot be used on IO Extender
 extern bool micUse; // true to use external I2S microphone 
+extern bool wakeUse;
 
 // sensors 
 extern int pirPin; // if usePir is true
 extern bool pirVal;
 extern int lampPin; // if useLamp is true
+extern int wakePin; // if wakeUse is true
+
 // Pan / Tilt Servos 
 extern int servoPanPin; // if useServos is true
 extern int servoTiltPin;
@@ -254,7 +264,10 @@ extern TaskHandle_t servoHandle;
 extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t ftpHandle;
+extern SemaphoreHandle_t frameMutex;
 extern SemaphoreHandle_t motionMutex;
+
+
 /************************** structures ********************************/
 
 struct frameStruct {

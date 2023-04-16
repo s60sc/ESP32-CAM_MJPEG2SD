@@ -40,7 +40,7 @@ static size_t jpgImgSize = 0;
 
 static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, jpg_scale_t scale);
 
-static bool isNight(uint8_t nightSwitch) {
+bool isNight(uint8_t nightSwitch) {
   // check if night time for suspending recording
   // or for switching on lamp if enabled
   static bool nightTime = false;
@@ -136,8 +136,8 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     if (!motionStatus && motionCnt >= detectMotionFrames) {
       LOG_DBG("***** Motion - START");
       motionStatus = true; // motion started
-      if(mqtt_active){
-        sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "MOTION","ON","TIME",esp_log_system_timestamp());    
+      if (mqtt_active) {
+        sprintf(jsonBuff, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}",esp_log_system_timestamp());
         mqttPublish(jsonBuff);
       }
     } 
@@ -151,9 +151,9 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
       LOG_DBG("***** Motion - STOP after %u frames", motionCnt);
       motionCnt = 0;
       motionStatus = false; // motion stopped
-      if(mqtt_active){
-          sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "MOTION","OFF","TIME",esp_log_system_timestamp());    
-          mqttPublish(jsonBuff);
+      if (mqtt_active) {
+        sprintf(jsonBuff, "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
+        mqttPublish(jsonBuff);
       }
     }
   }

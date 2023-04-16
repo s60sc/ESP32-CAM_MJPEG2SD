@@ -195,7 +195,6 @@ bool startWifi(bool firstcall) {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
-  if (mqtt_active) startMqttClient();
   doAppPing();
 }
 
@@ -420,7 +419,6 @@ void removeChar(char* s, char c) {
 void checkMemory() {
   LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
-
 
 uint32_t checkStackUse(TaskHandle_t thisTask) {
   // get minimum free stack size for task since started
@@ -677,7 +675,6 @@ const char* encode64(const char* inp) {
 /****************** send device to sleep (light or deep) ******************/
 
 #include <esp_wifi.h>
-
 
 void print_wakeup_reason(){
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();

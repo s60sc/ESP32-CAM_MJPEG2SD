@@ -9,7 +9,7 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes up to version 8.6.1:
+Changes up to version 8.6.3:
 - Web page improvements and jQuery removed.
 - Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
 - Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
@@ -20,6 +20,8 @@ Changes up to version 8.6.1:
 - Improve AP stability
 - Improve [PIR auto lamp](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/183)  
 - MQTT integration added by [@gemi254](https://github.com/gemi254), see [**MQTT**](#mqtt) section below.
+- Fix for [issue 198](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/198) 
+- Added deep sleep on night, wake on LDR
 
 
 ## Purpose
@@ -137,12 +139,14 @@ See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 * Connect an external I2S microphone
 * Connect a DS18B20 temperature sensor
 * Monitor voltage of battery supply on ADC pin
+* Wakeup on LDR after deep sleep at night
 
 Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
 * pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
 * pin 4: Also used for onboard lamp. Lamp can be disabled by removing its current limiting resistor. 
 * pin 12: Only use as output pin.
-* pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3, and the red LED current limiting resistor, then running a wire between the VCC pin and the red LED resistor solder tab.  
+* pin 13: Is weakly pulled high.
+* pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3, and the red LED current limiting resistor, then running a wire between the VCC pin and the red LED resistor solder tab.
 
 Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.  
 

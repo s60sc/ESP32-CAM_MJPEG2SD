@@ -26,10 +26,10 @@ int tlPlaybackFPS;  // rate to playback the timelapse, min 1
 // status & control fields
 uint8_t FPS;
 bool nightTime = false;
-bool autoUpload = false;  // Automatically upload every created file to remote ftp server      
+bool autoUpload = false;  // Automatically upload every created file to remote ftp server
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
-bool doRecording = true; // whether to capture to SD or not        
+bool doRecording = true; // whether to capture to SD or not 
 uint8_t xclkMhz = 20; // camera clock rate MHz
 
 // header and reporting info
@@ -43,7 +43,7 @@ static uint32_t oTime; // file opening time
 static uint32_t cTime; // file closing time
 static uint32_t sTime; // file streaming time
 
-uint8_t frameDataRows = 14;                         
+uint8_t frameDataRows = 14; 
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
@@ -174,7 +174,7 @@ static void timeLapse(camera_fb_t* fb) {
         buildAviIdx(jpegSize, true, true); // save avi index for frame
         frameCntTL++;
         intervalCnt = 0;   
-        intervalMark = tlSecsBetweenFrames * saveFPS;  // recalc in case FPS changed                                       
+        intervalMark = tlSecsBetweenFrames * saveFPS;  // recalc in case FPS changed 
       }
       intervalCnt++;
       if (frameCntTL > requiredFrames) {
@@ -196,6 +196,7 @@ static void timeLapse(camera_fb_t* fb) {
         SD_MMC.rename(TLTEMP, TLname);
         frameCntTL = intervalCnt = 0;
         LOG_DBG("Finished time lapse");
+        if (autoUpload) ftpFileOrFolder(TLname); // Upload it to remote ftp server if requested
       }
     }
   } else frameCntTL = intervalCnt = 0;
@@ -313,11 +314,11 @@ static bool closeAvi() {
     LOG_INF("File open / completion times: %u ms / %u ms", oTime, cTime);
     LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
     checkMemory();
-    LOG_INF("*************************************");    
-#ifdef INCLUDE_MQTT
-    sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "RECORD","OFF","TIME",esp_log_system_timestamp());    
-    mqttPublish(jsonBuff);
-#endif
+    LOG_INF("*************************************");
+    if (mqtt_active) {
+      sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
+      mqttPublish(jsonBuff);
+    }
     if (autoUpload) ftpFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
     checkFreeSpace();
     char subjectMsg[50];
@@ -327,7 +328,7 @@ static bool closeAvi() {
   } else {
     // delete too small files if exist
     SD_MMC.remove(AVITEMP);
-    LOG_INF("Insufficient capture duration: %u secs", vidDurationSecs);                 
+    LOG_INF("Insufficient capture duration: %u secs", vidDurationSecs); 
     return false;
   }
 }
@@ -335,7 +336,7 @@ static bool closeAvi() {
 static boolean processFrame() {
   // get camera frame
   static bool wasCapturing = false;
-  static bool wasRecording = false;                                 
+  static bool wasRecording = false;
   static bool captureMotion = false;
   bool res = true;
   uint32_t dTime = millis();
@@ -365,10 +366,10 @@ static boolean processFrame() {
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
-  #ifdef INCLUDE_MQTT
-      sprintf(jsonBuff, "{\"%s\":\"%s\", \"%s\":\"%s\"}", "RECORD","ON","TIME",esp_log_system_timestamp());    
-      mqttPublish(jsonBuff);
-  #endif
+      if (mqtt_active) {
+        sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
+        mqttPublish(jsonBuff);
+      }
       openAvi();
       wasCapturing = true;
     }
@@ -467,7 +468,7 @@ static void readSD() {
   }
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready     
-  delay(10);                     
+  delay(10);
 }
 
 
@@ -522,7 +523,7 @@ mjpegStruct getNextFrame(bool firstCall) {
       LOG_DBG("SD wait time %lu ms", millis()-mTime);
       wTimeTot += millis()-mTime;
       mTime = millis();  
-      // overlap buffer by CHUNK_HDR to prevent jpeg marker being split between buffers                               
+      // overlap buffer by CHUNK_HDR to prevent jpeg marker being split between buffers
       memcpy(iSDbuffer+CHUNK_HDR, iSDbuffer+RAMSIZE+CHUNK_HDR, buffLen); // load new cluster from double buffer
 
       LOG_DBG("memcpy took %lu ms for %u bytes", millis()-mTime, buffLen);
@@ -589,7 +590,7 @@ mjpegStruct getNextFrame(bool firstCall) {
       LOG_INF("Average http send time: %u ms", hTimeTot / frameCnt);
       LOG_INF("Busy: %u%%", min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
     }
-    checkMemory();      
+    checkMemory();
     LOG_INF("*************************************\n");
     setFPS(saveFPS); // realign with browser
     stopPlayback = isPlaying = false;
@@ -601,6 +602,7 @@ mjpegStruct getNextFrame(bool firstCall) {
 }
 
 void stopPlaying() {
+  isStreaming = false; // if on another browser instance
   if (isPlaying) {
     // force stop any currently running playback
     stopPlayback = true;
@@ -646,7 +648,7 @@ bool prepRecording() {
   readSemaphore = xSemaphoreCreateBinary();
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
-  motionMutex = xSemaphoreCreateMutex();  
+  motionMutex = xSemaphoreCreateMutex();
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
   else {
