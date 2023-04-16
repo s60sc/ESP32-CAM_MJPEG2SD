@@ -1,4 +1,4 @@
-		
+
 <!doctype html>  
 <!-- 
   s60sc 2022, 2023
@@ -2143,7 +2143,6 @@
         }
          
         function deactivatePlaybackButton() {
-          window.stop();
           playbackButton.classList.remove("active");
           sendControl("stopStream", "1");
           playbackButton.innerHTML = "➤&nbsp;Start Playback";
@@ -2177,7 +2176,6 @@
         }
         
         function deactivateStreamButton() {
-          window.stop();
           streamButton.classList.remove("active");
           sendControl("stopStream", "1");
           streamButton.innerHTML ="➤&nbsp;Start Stream";
@@ -2198,6 +2196,7 @@
         }
         
         function stopAll() {
+          window.stop();
           if (isActive(recordButton)) deactivateRecordButton();
           if (isActive(playbackButton)) deactivatePlaybackButton();
           if (isActive(streamButton)) deactivateStreamButton();
@@ -2248,17 +2247,22 @@
               viewContainer.style.cssText = 'width:'+imgSize.width+'px; height:'+imgSize.height+'px';
             }
             else if (selectedSize == 'fullAspect') {
-              viewContainer.requestFullscreen();
+              if (viewContainer.requestFullscreen) viewContainer.requestFullscreen();
+              else viewContainer.webkitRequestFullscreen();
               const r = calculateAspectRatioFit(imgSize.width, imgSize.height, window.screen.availWidth, window.screen.availHeight)
               viewContainer.style.cssText = 'width:'+r.width+'px; height:'+r.height+'px';
               view.style.cssText = "width: 100%; height:auto";
             }
             else if (selectedSize == 'fullSize') {
-              viewContainer.requestFullscreen();
+              if (viewContainer.requestFullscreen) viewContainer.requestFullscreen();
+              else viewContainer.webkitRequestFullscreen();
               viewContainer.style.cssText = 'width:'+window.screen.availWidth+'px; height:'+window.screen.availHeight+'px';
               view.style.cssText = "width: 100%; height: 100%";
             }
-            if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) document.exitFullscreen();
+            if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) {
+              if (document.exitFullscreen) document.exitFullscreen();
+              else document.webkitExitFullscreen(); /* Safari */
+            }
             
             // locate size buttons on screen
             let buttonPos = baseFontSize / 4;

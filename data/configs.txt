@@ -86,11 +86,10 @@ smtpMaxEmails~10~2~N~Max daily emails
 sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
 sdFreeSpaceMode~1~2~S:No Check:Delete oldest:Ftp then delete~Action mode on SD min free
 formatIfMountFailed~0~2~C~Format file system on failure
-allowSpaces~0~2~C~Allow whitespace in configs.txt
 useIOextender~0~3~C~Use another ESP as IO Extender
 pirUse~0~3~C~Use PIR for detection
 lampUse~0~3~C~Use lamp
-lampAuto~0~3~C~Lamp activated by PIR
+lampType~0~3~S:Manual:PIR:NightTime~How lamp activated
 servoUse~0~3~C~Use servos
 micUse~0~3~C~Use microphone
 pirPin~~3~N~Pin used for PIR
@@ -111,9 +110,11 @@ voltLow~3~3~N~Warning level for low voltage
 voltInterval~5~3~N~Voltage check interval (mins)
 voltPin~~3~N~ADC Pin used for battery voltage
 voltUse~0~3~C~Use Voltage check
+wakePin~~3~N~Pin used for to wake app from sleep
+wakeUse~0~3~C~Deep sleep app during night
 mqtt_active~0~2~C~Mqtt enabled
 mqtt_broker~~2~T~Mqtt server ip to connect
 mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
-mqtt_user_pass~~2~T~Mqtt user password
+mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
