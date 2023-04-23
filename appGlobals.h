@@ -35,7 +35,7 @@
 
 #define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
 
-// web server ports
+// web server ports. If changed here, also need to change in mjpeg2sd.htm
 #define WEB_PORT 80 // app control
 #define STREAM_PORT 81 // camera images
 #define OTA_PORT 82 // OTA update
@@ -51,7 +51,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.6.3"
+#define APP_VER "8.6.4"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"

@@ -219,12 +219,12 @@ static void FTPtask(void* parameter) {
 
 bool ftpFileOrFolder(const char* fileFolder, bool _deleteAfter) {
   // called from other functions to commence FTP upload
+  setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
-    strcpy(storedPathName, fileFolder);
     deleteAfter = _deleteAfter;
     xTaskCreate(&FTPtask, "FTPtask", 1024 * 3, NULL, 1, &ftpHandle);    
     return true;
-  } else LOG_WRN("Unable to upload %s as another upload in progress", fileFolder);
+  } else LOG_WRN("Unable to upload %s as another upload in progress", storedPathName);
   return false;
 }

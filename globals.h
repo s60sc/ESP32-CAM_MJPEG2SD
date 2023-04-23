@@ -87,6 +87,7 @@ float readVoltage();
 void remote_log_init();
 void removeChar(char *s, char c);
 void reset_log();
+void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
 void showProgress();

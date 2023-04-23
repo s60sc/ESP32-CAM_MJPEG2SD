@@ -3,13 +3,13 @@
 ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
  
 Changes for version 8.0:
-- compiled for arduino-esp32 v2.0.7
+- compiled for arduino-esp32 v2.0.8
 - support for ESP32S3 (much better than ESP32)
 - simultaneous Wifi Station and AP mode
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes up to version 8.6.3:
+Changes up to version 8.6.4:
 - Web page improvements and jQuery removed.
 - Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
 - Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
@@ -22,6 +22,7 @@ Changes up to version 8.6.3:
 - MQTT integration added by [@gemi254](https://github.com/gemi254), see [**MQTT**](#mqtt) section below.
 - Fix for [issue 198](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/198) 
 - Added deep sleep on night, wake on LDR
+- Fix for [issue 211](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/211)
 
 
 ## Purpose

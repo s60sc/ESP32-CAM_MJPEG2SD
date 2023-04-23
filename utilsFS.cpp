@@ -169,14 +169,9 @@ bool checkFreeSpace() {
   return res;
 } 
 
-bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension) {
-  // either list day folders in root, or files in a day folder
-  bool hasExtension = false;
-  char partJson[200]; // used to build SD page json buffer
+void setFolderName(const char* fname, char* fileName) {
+  // set current or previous folder 
   char partName[FILE_NAME_LEN];
-  char fileName[FILE_NAME_LEN];
-  bool noEntries = true;
-  // set current or previous folder
   if (strchr(fname, '~') != NULL) {
     if (!strcmp(fname, currentDir)) {
       dateFormat(partName, sizeof(partName), true);
@@ -194,6 +189,15 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
       LOG_INF("Previous directory set to %s", fileName);
     } else strcpy(fileName, ""); 
   } else strcpy(fileName, fname);
+}
+
+bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension) {
+  // either list day folders in root, or files in a day folder
+  bool hasExtension = false;
+  char partJson[200]; // used to build SD page json buffer
+  bool noEntries = true;
+  char fileName[FILE_NAME_LEN];
+  setFolderName(fname, fileName);
 
   // check if folder or file
   if (strstr(fileName, extension) != NULL) {
@@ -255,22 +259,24 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
 
 void deleteFolderOrFile(const char* deleteThis) {
   // delete supplied file or folder, unless it is a reserved folder
-  File df = STORAGE.open(deleteThis);
+  char fileName[FILE_NAME_LEN];
+  setFolderName(deleteThis, fileName);
+  File df = STORAGE.open(fileName);
   if (!df) {
-    LOG_ERR("Failed to open %s", deleteThis);
+    LOG_ERR("Failed to open %s", fileName);
     return;
   }
-  if (df.isDirectory() && (strstr(deleteThis, "System") != NULL 
-      || strstr("/", deleteThis) != NULL)) {
+  if (df.isDirectory() && (strstr(fileName, "System") != NULL 
+      || strstr("/", fileName) != NULL)) {
     df.close();   
-    LOG_ERR("Deletion of %s not permitted", deleteThis);
+    LOG_ERR("Deletion of %s not permitted", fileName);
     delay(1000); // reduce thrashing on same error
     return;
   }  
-  LOG_INF("Deleting : %s", deleteThis);
+  LOG_INF("Deleting : %s", fileName);
   // Empty named folder first
-  if (df.isDirectory() || ((!strcmp(fsType, "SPIFFS")) && strstr("/", deleteThis) != NULL)) {
-    LOG_INF("Folder %s contents", deleteThis);
+  if (df.isDirectory() || ((!strcmp(fsType, "SPIFFS")) && strstr("/", fileName) != NULL)) {
+    LOG_INF("Folder %s contents", fileName);
     File file = df.openNextFile();
     while (file) {
       char filepath[FILE_NAME_LEN];
@@ -284,7 +290,7 @@ void deleteFolderOrFile(const char* deleteThis) {
       file = df.openNextFile();
     }
     // Remove the folder
-    if (df.isDirectory()) LOG_ALT("Folder %s %sdeleted", deleteThis, STORAGE.rmdir(deleteThis) ? "" : "not ");
+    if (df.isDirectory()) LOG_ALT("Folder %s %sdeleted", fileName, STORAGE.rmdir(fileName) ? "" : "not ");
     else df.close();
   } else {
     df.close();
