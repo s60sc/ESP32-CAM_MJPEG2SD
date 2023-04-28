@@ -9,7 +9,7 @@ Changes for version 8.0:
 - lamp has variable intensity
 - internal code restructuring.
 
-Changes up to version 8.6.4:
+Changes up to version 8.6.5:
 - Web page improvements and jQuery removed.
 - Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
 - Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
@@ -23,6 +23,8 @@ Changes up to version 8.6.4:
 - Fix for [issue 198](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/198) 
 - Added deep sleep on night, wake on LDR
 - Fix for [issue 211](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/211)
+- Fix for [issue 217](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/217)
+- Web log colorised for different message types
 
 
 ## Purpose

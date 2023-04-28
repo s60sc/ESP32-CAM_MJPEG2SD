@@ -51,7 +51,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.6.4"
+#define APP_VER "8.6.5"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -88,6 +88,7 @@
 #define RAM_LOG_LEN 5000 // size of ram stored system message log in bytes
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
+#define INCLUDE_MQTT
 #define INCLUDE_SD
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender

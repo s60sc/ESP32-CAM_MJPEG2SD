@@ -6,9 +6,9 @@
 // to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#pragma GCC diagnostic ignored "-Wignored-qualifiers"
+//#pragma GCC diagnostic ignored "-Wunused-variable"
+//#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+//#pragma GCC diagnostic ignored "-Wignored-qualifiers"
 
 
 /******************** Libraries *******************/
