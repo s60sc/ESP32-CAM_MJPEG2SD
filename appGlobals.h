@@ -27,6 +27,7 @@
 //#define CAMERA_MODEL_M5STACK_ESP32CAM // No PSRAM
 //#define CAMERA_MODEL_M5STACK_UNITCAM // No PSRAM
 //#define CAMERA_MODEL_TTGO_T_JOURNAL // No PSRAM
+//#define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM
 //#define CAMERA_MODEL_ESP32_CAM_BOARD
 //#define CAMERA_MODEL_ESP32S2_CAM_BOARD
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
@@ -51,7 +52,7 @@
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.6.5"
+#define APP_VER "8.7"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -99,7 +100,13 @@
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
+#elif defined(CAMERA_MODEL_XIAO_ESP32S3)
+// pins configured for SD card on this camera board
+#define SD_MMC_CLK 7 
+#define SD_MMC_CMD 9
+#define SD_MMC_D0 8
 #endif
+
 
 /******************** Libraries *******************/
 
@@ -198,7 +205,6 @@ extern char camModel[];
 
 // buffers
 extern uint8_t iSDbuffer[];
-extern byte chunk[];
 extern uint8_t aviHeader[];
 extern const uint8_t dcBuf[]; // 00dc
 extern const uint8_t wbBuf[]; // 01wb
@@ -238,9 +244,9 @@ extern int ds18b20Pin; // if INCLUDE_DS18B20 uncommented
 extern int voltPin; 
 
 // microphone recording
-extern int micSckPin; // I2S SCK
-extern int micWsPin;  // I2S WS
-extern int micSdPin;  // I2S SD
+extern int micSckPin; // I2S SCK 
+extern int micSWsPin;  // I2S WS / PDM CLK
+extern int micSdPin;  // I2S SD / PDM DAT
 
 // configure for specific servo model, eg for SG90
 extern int servoDelay;

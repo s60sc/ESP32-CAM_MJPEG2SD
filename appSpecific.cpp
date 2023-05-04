@@ -79,7 +79,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
   else if(!strcmp(variable, "voltPin")) voltPin = intVal;
   else if(!strcmp(variable, "micSckPin")) micSckPin = intVal;
-  else if(!strcmp(variable, "micWsPin")) micWsPin = intVal;
+  else if(!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
   else if(!strcmp(variable, "micSdPin")) micSdPin = intVal;
   else if(!strcmp(variable, "servoDelay")) servoDelay = intVal;
   else if(!strcmp(variable, "servoMinAngle")) servoMinAngle = intVal;

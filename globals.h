@@ -147,6 +147,7 @@ extern char ftp_user[];
 extern uint16_t ftp_port;
 extern char FTP_Pass[];
 extern char ftp_wd[];
+extern byte chunk[];
 
 //  SMTP server
 extern char smtp_login[];

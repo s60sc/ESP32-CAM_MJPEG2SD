@@ -1,30 +1,10 @@
 # ESP32-CAM_MJPEG2SD
 
 ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
- 
-Changes for version 8.0:
-- compiled for arduino-esp32 v2.0.8
-- support for ESP32S3 (much better than ESP32)
-- simultaneous Wifi Station and AP mode
-- lamp has variable intensity
-- internal code restructuring.
 
-Changes up to version 8.6.5:
-- Web page improvements and jQuery removed.
-- Support for OV5640 and OV3660 cameras, but see [**OV5640**](#ov5640) section below.
-- Spurious error [message](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/155) removed. 
-- fix for [timezone](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/150). 
-- fix for unwanted [APs](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/144). 
-- NTP server [configurable](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/151). 
-- Valid GitHub cert for https download
-- Improve AP stability
-- Improve [PIR auto lamp](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/183)  
-- MQTT integration added by [@gemi254](https://github.com/gemi254), see [**MQTT**](#mqtt) section below.
-- Fix for [issue 198](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/198) 
-- Added deep sleep on night, wake on LDR
-- Fix for [issue 211](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/211)
-- Fix for [issue 217](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/217)
-- Web log colorised for different message types
+Changes for version 8.7:
+- Support for Seeed XIAO ESP32S3 Sense board
+- Support for PDM microphone on ESP32S3
 
 
 ## Purpose
@@ -64,9 +44,9 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
-Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless using the defaults:
+Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
-* ESP32S3 Cam board - `CAMERA_MODEL_ESP32S3_EYE`
+* Freenove ESP32S3 Cam board - `CAMERA_MODEL_ESP32S3_EYE` 
 
 Compile with PSRAM enabled and the following Partition scheme:
 * ESP32 - `Minimal SPIFFS (...)`
@@ -139,10 +119,10 @@ See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 * Select if a PIR is to be used (which can also be used in parallel with camera motion detection).
 * Auto switch the lamp on for nightime PIR detection.
 * Control pan / tilt cradle for camera.
-* Connect an external I2S microphone
-* Connect a DS18B20 temperature sensor
-* Monitor voltage of battery supply on ADC pin
-* Wakeup on LDR after deep sleep at night
+* Connect a PDM or I2S microphone.
+* Connect a DS18B20 temperature sensor.
+* Monitor voltage of battery supply on ADC pin.
+* Wakeup on LDR after deep sleep at night.
 
 Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
 * pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
@@ -153,11 +133,14 @@ Note that there are not enough free pins on the ESP32 camera module to allow all
 
 Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.  
 
-The ESP32S3 Freenove board can support all of the above peripherals with its spare pins.
+The ESP32S3 Freenove board can support all of the above peripherals with its spare pins.  
+The ESP32S3 XIAO board has fewer free pins but more than the ESP32.
 
 On-board LEDs:
-* ESP32 - Lamp: 4, signal: 33.
-* ESP32S3 - Lamp: 48, signal: 2.
+* ESP32: Lamp 4, signal 33.
+* ESP32S3:
+  * Freenove: Lamp 48, signal 2.
+  * XIAO: Lamp n/a, signal 21.
 
 **Other**:
 SD and email management. An email can be sent when motion is detected.
@@ -184,11 +167,11 @@ Additional options are provided on the camera index page, where:
 
 ## Audio Recording
 
-An I2S microphone can be supported, such as INMP441. PDM and analog microphones cannot be used due to limitations of I2S_NUM_1 peripheral. I2S_NUM_0 is not available as it is used by the camera. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. The I2S microphone needs 3 free pins.
+An I2S microphone eg INMP441 is supported by both ESP32 and ESP32S3. A PDM microphone eg MP34DT01 is only supported on ESP32S3. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1).  
 
-Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate.
+Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate. 
 
-The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting 0 cancels the microphone. Other settings under **Peripherals** button on the configuration web page.
+The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting **0** cancels the microphone. Pin values are set under **Peripherals** button on the configuration web page.
 
 ## OV5640
 

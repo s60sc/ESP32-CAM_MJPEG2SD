@@ -49,6 +49,10 @@ static bool prepSD_MMC() {
   fileVec.reserve(1000);
   if (psramFound()) heap_caps_malloc_extmem_enable(4096);
 #if CONFIG_IDF_TARGET_ESP32S3
+#if !defined(SD_MMC_CLK)
+  LOG_ERR("SD card pins not defined");
+  res = false;
+#endif
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
 #endif
   
