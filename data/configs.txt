@@ -97,9 +97,9 @@ lampPin~4~3~N~Pin used for Lamp
 servoPanPin~~3~N~Pin used for Pan Servo
 servoTiltPin~~3~N~Pin used for Tilt Servo
 ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
-micSckPin~~3~N~Pin used for I2S microphone SCK 
-micWsPin~~3~N~Pin used for I2S microphone WS
-micSdPin~~3~N~Pin used for I2S microphone SD
+micSckPin~~3~N~Microphone I2S SCK pin
+micSWsPin~~3~N~Microphone I2S WS / PDM CLK pin
+micSdPin~~3~N~Microphone I2S SD / PDM DAT pin
 servoDelay~0~3~N~Delay between each 1 degree change (ms)
 servoMinAngle~0~3~N~Set min angle for servo model
 servoMaxAngle~180~3~N~Set max angle for servo model
