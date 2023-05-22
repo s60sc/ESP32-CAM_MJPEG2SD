@@ -45,23 +45,27 @@ bool isNight(uint8_t nightSwitch) {
   // or for switching on lamp if enabled
   static bool nightTime = false;
   static uint16_t nightCnt = 0;
-  if (!nightTime && lightLevel < nightSwitch) {
-    // dark image
-    nightCnt += 1;
-    // only signal night time after given sequence of dark frames
-    if (nightCnt > detectNightFrames
-  ) {
-      nightTime = true;     
-      LOG_INF("Night time"); 
+  if (nightTime) {
+    if (lightLevel > nightSwitch) {
+      // light image
+      nightCnt--;
+      // signal day time after given sequence of light frames
+      if (nightCnt == 0) {
+        nightTime = false;
+        LOG_INF("Day time");
+      }
+    }
+  } else {
+    if (lightLevel < nightSwitch) {
+      // dark image
+      nightCnt++;
+      // signal night time after given sequence of dark frames
+      if (nightCnt > detectNightFrames) {
+        nightTime = true;     
+        LOG_INF("Night time"); 
+      }
     }
   } 
-  if (lightLevel > nightSwitch) {
-    nightCnt = 0;
-    if (nightTime) {
-      nightTime = false;
-      LOG_INF("Day time");
-    }
-  }  
   return nightTime;
 }
 

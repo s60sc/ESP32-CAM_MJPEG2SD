@@ -161,8 +161,12 @@ static void timeLapse(camera_fb_t* fb) {
         LOG_INF("Started time lapse file %s, duration %u mins, for %u frames",  TLname, tlDurationMins, requiredFrames);
         frameCntTL++; // to stop re-entering
       }
+      // switch on light before capture frame if nightTime and useLamp selected
+      // requires lampActivated = PIR
+      if (nightTime && intervalCnt == intervalMark - (saveFPS / 2)) setLamp(lampLevel);
       if (intervalCnt > intervalMark) {
         // save this frame to time lapse avi
+        if (!lampNight) setLamp(0);
         uint8_t hdrBuff[CHUNK_HDR];
         memcpy(hdrBuff, dcBuf, 4); 
         // align end of jpeg on 4 byte boundary for AVI

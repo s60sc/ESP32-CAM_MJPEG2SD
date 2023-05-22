@@ -63,6 +63,20 @@ static void setupMdnsHost() {
   debugMemory("setupMdnsHost");
 }
 
+static const char* wifiStatusStr(wl_status_t wlStat) {
+  switch (wlStat) {
+    case WL_NO_SHIELD: return "wifi not initialised";
+    case WL_IDLE_STATUS: return "WL_IDLE_STATUS";
+    case WL_NO_SSID_AVAIL: return "not available, use AP";
+    case WL_SCAN_COMPLETED: return "WL_SCAN_COMPLETED";
+    case WL_CONNECTED: return "WL_CONNECTED";
+    case WL_CONNECT_FAILED: return "WL_CONNECT_FAILED";
+    case WL_CONNECTION_LOST: return "WL_CONNECTION_LOST";
+    case WL_DISCONNECTED: return "unable to connect";
+  }
+  return "Invalid WiFi.status";
+}
+
 const char* getEncType(int ssidIndex) {
   switch (WiFi.encryptionType(ssidIndex)) {
     case (WIFI_AUTH_OPEN):
@@ -113,7 +127,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
   else LOG_WRN("WiFi Unhandled event %d", event);
 }
 
-static bool setWifiAP() {
+static void setWifiAP() {
   if (!APstarted) {
     // Set access point with static ip if provided
     if (strlen(AP_ip) > 1) {
@@ -126,31 +140,28 @@ static bool setWifiAP() {
       WiFi.softAPConfig(_ip, _gw, _sn);
     } 
     WiFi.softAP(AP_SSID, AP_Pass);
+    debugMemory("setWifiAP");
   }
-  return true;
 }
 
-static bool setWifiSTA() {
+static void setWifiSTA() {
   // set station with static ip if provided
-  if (strlen(ST_SSID)) { 
-    if (strlen(ST_ip) > 1) {
-      IPAddress _ip, _gw, _sn, _ns1, _ns2;
-      if (!_ip.fromString(ST_ip)) LOG_ERR("Failed to parse IP: %s", ST_ip);
-      else {
-        _ip.fromString(ST_ip);
-        _gw.fromString(ST_gw);
-        _sn.fromString(ST_sn);
-        _ns1.fromString(ST_ns1);
-        _ns2.fromString(ST_ns2);
-        // set static ip
-        WiFi.config(_ip, _gw, _sn, _ns1); // need DNS for SNTP
-        LOG_INF("Wifi Station set static IP");
-      } 
-    } else LOG_INF("Wifi Station IP from DHCP");
-    WiFi.begin(ST_SSID, ST_Pass);
-    return true;
-  } else LOG_WRN("No Station SSID provided, use AP");
-  return false;
+  if (strlen(ST_ip) > 1) {
+    IPAddress _ip, _gw, _sn, _ns1, _ns2;
+    if (!_ip.fromString(ST_ip)) LOG_ERR("Failed to parse IP: %s", ST_ip);
+    else {
+      _ip.fromString(ST_ip);
+      _gw.fromString(ST_gw);
+      _sn.fromString(ST_sn);
+      _ns1.fromString(ST_ns1);
+      _ns2.fromString(ST_ns2);
+      // set static ip
+      WiFi.config(_ip, _gw, _sn, _ns1); // need DNS for SNTP
+      LOG_INF("Wifi Station set static IP");
+    } 
+  } else LOG_INF("Wifi Station IP from DHCP");
+  WiFi.begin(ST_SSID, ST_Pass);
+  debugMemory("setWifiSTA");
 }
 
 bool startWifi(bool firstcall) {
@@ -159,27 +170,26 @@ bool startWifi(bool firstcall) {
     WiFi.mode(WIFI_AP_STA);
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
     WiFi.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
-    WiFi.softAPdisconnect(false); // kill rogue AP on startup
-    WiFi.disconnect(true);
+    WiFi.softAPdisconnect(true); // kill rogue AP on startup
     WiFi.setHostname(hostName);
+    delay(100);
     WiFi.onEvent(onWiFiEvent);
   }
-  bool station = setWifiSTA();
-  debugMemory("setWifiSTA");
-  if (!station || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use
-  debugMemory("setWifiAP");
-  if (station) {
-    // connect to Wifi station
-    uint32_t startAttemptTime = millis();
-    // Stop trying on failure timeout, will try to reconnect later by ping
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 5000)  {
+  setWifiSTA();
+  // connect to Wifi station
+  uint32_t startAttemptTime = millis();
+  // Stop trying on failure timeout, will try to reconnect later by ping
+  wl_status_t wlStat;
+  if (!strlen(ST_SSID)) wlStat = WL_NO_SSID_AVAIL;
+  else {
+    while (wlStat = WiFi.status(), wlStat != WL_CONNECTED && millis() - startAttemptTime < 5000)  {
       Serial.print(".");
       delay(500);
       Serial.flush();
     }
-    if (pingHandle == NULL) startPing();
-    debugMemory("startPing");
   }
+  if (wlStat == WL_NO_SSID_AVAIL || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use 
+  if (wlStat != WL_CONNECTED) LOG_WRN("SSID %s %s", ST_SSID, wifiStatusStr(wlStat));
 #if CONFIG_IDF_TARGET_ESP32S3
   setupMdnsHost(); // not on ESP32 as uses 6k of heap
 #endif
@@ -189,7 +199,8 @@ bool startWifi(bool firstcall) {
     if (!strcmp(WiFi.SSID(i).c_str(), ST_SSID))
       LOG_INF("Wifi stats for %s - signal strength: %d dBm; Encryption: %s; channel: %u",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
   }
-  return WiFi.status() == WL_CONNECTED ? true : false;
+  if (pingHandle == NULL) startPing();
+  return wlStat == WL_CONNECTED ? true : false;
 }
 
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
@@ -202,8 +213,14 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
-  LOG_WRN("Failed to ping gateway, restart wifi ...");
-  startWifi(false);
+  if (strlen(ST_SSID)) {
+    wl_status_t wStat = WiFi.status();
+    if (wStat != WL_NO_SSID_AVAIL && wStat != WL_NO_SHIELD) {
+      LOG_WRN("Failed to ping gateway, restart wifi ...");
+      startWifi(false);
+    }
+  }
+  doAppPing();
 }
 
 static void startPing() {
@@ -230,6 +247,7 @@ static void startPing() {
   esp_ping_new_session(&pingConfig, &cbs, &pingHandle);
   esp_ping_start(pingHandle);
   LOG_INF("Started ping monitoring");
+  debugMemory("startPing");
 }
 
 void stopPing() {

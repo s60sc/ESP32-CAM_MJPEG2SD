@@ -206,7 +206,9 @@ static bool uploadFolderOrFileFtp() {
 
 static void FTPtask(void* parameter) {
   // process an FTP request
+#ifdef ISCAM
   doPlayback = false; // close any current playback
+#endif
   bool res = uploadFolderOrFileFtp();
   // Disconnect from ftp server
   client.println("QUIT");

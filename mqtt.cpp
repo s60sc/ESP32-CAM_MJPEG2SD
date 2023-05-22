@@ -86,9 +86,11 @@ void checkForRemoteQuerry() {
         } else if (!strcmp(query, "clockUTC")) { //Set time from browser clock
             
         } else {  
+#ifdef ISCAM
           //Block other tasks from accessing the camera
           if (!strcmp(query, "fps")) setFPS(atoi(value));
           else if (!strcmp(query, "framesize"))  setFPSlookup(fsizePtr);
+#endif
           updateStatus(query, value);
         }          
       } else { //No params command

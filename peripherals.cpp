@@ -300,11 +300,11 @@ float readVoltage()  {
 static void battTask(void* parameter) {
   if (voltInterval < 1) voltInterval = 1;
   while (true) {
-    static bool sentEmailAlert = false;
     // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
     currentVoltage = (float)(smoothAnalog(voltPin)) * 3.3 * voltDivider / pow(2, ADC_BITS);
 
 #ifdef INCLUDE_SMTP
+    static bool sentEmailAlert = false;
     if (currentVoltage < voltLow && !sentEmailAlert) {
       sentEmailAlert = true; // only sent once per esp32 session
       smtpBufferSize = 0; // no attachment

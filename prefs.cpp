@@ -386,6 +386,20 @@ void initStatus(int cfgGroup, int delayVal) {
   }
 }
 
+static void setDefaults() {
+  // set default hostname and AP SSID if config is null
+  retrieveConfigVal("hostName", hostName);
+  if (!strlen(hostName)) {
+    sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
+    updateConfigVect("hostName", hostName);
+  }
+  retrieveConfigVal("AP_SSID", AP_SSID);
+  if (!strlen(AP_SSID)) {
+    strcpy(AP_SSID, hostName);
+    updateConfigVect("AP_SSID", AP_SSID);
+  }
+}
+
 bool loadConfig() {
   // called on startup
   LOG_INF("Load config");
@@ -404,17 +418,7 @@ bool loadConfig() {
       return false;
     }
     loadPrefs(); // overwrites any corresponding entries in config
-    // set default hostname and AP SSID if config is null
-    retrieveConfigVal("hostName", hostName);
-    if (!strlen(hostName)) {
-      sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
-      updateConfigVect("hostName", hostName);
-    }
-    retrieveConfigVal("AP_SSID", AP_SSID);
-    if (!strlen(AP_SSID)) {
-      strcpy(AP_SSID, hostName);
-      updateConfigVect("AP_SSID", AP_SSID);
-    }
+    setDefaults();
   
     // load variables from stored config vector
     while (getNextKeyVal(variable, value)) updateStatus(variable, value);
@@ -424,6 +428,7 @@ bool loadConfig() {
   }
   // no config file
   loadPrefs(); 
+  setDefaults();
   while (getNextKeyVal(variable, value)) updateStatus(variable, value);
   return false;
 }
