@@ -626,8 +626,10 @@ void logPrint(const char *format, ...) {
       } else ramLogStore(msgLen); // store in ram instead
     }
     // output to web socket if open
-    outBuf[msgLen - 1] = 0; // lose final '/n'
-    wsAsyncSend(outBuf);
+    if (msgLen > 1) {
+      outBuf[msgLen - 1] = 0; // lose final '/n'
+      wsAsyncSend(outBuf);
+    }
     delay(FLUSH_DELAY);
     xSemaphoreGive(logMutex);
   } 
