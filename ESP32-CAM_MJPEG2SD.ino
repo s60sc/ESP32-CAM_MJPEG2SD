@@ -129,12 +129,12 @@ void setup() {
   
   // prep SD card storage
   startStorage();
-
-  // initialise camera
-  prepCam();
   
   // Load saved user configuration
   loadConfig();
+
+  // initialise camera
+  prepCam();
 
 #ifdef DEV_ONLY
   devSetup();

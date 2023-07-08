@@ -2,12 +2,13 @@
 
 ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
 
-Recent changes up to version 8.7.1:
+Recent changes up to version 8.7.2:
 - Support for Seeed XIAO ESP32S3 Sense board
 - Support for PDM microphone on ESP32S3
 - Lamp flash at night for timelapse
 - Ignore ping failure if SSID not available
 - Compiled for arduino-esp32 v2.0.9
+- Support for TTGO T-Camera Plus (see [issue 232](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/232))
 
 
 ## Purpose

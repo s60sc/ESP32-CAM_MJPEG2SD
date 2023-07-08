@@ -65,7 +65,7 @@ bool updateAppStatus(const char* variable, const char* value) {
     lampType = intVal;
     lampAuto = lampNight = false;
     if (lampType == 1) lampAuto = true;
-    if (lampType == 2) lampNight = true;
+    //if (lampType == 2) lampNight = true;
     if (!lampType) setLamp(lampLevel); // manual
     else setLamp(0); 
   }
@@ -183,7 +183,7 @@ void buildAppJsonString(bool filter) {
     forcePlayback = false;
     p += sprintf(p, "\"forcePlayback\":0,");  
   }
-  p += sprintf(p, "\"showRecord\":%u,", (uint8_t)isCapturing);
+  p += sprintf(p, "\"showRecord\":%u,", (uint8_t)((isCapturing && doRecording) || forceRecord));
   p += sprintf(p, "\"camModel\":\"%s\",", camModel); 
   
   // Extend info
@@ -227,6 +227,6 @@ void doAppPing() {
      digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
      goToSleep(wakePin, true);
     }
-    if (lampNight) setLamp(lampLevel);
-  } else if (lampNight) setLamp(0);
+//    if (lampNight) setLamp(lampLevel);
+  } // else if (lampNight) setLamp(0);
 }

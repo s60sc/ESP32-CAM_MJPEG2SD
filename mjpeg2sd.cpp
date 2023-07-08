@@ -259,7 +259,7 @@ static bool closeAvi() {
   // closes the recorded file
   uint32_t vidDuration = millis() - startTime;
   uint32_t vidDurationSecs = lround(vidDuration/1000.0);
-  Serial.println("");
+  logLine();
   LOG_DBG("Capture time %u, min seconds: %u ", vidDurationSecs, minSeconds);
 
   cTime = millis();
@@ -383,7 +383,7 @@ static boolean processFrame() {
       saveFrame(fb);
       showProgress();
       if (frameCnt >= maxFrames) {
-        Serial.println("");
+        logLine();
         LOG_INF("Auto closed recording after %u frames", maxFrames);
         forceRecord = false;
       }
@@ -529,7 +529,6 @@ mjpegStruct getNextFrame(bool firstCall) {
       mTime = millis();  
       // overlap buffer by CHUNK_HDR to prevent jpeg marker being split between buffers
       memcpy(iSDbuffer+CHUNK_HDR, iSDbuffer+RAMSIZE+CHUNK_HDR, buffLen); // load new cluster from double buffer
-
       LOG_DBG("memcpy took %lu ms for %u bytes", millis()-mTime, buffLen);
       fTimeTot += millis() - mTime;
       remainingBuff = true;
@@ -577,7 +576,7 @@ mjpegStruct getNextFrame(bool firstCall) {
   } else {
     // finished, close SD file used for streaming
     playbackFile.close();
-    logPrint("\n");
+    logLine();
     if (!completedPlayback) LOG_INF("Force close playback");
     uint32_t playDuration = (millis() - sTime) / 1000;
     uint32_t totBusy = wTimeTot + fTimeTot + hTimeTot;
@@ -614,7 +613,7 @@ void stopPlaying() {
     uint32_t timeOut = millis();
     while (isPlaying && millis() - timeOut < 2000) delay(10);
     if (isPlaying) {
-      Serial.println("");
+      logLine();
       LOG_WRN("Force closed playback");
       doPlayback = false; // stop webserver playback
       setFPS(saveFPS);
@@ -668,7 +667,7 @@ bool prepRecording() {
     LOG_INF("- raise %s pin %u to 3.3V", extStr, pirPin);
   }
   if (useMotion) LOG_INF("- move in front of camera");
-  Serial.println();
+  logLine();
   debugMemory("prepRecording");
   return true;
 }

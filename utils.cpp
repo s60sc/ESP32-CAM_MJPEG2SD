@@ -20,6 +20,8 @@ char startupFailure[50] = {0};
 
 /************************** Wifi **************************/
 
+#include <esp_task_wdt.h>
+
 char hostName[32] = ""; // Default Host name
 char ST_SSID[32]  = ""; //Default router ssid
 char ST_Pass[MAX_PWD_LEN] = ""; //Default router passd
@@ -79,52 +81,47 @@ static const char* wifiStatusStr(wl_status_t wlStat) {
 
 const char* getEncType(int ssidIndex) {
   switch (WiFi.encryptionType(ssidIndex)) {
-    case (WIFI_AUTH_OPEN):
-      return "Open";
-    case (WIFI_AUTH_WEP):
-      return "WEP";
-    case (WIFI_AUTH_WPA_PSK):
-      return "WPA_PSK";
-    case (WIFI_AUTH_WPA2_PSK):
-      return "WPA2_PSK";
-    case (WIFI_AUTH_WPA_WPA2_PSK):
-      return "WPA_WPA2_PSK";
-    case (WIFI_AUTH_WPA2_ENTERPRISE):
-      return "WPA2_ENTERPRISE";
-    case (WIFI_AUTH_MAX):
-      return "AUTH_MAX";
-    default:
-      return "Not listed";
+    case (WIFI_AUTH_OPEN): return "Open";
+    case (WIFI_AUTH_WEP): return "WEP";
+    case (WIFI_AUTH_WPA_PSK): return "WPA_PSK";
+    case (WIFI_AUTH_WPA2_PSK): return "WPA2_PSK";
+    case (WIFI_AUTH_WPA_WPA2_PSK): return "WPA_WPA2_PSK";
+    case (WIFI_AUTH_WPA2_ENTERPRISE): return "WPA2_ENTERPRISE";
+    case (WIFI_AUTH_MAX): return "AUTH_MAX";
+    default: return "Not listed";
   }
-  return "n/a";
 }
 
 static void onWiFiEvent(WiFiEvent_t event) {
   // callback to report on wifi events
-  if (event == ARDUINO_EVENT_WIFI_READY);
-  else if (event == ARDUINO_EVENT_WIFI_SCAN_DONE);  
-  else if (event == ARDUINO_EVENT_WIFI_STA_START) LOG_INF("Wifi Station started, connecting to: %s", ST_SSID);
-  else if (event == ARDUINO_EVENT_WIFI_STA_STOP) LOG_INF("Wifi Station stopped %s", ST_SSID);
-  else if (event == ARDUINO_EVENT_WIFI_AP_START) {
-    if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID) || !strlen(AP_SSID)) {
-      LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
-      APstarted = true;
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_READY: break;
+    case ARDUINO_EVENT_WIFI_SCAN_DONE: break;
+    case ARDUINO_EVENT_WIFI_STA_START: LOG_INF("Wifi Station started, connecting to: %s", ST_SSID); break;
+    case ARDUINO_EVENT_WIFI_STA_STOP: LOG_INF("Wifi Station stopped %s", ST_SSID); break;
+    case ARDUINO_EVENT_WIFI_AP_START: {
+      if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID) || !strlen(AP_SSID)) {
+        LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+        APstarted = true;
+      }
+      break;
     }
-  }
-  else if (event == ARDUINO_EVENT_WIFI_AP_STOP) {
-    if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
-      LOG_INF("Wifi AP stopped: %s", AP_SSID);
-      APstarted = false;
+    case ARDUINO_EVENT_WIFI_AP_STOP: {
+      if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
+        LOG_INF("Wifi AP stopped: %s", AP_SSID);
+        APstarted = false;
+      }
+      break;
     }
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP: LOG_INF("Wifi Station IP, use 'http://%s' to connect", WiFi.localIP().toString().c_str()); break;
+    case ARDUINO_EVENT_WIFI_STA_LOST_IP: LOG_INF("Wifi Station lost IP"); break;
+    case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED: break;
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED: LOG_INF("WiFi Station connection to %s, using hostname: %s", ST_SSID, hostName); break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: LOG_INF("WiFi Station disconnected"); break;
+    case ARDUINO_EVENT_WIFI_AP_STACONNECTED: LOG_INF("WiFi AP client connection"); break;
+    case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: LOG_INF("WiFi AP client disconnection"); break;
+    default: LOG_WRN("WiFi Unhandled event %d", event); break;
   }
-  else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) LOG_INF("Wifi Station IP, use 'http://%s' to connect", WiFi.localIP().toString().c_str()); 
-  else if (event == ARDUINO_EVENT_WIFI_STA_LOST_IP) LOG_INF("Wifi Station lost IP");
-  else if (event == ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED);
-  else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) LOG_INF("WiFi Station connection to %s, using hostname: %s", ST_SSID, hostName);
-  else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) LOG_INF("WiFi Station disconnected");
-  else if (event == ARDUINO_EVENT_WIFI_AP_STACONNECTED) LOG_INF("WiFi AP client connection");
-  else if (event == ARDUINO_EVENT_WIFI_AP_STADISCONNECTED) LOG_INF("WiFi AP client disconnection");
-  else LOG_WRN("WiFi Unhandled event %d", event);
 }
 
 static void setWifiAP() {
@@ -203,13 +200,27 @@ bool startWifi(bool firstcall) {
   return wlStat == WL_CONNECTED ? true : false;
 }
 
+static void resetWatchDog() {
+  // use ping task as watchdog in case of freeze
+  static bool watchDogStarted = false;
+  if (watchDogStarted) {
+    esp_task_wdt_reset();
+    doAppPing();
+  } else {
+    esp_task_wdt_init(wifiTimeoutSecs * 2, true); // enable panic so ESP32 restarts
+    esp_task_wdt_add(NULL);
+    watchDogStarted = true;
+    LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
+  }
+}
+
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
 #ifdef INCLUDE_MQTT
   if (mqtt_active) startMqttClient();
 #endif
-  doAppPing();
+  resetWatchDog();
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
@@ -220,7 +231,7 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
       startWifi(false);
     }
   }
-  doAppPing();
+  resetWatchDog();
 }
 
 static void startPing() {
@@ -378,7 +389,7 @@ void showProgress() {
   logPrint("."); // progress marker
   if (++dotCnt >= 50) {
     dotCnt = 0;
-    logPrint("\n");
+    logLine();
   }
 }
 
@@ -457,8 +468,8 @@ void debugMemory(const char* caller) {
 }
 
 void doRestart(const char* restartStr) {
-  flush_log(true);
   LOG_ALT("Controlled restart: %s", restartStr);
+  flush_log(true);
   delay(2000);
   ESP.restart();
 }
@@ -505,7 +516,8 @@ static int logWait = 100; // ms
 bool useLogColors = false;  // true to colorise log messages (eg if using idf.py, but not arduino)
 
 #define WRITE_CACHE_CYCLE 5
-bool logMode = false; // 
+bool logMode = false; // log to SD
+static bool ramMode = false; // log to RAM
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
@@ -526,7 +538,7 @@ static void ramLogClear() {
 
 
 void ramLogPrep() {
-  logMode = true;
+  ramMode = true;
   mlogLen = RAM_LOG_LEN;
   messageLog = (char*)malloc(mlogLen);
   ramLogClear();
@@ -564,20 +576,21 @@ static void remote_log_init_SD() {
   log_remote_fp = NULL;
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
   if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
-  else {LOG_INF("Opened SD file for logging");}
+  else {
+    logPrint(" \n\n");
+    LOG_INF("Opened SD file for logging");
+  }
 #endif
 }
 
 void reset_log() {
-  ramLogClear();
-#if !CONFIG_IDF_TARGET_ESP32C3
-  if (log_remote_fp != NULL) {
-    flush_log(true); // Close log file
-    SD_MMC.remove(LOG_FILE_PATH);
-    LOG_INF("Cleared log file");
-    if (logMode) remote_log_init_SD();   
-  }
-#endif
+  if (ramMode) ramLogClear();
+#ifdef INCLUDE_SD
+  if (log_remote_fp != NULL) flush_log(true); // Close log file
+  SD_MMC.remove(LOG_FILE_PATH);
+  if (logMode) remote_log_init_SD();  
+#endif 
+  LOG_INF("Cleared log file"); 
 }
 
 void remote_log_init() {
@@ -623,8 +636,9 @@ void logPrint(const char *format, ...) {
         fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
         // periodic sync to SD
         if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
-      } else ramLogStore(msgLen); // store in ram instead
+      } 
     }
+    if (ramMode) ramLogStore(msgLen); // store in ram instead
     // output to web socket if open
     if (msgLen > 1) {
       outBuf[msgLen - 1] = 0; // lose final '/n'
@@ -633,6 +647,9 @@ void logPrint(const char *format, ...) {
     delay(FLUSH_DELAY);
     xSemaphoreGive(logMutex);
   } 
+}
+void logLine() {
+  logPrint(" \n");
 }
 
 void logSetup() {
@@ -645,7 +662,6 @@ void logSetup() {
   xSemaphoreGive(logSemaphore);
   xSemaphoreGive(logMutex);
   xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle); 
-  print_wakeup_reason();
 }
 
 void formatHex(const char* inData, size_t inLen) {
@@ -697,11 +713,11 @@ const char* encode64(const char* inp) {
 }
 
 
-/****************** send device to sleep (light or deep) ******************/
+/****************** send device to sleep (light or deep) & watchdog ******************/
 
 #include <esp_wifi.h>
 
-void print_wakeup_reason() {
+static void printWakeupReason() {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
   switch(wakeup_reason) {
     case ESP_SLEEP_WAKEUP_EXT0 : LOG_INF("Wakeup by external signal using RTC_IO"); break;
@@ -716,6 +732,29 @@ void print_wakeup_reason() {
     case ESP_SLEEP_WAKEUP_UART: LOG_INF("Wakeup by UART"); break; 
     default : LOG_INF("Wakeup by reset"); break;
   }
+}
+
+static void printResetReason() {
+  esp_reset_reason_t bootReason = esp_reset_reason();
+  switch (bootReason) {
+    case ESP_RST_UNKNOWN: LOG_INF("Reset for unknown reason"); break;
+    case ESP_RST_POWERON: LOG_INF("Power on reset"); break;
+    case ESP_RST_EXT: LOG_INF("Reset from external pin"); break;
+    case ESP_RST_SW: LOG_INF("Software reset via esp_restart"); break;
+    case ESP_RST_PANIC: LOG_INF("Software reset due to exception/panic"); break;
+    case ESP_RST_INT_WDT: LOG_INF("Reset due to interrupt watchdog"); break;
+    case ESP_RST_TASK_WDT: LOG_INF("Reset due to task watchdog"); break;
+    case ESP_RST_WDT: LOG_INF("Reset due to other watchdogs"); break;
+    case ESP_RST_DEEPSLEEP: LOG_INF("Reset after exiting deep sleep mode"); break;
+    case ESP_RST_BROWNOUT: LOG_INF("Brownout reset (software or hardware)"); break;
+    case ESP_RST_SDIO: LOG_INF("Reset over SDIO"); break;
+    default: LOG_INF("Unhandled reset reason"); break;
+  }
+}
+
+void wakeupResetReason() {
+  printResetReason();
+  printWakeupReason();
 }
 
 void goToSleep(int wakeupPin, bool deepSleep) {

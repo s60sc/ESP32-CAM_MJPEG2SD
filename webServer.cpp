@@ -44,6 +44,7 @@ static bool sendChunks(File df, httpd_req_t *req) {
 static esp_err_t fileHandler(httpd_req_t* req, bool download) {
   // send file contents to browser
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  if (!strcmp(inFileName, LOG_FILE_PATH)) flush_log(false);
   File df = fp.open(inFileName);
   if (!df) {
     df.close();
@@ -405,7 +406,7 @@ static void uploadHandler() {
     if (cmd == DATA_UPDATE) {
       // web page update
       if (df.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        LOG_ERR("Failed to save %s on Storage", filename.c_str());
+        LOG_ERR("Failed to save %s on Storage", df.name());
         return;
       }
     } else {

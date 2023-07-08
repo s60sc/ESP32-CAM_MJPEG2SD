@@ -31,10 +31,12 @@
 //#define CAMERA_MODEL_ESP32_CAM_BOARD
 //#define CAMERA_MODEL_ESP32S2_CAM_BOARD
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
+//#define CAMERA_MODEL_TTGO_T_CAMERA_PLUS
 
 #include "camera_pins.h"
 
 #define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
+#define USE_DS18B20 false  // if true, requires additional libraries: OneWire and DallasTemperature
 
 // web server ports. If changed here, also need to change in mjpeg2sd.htm
 #define WEB_PORT 80 // app control
@@ -47,12 +49,12 @@
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.7.1"
+#define APP_VER "8.7.2"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define DATA_DIR "/data"
@@ -91,21 +93,25 @@
 #define INCLUDE_SMTP
 #define INCLUDE_MQTT
 #define INCLUDE_SD
-#define ISCAM
+#define ISCAM // cam specific code in generics
+#define SIDE_ALARM // uncomment if used for side alarm 
 
 #define IS_IO_EXTENDER false // must be false unless IO_Extender
 #define EXTPIN 100
 
+// non default pins configured for SD card on given camera board
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
-// pins configured for SD card on this camera board
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
 #elif defined(CAMERA_MODEL_XIAO_ESP32S3)
-// pins configured for SD card on this camera board
 #define SD_MMC_CLK 7 
 #define SD_MMC_CMD 9
 #define SD_MMC_D0 8
+#elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
+#define SD_MMC_CLK 21 // SCLK
+#define SD_MMC_CMD 19 // MOSI
+#define SD_MMC_D0 22  // MISO
 #endif
 
 
@@ -240,7 +246,7 @@ extern int wakePin; // if wakeUse is true
 extern int servoPanPin; // if useServos is true
 extern int servoTiltPin;
 // ambient / module temperature reading 
-extern int ds18b20Pin; // if INCLUDE_DS18B20 uncommented
+extern int ds18b20Pin; // if USE_DS18B20 true
 // batt monitoring 
 extern int voltPin; 
 

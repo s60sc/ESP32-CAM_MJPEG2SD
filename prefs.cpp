@@ -424,6 +424,7 @@ bool loadConfig() {
     while (getNextKeyVal(variable, value)) updateStatus(variable, value);
     configLoaded = true;
     debugMemory("loadConfig");
+    wakeupResetReason();
     return true;
   }
   // no config file
