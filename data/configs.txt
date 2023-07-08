@@ -89,7 +89,7 @@ formatIfMountFailed~0~2~C~Format file system on failure
 useIOextender~0~3~C~Use another ESP as IO Extender
 pirUse~0~3~C~Use PIR for detection
 lampUse~0~3~C~Use lamp
-lampType~0~3~S:Manual:PIR:NightTime~How lamp activated
+lampType~0~3~S:Manual:PIR~How lamp activated
 servoUse~0~3~C~Use servos
 micUse~0~3~C~Use microphone
 pirPin~~3~N~Pin used for PIR

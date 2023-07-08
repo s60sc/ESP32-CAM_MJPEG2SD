@@ -1400,9 +1400,11 @@
 
         /*********** initialisation  ***********/
         
+        // web server ports. If changed here, also need to change in appGlobals.h
         const webPort = 80;
         const otaPort = 82;
         const streamPort = 81;
+        
         const baseHost = document.location.hostname;
         const webHost = "http://" + baseHost;
         const webServer = webHost + ":" + webPort;
@@ -2394,12 +2396,12 @@
         
         async function getSDlog() {
           // request SD log file
+          const log = $('#sdlog');
+          log.innerHTML = "";
           const response = await fetch('/web?log.txt');
           if (response.ok) {
             const logData = await response.text();
             let start = 0;
-            let log = $('#sdlog');
-            
             const loadNextLine = () => {
               const index = logData.indexOf("\n", start);
               if (index !== -1) {
