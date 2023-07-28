@@ -1,5 +1,5 @@
 
-<!doctype html>  
+<!DOCTYPE html>
 <!-- 
   s60sc 2022, 2023
   with ideas from @marekful
@@ -58,7 +58,13 @@
       }
       
       progress {
+        accent-color: var(--buttonActive); 
         width: calc(var(--buttonSize) * 15);
+      }
+      
+      .fixed {
+        position: fixed;
+        top: 0;
       }
       
       .alertMsg {
@@ -171,6 +177,294 @@
         pointer-events: none;
       } 
      
+      .panel {
+        padding: 0 var(--buttonSize);
+        display: none;
+        background-color: var(--pageBackground);
+        overflow: hidden;
+      }
+      
+      button {
+        display: block;
+        margin: var(--buttonQuart);
+        padding: var(--buttonQuart);
+        border: 0;
+        line-height: var(--headingSize);
+        cursor: pointer;
+        color: var(--buttonText);
+        background: var(--buttonReady);
+        border-radius: var(--buttonQuart);
+        font-size: var(--buttonSize);
+        outline: 0
+      }
+
+      button:active {
+       box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
+       background: var(--buttonActive);
+      }
+
+      button:hover {
+        background: var(--buttonHover);
+      }
+
+      button:disabled {
+        cursor: default;
+        background: var(--itemInactive)
+      }
+      
+      .input-group {
+        position: relative;
+        display: flex;
+        flex-wrap: nowrap;
+        line-height: var(--buttonDbl);
+        margin-top: var(--buttonHalf);
+      }
+      
+      .input-group>label {
+        display: inline-block;
+        padding-right: var(--buttonHalf);
+        min-width: 40%;
+      }
+      
+      .input-group>input {
+        width: 100%;
+      }
+
+      .input-group input,.input-group select {
+        flex-grow: 1
+      }
+      
+      input, #applog, #sdlog {
+        font: var(--inputSize) 'Courier New';
+        font-weight:bold;
+        color: var(--inputText);
+        background: var(--inputBackground);
+        min-width: calc(var(--buttonSize) * 10);     
+      }
+      
+      input[type="radio"], input[type="checkbox"], progress {
+        accent-color: var(--buttonActive);
+      }
+
+      input {
+        height: calc(var(--inputSize) * 1.5);
+        margin: 0 0 var(--buttonHalf) 0;
+        border-radius: var(--buttonQuart);
+      }
+
+      input[type="text"]{
+        font-size: var(--inputSize); 
+        width: calc(var(--buttonSize) * 6);
+      }
+      
+      input[type="checkbox"] {
+        width : calc(var(--inputSize) * 1.5);
+        height : calc(var(--inputSize) * 1.5);
+        margin-top: calc(var(--buttonQuart) * -1);
+      }
+      
+      input[type="radio"] {
+        width: var(--inputSize);
+        height: var(--inputSize);
+        min-width: var(--buttonSize);
+      }
+      
+ /*     input[type="number"]:not(.configItem), input[type="time"] {
+        font-size: var(--buttonDbl);
+        border: 1px solid var(--itemBorder);
+        margin-bottom: var(--buttonQuart);
+        min-width: calc(var(--buttonSize) * 7);
+        text-align: center;
+      } */
+      
+      input[type=number]::-webkit-inner-spin-button {
+        opacity: 1
+      }
+      
+      
+      /* checkbox toggle switch slider */
+            
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: calc(var(--buttonSize) * 2);
+        height: var(--buttonSize);
+        top: var(--buttonHalf);
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        border-radius: var(--buttonSize);
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--itemInactive);
+        width: calc(var(--buttonSize) * 3);                      
+        transition: .4s;
+      }
+
+      .slider:before {
+        position: absolute;
+        border-radius: 50%;
+        content: "";
+        height: var(--buttonSize);
+        width: var(--buttonSize);
+        left: var(--buttonQuart);
+        background: var(--inputBackground);
+        transition: .4s;
+      }
+
+      input:checked + .slider {
+        background-color: var(--buttonActive);
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(calc(var(--buttonSize)*1.5));
+      }
+      
+      #applog, #sdlog {
+        height:50vh;
+        width:90%;
+        border:2px solid var(--itemBorder);
+        overflow:auto;
+        background: var(--inputBackground);
+      }
+      
+      select {
+        border: 1px solid var(--menuBackground);
+        font-size: var(--inputSize);
+        outline: 0;
+        border-radius: var(--buttonQuart);
+        margin-top: 2px;
+      }
+      
+      .selectField {
+         height: calc(var(--inputSize) * 1.5);
+      }
+      
+      table {
+        border-collapse:collapse; 
+        table-layout:fixed;
+        background: var(--menuBackground);
+        text-align: left;
+      }
+      
+      th, td {
+        font-weight:bold; 
+      }
+      
+      .config-group th, .config-group td {
+        border: 0;
+        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf); 
+        padding-left: var(--buttonSize);
+        line-height: var(--buttonDbl);
+        font-size: var(--buttonSize);
+      }
+      
+      .configGroup td input[type="number"] {
+        font-size: var(--buttonSize);
+      }
+      
+      input.configItem[type="radio"] {
+        min-width: var(--buttonSize); 
+      }
+      
+      input.configItem[type="number"] {
+        min-width: calc(var(--buttonSize) * 3); 
+        width: calc(var(--buttonSize) * 3); 
+      }
+      
+      .svgCols {
+        width: calc(var(--buttonSize) * 9); 
+        height: calc(var(--buttonSize) * 2.5);  
+        fill: var(--buttonLabel);
+        font-size: calc(var(--buttonSize) * 1.5);
+      }   
+      
+      .upperText {
+        transform: translate(50%,30%);  
+      }
+      
+      .lowerText {
+        transform: translate(50%,70%);  
+      }
+      
+      .midText {
+        transform: translate(50%,50%); 
+      }
+      
+      
+      /*** range slider ***/
+      
+      .input-group>input[type=range]  {
+        min-width: calc(var(--buttonSize) * 7);  
+      }
+
+      input[type=range] {
+        -webkit-appearance: none;
+        font-size: var(--buttonSize);
+        width: 100%;
+        height: var(--buttonHalf);
+        background: var(--menuBackground);
+        cursor: pointer;
+        margin-top: calc(var(--buttonSize) * 3/4);
+      }
+
+      input[type=range]:focus {
+        outline: 0
+      }
+      
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 2px;
+        cursor: pointer;
+        background: var(--inputBackground); 
+        border-radius: var(--buttonHalf);
+      }
+
+      input[type=range]::-webkit-slider-thumb {
+        height: var(--buttonSize);
+        width: var(--buttonSize);
+        border-radius: 50%;
+        background: var(--buttonReady); 
+        cursor: pointer;
+        -webkit-appearance: none;
+        margin-top: calc(-1 * var(--buttonHalf));
+      }
+      input[type=range]:focus::-webkit-slider-runnable-track {
+        background: var(--inputBackground);
+      }
+  
+      div[name="rangeVal"] {
+        width: var(--buttonDbl);
+        height: var(--buttonSize);
+        line-height: 150%;
+        text-align: center;
+        background: var(--buttonReady); 
+        color: var(--buttonText); 
+        font-size: var(--footerSize);
+        display: block;
+        position: absolute;
+        left: 50%;
+        transform: translate(-50%, 0);
+        border-radius: 25%;
+        top: -25%; 
+      }
+
+       div[name="rangeMin"], div[name="rangeMax"] {
+        display: inline-block;
+        padding: 0 var(--buttonQuart);
+      }
+                               
+
       .navtop{
         list-style: none;
         border: 1px solid var(--itemBorder);
@@ -402,237 +696,6 @@
         cursor: pointer;
       }
 
-      button {
-        display: block;
-        margin: var(--buttonQuart);
-        padding: var(--buttonQuart);
-        border: 0;
-        line-height: var(--headingSize);
-        cursor: pointer;
-        color: var(--buttonText);
-        background: var(--buttonReady);
-        border-radius: var(--buttonQuart);
-        font-size: var(--buttonSize);
-        outline: 0
-      }
-
-      button:active {
-       box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
-       background: var(--buttonActive);
-      }
-
-      button:hover {
-        background: var(--buttonHover);
-      }
-
-      button:disabled {
-        cursor: default;
-        background: var(--itemInactive)
-      }
-      
-      .input-group {
-        position: relative;
-        display: flex;
-        flex-wrap: nowrap;
-        line-height: var(--buttonDbl);
-        margin-top: var(--buttonHalf);
-      }
-      
-      .input-group>label {
-        display: inline-block;
-        padding-right: var(--buttonHalf);
-        min-width: 40%;
-      }
-      
-      .input-group>input {
-        width: 100%;
-      }
-
-      .input-group input,.input-group select {
-        flex-grow: 1
-      }
-      
-      .input-group>input[type=range]  {
-        min-width: calc(var(--buttonSize) * 7);  
-      }
-      
-      input, #applog, #sdlog {
-        font: var(--inputSize) 'Courier New';
-        font-weight:bold;
-        color: var(--inputText);
-        background: var(--inputBackground);
-        min-width: calc(var(--buttonSize) * 10);     
-      }
-      
-      input[type="radio"], input[type="checkbox"], progress {
-        accent-color: var(--buttonActive);
-      }
-
-      input {
-        height: calc(var(--inputSize) * 1.5);
-        margin: 0 0 var(--buttonHalf) 0;
-        border-radius: var(--buttonQuart);
-      }
-      
-      /*** range slider ***/
-
-      input[type=range] {
-        -webkit-appearance: none;
-        font-size: var(--buttonSize);
-        width: 100%;
-        height: var(--buttonHalf);
-        background: var(--menuBackground);
-        cursor: pointer;
-        margin-top: calc(var(--buttonSize) * 3/4);
-      }
-
-      input[type=range]:focus {
-        outline: 0
-      }
-      
-      input[type=range]::-webkit-slider-runnable-track {
-        width: 100%;
-        height: 2px;
-        cursor: pointer;
-        background: var(--inputBackground); 
-        border-radius: var(--buttonHalf);
-      }
-
-      input[type=range]::-webkit-slider-thumb {
-        height: var(--buttonSize);
-        width: var(--buttonSize);
-        border-radius: 50%;
-        background: var(--buttonReady); 
-        cursor: pointer;
-        -webkit-appearance: none;
-        margin-top: calc(-1 * var(--buttonHalf));
-      }
-
-       input[type=range]:focus::-webkit-slider-runnable-track {
-        background: var(--inputBackground);
-      }
-  
-      div[name="rangeVal"] {
-        width: var(--buttonDbl);
-        height: var(--buttonSize);
-        line-height: 150%;
-        text-align: center;
-        background: var(--buttonReady); 
-        color: var(--buttonText); 
-        font-size: var(--footerSize);
-        display: block;
-        position: absolute;
-        left: 50%;
-        transform: translate(-50%, 0);
-        border-radius: 25%;
-        top: -25%; 
-      }
-
-       div[name="rangeMin"], div[name="rangeMax"] {
-        display: inline-block;
-        padding: 0 var(--buttonQuart);
-      }
-                                 
- 
-      /* checkbox toggle switch slider */
-            
-      .switch {
-        position: relative;
-        display: inline-block;
-        width: calc(var(--buttonSize) * 2);
-        height: var(--buttonSize);
-        top: var(--buttonHalf);
-      }
-
-      .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-
-      .slider {
-        position: absolute;
-        border-radius: var(--buttonSize);
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: var(--itemInactive);
-        width: calc(var(--buttonSize) * 3);                      
-        transition: .4s;
-      }
-
-      .slider:before {
-        position: absolute;
-        border-radius: 50%;
-        content: "";
-        height: var(--buttonSize);
-        width: var(--buttonSize);
-        left: var(--buttonQuart);
-        background: var(--inputBackground);
-        transition: .4s;
-      }
-
-      input:checked + .slider {
-        background-color: var(--buttonActive);
-      }
-
-      input:checked + .slider:before {
-        transform: translateX(calc(var(--buttonSize)*1.5));
-      }
-      
-      #applog, #sdlog {
-        height:50vh;
-        width:90%;
-        border:2px solid var(--itemBorder);
-        overflow:auto;
-        background: var(--inputBackground);
-      }
-      
-      select {
-        border: 1px solid var(--menuBackground);
-        font-size: var(--inputSize);
-        outline: 0;
-        border-radius: var(--buttonQuart);
-        margin-top: 2px;
-      }
-      
-      .selectField {
-         height: calc(var(--inputSize) * 1.5);
-      }
-      
-      table {
-        border-collapse:collapse; 
-        table-layout:fixed;
-        background: var(--menuBackground);
-        text-align: left;
-      }
-      
-      th {
-        font-weight:bold; 
-      }
-      
-      .config-group th, .config-group td {
-        border: 0;
-        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf); 
-        padding-left: var(--buttonSize);
-        line-height: var(--buttonDbl);
-        font-size: var(--buttonSize);
-      }
-      
-      .configGroup td input[type="number"] {
-        font-size: var(--buttonSize);
-      }
-      
-      input.configItem[type="radio"] {
-        min-width: var(--buttonSize); 
-      }
-      
-      input.configItem[type="number"] {
-        min-width: calc(var(--buttonSize) * 3); 
-        width: calc(var(--buttonSize) * 3); 
-      }
       
       .blinking {
         animation: blinker 1.5s linear infinite;
@@ -1287,6 +1350,7 @@
           </div>
         </div>
       </div>
+      <br>
       <div id="applog"></div>
       <br><br>
       <div class="grid-cols3">
@@ -1310,11 +1374,13 @@
           </svg>
         </div>
       </div>
+      <br>
       <div id="sdlog"></div>
     </div>
     <br>
     
     <div id="EditConfig" class="tabcontent">
+      <br>
       <div class="header">Control</div>
       <br>
       <div class="grid-cols4">
@@ -1395,1039 +1461,513 @@
     </div>
     
     <script>
-      document.addEventListener('DOMContentLoaded', function (event) {
-        'use strict'
-
-        /*********** initialisation  ***********/
-        
-        // web server ports. If changed here, also need to change in appGlobals.h
-        const webPort = 80;
-        const otaPort = 82;
-        const streamPort = 81;
-        
-        const baseHost = document.location.hostname;
-        const webHost = "http://" + baseHost;
-        const webServer = webHost + ":" + webPort;
-        const wsServer = "ws://" + baseHost + ":" + webPort + "/ws";
-        const otaServer = webHost + ":" + otaPort;
-        const streamServer = webHost + ':' + streamPort;
-        
-        let refreshInterval = 5000;
-        let ws = null;
-        let hbTimer = null;
-        let updateData = {}; // receives json for status data as key val pairs
-        let statusData = {}; // stores all status data as key val pairs
-        let cfgGroupNow = -1;
-        let loggingOn = false;
-        let prevKey = '';
-        const CLASS = 0;
-        const ID = 1;
-        const $ = document.querySelector.bind(document);
-        const $$ = document.querySelectorAll.bind(document);
-        const baseFontSize = parseInt(window.getComputedStyle($('body')).fontSize); 
-        const root = getComputedStyle($(':root'));
-        
-        let imgSize = { width: 0, height: 0 };
-        let fitSize = { width: 0, height: 0 };
-        let cameraModel = "OV2640";
-        let firstCall = true;
-        
-        initialise();
-        
-        function initialise() {
-          try {
-            addButtons();
-            addRangeData();
-            setListeners();
-            // initWebSocket();
-            loadStatus(""); 
-            if (hbTimer == null) setTimeout(refreshStatus, refreshInterval);
-          } catch (error) {
-            showLog("Error: " + error.message);
-            alert("Error: " + error.message);
-          }
-        }
-        
-        /*********** websocket functions ***********/
-        
-        // define websocket handling
-        function initWebSocket() {
-          loggingOn = true;
-          showLog("Connect to: " + wsServer);
-          ws = new WebSocket(wsServer);
-          ws.onopen = onOpen;
-          ws.onclose = onClose;
-          ws.onmessage = onMessage; 
-          ws.onerror = onError;
-        }
-          
-        // periodically check that connection is still up and get status
-        function heartbeat() {
-          if (!ws) return;
-          if (ws.readyState !== 1) return;
-          sendCmd("H");
-          clearTimeout(hbTimer);
-          hbTimer = setTimeout(heartbeat, refreshInterval);  
-        }
-        
-        // connect to websocket server
-        function onOpen(event) {
-          showLog("Connected");
-          //heartbeat();
-        }
-        
-        // process received WS message
-        function onMessage(messageEvent) {
-          if (messageEvent.data.startsWith("{")) {
-            // json data
-            updateData = JSON.parse(messageEvent.data);
-            let filter = updateData.cfgGroup;
-            delete updateData.cfgGroup;
-            if (filter == "-1") updateStatus(); // status update
-            else buildTable(updateData, filter); // format received config json into html table
-          } else showLog(messageEvent.data, false);
-        }
-        
-        function onError(event) {
-          showLog("WS Error: " + event.code);
-        }
-        
-        function onClose(event) {
-          showLog("Disconnected: " + event.code + ' - ' + event.reason);
-          loggingOn = false;
-          ws = null;
-          // event.codes:
-          //   1006 if server not available, or another web page is already open
-          //   1005 if closed from app
-          if (event.code == 1006) {} //alert("Closed websocket as a newer connection was made, refresh browser page");
-          else if (event.code != 1005) initWebSocket(); // retry if any other reason
-        }
-        
-        async function closeWS() {
-          ws.send('K');
-          await sleep(500);
-          if (ws != null) ws.close();
-        }
-        
-        /*********** page layout functions ***********/
+      'use strict'
       
-        function openTab(e) {
-          // control tab viewing
-          $$('.tabcontent').forEach(el => {el.style.display = "none";});
-          $('#' + e.name).style.display = "inherit";
-          $$('.tablinks').forEach(el => {el.classList.remove("active");});
-          e.classList.add("active");
-          try {
-            if (e.name == 'mainPage') show($('#main'));
-            else hide($('#main'));
-          } catch {}
-        }
-
-        function accordian(accId) {
-          // accordian buttons to show / hide elements
-          let panel = $('#' + accId);
-          if (panel.style.display === "inherit") panel.style.display = "none";
-          else panel.style.display = "inherit";
-        }
-       
-         function rangeSlider(el, isPos = true, statusVal = null) {
-          // update range slider marker position and value 
-          const rangeVal = el.parentElement.children.rangeVal;
-          if (statusVal != null) el.value = statusVal;
-          const currVal = isPos ? parseFloat(el.value) : parseFloat(rangeVal.innerHTML);
-          const minval = parseFloat(el.min);
-          const maxval = parseFloat(el.max);
-          const decPlaces = (el.step > 0 && el.step < 1) || el.step == 'any' ? 1 : 0;
-          if (el.classList.contains('logslider')) {
-            // range value is logarithmic
-            const minlog = Math.log(minval);
-            const maxlog = Math.log(maxval) ;
-            const scale = (maxlog - minlog) / (maxval - minval);
-            // if isPos then get value from slider positional change by user, else set slider position from initial value.
-            if (isPos) rangeVal.innerHTML = Math.exp((currVal - minval) * scale + minlog).toFixed(decPlaces);
-            else el.value = minval + ((currVal == 0 ? 0 : Math.log(currVal)) - minlog) / scale; 
-          } else rangeVal.innerHTML = parseFloat(el.value).toFixed(decPlaces);
-          
-          // position for range marker
-          const rangeFontSize = parseInt(window.getComputedStyle($('input[type=range]')).fontSize); 
-          let position = (el.clientWidth - rangeFontSize) * (el.value - minval) / (maxval - minval); 
-          position += el.offsetLeft + (rangeFontSize / 2);
-          rangeVal.style.left = 'calc('+position+'px)';
-        }
-        
-        let observer = new IntersectionObserver ( function(entries) {
-          // recalc each range slider that becomes visible
-            entries.forEach(el => { if (el.isIntersecting === true) rangeSlider(el['target']); });
-          }, { threshold: [0] }
-        );
-        $$('input[type=range]').forEach(el => { observer.observe(el); });
-        
-        function addButtons() {
-          // add commmon buttons to relevant sections
-          $$('.addButtons').forEach(el => {
-            el.innerHTML = '<section id="buttons">'
-              +'<button id="save" style="float:right;" value="1">Save Settings</button>'
-              +'<button id="reset" style="float:right;" value="1">Reboot ESP</button>'
-            +'</section><br>'
-          });
-        }
-        
-         function addRangeData() {
-          // add labelling for rangle sliders
-          $$('input[type="range"]').forEach(el => {
-            if (!isDefined(el.parentElement.children.rangeMin)) el.insertAdjacentHTML("beforebegin", '<div name="rangeMin"/>'+el.min+'</div>');
-            el.insertAdjacentHTML("afterend", '<div name="rangeVal">'+el.value+'</div>');
-            if (!isDefined(el.parentElement.children.rangeMax)) el.insertAdjacentHTML("afterend", '<div name="rangeMax"/>'+el.max+'</div>');
-            rangeSlider(el, false);
-          });
-        } 
-
-        /*********** data processing functions ***********/
-        
-        async function loadStatus(specifier) {
-          // request and load current status from app
-          const response = await fetch(webServer+'/status'+specifier);
-          if (response.ok) {
-            updateData = await response.json();
-            updateStatus();
-            await sleep(1000);
-          } else console.log(response.status); 
-        }
-        
-        function refreshStatus() {
-          // refresh status at required interval
-          clearTimeout(hbTimer);
-          loadStatus("?q");
-          hbTimer = setTimeout(refreshStatus, refreshInterval);
-        }
-        
-        function updateStatus() {
-          // replace each existing value with new received value, using key name to match html tag id
-          Object.entries(updateData).forEach(([key, value]) => {
-            let elt = $('text#'+key); // svg button
-            let eld = $('div#'+key); // display text
-            let eli = $('#'+key); // input field
-            if (elt) elt.textContent = value; 
-            else if (eld) {if (eld.classList.contains('displayonly')) eld.innerHTML = value;} // display text 
-            else if (eli != null) { // input fields
-              if (eli.type === 'checkbox') eli.checked = !!Number(value);
-              else if (eli.type === 'range') rangeSlider(eli, false, value); 
-              else if (eli.type === 'option') eli.selected = true;
-              else eli.value = value; 
-            }
-            statusData[key] = value;
-            processStatus(ID, key, value, false);
-          });
-        }
-        
-        async function sendUpdates(doAction) {    
-          // send bulk updates to app as json 
-          statusData['action'] = doAction;
-          const response = await fetch(webServer + '/update', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(statusData),
-          });
-          if (!response.ok) console.log(response.status);
-        } 
-        
-        /*********** utility functions ***********/
-        
-        function debounce(func, timeout = 500){
-          // debounce rapid clicks to prevent unnecessary fetches
-          let timer;
-          return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => { func.apply(this, args); }, timeout);
-          };
-        }
-        
-        const debounceSendControl = debounce((key, value) => sendControl(key, value));
-        
-        function sleep(ms) {
-          return new Promise(resolve => setTimeout(resolve, ms));
-        }
-        
-        function hide(el) {
-          el.classList.add('hidden')
-          el.style.display = "none";
-        }
-        
-        function show(el) {
-          el.classList.remove('hidden')
-          el.style.display = "";
-        }
-
-        function disable(el) {
-          el.classList.add('disabled');
-          el.disabled = true;
-        }
-
-        function enable(el) {
-          el.classList.remove('disabled');
-          el.disabled = false;
-        }
-        
-        function isActive(key) {
-          return key.classList.contains('active') ? true : false;
-        }
-        
-        function isDefined(variable) {
-          return (typeof variable === 'undefined' || variable === null ) ? false : true;
-        }
-        
-        async function showAlert(value) {
-          $('#alertText').innerHTML = value;
-          await sleep(5000);
-          $('#alertText').innerHTML = "";
-        }
-        
-        function dbg(msg) {
-          console.log('***** '+msg);
-        }
-        
-        /*********** command processing ***********/
-        
-        function setListeners() {
-        
-          // click events
-         document.addEventListener("click", function (event) {
-            const e = event.target;
-            // svg rect elements, use id of its following text node
-            if (e.nodeName == 'rect') processStatus(ID, e.nextElementSibling.id, 1);
-            // tab buttons, use name as target id 
-            else if (e.classList.contains('tablinks')) openTab(e);
-            // other buttons
-            else if (e.tagName == 'BUTTON') processStatus(ID, e.id, e.value);
-            // navigation and presentation icons
-            else if (e.tagName == 'NAV' || e.tagName == 'DIV') processStatus(CLASS, e.classList.value, e.id);
-            else if (e.nodeName == 'INPUT' || e.nodeName == 'SELECT') {/*ignore*/}
-          });
-          
-          // change events
-          document.addEventListener("change", function (event) {
-            const e = event.target;
-            const value = e.value.trim();
-            const et = event.target.type;
-            // input fields of given class 
-            if (e.nodeName == 'INPUT') {  
-              if (e.type === 'checkbox') processStatus(ID, e.id, e.checked ? 1 : 0);
-              else if (et === 'button' || et === 'file') processStatus(ID, e.id, 1);
-              else if (et === 'radio') { if (e.checked) processStatus(ID, e.name, value); } 
-              else if (et === 'range') processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML); 
-              else if (e.hasAttribute('id')) processStatus(ID, e.id, value);
-            }
-            else if (e.tagName == 'SELECT') processStatus(ID, e.id, value);
-          });
-          
-          // input events
-          document.addEventListener("input", function (event) {
-            if (event.target.type === 'range') rangeSlider(event.target);
-          });
-          
-          // user command entered on Log tab
-          document.addEventListener("keydown", function (event) {
-            if (event.target.id == 'txtCmd') {
-              let keyPress = event.keyCode || event.which;
-              if (keyPress == 13) sendWsCmd();
-            }
-          });
-          
-          // recalc range marker positions 
-          window.addEventListener('resize', function (event) {
-            $$('input[type=range]').forEach(el => { rangeSlider(el); });
-          });
-          
-          // close web socket on leaving page
-          window.addEventListener('beforeunload', function (event) {
-            if (ws) closeWS();
-          });   
-          
-        }
-        
-        function sendWsCmd() {
-          // send user command to websocket server
-          let txt = $('#txtCmd');
-          let line = txt.value;
-          if (line != "" && ws !== undefined) {
-            sendCmd(line);
-            txt.value = "";
-            txt.focus();
-          } else showLog("No command or no connection");
-        }
-        
-        function sendCmd(reqStr) {
-          ws.send(reqStr);
-          showLog("Cmd: " + reqStr);
-        }
-        
-        function showLog(reqStr, fromUser = true) {
-          if (loggingOn) {
-            let date = new Date();
-            // add timestamp to received text if generated by browser
-            let logText = fromUser ? "[" + date.toLocaleTimeString() + " Web] " : "";
-            logText += reqStr;
-            // append to log display 
-            let log = $('#applog');
-            log.innerHTML += colorise(logText) + '<br>';
-            // auto scroll new entry unless scroll bar is not at bottom
-            const bottom = 2 * baseFontSize;// 2 lines
-            const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
-            if (pos < bottom) log.scrollTop = log.scrollHeight;
+      // web server ports, automatically derive from entered port number
+      const webPort = !window.location.port ? "80" : window.location.port;
+      const otaPort = String(+webPort + 1);
+      const streamPort = String(+webPort + 2);
+      
+      let refreshInterval = 5000;
+      let imgSize = { width: 0, height: 0 };
+      let fitSize = { width: 0, height: 0 };
+      let cameraModel = "OV2640";
+      let firstCall = true;
+      
+      let streamServer;
+      let view;
+      let viewContainer;
+      let recordButton;
+      let recordingIndicator;
+      let streamButton;
+      let playbackButton;
+      
+      function appInit() {
+        streamServer = webHost + ':' + streamPort;
+        view = $('#stream');
+        viewContainer = $('#stream-container');
+        recordButton = $('#forceRecord');
+        recordingIndicator = $('#recording-indicator');
+        streamButton = $('#forceStream');
+        playbackButton = $('#forcePlayback');
+      }
+      
+      async function processStatus(dest, key, value, fromUser = true) {
+        // process change to status value
+        if (dest == ID) {
+          // operation based on ID
+          if (key == "wifi") getConfig("0");
+          else if (key == "hostName") {
+            document.title = value;
+            if (fromUser) sendControl(key, value);
           }
-        }
-
-        function colorise(line) {
-          // color message according to its type
-          let colorVar = "";
-          if (line.includes("WARN")) colorVar = "warnColor";
-          if (line.includes("ERROR")) colorVar = "errColor";
-          if (line.includes("DEBUG")) colorVar = "dbgColor";
-          if (line.includes("CHECK")) colorVar = "chkColor";
-          if (colorVar.length > 0) {
-            const color = root.getPropertyValue('--' + colorVar);
-            return "<b><font color=" + color + ">" + line + "</font></b>";
-          } else return line;
-        }
-        
-        function sendWsUpdates(doAction) {    
-          // get each required update element and obtain id/name and value into array to send as json 
-          let jarray = {};
-          jarray["action"] = doAction;
-          $$('.update-action').forEach(el => {
-            if (el.nodeName == "INPUT") jarray[el.getAttribute('id')] = el.value.trim();
-          });
-          sendCmd('U' + JSON.stringify(jarray));
-        }
-        
-        async function sendControl(key, value) {
-          // send only  
-          if (value != null) {
-            const response = await fetch(encodeURI(webServer + "/control?" + key + "=" + value));
-            if (!response.ok) console.log(response.status);
+          else if (key == "otafile") otaUploadFile();
+          else if (key == "alertMsg") showAlert(value);
+          else if (key == "clearWSlog") $('#applog').innerHTML = "";
+          else if (key == "clearSDlog") clearSDlog();
+          else if (key == "refreshSDlog") getSDlog();
+          else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
+          else if (key == "refreshVal") refreshInterval = value * 1000; 
+          else if (key == "clockUTC") checkTime(value);
+          else if (key == "motion") getConfig("01");
+          else if (key == "other") getConfig("012");
+          else if (key == "peripherals") getConfig("0123");
+          else if (key == "camModel") customButtons(key, value);
+          else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
+          else if (key == 'timezoneSel') fromUser = setTz(value);
+          else if (key == "framesize") fromUser = setFrameSize(key, value, fromUser);
+          else if (key == "get-still") getStill();
+          else if (key == "download") $("#download").value.includes('.') ? window.location.href='/control?download=1' : null;
+          else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
+          else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
+          else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
+          else if (key == "agc") setAgc(key, value);
+          else if (key == "forceRecord") value = recordAction(key);
+          else if (key == "showRecord") setRecIndicator(value);
+          else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
+          else if (key == "forceStream") streamAction(key);
+          else if (key == 'save') await sleep(600); // allow last input to debounce
+          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
+        } 
+        else if (dest == CLASS) {
+          // operations based on class
+          if (key.substring(0, 9) == "quick-nav") navigation(value); 
+          else if (key == "streamSize") {
+            if (value == "saveImage") saveImage();
+            else sizeView(value); 
           }
+          else if (key == "pin-menu") pinMenu(); 
         }
-        
-        async function sendControlResp(key, value) {
-          // send and apply response
-          const response = await fetch(encodeURI(webServer + "/control?" + key + "=" + value));
-          if (response.ok) {
-            updateData = await response.json();
-            updateStatus();
-          } else console.log(response.status); 
-        }
-        
-        /*********** config functions ***********/
-        
-        async function getConfig(cfgGroup) {
-          // request config json for selected group
-          const response = await fetch('/status?123456789' + cfgGroup);
-          if (response.ok) {
-            const configData = await response.json();
-            // format received json into html table
-            buildTable(configData, cfgGroup);
-          } else console.log(response.status); 
-        }
-        
-        function buildTable(configData, cfgGroup) {
-          // dynamically build table of editable settings
-          const divShowData = $('.config-group');
-          divShowData.innerHTML = "";
-          if (cfgGroupNow != cfgGroup) {
-            cfgGroupNow = cfgGroup;
-            const table = document.createElement("table"); 
-            // Create table header row from heading names
-            const colHeaders = ['Setting Name', 'Setting Value']; 
-            let tr = table.insertRow(-1); 
-            for (let i = 0; i < colHeaders.length; i++) {
-              let th = document.createElement("th");    
-              th.innerHTML = colHeaders[i];
-              tr.appendChild(th);
-            }
+      }
 
-            // add each setting as a row containing setting label and setting value
-            let nextPair = 3;
-            let saveKey, saveVal;
-            Object.entries(configData).forEach(([key, value]) => {
-              if (key != "cfgGroup") { // skip over this entry 
-                if (nextPair == 3) {
-                  // new row
-                  tr = table.insertRow(-1);
-                  nextPair = 0;
-                }
-                if (nextPair == 0) {
-                  // save key and value
-                  saveKey = key;
-                  saveVal = value;
-                  nextPair = 1;
-                } else if (nextPair == 1) {
-                  // insert label for setting
-                  tr.insertCell(-1).innerHTML = value; 
-                  nextPair = 2;
-                } else {
-                  // get input field type and build html
-                  let inputHtml;
-                  let valCntr = 0;
-                  switch (value.charAt(0)) {
-                    case 'T':
-                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
-                    break;
-                    case 'N':
-                      inputHtml = '<input type="number" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
-                    break;
-                    case 'S': 
-                      // build drop down select
-                      valCntr = 0;
-                      inputHtml = '<select id="' + saveKey + '" class="selectField">';
-                      value.substring(2).split(":").forEach(opt => {
-                        inputHtml += '<option value="' + valCntr + '" ' + (saveVal == valCntr ? 'selected="selected"' : '') + '>' + opt + '</option>';
-                        valCntr++;
-                      });
-                      inputHtml += '</select>';
-                    break;
-                    case 'C':
-                      // format checkbox as slider
-                      inputHtml = '<div class="switch"><input type="checkbox" class="configItem" id="' + saveKey;
-                      inputHtml += '" value="'+ saveVal +'"' + (saveVal == 1 ? ' checked' : '') + '>';
-                      inputHtml += '<label class="slider" for="' + saveKey + '"></label></div>';
-                    break;
-                    case 'D': // display only
-                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" readonly>';
-                    break;
-                    case 'R': // R:min:max:step
-                      // format number as range slider 
-                      const range = value.substring(2).split(":");
-                      inputHtml = '<div class="input-group">';
-                      inputHtml += '<input type="range" class="configItem" id="' + saveKey + '" min="' + range[0] + '" max="' + range[1];
-                      inputHtml += '" step="' + range[2] + '" value="' + saveVal + '"><div name="rangeVal">' + saveVal + '</div></div>';
-                    break;
-                    case 'B': // B:lab1:lab2:etc
-                      // radio button group
-                      valCntr = 0;
-                      inputHtml = '';
-                      value.substring(2).split(":").forEach(opt => {
-                        inputHtml += opt + '<input type="radio" class="configItem" name="' + saveKey + '" value="' + valCntr +
-                          (saveVal == valCntr ? '" checked>' : '">');
-                        valCntr++;
-                      });
-                    break;
-                    default:
-                      console.log("Unhandled config input type " + value);
-                    break;
-                  }
-                  tr.insertCell(-1).innerHTML = inputHtml;
-                  nextPair = 3;
-                }
-              }
-            })
-            // add the newly created table at placeholder
-            divShowData.appendChild(table);
-          } else cfgGroupNow = -1;
-        }
-
-        /*********** OTA functions ***********/
+      /************** menu functions ****************/
          
-        async function otaUploadFile() {
-          // notify server to start ota task
-          const response = await fetch('/control?startOTA=1');
-          if (response.ok) {
-            // submit file for uploading
-            let file = $("#otafile").files[0];
-            let formdata = new FormData();
-            formdata.append("otafile", file);
-            let ajax = new XMLHttpRequest();
-            ajax.upload.addEventListener("progress", progressHandler, false);
-            ajax.addEventListener("load", completeHandler, false);
-            ajax.addEventListener("error", errorHandler, false);
-            ajax.addEventListener("abort", abortHandler, false);
-            ajax.open("POST", otaServer +  '/upload');
-            ajax.send(formdata);
-          } else console.log(response.status); 
+      function customButtons(key, value) {
+        // update camera button text
+        if (firstCall) {
+          cameraModel = value;
+          $('.camTab').innerHTML = cameraModel;
+          // customise camera parameters according to camera model
+          if (cameraModel == "OV2640") {
+            // change button labels
+            $('#aec2_lab').innerHTML = "AEC DSP";
+            $('#awbg_lab').innerHTML = "AWB Gain";
+            $('#dcw_lab').innerHTML = "DCW (Downsize)";
+            // change range slider parameters
+            changeRange('brightness', "-2", "2", "0");
+            changeRange('contrast', "-2", "2", "0");
+            changeRange('saturation', "-2", "2", "0");
+            changeRange('ae_level', "-2", "2", "0");
+            changeRange('gainceiling', "0", "6", "0");
+            changeRange('aec_value', "0", "1200", "204");
+            changeRange('agc_gain', "0", "30", "5", true);
+            $('#gainceiling').parentElement.children.rangeMin.innerHTML = '2x';
+            $('#gainceiling').parentElement.children.rangeMax.innerHTML = '128x';
+            
+          } else if (cameraModel == "OV3660" || cameraModel == "OV5640") {
+            // change button labels
+            $('#aec2_lab').innerHTML = "Night Mode";
+            $('#awbg_lab').innerHTML = "Manual AWB";
+            $('#dcw_lab').innerHTML = "Advanced AWB";
+            // change range slider parameters
+            changeRange('brightness', "-3", "3", "0");
+            changeRange('contrast', "-3", "3", "0");
+            changeRange('saturation', "-4", "4", "0");
+            changeRange('sharpness', "-3", "3", "0");
+            changeRange('ae_level', "-5", "5", "0");
+            changeRange('gainceiling', "0", "511", "0");
+            changeRange('agc_gain', "0", "63", "5", true);
+            // show additional options
+            $$('div.OV3660, div.OV5640').forEach(el => {show(el)});
+            $$('#framesize option').forEach(el => {
+              if (el.classList.contains(cameraModel)) show(el);
+            });
+            let avMax = (cameraModel == "OV3660") ? "1536": "1920"; 
+            changeRange('aec_value', "0", avMax, "320");
+          } else alert("Unhandled camera model: " + cameraModel);
         }
+        firstCall = false;
+      }
+      
+      function changeRange(id, min, max, val, isX = false) {
+        // set parameters for range slider
+        const range = $('#'+id);
+        range.min = min;
+        range.max = max;
+        range.value = val;
+        range.parentElement.children.rangeMin.innerHTML = isX ? (parseInt(min)+1)+'x' : min;
+        range.parentElement.children.rangeMax.innerHTML = isX ? (parseInt(max)+1)+'x' : max;
+      }
+         
+      function navigation(key) { 
+        const i = $('#'+key); // the clicked icon
+        const m = $('#'+i.getAttribute('name')); // the associated menu 
 
-        function progressHandler(event) {
-          $("#loaded_n_total").innerHTML = "Uploaded " + event.loaded + " of " + event.total + " bytes";
-          let percent = (event.loaded / event.total) * 100;
-          $("#progressOta").value = Math.round(percent);
-          $("#status").innerHTML = Math.round(percent) + "% transferred";
-          if (event.loaded  == event.total) $("#status").innerHTML = 'Uploaded, wait for completion result';
-        }
-
-        function completeHandler(event) {
-          $("#status").innerHTML = event.target.responseText;
-          $("#progressOta").value = 0;
-        }
-
-        function errorHandler(event) {
-          $("#status").innerHTML = "Upload Failed";
-          $("#progressOta").value = 0;
-        }
-
-        function abortHandler(event) {
-          $("#status").innerHTML = "Upload Aborted";
-          $("#progressOta").value = 0;
-        }
+        // toggle selected icon as active, others inactive
+        i.classList.toggle('active');
+        $$('nav.quick-nav:not(#'+i.id+')').forEach(el => {el.classList.remove('active')});   
         
-        /************* App specific ***************/
+        // toggle menu attached to icon as active, others inactive
+        m.classList.toggle('active');
+        $$('nav.panel:not(#'+m.id+')').forEach(el => {el.classList.remove('active')});   
+        m.querySelector('.menu-action').checked = isActive(i); // open if icon toggled active, close if not
         
-        async function processStatus(dest, key, value, fromUser = true) {
-          // process change to status value
-          if (dest == ID) {
-            // operation based on ID
-            if (key == "wifi") getConfig("0");
-            else if (key == "hostName") document.title = value;
-            else if (key == "otafile") otaUploadFile();
-            else if (key == "alertMsg") showAlert(value);
-            else if (key == "clearWSlog") $('#applog').innerHTML = "";
-            else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
-            else if (key == "refreshVal") refreshInterval = value * 1000; 
-            else if (key == "clockUTC") checkTime(value);
-            else if (key == "camModel") customButtons(key, value);
-            else if (key == "peripherals") getConfig("0123");
-            else if (key == "motion") getConfig("01");
-            else if (key == "other") getConfig("012");
-            else if (key == "clearSDlog") clearSDlog();
-            else if (key == "refreshSDlog") getSDlog();
-            else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
-            else if (key == 'timezoneSel') fromUser = setTz(value);
-            else if (key == "framesize") fromUser = setFrameSize(key, value, fromUser);
-            else if (key == "get-still") getStill();
-            else if (key == "download") $("#download").value.includes('.') ? window.location.href='/control?download=1' : null;
-            else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
-            else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
-            else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
-            else if (key == "agc") setAgc(key, value);
-            else if (key == "forceRecord") value = recordAction(key);
-            else if (key == "showRecord") setRecIndicator(value);
-            else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
-            else if (key == "forceStream") streamAction(key);
-            else if (key == 'save') await sleep(600); // allow last input to debounce
-            if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
-          } 
-          else if (dest == CLASS) {
-            // operations based on class
-            if (key.substring(0, 9) == "quick-nav") navigation(value); 
-            else if (key == "streamSize") {
-              if (value == "saveImage") saveImage();
-              else sizeView(value); 
-            }
-            else if (key == "pin-menu") pinMenu(); 
-          }
+        if (isActive(i)) {
+          $('#menu-selector').classList.remove('menu-closed');
+          $('#menu-selector').classList.add('menu-open');
+        } else {
+          $('#menu-selector').classList.add('menu-closed');
+          $('#menu-selector').classList.remove('menu-open');
         }
+      }
 
-        /************** menu functions ****************/
-           
-        function customButtons(key, value) {
-          // update camera button text
-          if (firstCall) {
-            cameraModel = value;
-            $('.camTab').innerHTML = cameraModel;
-            // customise camera parameters according to camera model
-            if (cameraModel == "OV2640") {
-              // change button labels
-              $('#aec2_lab').innerHTML = "AEC DSP";
-              $('#awbg_lab').innerHTML = "AWB Gain";
-              $('#dcw_lab').innerHTML = "DCW (Downsize)";
-              // change range slider parameters
-              changeRange('brightness', "-2", "2", "0");
-              changeRange('contrast', "-2", "2", "0");
-              changeRange('saturation', "-2", "2", "0");
-              changeRange('ae_level', "-2", "2", "0");
-              changeRange('gainceiling', "0", "6", "0");
-              changeRange('aec_value', "0", "1200", "204");
-              changeRange('agc_gain', "0", "30", "5", true);
-              $('#gainceiling').parentElement.children.rangeMin.innerHTML = '2x';
-              $('#gainceiling').parentElement.children.rangeMax.innerHTML = '128x';
+      function pinMenu() {
+        // toggle menu pinned status
+        if ($('#menu-container').classList.contains('menu-pinned')) {
+          $$('.menu-pinned').forEach(el => {
+            el.classList.remove('menu-pinned');
+            el.classList.add('menu-floating');
+          });
+        } else {
+          $$('.menu-floating').forEach(el => {
+            el.classList.remove('menu-floating');
+            el.classList.add('menu-pinned');
+          });
+        }
+      }
+
+      /************** stream functions ****************/
+
+      function getStill() {
+        stopAll();
+        view.src = streamServer + "/stream?random="+Date.now(); 
+        showView(false);
+      }
+     
+      function recordAction(key) {
+        if (isActive($('#'+key))) deactivateRecordButton();
+        else activateRecordButton();
+        return isActive($('#'+key)) ? 1 : 0;
+      }
               
-            } else if (cameraModel == "OV3660" || cameraModel == "OV5640") {
-              // change button labels
-              $('#aec2_lab').innerHTML = "Night Mode";
-              $('#awbg_lab').innerHTML = "Manual AWB";
-              $('#dcw_lab').innerHTML = "Advanced AWB";
-              // change range slider parameters
-              changeRange('brightness', "-3", "3", "0");
-              changeRange('contrast', "-3", "3", "0");
-              changeRange('saturation', "-4", "4", "0");
-              changeRange('sharpness', "-3", "3", "0");
-              changeRange('ae_level', "-5", "5", "0");
-              changeRange('gainceiling', "0", "511", "0");
-              changeRange('agc_gain', "0", "63", "5", true);
-              // show additional options
-              $$('div.OV3660, div.OV5640').forEach(el => {show(el)});
-              $$('#framesize option').forEach(el => {
-                if (el.classList.contains(cameraModel)) show(el);
-              });
-              let avMax = (cameraModel == "OV3660") ? "1536": "1920"; 
-              changeRange('aec_value', "0", avMax, "320");
-            } else alert("Unhandled camera model: " + cameraModel);
-          }
-          firstCall = false;
-        }
-        
-        function changeRange(id, min, max, val, isX = false) {
-          // set parameters for range slider
-          const range = $('#'+id);
-          range.min = min;
-          range.max = max;
-          range.value = val;
-          range.parentElement.children.rangeMin.innerHTML = isX ? (parseInt(min)+1)+'x' : min;
-          range.parentElement.children.rangeMax.innerHTML = isX ? (parseInt(max)+1)+'x' : max;
-        }
-           
-        function navigation(key) { 
-          const i = $('#'+key); // the clicked icon
-          const m = $('#'+i.getAttribute('name')); // the associated menu 
+      function playbackAction(key) {
+        if (isActive($('#'+key))) deactivatePlaybackButton();
+        else activatePlaybackButton();
+      }      
 
-          // toggle selected icon as active, others inactive
-          i.classList.toggle('active');
-          $$('nav.quick-nav:not(#'+i.id+')').forEach(el => {el.classList.remove('active')});   
-          
-          // toggle menu attached to icon as active, others inactive
-          m.classList.toggle('active');
-          $$('nav.panel:not(#'+m.id+')').forEach(el => {el.classList.remove('active')});   
-          m.querySelector('.menu-action').checked = isActive(i); // open if icon toggled active, close if not
-          
-          if (isActive(i)) {
-            $('#menu-selector').classList.remove('menu-closed');
-            $('#menu-selector').classList.add('menu-open');
-          } else {
-            $('#menu-selector').classList.add('menu-closed');
-            $('#menu-selector').classList.remove('menu-open');
-          }
+      function streamAction(key) {
+        if (isActive($('#'+key))) deactivateStreamButton();
+        else activateStreamButton();
+      } 
+      
+      async function checkStream() {
+        // check when stream ends to close it
+        let running = true;
+        while (running) {
+          try { await view.decode(); }
+          catch { running = false; }
         }
-
-        function pinMenu() {
-          // toggle menu pinned status
-          if ($('#menu-container').classList.contains('menu-pinned')) {
-            $$('.menu-pinned').forEach(el => {
-              el.classList.remove('menu-pinned');
-              el.classList.add('menu-floating');
-            });
-          } else {
-            $$('.menu-floating').forEach(el => {
-              el.classList.remove('menu-floating');
-              el.classList.add('menu-pinned');
-            });
-          }
-        }
-
-        /************** stream functions ****************/
-        
-        const view = $('#stream')
-        const viewContainer = $('#stream-container')
-        const recordButton = $('#forceRecord')
-        const recordingIndicator = $('#recording-indicator')
-        const streamButton = $('#forceStream')
-        const playbackButton = $('#forcePlayback') 
-
-        function getStill() {
-          stopAll();
-          view.src = streamServer + "/stream?random="+Date.now(); 
-          showView(false);
-        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        stopAll();
+      }
+      
+      function activatePlaybackButton() {
+        stopAll();
+        playbackButton.classList.add("active");
+        playbackButton.innerHTML = "▢&nbsp;Stop Playback";
+        playbackButton.classList.add("blinking");
+        view.src = streamServer + '/stream?source=file'; 
+        checkStream();
+        showView(true);
+      }
        
-        function recordAction(key) {
-          if (isActive($('#'+key))) deactivateRecordButton();
-          else activateRecordButton();
-          return isActive($('#'+key)) ? 1 : 0;
-        }
-                
-        function playbackAction(key) {
-          if (isActive($('#'+key))) deactivatePlaybackButton();
-          else activatePlaybackButton();
-        }      
+      function deactivatePlaybackButton() {
+        playbackButton.classList.remove("active");
+        sendControl("stopStream", "1");
+        playbackButton.innerHTML = "➤&nbsp;Start Playback";
+        playbackButton.classList.remove("blinking");
+        disable(playbackButton);
+        hide(viewContainer);
+      }
 
-        function streamAction(key) {
-          if (isActive($('#'+key))) deactivateStreamButton();
-          else activateStreamButton();
-        } 
-        
-        async function checkStream() {
-          // check when stream ends to close it
-          let running = true;
-          while (running) {
-            try { await view.decode(); }
-            catch { running = false; }
-          }
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          stopAll();
-        }
-        
-        function activatePlaybackButton() {
-          stopAll();
-          playbackButton.classList.add("active");
-          playbackButton.innerHTML = "▢&nbsp;Stop Playback";
-          playbackButton.classList.add("blinking");
-          view.src = streamServer + '/stream?source=file'; 
-          checkStream();
-          showView(true);
-        }
-         
-        function deactivatePlaybackButton() {
-          playbackButton.classList.remove("active");
-          sendControl("stopStream", "1");
-          playbackButton.innerHTML = "➤&nbsp;Start Playback";
-          playbackButton.classList.remove("blinking");
-          disable(playbackButton);
-          hide(viewContainer);
-        }
+      function activateRecordButton() {
+        stopAll();
+        recordButton.classList.add("active");
+        recordButton.innerHTML = "▢&nbsp;Stop Recording";
+        show(recordingIndicator);
+        recordingIndicator.classList.add("blinking");
+      }
+      
+      function deactivateRecordButton() {
+        recordButton.classList.remove("active");
+        recordButton.innerHTML = "➤&nbsp;Start Recording";
+        recordingIndicator.classList.remove("blinking");
+        hide(recordingIndicator);
+      }
 
-        function activateRecordButton() {
-          stopAll();
-          recordButton.classList.add("active");
-          recordButton.innerHTML = "▢&nbsp;Stop Recording";
+      function activateStreamButton() {
+        stopAll();
+        streamButton.classList.add("active");
+        view.src = streamServer + '/stream?source=sensor'; 
+        streamButton.innerHTML = "▢&nbsp;Stop Stream";
+        streamButton.classList.add('blinking');
+        showView(false);
+      }
+      
+      function deactivateStreamButton() {
+        streamButton.classList.remove("active");
+        sendControl("stopStream", "1");
+        streamButton.innerHTML ="➤&nbsp;Start Stream";
+        streamButton.classList.remove('blinking');
+        hide(viewContainer);
+      }
+      
+      function setRecIndicator(value) {
+        // indicate if motion capture is being recorded
+        if (value && recordingIndicator.classList.contains("hidden")) {
           show(recordingIndicator);
           recordingIndicator.classList.add("blinking");
-        }
-        
-        function deactivateRecordButton() {
-          recordButton.classList.remove("active");
-          recordButton.innerHTML = "➤&nbsp;Start Recording";
+        } 
+        else if (!value && !recordingIndicator.classList.contains("hidden")) {
           recordingIndicator.classList.remove("blinking");
           hide(recordingIndicator);
         }
+      }
+      
+      function stopAll() {
+        window.stop();
+        if (isActive(recordButton)) deactivateRecordButton();
+        if (isActive(playbackButton)) deactivatePlaybackButton();
+        if (isActive(streamButton)) deactivateStreamButton();
+        hide(viewContainer);
+      }
 
-        function activateStreamButton() {
-          stopAll();
-          streamButton.classList.add("active");
-          view.src = streamServer + '/stream?source=sensor'; 
-          streamButton.innerHTML = "▢&nbsp;Stop Stream";
-          streamButton.classList.add('blinking');
-          showView(false);
-        }
+      function showView(isFile) {
+        // set size values for given framesize
+        let sizeStr = '800x600';
+        if (isFile) {
+          // get framesize from filename  
+          sizeStr = $('#sfile').value.split('_')[2]; // the frame type eg SVGA
+          $$('#framesize option').forEach(el => { 
+            if (el.innerHTML.substr(0, sizeStr.length) == sizeStr) sizeStr = el.innerHTML; // now contains eg SVGA(800x600)
+          });
+        } else sizeStr = $('#framesize option:checked').innerHTML; // get framesize from selected framesize
+           
+        // determine actual image size using framesize pixels
+        const fwidth =  parseInt(sizeStr.split('x')[0].match(/\d+/));
+        const fheight = parseInt(sizeStr.split('x')[1].match(/\d+/));
+        imgSize = {width: fwidth, height: fheight};
+        sizeView('maxFit'); // initial view size
+      }
         
-        function deactivateStreamButton() {
-          streamButton.classList.remove("active");
-          sendControl("stopStream", "1");
-          streamButton.innerHTML ="➤&nbsp;Start Stream";
-          streamButton.classList.remove('blinking');
-          hide(viewContainer);
-        }
+      function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+        const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+        return { width: Math.round(srcWidth*ratio), height: Math.round(srcHeight*ratio) };
+      }
+      
+      function sizeView(selectedSize) {  
+        // stream icons to set size of screen
+        // - max size to fit browser window for aspect ratio
+        // # actual frame size
+        // ¤ fullscreen with correct aspect ratio (lose some)
+        // ▭ fullscreen (aspect ratio changed)
+        // x close screen
+        // v download still image 
         
-        function setRecIndicator(value) {
-          // indicate if motion capture is being recorded
-          if (value && recordingIndicator.classList.contains("hidden")) {
-            show(recordingIndicator);
-            recordingIndicator.classList.add("blinking");
-          } 
-          else if (!value && !recordingIndicator.classList.contains("hidden")) {
-            recordingIndicator.classList.remove("blinking");
-            hide(recordingIndicator);
+        if (selectedSize == 'closeStream') stopAll();
+        else {
+          if (selectedSize == 'maxFit') {
+            fitSize = calculateAspectRatioFit(imgSize.width, imgSize.height, 
+            window.screen.availWidth - $('#menu-container').offsetWidth - 25, 
+            window.innerHeight - $('.tab').offsetHeight - $('#footer').offsetHeight - 25);
+            viewContainer.style.cssText = 'width:'+fitSize.width+'px; height:'+fitSize.height+'px';
           }
-        }
-        
-        function stopAll() {
-          window.stop();
-          if (isActive(recordButton)) deactivateRecordButton();
-          if (isActive(playbackButton)) deactivatePlaybackButton();
-          if (isActive(streamButton)) deactivateStreamButton();
-          hide(viewContainer);
-        }
-
-        function showView(isFile) {
-          // set size values for given framesize
-          let sizeStr = '800x600';
-          if (isFile) {
-            // get framesize from filename  
-            sizeStr = $('#sfile').value.split('_')[2]; // the frame type eg SVGA
-            $$('#framesize option').forEach(el => { 
-              if (el.innerHTML.substr(0, sizeStr.length) == sizeStr) sizeStr = el.innerHTML; // now contains eg SVGA(800x600)
-            });
-          } else sizeStr = $('#framesize option:checked').innerHTML; // get framesize from selected framesize
-             
-          // determine actual image size using framesize pixels
-          const fwidth =  parseInt(sizeStr.split('x')[0].match(/\d+/));
-          const fheight = parseInt(sizeStr.split('x')[1].match(/\d+/));
-          imgSize = {width: fwidth, height: fheight};
-          sizeView('maxFit'); // initial view size
-        }
+          else if (selectedSize == 'actualSize') {
+            viewContainer.style.cssText = 'width:'+imgSize.width+'px; height:'+imgSize.height+'px';
+          }
+          else if (selectedSize == 'fullAspect') {
+            if (viewContainer.requestFullscreen) viewContainer.requestFullscreen();
+            else viewContainer.webkitRequestFullscreen();
+            const r = calculateAspectRatioFit(imgSize.width, imgSize.height, window.screen.availWidth, window.screen.availHeight)
+            viewContainer.style.cssText = 'width:'+r.width+'px; height:'+r.height+'px';
+            view.style.cssText = "width: 100%; height:auto";
+          }
+          else if (selectedSize == 'fullSize') {
+            if (viewContainer.requestFullscreen) viewContainer.requestFullscreen();
+            else viewContainer.webkitRequestFullscreen();
+            viewContainer.style.cssText = 'width:'+window.screen.availWidth+'px; height:'+window.screen.availHeight+'px';
+            view.style.cssText = "width: 100%; height: 100%";
+          }
+          if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else document.webkitExitFullscreen(); /* Safari */
+          }
           
-        function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
-          const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-          return { width: Math.round(srcWidth*ratio), height: Math.round(srcHeight*ratio) };
+          // locate size buttons on screen
+          let buttonPos = baseFontSize / 4;
+          $$('.streamSize').forEach(el => {
+            if (el.id != selectedSize) {
+              el.style.right = buttonPos + 'px'; 
+              buttonPos += baseFontSize * 1.25;
+              show(el);
+            } else hide(el);
+          });
+          show(viewContainer); 
         }
-        
-        function sizeView(selectedSize) {  
-          // stream icons to set size of screen
-          // - max size to fit browser window for aspect ratio
-          // # actual frame size
-          // ¤ fullscreen with correct aspect ratio (lose some)
-          // ▭ fullscreen (aspect ratio changed)
-          // x close screen
-          // v download still image 
-          
-          if (selectedSize == 'closeStream') stopAll();
-          else {
-            if (selectedSize == 'maxFit') {
-              fitSize = calculateAspectRatioFit(imgSize.width, imgSize.height, 
-              window.screen.availWidth - $('#menu-container').offsetWidth - 25, 
-              window.innerHeight - $('.tab').offsetHeight - $('#footer').offsetHeight - 25);
-              viewContainer.style.cssText = 'width:'+fitSize.width+'px; height:'+fitSize.height+'px';
-            }
-            else if (selectedSize == 'actualSize') {
-              viewContainer.style.cssText = 'width:'+imgSize.width+'px; height:'+imgSize.height+'px';
-            }
-            else if (selectedSize == 'fullAspect') {
-              if (viewContainer.requestFullscreen) viewContainer.requestFullscreen();
-              else viewContainer.webkitRequestFullscreen();
-              const r = calculateAspectRatioFit(imgSize.width, imgSize.height, window.screen.availWidth, window.screen.availHeight)
-              viewContainer.style.cssText = 'width:'+r.width+'px; height:'+r.height+'px';
-              view.style.cssText = "width: 100%; height:auto";
-            }
-            else if (selectedSize == 'fullSize') {
-              if (viewContainer.requestFullscreen) viewContainer.requestFullscreen();
-              else viewContainer.webkitRequestFullscreen();
-              viewContainer.style.cssText = 'width:'+window.screen.availWidth+'px; height:'+window.screen.availHeight+'px';
-              view.style.cssText = "width: 100%; height: 100%";
-            }
-            if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) {
-              if (document.exitFullscreen) document.exitFullscreen();
-              else document.webkitExitFullscreen(); /* Safari */
-            }
-            
-            // locate size buttons on screen
-            let buttonPos = baseFontSize / 4;
-            $$('.streamSize').forEach(el => {
-              if (el.id != selectedSize) {
-                el.style.right = buttonPos + 'px'; 
-                buttonPos += baseFontSize * 1.25;
-                show(el);
-              } else hide(el);
-            });
-            show(viewContainer); 
-          }
-        }
-        
-        function saveImage() {
-          const canvas = document.createElement("canvas");
-          canvas.width = imgSize.width;
-          canvas.height = imgSize.height;
-          document.body.appendChild(canvas);
-          canvas.getContext('2d').drawImage(view,0,0);
-          let anchor = document.createElement("a");
-          anchor.download = $('#clock').innerHTML+".jpg";
-          anchor.href = canvas.toDataURL("image/jpeg");
-          anchor.click();
-          anchor.remove();
-          canvas.parentNode.removeChild(canvas);
-        }
+      }
+      
+      function saveImage() {
+        const canvas = document.createElement("canvas");
+        canvas.width = imgSize.width;
+        canvas.height = imgSize.height;
+        document.body.appendChild(canvas);
+        canvas.getContext('2d').drawImage(view,0,0);
+        let anchor = document.createElement("a");
+        anchor.download = $('#clock').innerHTML+".jpg";
+        anchor.href = canvas.toDataURL("image/jpeg");
+        anchor.click();
+        anchor.remove();
+        canvas.parentNode.removeChild(canvas);
+      }
 
-        /************* user selection functions ************/
+      /************* user selection functions ************/
 
-        function selectFileOrFolder(filePath, fromUser) {
-          // build folder / file option list from json
-          let pathDir = "";
-          if (filePath != '/~reset') {
-            $('#download').value = filePath; //Store file path for download
-            $('#delete').value = filePath; //Store file path for delete
-            $('#upload').value = filePath; //Store file path for ftp upload
-            $('#uploadMove').value = filePath; //Store file path for ftp upload move
-            pathDir = filePath.substring(0,filePath.lastIndexOf("/"));
-          }
-          if (pathDir == "") $$('#sfile option:not(:first-child)').forEach(el => { el.remove()}); 
-          if (filePath.substr(-4) === '.avi' && !isActive(playbackButton)) enable(playbackButton);
-          if (fromUser) getFiles(filePath);
-          return false;
+      function selectFileOrFolder(filePath, fromUser) {
+        // build folder / file option list from json
+        let pathDir = "";
+        if (filePath != '/~reset') {
+          $('#download').value = filePath; //Store file path for download
+          $('#delete').value = filePath; //Store file path for delete
+          $('#upload').value = filePath; //Store file path for ftp upload
+          $('#uploadMove').value = filePath; //Store file path for ftp upload move
+          pathDir = filePath.substring(0,filePath.lastIndexOf("/"));
         }
-        
-        async function getFiles(filePath) {
-          // get list of files / folders
-          $$('*').forEach(el => { el.style.cursor = ("wait")});
-          const response = await fetch(encodeURI(webServer + '/control?sfile='+filePath));
-          if (response.ok) {
-            const fileData = await response.json();
-            Object.entries(fileData).forEach(([key, value]) => {
-              if (!value.includes("System") && !value.includes("FOUND")) {
-                let option = document.createElement("option");
-                option.text = value;
-                option.value = key;
-                $('#sfile').add(option);
-              }
-            });
-          } else console.log(response.status);
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          $$('*').forEach(el => { el.style.cursor = ("default")});
-        }
-        
-        function setFrameSize(key, value, fromUser) {
-          if (fromUser) {
-            sendControl(key, value);
-            sendControlResp("updateFPS", value); // needs to be after above
-          }
-          return false;
-        }
-        
-        function setAgc(key, value) {
-          if (value) {
-            show($('#gainceiling-group'));
-            hide($('#agc_gain-group'));
-            rangeSlider($('#gainceiling'));
-          } else {
-            hide($('#gainceiling-group'));
-            show($('#agc_gain-group'));
-            rangeSlider($('#agc_gain'));
-          }
-        }
-        
-        function showAec() {
-          show($('#aec_value-group'));
-          rangeSlider($('#aec_value'));
-        }
-
-        function checkTime(value) {
-          let now = new Date();
-          let nowUTC = Math.floor(now.getTime() / 1000);
-          let timeDiff = Math.abs(nowUTC - value);  
-          if (timeDiff > 5) sendControl("clockUTC", nowUTC); // 5 secs 
-        }
-        
-        function setTz(value) {
-          $('#timezone').value = value;
-          sendControl('timezone', value);
-          return false;
-        }
-        
-        function clearSDlog() {
-          if (window.confirm('This will delete all log entries on SD. Are you sure ?')) { 
-            $('#sdlog').innerHTML = "";
-            sendControl("resetLog", "1");
-          }
-        }
-        
-        async function getSDlog() {
-          // request SD log file
-          const log = $('#sdlog');
-          log.innerHTML = "";
-          const response = await fetch('/web?log.txt');
-          if (response.ok) {
-            const logData = await response.text();
-            let start = 0;
-            const loadNextLine = () => {
-              const index = logData.indexOf("\n", start);
-              if (index !== -1) {
-                log.innerHTML += colorise(logData.substring(start, index)) + '<br>';
-                start = index + 1;
-                // auto scroll log as loaded
-                const bottom = 2 * baseFontSize;// 2 lines
-                const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
-                if (pos < bottom) log.scrollTop = log.scrollHeight;
-                // stop browser hanging while log is loaded
-                setTimeout(loadNextLine, 1); 
-              } 
-            };
-            loadNextLine(); 
-          } else console.log(response.status); 
-        }
-        
-        function sdFile(key, value) {
-          if (key == "delete") {
-            if (!confirm("Are you sure you want to delete " + value + " from the SD card?")) return false;
-          }
+        if (pathDir == "") $$('#sfile option:not(:first-child)').forEach(el => { el.remove()}); 
+        if (filePath.substr(-4) === '.avi' && !isActive(playbackButton)) enable(playbackButton);
+        if (fromUser) getFiles(filePath);
+        return false;
+      }
+      
+      async function getFiles(filePath) {
+        // get list of files / folders
+        $$('*').forEach(el => { el.style.cursor = ("wait")});
+        const response = await fetch(encodeURI(webServer + '/control?sfile='+filePath));
+        if (response.ok) {
+          const fileData = await response.json();
+          Object.entries(fileData).forEach(([key, value]) => {
+            if (!value.includes("System") && !value.includes("FOUND")) {
+              let option = document.createElement("option");
+              option.text = value;
+              option.value = key;
+              $('#sfile').add(option);
+            }
+          });
+        } else console.log(response.status);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        $$('*').forEach(el => { el.style.cursor = ("default")});
+      }
+      
+      function setFrameSize(key, value, fromUser) {
+        if (fromUser) {
           sendControl(key, value);
-          if (key == "delete" || key == "uploadMove") selectFileOrFolder("/~reset", true);
+          sendControlResp("updateFPS", value); // needs to be after above
         }
+        return false;
+      }
+      
+      function setAgc(key, value) {
+        if (value) {
+          show($('#gainceiling-group'));
+          hide($('#agc_gain-group'));
+          rangeSlider($('#gainceiling'));
+        } else {
+          hide($('#gainceiling-group'));
+          show($('#agc_gain-group'));
+          rangeSlider($('#agc_gain'));
+        }
+      }
+      
+      function showAec() {
+        show($('#aec_value-group'));
+        rangeSlider($('#aec_value'));
+      }
 
+      function checkTime(value) {
+        let now = new Date();
+        let nowUTC = Math.floor(now.getTime() / 1000);
+        let timeDiff = Math.abs(nowUTC - value);  
+        if (timeDiff > 5) sendControl("clockUTC", nowUTC); // 5 secs 
+      }
+      
+      function setTz(value) {
+        $('#timezone').value = value;
+        sendControl('timezone', value);
+        return false;
+      }
+      
+      function clearSDlog() {
+        if (window.confirm('This will delete all log entries on SD. Are you sure ?')) { 
+          $('#sdlog').innerHTML = "";
+          sendControl("resetLog", "1");
+        }
+      }
+      
+      async function getSDlog() {
+        // request SD log file
+        const log = $('#sdlog');
+        log.innerHTML = "";
+        const response = await fetch('/web?log.txt');
+        if (response.ok) {
+          const logData = await response.text();
+          let start = 0;
+          const loadNextLine = () => {
+            const index = logData.indexOf("\n", start);
+            if (index !== -1) {
+              log.innerHTML += colorise(logData.substring(start, index)) + '<br>';
+              start = index + 1;
+              // auto scroll log as loaded
+              const bottom = 2 * baseFontSize;// 2 lines
+              const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
+              if (pos < bottom) log.scrollTop = log.scrollHeight;
+              // stop browser hanging while log is loaded
+              setTimeout(loadNextLine, 1); 
+            } 
+          };
+          loadNextLine(); 
+        } else console.log(response.status); 
+      }
+      
+      function sdFile(key, value) {
+        if (key == "delete") {
+          if (!confirm("Are you sure you want to delete " + value + " from the SD card?")) return false;
+        }
+        sendControl(key, value);
+        if (key == "delete" || key == "uploadMove") selectFileOrFolder("/~reset", true);
+      }
+      
+      /***************************************************************************/
+      
+      // config for common script 
+      const doCustomInit = false;
+      const doInitWebSocket = false;
+      const doLoadStatus = true;
+      const doRefreshTimer = true;
+      const doCustomSync = false;
+      const doHeartbeat = false;
+
+      const scriptFiles = ['/web?common.js', 'C:/MyStuff/Arduino/CommonMaster/Latest/common.js']; 
+      for (let i = 0; i < scriptFiles.length; i++) {
+        const scriptElement = document.createElement('script');
+        scriptElement.src = scriptFiles[i];
+        document.body.appendChild(scriptElement);
+      }
+
+      window.addEventListener('load', function() {
+        initialise();
+        appInit();
       });
+      
+
     </script>    
   </body>
 </html>
