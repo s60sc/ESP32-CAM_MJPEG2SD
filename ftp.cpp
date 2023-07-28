@@ -1,5 +1,5 @@
 // Store SD card or SPIFFS content on a remote server using FTP
-//
+// 
 // s60sc 2022, based on code contributed by gemi254
 
 #include "appGlobals.h"

@@ -1,4 +1,4 @@
-
+ 
 /* 
   Management and storage of application configuration state.
   Configuration file stored on spiffs or SD, except passwords which are stored in NVS

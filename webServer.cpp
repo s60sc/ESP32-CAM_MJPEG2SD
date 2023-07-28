@@ -1,7 +1,7 @@
 // Provides web server for user control of app
 // httpServer handles browser http requests and websocket interaction 
 // otaServer does file uploads
-//
+// 
 // s60sc 2022
 
 #include "appGlobals.h"

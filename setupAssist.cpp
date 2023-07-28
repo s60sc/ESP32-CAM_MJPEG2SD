@@ -1,7 +1,7 @@
 
 // Assist setup for new app installations
 // original provided by gemi254
-//
+// 
 // s60sc 2023
 
 #include "appGlobals.h"

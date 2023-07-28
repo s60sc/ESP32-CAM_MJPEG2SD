@@ -1,6 +1,6 @@
 // mjpeg2sd specific functions
 //
-// s60sc 2022
+// s60sc 2022 
 
 #include "appGlobals.h"
 

@@ -1,6 +1,6 @@
 #include "appGlobals.h"
-#include "mqtt_client.h"
-
+#include "mqtt_client.h" 
+ 
 char mqtt_broker[MAX_HOST_LEN] = "";         //Mqtt server ip to connect.  
 char mqtt_port[5] = "";                      //Mqtt server port to connect.  
 char mqtt_user[MAX_HOST_LEN] = "";           //Mqtt server username.  

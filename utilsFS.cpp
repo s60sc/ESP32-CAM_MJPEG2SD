@@ -1,6 +1,6 @@
 // General purpose SD card and flash storage utilities
 //
-// s60sc 2021, 2022
+// s60sc 2021, 2022 
 
 #include "appGlobals.h"
 

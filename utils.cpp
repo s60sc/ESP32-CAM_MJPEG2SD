@@ -3,7 +3,7 @@
 // - wifi
 // - NTP
 // - remote logging
-// - base64 encoding
+// - base64 encoding 
 // - device sleep
 //
 // s60sc 2021, 2023

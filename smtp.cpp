@@ -8,7 +8,7 @@
 // - create an app password - https://support.google.com/accounts/answer/185833
 // - set smtpUse in web config page to true, and enter account details on web page
 //
-// s60sc 2022
+// s60sc 2022 
 
 #include "appGlobals.h"
 
