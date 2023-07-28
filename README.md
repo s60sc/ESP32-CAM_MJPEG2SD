@@ -7,8 +7,9 @@ Recent changes up to version 8.7.2:
 - Support for PDM microphone on ESP32S3
 - Lamp flash at night for timelapse
 - Ignore ping failure if SSID not available
-- Compiled for arduino-esp32 v2.0.9
+- Compiled for arduino-esp32 v2.0.11
 - Support for TTGO T-Camera Plus (see [issue 232](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/232))
+- Simplified remote access via [port forwarding](#port-forwarding)
 
 
 ## Purpose
@@ -74,7 +75,7 @@ A recording is generated either by the camera itself detecting motion as given i
 by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
 In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
-To play back a recording, select the file using **Select folder / file** on the browser to select the day folder then the required AVI file.
+To play back a recording, select the file using **Playback & File Transfers** sidebar button to select the day folder then the required AVI file.
 After selecting the AVI file, press **Start Playback** button to playback the recording. 
 The **Start Stream** button shows a live feed from the camera.
 
@@ -88,7 +89,7 @@ A time lapse feature is also available which can run in parallel with motion cap
 The operation of the application can be modified dynamically as below, by using the main web page, which should mostly be self explanatory.
 
 Connections:
-* The FTP, Wifi, SMTP, and time zone parameters can be defined on the web page under **Other Settings**. 
+* The FTP, Wifi, SMTP, and time zone parameters can be defined in **Access Settings** sidebar button. 
   - for **Time Zone** use dropdown, or paste in values from second column [here](https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv)
 * To make the changes persistent, press the **Save** button
 * mdns name services in order to use `http://[Host Name]` instead of ip address.
@@ -111,7 +112,7 @@ SD storage management:
 
 ## Configuration Web Page
 
-More configuration details accessed via **Edit Config** button, which displays further buttons:
+More configuration details accessed via **Edit Config** tab, which displays further buttons:
 
 **Wifi**:
 Additional WiFi and webserver settings.
@@ -159,7 +160,7 @@ JPEG images of any size are retrieved from the camera and 1 in N images are samp
 
 For movement detection a high sample rate of 1 in 2 is used. When movement has been detected, the rate for checking for movement stop is reduced to 1 in 10 so that the JPEGs can be captured with only a small overhead. The **Detection time ms** table shows typical time in millis to decode and analyse a frame retrieved from the OV2640 camera.
 
-Motion detection by camera is enabled by default, to disable click off **Enable motion detect** button on web page.
+Motion detection by camera is enabled by default, to disable click off **Enable motion detect** in **Motion Detect & Recording** sidebar button.
 
 Additional options are provided on the camera index page, where:
 * `Motion Sensitivity` sets a threshold for movement detection, higher is more sensitive.
@@ -211,3 +212,14 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/status -> {"MOTION":"ON"
 
 You can also publish control commands to the /cmd channel in order to control camera.  
 topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
+
+## Port Forwarding
+
+To access the app remotely over the internet, set up port forwarding on your router for three consecutive ports, eg:
+
+![image2](extras/portForward.png)
+
+On remote device, enter url: `your_router_external_ip:10580`  
+To obtain `your_router_external_ip` value, use eg: https://api.ipify.org  
+The web page will automatically derive the required port numbers.
+For security, **Authentication settings** should be defined in **Access Settings** sidebar button.

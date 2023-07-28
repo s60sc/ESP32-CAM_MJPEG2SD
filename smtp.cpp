@@ -18,10 +18,10 @@ int smtpFrame = 5; // which captured frame number to use for email image
 int smtpMaxEmails = 10; // too many could cause account suspension
 
 // SMTP connection params, setup via web page
-char smtp_login[32]; // sender email account 
+char smtp_login[MAX_HOST_LEN]; // sender email account 
 char SMTP_Pass[MAX_PWD_LEN]; // 16 digit app password, not account password
-char smtp_email[32]; // receiver, can be same as smtp_login, or be any other email account
-char smtp_server[32]; // the email service provider, eg smtp.gmail.com"
+char smtp_email[MAX_HOST_LEN]; // receiver, can be same as smtp_login, or be any other email account
+char smtp_server[MAX_HOST_LEN]; // the email service provider, eg smtp.gmail.com"
 uint16_t smtp_port; // gmail SSL port 465; 
 
 #define MIME_TYPE "image/jpg"

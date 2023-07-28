@@ -1,8 +1,11 @@
-// mjpeg2sd specific config functions
+// mjpeg2sd specific functions
 //
 // s60sc 2022
 
 #include "appGlobals.h"
+
+
+/************************ webServer callbacks *************************/
 
 bool updateAppStatus(const char* variable, const char* value) {
   // update vars from browser input
@@ -10,7 +13,8 @@ bool updateAppStatus(const char* variable, const char* value) {
   sensor_t* s = esp_camera_sensor_get();
   int intVal = atoi(value);
   float fltVal = atof(value);
-  if(!strcmp(variable, "minf")) minSeconds = intVal; 
+  if (!strcmp(variable, "custom")) return res;
+  else if(!strcmp(variable, "minf")) minSeconds = intVal; 
   else if(!strcmp(variable, "stopStream")) stopPlaying();
   else if(!strcmp(variable, "motionVal")) motionVal = intVal;
   else if(!strcmp(variable, "moveStartChecks")) moveStartChecks = intVal;
@@ -216,6 +220,7 @@ bool appDataFiles() {
 }
 
 void doAppPing() {
+  if (IP_EMAIL) if (checkAlarm(1)) getExtIP();
   doIOExtPing();
   // check for night time actions
   if (isNight(nightSwitch)) {

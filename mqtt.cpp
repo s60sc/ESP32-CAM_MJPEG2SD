@@ -1,9 +1,9 @@
 #include "appGlobals.h"
 #include "mqtt_client.h"
 
-char mqtt_broker[32] = "";                   //Mqtt server ip to connect.  
+char mqtt_broker[MAX_HOST_LEN] = "";         //Mqtt server ip to connect.  
 char mqtt_port[5] = "";                      //Mqtt server port to connect.  
-char mqtt_user[32] = "";                     //Mqtt server username.  
+char mqtt_user[MAX_HOST_LEN] = "";           //Mqtt server username.  
 char mqtt_user_Pass[MAX_PWD_LEN] = "";       //Mqtt server password.  
 char mqtt_topic_prefix[FILE_NAME_LEN / 2] = "";  //Mqtt server topic to publish payloads.  
 

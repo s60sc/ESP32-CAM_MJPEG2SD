@@ -22,26 +22,26 @@ char startupFailure[50] = {0};
 
 #include <esp_task_wdt.h>
 
-char hostName[32] = ""; // Default Host name
-char ST_SSID[32]  = ""; //Default router ssid
+char hostName[MAX_HOST_LEN] = ""; // Default Host name
+char ST_SSID[MAX_HOST_LEN]  = ""; //Default router ssid
 char ST_Pass[MAX_PWD_LEN] = ""; //Default router passd
 
 // leave following blank for dhcp
-char ST_ip[16]  = ""; // Static IP
-char ST_sn[16]  = ""; // subnet normally 255.255.255.0
-char ST_gw[16]  = ""; // gateway to internet, normally router IP
-char ST_ns1[16] = ""; // DNS Server, can be router IP (needed for SNTP)
-char ST_ns2[16] = ""; // alternative DNS Server, can be blank
+char ST_ip[MAX_IP_LEN]  = ""; // Static IP
+char ST_sn[MAX_IP_LEN]  = ""; // subnet normally 255.255.255.0
+char ST_gw[MAX_IP_LEN]  = ""; // gateway to internet, normally router IP
+char ST_ns1[MAX_IP_LEN] = ""; // DNS Server, can be router IP (needed for SNTP)
+char ST_ns2[MAX_IP_LEN] = ""; // alternative DNS Server, can be blank
 
 // Access point Config Portal SSID and Pass
-char AP_SSID[32] = "";
+char AP_SSID[MAX_HOST_LEN] = "";
 char AP_Pass[MAX_PWD_LEN] = "";
-char AP_ip[16]  = ""; //Leave blank to use 192.168.4.1
-char AP_sn[16]  = "";
-char AP_gw[16]  = "";
+char AP_ip[MAX_IP_LEN]  = ""; //Leave blank to use 192.168.4.1
+char AP_sn[MAX_IP_LEN]  = "";
+char AP_gw[MAX_IP_LEN]  = "";
 
 // basic HTTP Authentication access to web page
-char Auth_Name[16] = ""; 
+char Auth_Name[MAX_HOST_LEN] = ""; 
 char Auth_Pass[MAX_PWD_LEN] = "";
 
 int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
@@ -53,8 +53,8 @@ static void startPing();
 
 static void setupMdnsHost() {  
   // set up MDNS service 
-  char mdnsName[15]; // max mdns host name length
-  snprintf(mdnsName, 15, hostName);
+  char mdnsName[MAX_IP_LEN]; // max mdns host name length
+  snprintf(mdnsName, MAX_IP_LEN, hostName);
   if (MDNS.begin(mdnsName)) {
     // Add service to MDNS
     MDNS.addService("http", "tcp", 80);
@@ -246,7 +246,7 @@ static void startPing() {
 #if CONFIG_IDF_TARGET_ESP32S3
   pingConfig.task_stack_size = 1024 * 6;
 #else
-  pingConfig.task_stack_size = 1024 * 4;
+  pingConfig.task_stack_size = 1024 * 8;
 #endif
   pingConfig.task_prio = 1;
   // set ping task callback functions 
@@ -269,48 +269,46 @@ void stopPing() {
   }
 }
 
-const char* extIpHost = "checkip.dyndns.org";
+const char* extIpHost = "https://api.ipify.org";
 const int ipAddrLen = 16;
 char ipExtAddr[ipAddrLen] = {"Not assigned"};
 
 void getExtIP() {
   // Get external IP address
-  WiFiClient hclient;
-  if (hclient.connect(extIpHost, 80)) {
-    // send the request to the server
-    hclient.print("GET / HTTP/1.0\r\n Host: ");
-    hclient.print(extIpHost);
-    hclient.print("\r\nConnection: close\r\n\r\n");
-    // Read all the lines of the reply from server
-    uint32_t startAttemptTime = millis();
-    while (!hclient.available() && millis() - startAttemptTime < 5000) delay(500);
-    if (hclient.available()) {
-      String newExtIp = "";
-      while (hclient.available()) newExtIp += hclient.readStringUntil('\r');
-      if (newExtIp.length()) {
-        if (strstr(newExtIp.c_str(), "200 OK") != NULL) {
-          int startPt = newExtIp.lastIndexOf("Address: ") + String("Address: ").length();
-          int endPt =  newExtIp.lastIndexOf("</body>");
-          newExtIp = newExtIp.substring(startPt, endPt).c_str();
-          if (strcmp(newExtIp.c_str(), ipExtAddr)) {
-            // external IP changed
-            strncpy(ipExtAddr, newExtIp.c_str(), ipAddrLen-1);
-            LOG_INF("External IP changed: %s", ipExtAddr); 
-          }
-        } else LOG_ERR("Bad request response");
-      } else LOG_ERR("External IP not retrieved");
-    } else LOG_ERR("External IP no response");
+  HTTPClient https;
+  WiFiClientSecure hclient;
+  hclient.setInsecure();
+  if (!https.begin(hclient, extIpHost)) {
+    char errBuf[100];
+    hclient.lastError(errBuf, 100);
+    LOG_ERR("Could not connect to server, err: %s", errBuf);
+  } else {
+    String newExtIp = "";
+    int httpCode = https.GET();
+    if (httpCode == HTTP_CODE_OK) newExtIp = https.getString();  
+    else LOG_ERR("Request failed, error: %s", https.errorToString(httpCode).c_str());    
+    https.end();
     hclient.stop();
-  } else LOG_ERR("ExtIP connection failed");
-  LOG_INF("Current External IP: %s", ipExtAddr);
+    if (newExtIp.length()) {
+      if (strcmp(newExtIp.c_str(), ipExtAddr)) {
+        // external IP changed
+        strncpy(ipExtAddr, newExtIp.c_str(), ipAddrLen-1);
+#ifdef INCLUDE_SMTP
+        emailAlert("External IP changed", ipExtAddr);
+#endif
+      }
+    } else LOG_ERR("No IP returned");
+  }
+  LOG_INF("External IP: %s", ipExtAddr);
 }
 
 
 /************************** NTP  **************************/
 
 // Needs to be a time zone string from: https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv
-char timezone[64] = "GMT0";
-char ntpServer[64] = "pool.ntp.org";
+char timezone[FILE_NAME_LEN] = "GMT0";
+char ntpServer[FILE_NAME_LEN] = "pool.ntp.org";
+uint8_t alarmHour;
 
 time_t getEpoch() {
   struct timeval tv;
@@ -358,6 +356,7 @@ void syncToBrowser(uint32_t browserUTC) {
 }
 
 void formatElapsedTime(char* timeStr, uint32_t timeVal) {
+  // elapsed time that app has been running
   uint32_t secs = timeVal / 1000; //convert milliseconds to seconds
   uint32_t mins = secs / 60; //convert seconds to minutes
   uint32_t hours = mins / 60; //convert minutes to hours
@@ -366,6 +365,43 @@ void formatElapsedTime(char* timeStr, uint32_t timeVal) {
   mins = mins - (hours * 60); //subtract the converted minutes to hours in order to display 59 minutes max
   hours = hours - (days * 24); //subtract the converted hours to days in order to display 23 hours max
   sprintf(timeStr, "%u-%02u:%02u:%02u", days, hours, mins, secs);
+}
+
+
+static time_t setAlarm(bool initAlarm) {
+  // calculate future alarm datetime based on current datetime
+  // ensure relevant timezone identified (default GMT0)
+  time_t currEpoch = getEpoch();
+  struct tm* timeinfo = localtime(&currEpoch);
+  // set alarm date & time for next day at given hour
+  int nextDay = initAlarm ? 0 : 1; // same day on first call, next day on subsequent
+  timeinfo->tm_mday += nextDay;
+  timeinfo->tm_hour = alarmHour;
+  timeinfo->tm_min = 0;
+  timeinfo->tm_sec = 0;
+  char inBuff[30];
+  strftime(inBuff, sizeof(inBuff), "%d/%m/%Y %H:%M:%S", timeinfo);
+  LOG_INF("Alarm scheduled at %s", inBuff);
+  // return future alarm time as epoch seconds
+  return mktime(timeinfo);
+}
+
+bool checkAlarm(int _alarmHour) {
+  // call from appPing() to check if daily alarm time at given hour has occurred
+  if (_alarmHour >= 0) alarmHour = _alarmHour;
+  bool rescheduled = false;
+  static time_t rolloverEpoch = 0;
+  if (timeSynchronized) {
+    if (!rolloverEpoch) {
+      rolloverEpoch = setAlarm(true); // initialise for this day
+      rescheduled = true;
+    }
+    else if (getEpoch() >= rolloverEpoch) {
+      rolloverEpoch = setAlarm(false); // recalculate for next day
+      rescheduled = true;
+    }
+  }
+  return rescheduled;
 }
 
 /********************** misc functions ************************/
@@ -452,7 +488,6 @@ void checkMemory() {
   LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
 
-
 uint32_t checkStackUse(TaskHandle_t thisTask) {
   // get minimum free stack size for task since started
   uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(thisTask);
@@ -462,8 +497,8 @@ uint32_t checkStackUse(TaskHandle_t thisTask) {
 
 void debugMemory(const char* caller) {
   if (CHECK_MEM) {
-    delay(FLUSH_DELAY);
     logPrint("%s > Free: heap %u, block: %u, pSRAM %u\n", caller, ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
+    delay(FLUSH_DELAY);
   }
 }
 
@@ -644,7 +679,6 @@ void logPrint(const char *format, ...) {
       outBuf[msgLen - 1] = 0; // lose final '/n'
       wsAsyncSend(outBuf);
     }
-    delay(FLUSH_DELAY);
     xSemaphoreGive(logMutex);
   } 
 }
@@ -717,24 +751,22 @@ const char* encode64(const char* inp) {
 
 #include <esp_wifi.h>
 
-static void printWakeupReason() {
+static esp_sleep_wakeup_cause_t printWakeupReason() {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
   switch(wakeup_reason) {
     case ESP_SLEEP_WAKEUP_EXT0 : LOG_INF("Wakeup by external signal using RTC_IO"); break;
     case ESP_SLEEP_WAKEUP_EXT1 : LOG_INF("Wakeup by external signal using RTC_CNTL"); break;
-    case ESP_SLEEP_WAKEUP_TIMER : 
-      // expected wakeup reason from deep sleep
-      LOG_INF("Wakeup by internal timer"); 
-    break;
+    case ESP_SLEEP_WAKEUP_TIMER : LOG_INF("Wakeup by internal timer"); break;
     case ESP_SLEEP_WAKEUP_TOUCHPAD : LOG_INF("Wakeup by touchpad"); break;
     case ESP_SLEEP_WAKEUP_ULP : LOG_INF("Wakeup by ULP program"); break;
     case ESP_SLEEP_WAKEUP_GPIO: LOG_INF("Wakeup by GPIO"); break;    
     case ESP_SLEEP_WAKEUP_UART: LOG_INF("Wakeup by UART"); break; 
     default : LOG_INF("Wakeup by reset"); break;
   }
+  return wakeup_reason;
 }
 
-static void printResetReason() {
+static esp_reset_reason_t printResetReason() {
   esp_reset_reason_t bootReason = esp_reset_reason();
   switch (bootReason) {
     case ESP_RST_UNKNOWN: LOG_INF("Reset for unknown reason"); break;
@@ -750,11 +782,13 @@ static void printResetReason() {
     case ESP_RST_SDIO: LOG_INF("Reset over SDIO"); break;
     default: LOG_INF("Unhandled reset reason"); break;
   }
+  return bootReason;
 }
 
-void wakeupResetReason() {
+esp_sleep_wakeup_cause_t wakeupResetReason() {
   printResetReason();
-  printWakeupReason();
+  esp_sleep_wakeup_cause_t wakeupReason = printWakeupReason();
+  return wakeupReason;
 }
 
 void goToSleep(int wakeupPin, bool deepSleep) {
@@ -765,15 +799,16 @@ void goToSleep(int wakeupPin, bool deepSleep) {
   delay(100);
   if (deepSleep) { 
     if (wakeupPin >= 0) {
-      // wakeup on pin high
-      pinMode(wakeupPin, INPUT_PULLDOWN);
-      esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 1); 
+      // wakeup on pin low
+      pinMode(wakeupPin, INPUT_PULLUP);
+      esp_sleep_enable_ext0_wakeup((gpio_num_t)wakeupPin, 0);
     }
     esp_deep_sleep_start();
   } else {
     // light sleep
     esp_wifi_stop();
-    if (wakeupPin >= 0) gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // wakeup on pin high
+    // wakeup on pin high
+    if (wakeupPin >= 0) gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); 
     esp_light_sleep_start();
   }
   // light sleep restarts here

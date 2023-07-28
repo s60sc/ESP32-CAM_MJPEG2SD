@@ -33,58 +33,35 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_TTGO_T_CAMERA_PLUS
 
-#include "camera_pins.h"
-
-#define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
-#define USE_DS18B20 false  // if true, requires additional libraries: OneWire and DallasTemperature
-
-// web server ports. If changed here, also need to change in mjpeg2sd.htm
-#define WEB_PORT 80 // app control
-#define STREAM_PORT 81 // camera images
-#define OTA_PORT 82 // OTA update
-
 /**************************************************************************/
 
-/************************ Fixed defines leave as is ***********************/ 
+#define USE_DS18B20 false  // if true, requires additional libraries: OneWire and DallasTemperature
+
+#define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
+
+// web server ports
+#define WEB_PORT 80 // app control
+#define OTA_PORT (WEB_PORT + 1) // OTA update
+#define STREAM_PORT (WEB_PORT + 2) // camera images
+
+/*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "132" // dev only
+#define STATIC_IP_OCTAL "133" // dev only
 #define CHECK_MEM false // leave as false
-#define FLUSH_DELAY 0 // for debugging crashes
+#define FLUSH_DELAY 200 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.7.2"
+#define APP_VER "8.7.3"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
-#define DATA_DIR "/data"
-#define HTML_EXT ".htm"
-#define TEXT_EXT ".txt"
-#define JS_EXT ".js"
-#define CSS_EXT ".css"
-#define ICO_EXT ".ico"
-#define SVG_EXT ".svg"
-#define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
-#define CONFIG_FILE_PATH DATA_DIR "/configs" TEXT_EXT
-#define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
-#define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT         
+#define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT    
 #define FILE_NAME_LEN 64
-#define ONEMEG (1024 * 1024)
-#define MAX_PWD_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
 #define MAX_CONFIGS 130 // > number of entries in configs.txt
 #define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
 
-#define FILE_EXT "avi"
-#define BOUNDARY_VAL "123456789000000000000987654321"
-#define AVI_HEADER_LEN 310 // AVI header length
-#define CHUNK_HDR 8 // bytes per jpeg hdr in AVI 
-#define WAVTEMP "/current.wav"
-#define AVITEMP "/current.avi"
-#define TLTEMP "/current.tl"
-
-#define FILLSTAR "****************************************************************"
-#define DELIM '~'
 #define STORAGE SD_MMC // one of: SPIFFS LittleFS SD_MMC 
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
@@ -94,10 +71,24 @@
 #define INCLUDE_MQTT
 #define INCLUDE_SD
 #define ISCAM // cam specific code in generics
-#define SIDE_ALARM // uncomment if used for side alarm 
+//#define SIDE_ALARM // uncomment if used for side alarm 
+// set true for emailing external ip changes
+#define IP_EMAIL false
 
-#define IS_IO_EXTENDER false // must be false unless IO_Extender
+#define IS_IO_EXTENDER false // must be false except for IO_Extender
 #define EXTPIN 100
+
+// to determine if newer data files need to be loaded
+#define HTM_VER "1"
+#define JS_VER "0"
+#define CFG_VER "0"
+
+#define FILE_EXT "avi"
+#define AVI_HEADER_LEN 310 // AVI header length
+#define CHUNK_HDR 8 // bytes per jpeg hdr in AVI 
+#define WAVTEMP "/current.wav"
+#define AVITEMP "/current.avi"
+#define TLTEMP "/current.tl"
 
 // non default pins configured for SD card on given camera board
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
@@ -118,6 +109,7 @@
 /******************** Libraries *******************/
 
 #include "esp_camera.h"
+#include "camera_pins.h"
 
 /******************** Function declarations *******************/
 
@@ -135,6 +127,7 @@ struct fnameStruct {
 
 
 // global app specific functions
+
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);

@@ -100,8 +100,9 @@ bool checkDataFiles() {
   bool res = false;
   if (strlen(GITHUB_URL)) {
     res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
-    if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH);      
-    if (res) res = appDataFiles();
+    if (res) wgetFile(GITHUB_URL, COMMON_JS_PATH);
+    if (res) wgetFile(GITHUB_URL, INDEX_PAGE_PATH);        
+    if (res) appDataFiles();
   }
   return res;
 }
@@ -169,7 +170,8 @@ const char* otaPage_html = R"~(
       <p id="loaded_n_total"></p>
     </form>
     <script>
-      const otaPort = 82;
+      const webPort = !window.location.port ? "80" : window.location.port;
+      const otaPort = String(+webPort + 1);
       const otaServer = 'http://' + document.location.hostname + ':' + otaPort;
       const $ = document.querySelector.bind(document);
      

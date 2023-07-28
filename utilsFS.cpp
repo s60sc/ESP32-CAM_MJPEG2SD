@@ -73,6 +73,18 @@ static bool prepSD_MMC() {
 }
 #endif
 
+static void listFolder(const char* rootDir) { 
+  // list contents of folder
+  LOG_INF("Sketch size %dkB", ESP.getSketchSize() / 1024);    
+  File root = STORAGE.open(rootDir);
+  File file = root.openNextFile();
+  while (file) {
+    LOG_INF("File: %s, size: %u", file.path(), file.size());
+    file = root.openNextFile();
+  }
+  LOG_INF("%s: Total bytes %lld, Used bytes %lld", fsType, (uint64_t)(STORAGE.totalBytes()), (uint64_t)(STORAGE.usedBytes())); 
+}
+
 bool startStorage() {
   // start required storage device (SD card or flash file system)
   bool res = false;
@@ -80,8 +92,8 @@ bool startStorage() {
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
-    if (!res) sprintf(startupFailure, "Startup Failure: Check SD card inserted");
-    else checkFreeSpace();
+    if (res) listFolder(DATA_DIR);
+    else sprintf(startupFailure, "Startup Failure: Check SD card inserted");
     return res; 
   }
 #endif
@@ -105,20 +117,13 @@ bool startStorage() {
 #endif
     if (res) {  
       // list details of files on file system
-      const char* rootDir = !strcmp(fsType, "LittleFS") ? "/data" : "/";
-      File root = STORAGE.open(rootDir);
-      File file = root.openNextFile();
-      while (file) {
-        LOG_INF("File: %s, size: %u", file.path(), file.size());
-        file = root.openNextFile();
-      }
-      LOG_INF("%s: Total bytes %lld, Used bytes %lld", fsType, (uint64_t)(STORAGE.totalBytes()), (uint64_t)(STORAGE.usedBytes())); 
+      const char* rootDir = !strcmp(fsType, "LittleFS") ? DATA_DIR : "/";
+      listFolder(rootDir);
     }
   } else {
     sprintf(startupFailure, "Failed to mount %s", fsType);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
-  LOG_INF("Sketch size %dkB", ESP.getSketchSize() / 1024);
   debugMemory("startStorage");
   return res;
 }

@@ -5,11 +5,11 @@
 #include "appGlobals.h"
 
 // Ftp server params, setup via web page
-char ftp_server[32];
+char ftp_server[MAX_HOST_LEN];
 uint16_t ftp_port = 21;
-char ftp_user[32];
+char ftp_user[MAX_HOST_LEN];
 char FTP_Pass[MAX_PWD_LEN];
-char ftp_wd[64]; 
+char ftp_wd[FILE_NAME_LEN]; 
 uint8_t percentLoaded = 0;
 
 // FTP control

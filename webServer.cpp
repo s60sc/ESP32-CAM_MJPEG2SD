@@ -48,10 +48,11 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
   File df = fp.open(inFileName);
   if (!df) {
     df.close();
-    const char* resp_str = "File does not exist or cannot be opened";
-    LOG_ERR("%s: %s", resp_str, inFileName);
+    char errMsg[200];
+    snprintf(errMsg, 200, "File does not exist or cannot be opened: %s", inFileName);
+    LOG_ERR("%s", errMsg);
     httpd_resp_set_status(req, HTTPD_400);
-    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send(req, errMsg, HTTPD_RESP_USE_STRLEN);
     return ESP_FAIL;
   } 
   if (download) {  
@@ -269,7 +270,7 @@ static void sendCrossOriginHeader() {
   // prevent CORS from blocking request
   otaServer.sendHeader("Access-Control-Allow-Origin", "*");
   otaServer.sendHeader("Access-Control-Max-Age", "600");
-  otaServer.sendHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+  otaServer.sendHeader("Access-Control-Allow-Methods", "POST,GET,HEAD,OPTIONS");
   otaServer.sendHeader("Access-Control-Allow-Headers", "*");
   otaServer.send(204);
 };
@@ -391,7 +392,7 @@ static void uploadHandler() {
       if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) Update.printError(Serial);
     } else {
       // replace relevant data file on storage
-      char replaceFile[20] = DATA_DIR;
+      char replaceFile[FILE_NAME_LEN] = DATA_DIR;
       strcat(replaceFile, "/");
       strcat(replaceFile, filename.c_str());
       LOG_INF("Data file update using %s", replaceFile);

@@ -1,5 +1,6 @@
 
 #if defined(CAMERA_MODEL_WROVER_KIT)
+#define CAM_BOARD "CAMERA_MODEL_WROVER_KIT"
 #define PWDN_GPIO_NUM    -1
 #define RESET_GPIO_NUM   -1
 #define XCLK_GPIO_NUM    21
@@ -19,6 +20,7 @@
 #define PCLK_GPIO_NUM    22
 
 #elif defined(CAMERA_MODEL_ESP_EYE)
+#define CAM_BOARD "CAMERA_MODEL_ESP_EYE"
 #define PWDN_GPIO_NUM    -1
 #define RESET_GPIO_NUM   -1
 #define XCLK_GPIO_NUM    4
@@ -40,6 +42,7 @@
 #define LED_GPIO_NUM     22
 
 #elif defined(CAMERA_MODEL_M5STACK_PSRAM)
+#define CAM_BOARD "CAMERA_MODEL_M5STACK_PSRAM"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    15
 #define XCLK_GPIO_NUM     27
@@ -59,6 +62,7 @@
 #define PCLK_GPIO_NUM     21
 
 #elif defined(CAMERA_MODEL_M5STACK_V2_PSRAM)
+#define CAM_BOARD "CAMERA_MODEL_M5STACK_V2_PSRAM"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    15
 #define XCLK_GPIO_NUM     27
@@ -78,6 +82,7 @@
 #define PCLK_GPIO_NUM     21
 
 #elif defined(CAMERA_MODEL_M5STACK_WIDE)
+#define CAM_BOARD "CAMERA_MODEL_M5STACK_WIDE"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    15
 #define XCLK_GPIO_NUM     27
@@ -99,6 +104,7 @@
 #define LED_GPIO_NUM       2
 
 #elif defined(CAMERA_MODEL_M5STACK_ESP32CAM)
+#define CAM_BOARD "CAMERA_MODEL_M5STACK_ESP32CAM"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    15
 #define XCLK_GPIO_NUM     27
@@ -118,6 +124,7 @@
 #define PCLK_GPIO_NUM     21
 
 #elif defined(CAMERA_MODEL_M5STACK_UNITCAM)
+#define CAM_BOARD "CAMERA_MODEL_M5STACK_UNITCAM"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    15
 #define XCLK_GPIO_NUM     27
@@ -137,6 +144,7 @@
 #define PCLK_GPIO_NUM     21
 
 #elif defined(CAMERA_MODEL_AI_THINKER)
+#define CAM_BOARD "CAMERA_MODEL_AI_THINKER"
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM      0
@@ -159,6 +167,7 @@
 #define LED_GPIO_NUM      33
 
 #elif defined(CAMERA_MODEL_TTGO_T_JOURNAL)
+#define CAM_BOARD "CAMERA_MODEL_TTGO_T_JOURNAL"
 #define PWDN_GPIO_NUM      0
 #define RESET_GPIO_NUM    15
 #define XCLK_GPIO_NUM     27
@@ -178,6 +187,7 @@
 #define PCLK_GPIO_NUM     21
 
 #elif defined(CAMERA_MODEL_XIAO_ESP32S3)
+#define CAM_BOARD "CAMERA_MODEL_XIAO_ESP32S3"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM     10
@@ -197,6 +207,7 @@
 #define PCLK_GPIO_NUM     13
 
 #elif defined(CAMERA_MODEL_ESP32_CAM_BOARD)
+#define CAM_BOARD "CAMERA_MODEL_ESP32_CAM_BOARD"
 // The 18 pin header on the board has Y5 and Y3 swapped
 #define USE_BOARD_HEADER 0 
 #define PWDN_GPIO_NUM    32
@@ -226,6 +237,7 @@
 #define PCLK_GPIO_NUM    25
 
 #elif defined(CAMERA_MODEL_ESP32S3_CAM_LCD)
+#define CAM_BOARD "CAMERA_MODEL_ESP32S3_CAM_LCD"
 #define PWDN_GPIO_NUM     -1
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM     40
@@ -245,6 +257,7 @@
 #define PCLK_GPIO_NUM     11
 
 #elif defined(CAMERA_MODEL_ESP32S2_CAM_BOARD)
+#define CAM_BOARD "CAMERA_MODEL_ESP32S2_CAM_BOARD"
 // The 18 pin header on the board has Y5 and Y3 swapped
 #define USE_BOARD_HEADER 0
 #define PWDN_GPIO_NUM     1
@@ -274,6 +287,7 @@
 #define PCLK_GPIO_NUM     3
 
 #elif defined(CAMERA_MODEL_ESP32S3_EYE)
+#define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE"
 #define PWDN_GPIO_NUM -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM 15
@@ -294,6 +308,7 @@
 #define PCLK_GPIO_NUM 13
 
 #elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
+#define CAM_BOARD "CAMERA_MODEL_TTGO_T_CAMERA_PLUS"
 #define PWDN_GPIO_NUM    -1
 #define RESET_GPIO_NUM   -1
 #define XCLK_GPIO_NUM    4

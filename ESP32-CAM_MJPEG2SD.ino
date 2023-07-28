@@ -7,17 +7,6 @@
 
 #include "appGlobals.h"
 
-// camera board selected
-#if defined(CAMERA_MODEL_AI_THINKER)
-#define CAM_BOARD "CAMERA_MODEL_AI_THINKER"
-#elif defined(CAMERA_MODEL_ESP32S3_EYE)
-#define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE"
-#elif defined(CAMERA_MODEL_XIAO_ESP32S3)
-#define CAM_BOARD "CAMERA_MODEL_XIAO_ESP32S3"
-#else
-#define CAM_BOARD "OTHER"
-#endif
-
 char camModel[10];
 
 static void prepCam() {
@@ -142,7 +131,7 @@ void setup() {
 
   // connect wifi or start config AP if router details not available
   startWifi();
-  
+
   startWebServer();
   if (strlen(startupFailure)) LOG_ERR("%s", startupFailure);
   else {
