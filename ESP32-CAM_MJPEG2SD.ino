@@ -2,7 +2,7 @@
 * Capture ESP32 Cam JPEG images into a AVI file and store on SD
 * AVI files stored on the SD card can also be selected and streamed to a browser as MJPEG.
 *
-* s60sc 2020 - 2023 
+* s60sc 2020 - 2023
 */
 
 #include "appGlobals.h"
@@ -90,8 +90,10 @@ static void prepCam() {
         s->set_brightness(s, 1);//up the brightness just a bit
         s->set_saturation(s, -2);//lower the saturation
       }
-      //drop down frame size for higher initial frame rate
-      s->set_framesize(s, FRAMESIZE_SVGA);
+      // set frame size to configured value
+      char fsizePtr[4];
+      if (retrieveConfigVal("framesize", fsizePtr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtr)));
+      else s->set_framesize(s, FRAMESIZE_SVGA);
   
 #if defined(CAMERA_MODEL_M5STACK_WIDE)
       s->set_vflip(s, 1);

@@ -1,4 +1,4 @@
- 
+
 /* 
   Management and storage of application configuration state.
   Configuration file stored on spiffs or SD, except passwords which are stored in NVS
@@ -77,7 +77,7 @@ bool updateConfigVect(const char* variable, const char* value) {
   return false; 
 }
 
-static bool retrieveConfigVal(const char* variable, char* value) {
+bool retrieveConfigVal(const char* variable, char* value) {
   std::string thisKey(variable);
   int keyPos = getKeyPos(thisKey);
   if (keyPos >= 0) {

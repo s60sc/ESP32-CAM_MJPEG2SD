@@ -10,6 +10,7 @@ Recent changes up to version 8.7.3:
 - Compiled for arduino-esp32 v2.0.11
 - Support for TTGO T-Camera Plus (see [issue 232](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/232))
 - Simplified remote access via [port forwarding](#port-forwarding)
+- Fix for [issue 250](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/250)
 
 
 ## Purpose

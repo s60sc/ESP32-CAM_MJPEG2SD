@@ -1,6 +1,6 @@
 // Global generic declarations
 //
-// s60sc 2021, 2022 
+// s60sc 2021, 2022
 
 #pragma once
 // to compile with -Wall -Werror=all -Wextra
@@ -88,6 +88,7 @@ float readVoltage();
 void remote_log_init();
 void removeChar(char *s, char c);
 void reset_log();
+bool retrieveConfigVal(const char* variable, char* value);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
