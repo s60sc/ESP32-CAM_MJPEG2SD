@@ -1,5 +1,5 @@
 // Global MJPEG2SD declarations
-// 
+//
 // s60sc 2021, 2022
 
 #pragma once
@@ -53,7 +53,7 @@
 #define FLUSH_DELAY 200 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.7.3"
+#define APP_VER "8.7.4"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT    
@@ -79,7 +79,7 @@
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define HTM_VER "1"
+#define HTM_VER "2"
 #define JS_VER "0"
 #define CFG_VER "0"
 

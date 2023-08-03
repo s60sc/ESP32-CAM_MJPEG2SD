@@ -115,7 +115,6 @@ static void prepCam() {
 
 void setup() {   
   logSetup();
-  LOG_INF("=============== Starting ===============");
   if (!psramFound()) sprintf(startupFailure, "Startup Failure: Need PSRAM to be enabled");
   
   // prep SD card storage
@@ -143,7 +142,7 @@ void setup() {
     prepPeripherals();
     prepMic(); 
     prepRecording();
-    LOG_INF("Camera model %s on board %s ready @ %uMHz, version %s", camModel, CAM_BOARD, xclkMhz, APP_VER); 
+    LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
     checkMemory();
   } 
 }

@@ -2,7 +2,7 @@
 
 ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
 
-Recent changes up to version 8.7.3:
+Recent changes up to version 8.7.4:
 - Support for Seeed XIAO ESP32S3 Sense board
 - Support for PDM microphone on ESP32S3
 - Lamp flash at night for timelapse
@@ -11,6 +11,8 @@ Recent changes up to version 8.7.3:
 - Support for TTGO T-Camera Plus (see [issue 232](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/232))
 - Simplified remote access via [port forwarding](#port-forwarding)
 - Fix for [issue 250](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/250)
+- Fix for [issue 253](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/253)
+- Image rotation button **@** added
 
 
 ## Purpose
@@ -54,18 +56,18 @@ Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
 * Freenove ESP32S3 Cam board - `CAMERA_MODEL_ESP32S3_EYE` 
 
-Compile with PSRAM enabled and the following Partition scheme:
+Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and the following Partition scheme:
 * ESP32 - `Minimal SPIFFS (...)`
 * ESP32S3 - `8M with spiffs (...)`
 
 **NOTE: If you get compilation errors you need to update your `arduino-esp32` library in the IDE 
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
-The application web pages and configuration data file (except passwords) are stored in the **/data** folder which needs to be copied as a folder to the SD card, or automatically downloaded from GitHub on app startup. This reduces the size of the application on flash and reduces wear as well as making updates easier.
+**NOTE: If you get error: `Startup Failure: Check SD card inserted` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
 
-On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on 192.168.4.1. The application web pages and configuration data file (except passwords) are stored in the **/data** folder which is automatically downloaded to SD card from GitHub. The **/data** folder can also be loaded via OTA.
+On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on `192.168.4.1`. The application web pages and configuration data file (except passwords) are automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
 
-Subsequent updates to the application, or to the **/data** folder contents, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab.
+Subsequent updates to the application, or to the **/data** folder files, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab.
 
 Browser functions only tested on Chrome.
 

@@ -3,7 +3,7 @@
 // - wifi
 // - NTP
 // - remote logging
-// - base64 encoding 
+// - base64 encoding
 // - device sleep
 //
 // s60sc 2021, 2023
@@ -57,8 +57,8 @@ static void setupMdnsHost() {
   snprintf(mdnsName, MAX_IP_LEN, hostName);
   if (MDNS.begin(mdnsName)) {
     // Add service to MDNS
-    MDNS.addService("http", "tcp", 80);
-    MDNS.addService("ws", "udp", 83);
+    MDNS.addService("http", "tcp", WEB_PORT);
+    // MDNS.addService("ws", "udp", 83);
     // MDNS.addService("ftp", "tcp", 21);    
     LOG_INF("mDNS service: http://%s.local", mdnsName);
   } else LOG_ERR("mDNS host: %s Failed", mdnsName);
@@ -180,9 +180,8 @@ bool startWifi(bool firstcall) {
   if (!strlen(ST_SSID)) wlStat = WL_NO_SSID_AVAIL;
   else {
     while (wlStat = WiFi.status(), wlStat != WL_CONNECTED && millis() - startAttemptTime < 5000)  {
-      Serial.print(".");
+      logPrint(".");
       delay(500);
-      Serial.flush();
     }
   }
   if (wlStat == WL_NO_SSID_AVAIL || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use 
@@ -244,9 +243,9 @@ static void startPing() {
   pingConfig.interval_ms = wifiTimeoutSecs * 1000;
   pingConfig.timeout_ms = 5000;
 #if CONFIG_IDF_TARGET_ESP32S3
-  pingConfig.task_stack_size = 1024 * 6;
-#else
   pingConfig.task_stack_size = 1024 * 8;
+#else
+  pingConfig.task_stack_size = 1024 * 6;
 #endif
   pingConfig.task_prio = 1;
   // set ping task callback functions 
@@ -690,12 +689,14 @@ void logSetup() {
   // prep logging environment
   Serial.begin(115200);
   Serial.setDebugOutput(false);
-  Serial.println(); 
+  printf("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
+  if (CHECK_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
   xSemaphoreGive(logMutex);
-  xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle); 
+  xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle);
+  debugMemory("logSetup"); 
 }
 
 void formatHex(const char* inData, size_t inLen) {
