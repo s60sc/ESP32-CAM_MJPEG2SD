@@ -1259,6 +1259,7 @@
         <figure>
             <div id="stream-container" class="image-container hidden">
                 <div class="streamSize" id="closeStream" title="Close screen">×</div>
+                 <div class="streamSize" id="rotate" title="Rotate screen">@</div>
                 <div class="streamSize" id="actualSize" title="Actual size">-</div>
                 <div class="streamSize" id="maxFit" title="Fit to browser">#</div>
                 <div class="streamSize" id="fullAspect" title="Full screen with aspect">&curren;</div>
@@ -1481,6 +1482,7 @@
       let recordingIndicator;
       let streamButton;
       let playbackButton;
+      let rotateAngle = 0;
       
       function appInit() {
         streamServer = webHost + ':' + streamPort;
@@ -1798,18 +1800,24 @@
             viewContainer.style.cssText = 'width:'+window.screen.availWidth+'px; height:'+window.screen.availHeight+'px';
             view.style.cssText = "width: 100%; height: 100%";
           }
+          else if (selectedSize == 'rotate') {
+            rotateAngle = rotateAngle == 270 ? 0 : rotateAngle + 90;
+            const scale = (rotateAngle == 90 || rotateAngle == 270) ? imgSize.height / imgSize.width : 1.0;
+            $('#stream').style.transform = 'rotate('+rotateAngle+'deg) scale(' + scale + ')'; 
+          }
           if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) {
             if (document.exitFullscreen) document.exitFullscreen();
             else document.webkitExitFullscreen(); /* Safari */
           }
-          
+
           // locate size buttons on screen
           let buttonPos = baseFontSize / 4;
           $$('.streamSize').forEach(el => {
-            if (el.id != selectedSize) {
+            if (el.id != selectedSize || el.id == "rotate") {
               el.style.right = buttonPos + 'px'; 
               buttonPos += baseFontSize * 1.25;
               show(el);
+              el.style.zIndex = 1;
             } else hide(el);
           });
           show(viewContainer); 
