@@ -84,6 +84,8 @@ static bool createFtpFolder(const char* folderName) {
   if (strcmp(respCodeRx, "550") == 0) {
     // non existent folder, create it
     if (!sendFtpCommand("MKD ", folderName, "257")) return false;
+    if (!sendFtpCommand("SITE CHMOD 755 ", folderName, "200"))
+       return false;
     if (!sendFtpCommand("CWD ", folderName, "250")) return false;         
   }
   return true;
@@ -157,6 +159,7 @@ static bool ftpStoreFile(File &fh) {
   percentLoaded = 100;
   if (sendFtpCommand("", "", "226")) LOG_ALT("Uploaded %0.1fMB in %u sec", (float)(writeBytes) / ONEMEG, (millis() - uploadStart) / 1000); 
   else LOG_ERR("File transfer not successful");
+  sendFtpCommand("SITE CHMOD 644 ", ftpSaveName, "200");
   return true;
 }
 
