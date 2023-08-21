@@ -294,18 +294,18 @@
           console.log('***** '+msg);
         }
 
-        function clearRAMlog() {
-          if (window.confirm('This will delete all log entries on RAM. Are you sure ?')) { 
-            $('#ramlog').innerHTML = "";
+        function clearLog() {
+          if (window.confirm('This will delete all log entries. Are you sure ?')) { 
+            $('#storedLog').innerHTML = "";
             sendControl("resetLog", "1");
           }
         }
         
-        async function getRAMlog() {
-          // request display of RAM log file
-          const log = $('#ramlog');
+        async function getLog(requestURL = "/control?displayLog=1") {
+          // request display of stored log file
+          const log = $('#storedLog');
           log.innerHTML = "";
-          const response = await fetch(encodeURI(webServer + "/control?displayLog=1"));
+          const response = await fetch(encodeURI(requestURL));
           if (response.ok) {
             const logData = await response.text();
             let start = 0;

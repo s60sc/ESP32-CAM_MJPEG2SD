@@ -118,3 +118,7 @@ mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
 mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
+usePing~1~0~C~Use ping
+cfgVer~1~99~T~na
+htmVer~3~99~T~na
+jsVer~1~99~T~na

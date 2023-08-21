@@ -234,7 +234,7 @@
         flex-grow: 1
       }
       
-      input, #applog, #sdlog {
+      input, #applog, #storedLog {
         font: var(--inputSize) 'Courier New';
         font-weight:bold;
         color: var(--inputText);
@@ -330,7 +330,7 @@
         transform: translateX(calc(var(--buttonSize)*1.5));
       }
       
-      #applog, #sdlog {
+      #applog, #storedLog {
         height:50vh;
         width:90%;
         border:2px solid var(--itemBorder);
@@ -1259,7 +1259,7 @@
         <figure>
             <div id="stream-container" class="image-container hidden">
                 <div class="streamSize" id="closeStream" title="Close screen">×</div>
-                 <div class="streamSize" id="rotate" title="Rotate screen">@</div>
+                <div class="streamSize" id="rotate" title="Rotate screen">@</div>
                 <div class="streamSize" id="actualSize" title="Actual size">-</div>
                 <div class="streamSize" id="maxFit" title="Fit to browser">#</div>
                 <div class="streamSize" id="fullAspect" title="Full screen with aspect">&curren;</div>
@@ -1365,18 +1365,18 @@
         <div>
           <svg>
             <rect/>
-            <text class="local" id="clearSDlog">Clear SD Log</text>
+            <text class="local" id="refreshLog">Refresh Log</text>
           </svg>
         </div>
         <div>
           <svg>
             <rect/>
-            <text class="local" id="refreshSDlog">Retrieve SD Log</text>
+            <text class="local" id="clearLog">Clear Log</text>
           </svg>
         </div>
       </div>
       <br>
-      <div id="sdlog"></div>
+      <div id="storedLog"></div>
     </div>
     <br>
     
@@ -1506,8 +1506,8 @@
           else if (key == "otafile") otaUploadFile();
           else if (key == "alertMsg") showAlert(value);
           else if (key == "clearWSlog") $('#applog').innerHTML = "";
-          else if (key == "clearSDlog") clearSDlog();
-          else if (key == "refreshSDlog") getSDlog();
+          else if (key == "clearLog") clearLog();
+          else if (key == "refreshLog") getLog('/web?log.txt');
           else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") checkTime(value);
@@ -1803,7 +1803,7 @@
           else if (selectedSize == 'rotate') {
             rotateAngle = rotateAngle == 270 ? 0 : rotateAngle + 90;
             const scale = (rotateAngle == 90 || rotateAngle == 270) ? imgSize.height / imgSize.width : 1.0;
-            $('#stream').style.transform = 'rotate('+rotateAngle+'deg) scale(' + scale + ')'; 
+            view.style.transform = 'rotate('+rotateAngle+'deg) scale(' + scale + ')'; 
           }
           if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) {
             if (document.exitFullscreen) document.exitFullscreen();
@@ -1912,39 +1912,7 @@
         sendControl('timezone', value);
         return false;
       }
-      
-      function clearSDlog() {
-        if (window.confirm('This will delete all log entries on SD. Are you sure ?')) { 
-          $('#sdlog').innerHTML = "";
-          sendControl("resetLog", "1");
-        }
-      }
-      
-      async function getSDlog() {
-        // request SD log file
-        const log = $('#sdlog');
-        log.innerHTML = "";
-        const response = await fetch('/web?log.txt');
-        if (response.ok) {
-          const logData = await response.text();
-          let start = 0;
-          const loadNextLine = () => {
-            const index = logData.indexOf("\n", start);
-            if (index !== -1) {
-              log.innerHTML += colorise(logData.substring(start, index)) + '<br>';
-              start = index + 1;
-              // auto scroll log as loaded
-              const bottom = 2 * baseFontSize;// 2 lines
-              const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
-              if (pos < bottom) log.scrollTop = log.scrollHeight;
-              // stop browser hanging while log is loaded
-              setTimeout(loadNextLine, 1); 
-            } 
-          };
-          loadNextLine(); 
-        } else console.log(response.status); 
-      }
-      
+ 
       function sdFile(key, value) {
         if (key == "delete") {
           if (!confirm("Are you sure you want to delete " + value + " from the SD card?")) return false;
