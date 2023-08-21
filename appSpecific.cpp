@@ -199,15 +199,12 @@ void buildAppJsonString(bool filter) {
       else if (cardType == CARD_SD) p += sprintf(p, "\"card\":\"%s\",", "SDSC");
       else if (cardType == CARD_SDHC) p += sprintf(p, "\"card\":\"%s\",", "SDHC"); 
     }
-    uint64_t cardSize = SD_MMC.cardSize() / ONEMEG;
-    uint64_t totBytes = SD_MMC.totalBytes() / ONEMEG;
-    uint64_t useBytes = SD_MMC.usedBytes() / ONEMEG;
-    p += sprintf(p, "\"card_size\":\"%llu MB\",", cardSize);
-    p += sprintf(p, "\"used_bytes\":\"%llu MB\",", useBytes);
-    p += sprintf(p, "\"free_bytes\":\"%llu MB\",", totBytes - useBytes);
-    p += sprintf(p, "\"total_bytes\":\"%llu MB\",", totBytes);
+    p += sprintf(p, "\"card_size\":\"%s\",", fmtSize(SD_MMC.cardSize()));
+    p += sprintf(p, "\"used_bytes\":\"%s\",", fmtSize(SD_MMC.usedBytes()));
+    p += sprintf(p, "\"free_bytes\":\"%s\",", fmtSize(SD_MMC.totalBytes() - SD_MMC.usedBytes()));
+    p += sprintf(p, "\"total_bytes\":\"%s\",", fmtSize(SD_MMC.totalBytes()));
   }
-  p += sprintf(p, "\"free_psram\":\"%u KB\",", (ESP.getFreePsram() / 1024));     
+  p += sprintf(p, "\"free_psram\":\"%s\",", fmtSize(ESP.getFreePsram()));     
   p += sprintf(p, "\"progressBar\":%u,", percentLoaded);  
   if (percentLoaded == 100) percentLoaded = 0;
   //p += sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; ); 

@@ -49,6 +49,8 @@ bool allowAP = true;  // set to true to allow AP to startup if cannot connect to
 int wifiTimeoutSecs = 30; // how often to check wifi status
 static bool APstarted = false;
 static esp_ping_handle_t pingHandle = NULL;
+bool usePing = true;
+
 static void startPing();
 
 static void setupMdnsHost() {  
@@ -202,10 +204,8 @@ bool startWifi(bool firstcall) {
 static void resetWatchDog() {
   // use ping task as watchdog in case of freeze
   static bool watchDogStarted = false;
-  if (watchDogStarted) {
-    esp_task_wdt_reset();
-    doAppPing();
-  } else {
+  if (watchDogStarted) esp_task_wdt_reset();
+  else {
     esp_task_wdt_init(wifiTimeoutSecs * 2, true); // enable panic so ESP32 restarts
     esp_task_wdt_add(NULL);
     watchDogStarted = true;
@@ -213,24 +213,43 @@ static void resetWatchDog() {
   }
 }
 
-static void pingSuccess(esp_ping_handle_t hdl, void *args) {
+static void statusCheck() {
+  // regular status checks
+  doAppPing();
   if (!timeSynchronized) getLocalNTP();
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
 #ifdef INCLUDE_MQTT
   if (mqtt_active) startMqttClient();
 #endif
+}
+
+static void pingSuccess(esp_ping_handle_t hdl, void *args) {
+  //uint32_t elapsed_time;
+  //esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
   resetWatchDog();
+  statusCheck();
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
+  // a ping check is used because esp may maintain a connection to gateway which may be unuseable, which is detected by ping failure
+  // but some routers may not respond to ping - https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
+  // so setting usePing to false ignores ping failure if connection still present
+  resetWatchDog();
   if (strlen(ST_SSID)) {
     wl_status_t wStat = WiFi.status();
     if (wStat != WL_NO_SSID_AVAIL && wStat != WL_NO_SHIELD) {
-      LOG_WRN("Failed to ping gateway, restart wifi ...");
-      startWifi(false);
+      if (usePing) {
+        LOG_WRN("Failed to ping gateway, restart wifi ...");
+        startWifi(false);
+      } else {
+        if (wStat == WL_CONNECTED) statusCheck(); // treat as ok
+        else {
+          LOG_WRN("Disconnected, restart wifi ...");
+          startWifi(false);
+        }
+      }
     }
   }
-  resetWatchDog();
 }
 
 static void startPing() {
@@ -256,7 +275,7 @@ static void startPing() {
   cbs.cb_args = NULL;
   esp_ping_new_session(&pingConfig, &cbs, &pingHandle);
   esp_ping_start(pingHandle);
-  LOG_INF("Started ping monitoring");
+  LOG_INF("Started ping monitoring - %s", usePing ? "On" : "Off");
   debugMemory("startPing");
 }
 
@@ -346,12 +365,14 @@ bool getLocalNTP() {
 
 void syncToBrowser(uint32_t browserUTC) {
   // Synchronize to browser clock if out of sync
-  struct timeval tv;
-  tv.tv_sec = browserUTC;
-  settimeofday(&tv, NULL);
-  setenv("TZ", timezone, 1);
-  tzset();
-  showLocalTime("browser");
+  if (!timeSynchronized) {
+    struct timeval tv;
+    tv.tv_sec = browserUTC;
+    settimeofday(&tv, NULL);
+    setenv("TZ", timezone, 1);
+    tzset();
+    showLocalTime("browser");
+  }
 }
 
 void formatElapsedTime(char* timeStr, uint32_t timeVal) {
@@ -483,6 +504,17 @@ void removeChar(char* s, char c) {
   s[writer] = 0;
 }
 
+char* fmtSize (uint64_t sizeVal) {
+  // format size according to magnitude
+  // only one call per format string
+  static char returnStr[20];
+  if (sizeVal < 100 * 1024) sprintf(returnStr, "%llu", sizeVal);
+  else if (sizeVal < ONEMEG) sprintf(returnStr, "%llukB", sizeVal / 1024);
+  else if (sizeVal < ONEMEG * 1024) sprintf(returnStr, "%0.1fMB", (double)(sizeVal) / ONEMEG);
+  else sprintf(returnStr, "%0.1fGB", (double)(sizeVal) / (ONEMEG * 1024));
+  return returnStr;
+}
+
 void checkMemory() {
   LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
 }
@@ -566,7 +598,6 @@ static void ramLogClear() {
     mlogEnd = 0;
     mlogCycle = false; 
     messageLog[0] = '\0';
-    LOG_INF("Setup RAM based log");
   }
 }
 
@@ -574,8 +605,9 @@ static void ramLogClear() {
 void ramLogPrep() {
   ramMode = true;
   mlogLen = RAM_LOG_LEN;
-  messageLog = (char*)malloc(mlogLen);
+  messageLog = psramFound() ? (char*)ps_malloc(mlogLen) : (char*)malloc(mlogLen); 
   ramLogClear();
+  LOG_INF("Setup RAM based log, size %u", mlogLen);
 }
 
 static void ramLogStore(size_t msgLen) {
@@ -619,11 +651,11 @@ static void remote_log_init_SD() {
 
 void reset_log() {
   if (ramMode) ramLogClear();
-#ifdef INCLUDE_SD
-  if (log_remote_fp != NULL) flush_log(true); // Close log file
-  SD_MMC.remove(LOG_FILE_PATH);
-  if (logMode) remote_log_init_SD();  
-#endif 
+  if (logMode) {
+    if (log_remote_fp != NULL) flush_log(true); // Close log file
+    SD_MMC.remove(LOG_FILE_PATH);
+    remote_log_init_SD();
+  }
   LOG_INF("Cleared log file"); 
 }
 

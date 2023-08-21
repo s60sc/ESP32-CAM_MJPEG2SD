@@ -48,30 +48,36 @@
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#ifdef DEV_ONLY 
+//#define SIDE_ALARM // uncomment if used for side alarm
+#endif 
+#define STATIC_IP_OCTAL "132" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 200 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.7.4"
+#define APP_VER "8.7.5"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
-#define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT    
+#define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT   
 #define FILE_NAME_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
 #define MAX_CONFIGS 130 // > number of entries in configs.txt
-#define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
 
-#define STORAGE SD_MMC // one of: SPIFFS LittleFS SD_MMC 
+#ifdef SIDE_ALARM
+#define STORAGE LittleFS 
+#define GITHUB_URL ""
+#else
+#define STORAGE SD_MMC
+#define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
+#endif
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
 #define RAM_LOG_LEN 5000 // size of ram stored system message log in bytes
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_MQTT
-#define INCLUDE_SD
 #define ISCAM // cam specific code in generics
-//#define SIDE_ALARM // uncomment if used for side alarm 
 // set true for emailing external ip changes
 #define IP_EMAIL false
 
@@ -79,9 +85,9 @@
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define HTM_VER "2"
-#define JS_VER "0"
-#define CFG_VER "0"
+#define HTM_VER "3"
+#define JS_VER "1"
+#define CFG_VER "1"
 
 #define FILE_EXT "avi"
 #define AVI_HEADER_LEN 310 // AVI header length
@@ -267,6 +273,7 @@ extern const uint32_t WAV_HEADER_LEN;
 // task handling
 extern TaskHandle_t playbackHandle;
 extern TaskHandle_t DS18B20handle;
+extern TaskHandle_t I2CmonitorHandle;
 extern TaskHandle_t servoHandle;
 extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;

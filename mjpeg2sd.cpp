@@ -307,7 +307,7 @@ static bool closeAvi() {
     LOG_INF("Number of frames: %u", frameCnt);
     LOG_INF("Required FPS: %u", FPS);
     LOG_INF("Actual FPS: %0.1f", actualFPS);
-    LOG_INF("File size: %0.2f MB", (float)vidSize / ONEMEG);
+    LOG_INF("File size: %s", fmtSize(vidSize));
     if (frameCnt) {
       LOG_INF("Average frame length: %u bytes", vidSize / frameCnt);
       LOG_INF("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
@@ -681,6 +681,7 @@ void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
   deleteTask(DS18B20handle);
+ // deleteTask(I2CmonitorHandle);
   deleteTask(servoHandle);
   deleteTask(emailHandle);
   deleteTask(ftpHandle);

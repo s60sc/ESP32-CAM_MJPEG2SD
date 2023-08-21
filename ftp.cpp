@@ -84,6 +84,7 @@ static bool createFtpFolder(const char* folderName) {
   if (strcmp(respCodeRx, "550") == 0) {
     // non existent folder, create it
     if (!sendFtpCommand("MKD ", folderName, "257")) return false;
+    //sendFtpCommand("SITE CHMOD 755 ", folderName, "200", "550"); // unix only
     if (!sendFtpCommand("CWD ", folderName, "250")) return false;         
   }
   return true;
@@ -130,7 +131,7 @@ static bool ftpStoreFile(File &fh) {
   char ftpSaveName[FILE_NAME_LEN];
   strcpy(ftpSaveName, fh.name());
   size_t fileSize = fh.size();
-  LOG_INF("Upload file: %s, size: %0.1fMB", ftpSaveName, (float)(fileSize)/ONEMEG);    
+  LOG_INF("Upload file: %s, size: %s", ftpSaveName, fmtSize(fileSize));    
 
   // open data connection
   openDataPort();
@@ -155,7 +156,10 @@ static bool ftpStoreFile(File &fh) {
   } while (readLen > 0);
   dclient.stop();
   percentLoaded = 100;
-  if (sendFtpCommand("", "", "226")) LOG_ALT("Uploaded %0.1fMB in %u sec", (float)(writeBytes) / ONEMEG, (millis() - uploadStart) / 1000); 
+  if (sendFtpCommand("", "", "226")) {
+    LOG_ALT("Uploaded %s in %u sec", fmtSize(writeBytes), (millis() - uploadStart) / 1000);
+    //sendFtpCommand("SITE CHMOD 644 ", ftpSaveName, "200", "550"); // unix only
+  }
   else LOG_ERR("File transfer not successful");
   return true;
 }

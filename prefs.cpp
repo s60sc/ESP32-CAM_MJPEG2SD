@@ -114,6 +114,8 @@ static void saveConfigVect() {
   char configLine[FILE_NAME_LEN + 101];
   if (!file) LOG_ALT("Failed to save to configs file");
   else {
+    sort(configs.begin(), configs.end());
+    configs.erase(unique(configs.begin(), configs.end()), configs.end()); // remove any dups
     for (const auto& row: configs) {
       // recreate config file with updated content
       if (!strcmp(row[0].c_str() + strlen(row[0].c_str()) - 5, "_Pass")) 
@@ -225,7 +227,7 @@ static void updateVer(const char* verType, const char* value) {
   if (strcmp(value, thisVer)) {
      // not matched, delete file to update
      if (!strcmp(verType, "htmVer")) deleteFolderOrFile(INDEX_PAGE_PATH);
-     if (!strcmp(verType, "cfgVer")) deleteFolderOrFile(CONFIG_FILE_PATH);
+     if (!strcmp(verType, "cfgVer")) deleteFolderOrFile(DATA_DIR);
      if (!strcmp(verType, "jsVer")) deleteFolderOrFile(COMMON_JS_PATH);
      updateConfigVect(verType, thisVer);
      updatedVers = true;
@@ -302,6 +304,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "sdFreeSpaceMode")) sdFreeSpaceMode = intVal;
   else if (!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
   else if (!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
+  else if (!strcmp(variable, "usePing")) usePing = (bool)intVal;
   else if (!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
@@ -358,7 +361,7 @@ void buildJsonString(uint8_t filter) {
     p += sprintf(p, "\"clock\":\"%s\",", timeBuff);
     formatElapsedTime(timeBuff, millis());
     p += sprintf(p, "\"up_time\":\"%s\",", timeBuff);   
-    p += sprintf(p, "\"free_heap\":\"%u KB\",", (ESP.getFreeHeap() / 1024));    
+    p += sprintf(p, "\"free_heap\":\"%s\",", fmtSize(ESP.getFreeHeap()));    
     p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
     p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
 
@@ -461,7 +464,7 @@ bool loadConfig() {
     }
     // load variables from stored config vector
     while (getNextKeyVal(variable, value)) updateStatus(variable, value);
-    if (updatedVers) saveConfigVect();
+    if (updatedVers) saveConfigVect(); // save new *Ver properties
     configLoaded = true;
     debugMemory("loadConfig");
     wakeupResetReason();

@@ -50,7 +50,7 @@ static esp_err_t streamHandler(httpd_req_t* req) {
   uint8_t* jpgBuf = NULL;
   uint32_t startTime = millis();
   uint32_t frameCnt = 0;
-  uint32_t mjpegKB = 0;
+  uint32_t mjpegLen = 0;
   mjpegStruct mjpegData;
 
   // obtain key from query string
@@ -135,13 +135,13 @@ static esp_err_t streamHandler(httpd_req_t* req) {
       xSemaphoreGive(motionMutex);
       if (fb != NULL) esp_camera_fb_return(fb);
       fb = NULL;  
-      mjpegKB += jpgLen / 1024;
+      mjpegLen += jpgLen;
       if (res != ESP_OK) break;
     } while (!singleFrame && isStreaming);
     uint32_t mjpegTime = millis() - startTime;
     float mjpegTimeF = float(mjpegTime) / 1000; // secs
     if (singleFrame) LOG_INF("JPEG: %uB in %ums", jpgLen, mjpegTime);
-    else LOG_INF("MJPEG: %u frames, total %ukB in %0.1fs @ %0.1ffps", frameCnt, mjpegKB, mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
+    else LOG_INF("MJPEG: %u frames, total %s in %0.1fs @ %0.1ffps", frameCnt, fmtSize(mjpegLen), mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
   }
   return res;
 }

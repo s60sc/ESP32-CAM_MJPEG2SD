@@ -15,7 +15,6 @@ static auto currentDir = "/~current";
 static auto previousDir = "/~previous";
 static char fsType[10] = {0};
 
-#ifdef INCLUDE_SD
 static void infoSD() {
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) LOG_WRN("No SD card attached");
@@ -24,13 +23,7 @@ static void infoSD() {
     if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
     else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
     else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
-
-    uint64_t cardSize, totBytes, useBytes = 0;
-    cardSize = SD_MMC.cardSize() / ONEMEG;
-    totBytes = SD_MMC.totalBytes() / ONEMEG;
-    useBytes = SD_MMC.usedBytes() / ONEMEG;
-    LOG_INF("SD card type %s, Size: %lluMB, Used space: %lluMB, of total: %lluMB",
-             typeStr, cardSize, useBytes, totBytes);
+    LOG_INF("SD card type %s, Size: %s", typeStr, fmtSize(SD_MMC.cardSize()));
   }
 }
 
@@ -71,34 +64,33 @@ static bool prepSD_MMC() {
   }
   return res;
 }
-#endif
 
 static void listFolder(const char* rootDir) { 
   // list contents of folder
-  LOG_INF("Sketch size %dkB", ESP.getSketchSize() / 1024);    
+  LOG_INF("Sketch size %s", fmtSize(ESP.getSketchSize()));    
   File root = STORAGE.open(rootDir);
   File file = root.openNextFile();
   while (file) {
-    LOG_INF("File: %s, size: %u", file.path(), file.size());
+    LOG_INF("File: %s, size: %s", file.path(), fmtSize(file.size()));
     file = root.openNextFile();
   }
-  LOG_INF("%s: Total bytes %lld, Used bytes %lld", fsType, (uint64_t)(STORAGE.totalBytes()), (uint64_t)(STORAGE.usedBytes())); 
+  LOG_INF("%s: %s used", fsType, fmtSize(STORAGE.usedBytes()));
 }
 
 bool startStorage() {
   // start required storage device (SD card or flash file system)
   bool res = false;
-#ifdef INCLUDE_SD  
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
     if (res) listFolder(DATA_DIR);
     else sprintf(startupFailure, "Startup Failure: Check SD card inserted");
+    debugMemory("startStorage");
     return res; 
   }
-#endif
-
+  
   // One of SPIFFS or LittleFS
+  ramLogPrep();
   if (!strlen(fsType)) {
 #ifdef _SPIFFS_H_
     if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
@@ -110,9 +102,8 @@ bool startStorage() {
     if ((fs::LittleFSFS*)&STORAGE == &LittleFS) {
       strcpy(fsType, "LittleFS");
       res = LittleFS.begin(formatIfMountFailed);
-      ramLogPrep();
       // create data folder if not present
-      if (res && !LittleFS.exists(DATA_DIR)) LittleFS.mkdir(DATA_DIR);
+      LittleFS.mkdir(DATA_DIR);
     }
 #endif
     if (res) {  
@@ -239,7 +230,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
       if (!returnDirs && !file.isDirectory()) {
         // build file list
         if (strstr(file.name(), extension) != NULL) {
-          sprintf(partJson, "\"%s\":\"%s %0.1fMB\",", file.path(), file.name(), (float)file.size() / ONEMEG);
+          sprintf(partJson, "\"%s\":\"%s %s\",", file.path(), file.name(), fmtSize(file.size()));
           fileVec.push_back(std::string(partJson));
           noEntries = false;
         }
@@ -292,9 +283,9 @@ void deleteFolderOrFile(const char* deleteThis) {
       strcpy(filepath, file.path()); 
       if (file.isDirectory()) LOG_INF("  DIR : %s", filepath);
       else {
-        int fileSize = file.size() / ONEMEG;
+        size_t fSize = file.size();
         file.close();
-        LOG_INF("  FILE : %s Size : %dMB %sdeleted", filepath, fileSize, STORAGE.remove(filepath) ? "" : "not ");
+        LOG_INF("  FILE : %s Size : %s %sdeleted", filepath, fmtSize(fSize), STORAGE.remove(filepath) ? "" : "not ");
       }
       file = df.openNextFile();
     }

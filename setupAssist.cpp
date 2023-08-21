@@ -42,6 +42,7 @@ static fs::FS fp = STORAGE;
 
 static bool wgetFile(const char* githubURL, const char* filePath, bool restart = false) {
   // download file from github
+  bool res = false;
   if (fp.exists(filePath)) {
     // if file exists but is empty, delete it to allow re-download
     File f = fp.open(filePath, FILE_READ);
@@ -79,19 +80,18 @@ static bool wgetFile(const char* githubURL, const char* filePath, bool restart =
           } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
           https.end();
           f.close();
-          if (httpCode == HTTP_CODE_OK) break;
-          else fp.remove(filePath);
+          if (httpCode == HTTP_CODE_OK) {
+            res = true;
+            break;
+          } else fp.remove(filePath);
         }
-      } else {
-        LOG_ERR("Open failed: %s", filePath);
-        return false;
-      }
+      } else LOG_ERR("Open failed: %s", filePath);
     } 
     if (restart) {
       if (loadConfig()) doRestart("config file downloaded");
     }
-  } 
-  return true;
+  } else res = true;
+  return res;
 }
 
 bool checkDataFiles() {
@@ -100,9 +100,9 @@ bool checkDataFiles() {
   bool res = false;
   if (strlen(GITHUB_URL)) {
     res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
-    if (res) wgetFile(GITHUB_URL, COMMON_JS_PATH);
-    if (res) wgetFile(GITHUB_URL, INDEX_PAGE_PATH);        
-    if (res) appDataFiles();
+    if (res) res = wgetFile(GITHUB_URL, COMMON_JS_PATH); 
+    if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH); 
+    if (res) res = appDataFiles(); 
   }
   return res;
 }

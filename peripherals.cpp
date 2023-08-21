@@ -372,42 +372,56 @@ static void setupLamp() {
 void setLamp(uint8_t lampVal) {
   // control lamp status
   if (!lampUse) lampVal = 0;
-  if (!lampInit) setupLamp();
-  if (lampInit) {
+  if (!externalPeripheral(lampPin, lampVal)) {
+    if (!lampInit) setupLamp();
+    if (lampInit) {
 #if defined(CAMERA_MODEL_AI_THINKER)
-    // set lamp brightness using PWM (0 = off, 15 = max)
-    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
-
+      // set lamp brightness using PWM (0 = off, 15 = max)
+     ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
+  
 #elif defined(CAMERA_MODEL_ESP32S3_EYE)
-    // Set white color and apply lampVal (0 = off, 15 = max)
-    uint8_t RGB[3]; // each color is 8 bits
-    lampVal = lampVal == 15 ? 255 : lampVal * 16;
-    for (uint8_t i = 0; i < 3; i++) {
-      RGB[i] = lampVal;
-      // apply WS2812 bit encoding pulse timing per bit
-      for (uint8_t j = 0; j < 8; j++) { 
-        int bit = (i * 8) + j;
-        if ((RGB[i] << j) & 0x80) { // get left most bit first
-          // bit = 1
-          ledData[bit].level0 = 1;
-          ledData[bit].duration0 = 8;
-          ledData[bit].level1 = 0;
-          ledData[bit].duration1 = 4;
-        } else {
-          // bit = 0
-          ledData[bit].level0 = 1;
-          ledData[bit].duration0 = 4;
-          ledData[bit].level1 = 0;
-          ledData[bit].duration1 = 8;
+      // Set white color and apply lampVal (0 = off, 15 = max)
+      uint8_t RGB[3]; // each color is 8 bits
+      lampVal = lampVal == 15 ? 255 : lampVal * 16;
+      for (uint8_t i = 0; i < 3; i++) {
+        RGB[i] = lampVal;
+        // apply WS2812 bit encoding pulse timing per bit
+        for (uint8_t j = 0; j < 8; j++) { 
+          int bit = (i * 8) + j;
+          if ((RGB[i] << j) & 0x80) { // get left most bit first
+            // bit = 1
+            ledData[bit].level0 = 1;
+            ledData[bit].duration0 = 8;
+            ledData[bit].level1 = 0;
+            ledData[bit].duration1 = 4;
+          } else {
+            // bit = 0
+            ledData[bit].level0 = 1;
+            ledData[bit].duration0 = 4;
+            ledData[bit].level1 = 0;
+            ledData[bit].duration1 = 8;
+          }
         }
       }
-    }
-    rmtWrite(rmtWS2812, ledData, RGB_BITS);
+      rmtWrite(rmtWS2812, ledData, RGB_BITS);
 #else
-    // other board
-    // set lamp brightness using PWM (0 = off, 15 = max)
-    if (!externalPeripheral(lampPin, lampVal)) ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
+      // other board
+      // set lamp brightness using PWM (0 = off, 15 = max)
+      ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
 #endif
+    }
+  }
+}
+
+
+void twinkleLed(uint8_t ledPin, uint16_t interval, uint8_t blinks) {
+  // twinkle led, for given number of blinks, 
+  //  with given interval in ms between blinks
+  bool ledState = true;
+  for (int i=0; i<blinks*2; i++) {
+    digitalWrite(ledPin, ledState);
+    delay(interval);
+    ledState = !ledState;
   }
 }
 
@@ -418,6 +432,7 @@ void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
   // callback for Client uart task 
   // updates peripheral stored input value when response received
   // map received pin number to peripheral
+  LOG_DBG("Pin %d, data %u", pinNum, responseData);
   if (pinNum == pirPin) 
     memcpy(&pirVal, &responseData, sizeof(pirVal));  // set PIR status
   else if (pinNum == voltPin)
@@ -434,6 +449,7 @@ uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
   // callback for IO Extender to interact with peripherals
   uint32_t responseData = 0;
   int ival;
+  LOG_DBG("Pin %d, data %u", pinNum, receivedData);
   // map received pin number to peripheral
   if (pinNum == servoTiltPin) {
     // send tilt angle to servo

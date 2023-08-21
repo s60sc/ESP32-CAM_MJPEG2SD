@@ -57,6 +57,7 @@ const uint8_t* encode64chunk(const uint8_t* inp, int rem);
 const char* espErrMsg(esp_err_t errCode);
 bool externalPeripheral(byte pinNum, uint32_t outputData = 0);
 void flush_log(bool andClose = false);
+char* fmtSize (uint64_t sizeVal);
 void formatElapsedTime(char* timeStr, uint32_t timeVal);
 void formatHex(const char* inData, size_t inLen);
 bool ftpFileOrFolder(const char* fileFolder, bool _deleteAfter = false);
@@ -143,6 +144,7 @@ extern bool configLoaded;
 extern bool dataFilesChecked;
 extern const char* git_rootCACertificate;
 extern char ipExtAddr[];
+extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
   
 // ftp server
 extern char ftp_server[];
@@ -220,7 +222,7 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
 #define SVG_EXT ".svg"
 #define CONFIG_FILE_PATH DATA_DIR "/configs" TEXT_EXT
 #define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
-#define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT  
+#define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT
 #define COMMON_JS_PATH DATA_DIR "/common" JS_EXT 
 
 #define FILLSTAR "****************************************************************"
