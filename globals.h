@@ -41,6 +41,7 @@ void wsAppSpecificHandler(const char* wsMsg);
 
 // global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp    
 void buildJsonString(uint8_t filter);
+bool changeExtension(char* fileName, const char* newExt);
 bool checkAlarm(int _alarmHour = -1);
 bool checkDataFiles();
 bool checkFreeSpace();
@@ -60,7 +61,7 @@ void flush_log(bool andClose = false);
 char* fmtSize (uint64_t sizeVal);
 void formatElapsedTime(char* timeStr, uint32_t timeVal);
 void formatHex(const char* inData, size_t inLen);
-bool ftpFileOrFolder(const char* fileFolder, bool _deleteAfter = false);
+bool ftpFileOrFolder(const char* fileFolder);
 const char* getEncType(int ssidIndex);
 void getExtIP();
 time_t getEpoch();
@@ -93,7 +94,7 @@ bool retrieveConfigVal(const char* variable, char* value);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
-void showProgress();
+void showProgress(const char* marker = ".");
 uint16_t smoothAnalog(int analogPin);
 float smoothSensor(float latestVal, float smoothedVal, float alpha);
 void startFTPtask();
@@ -153,6 +154,8 @@ extern uint16_t ftp_port;
 extern char FTP_Pass[];
 extern char ftp_wd[];
 extern byte chunk[];
+extern bool autoUpload;
+extern bool deleteAfter;
 
 //  SMTP server
 extern char smtp_login[];
@@ -193,6 +196,7 @@ extern const char* defaultPage_html;
 extern const char* otaPage_html;
 extern SemaphoreHandle_t wsSendMutex;
 extern char startupFailure[];
+extern bool whichExt;
 
 extern UBaseType_t uxHighWaterMarkArr[];
 
@@ -232,6 +236,7 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
 #define MAX_HOST_LEN 32
 #define MAX_IP_LEN 16
 #define BOUNDARY_VAL "123456789000000000000987654321"
+#define SF_LEN 100
 
 /*********************** Log formatting ************************/
 

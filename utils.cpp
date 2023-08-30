@@ -16,7 +16,7 @@ bool timeSynchronized = false;
 bool monitorOpen = true;
 bool dataFilesChecked = false;
 // allow any startup failures to be reported via browser for remote devices
-char startupFailure[50] = {0};
+char startupFailure[SF_LEN] = {0};
 
 /************************** Wifi **************************/
 
@@ -426,23 +426,22 @@ bool checkAlarm(int _alarmHour) {
 
 /********************** misc functions ************************/
 
-bool changeExtension(char* outName, const char* inName, const char* newExt) {
-  // replace original file extension with supplied extension
-  size_t inNamePtr = strlen(inName);
+bool changeExtension(char* fileName, const char* newExt) {
+  // replace original file extension with supplied extension (buffer must be large enough)
+  size_t inNamePtr = strlen(fileName);
   // find '.' before extension text
-  while (inNamePtr > 0 && inName[inNamePtr] != '.') inNamePtr--;
+  while (inNamePtr > 0 && fileName[inNamePtr] != '.') inNamePtr--;
   inNamePtr++;
   size_t extLen = strlen(newExt);
-  memcpy(outName, inName, inNamePtr);
-  memcpy(outName + inNamePtr, newExt, extLen);
-  outName[inNamePtr + extLen] = 0;
+  memcpy(fileName + inNamePtr, newExt, extLen);
+  fileName[inNamePtr + extLen] = 0;
   return (inNamePtr > 1) ? true : false;
 }
 
-void showProgress() {
+void showProgress(const char* marker) {
   // show progess as dots 
   static uint8_t dotCnt = 0;
-  logPrint("."); // progress marker
+  logPrint(marker); // progress marker
   if (++dotCnt >= 50) {
     dotCnt = 0;
     logLine();
@@ -508,7 +507,7 @@ char* fmtSize (uint64_t sizeVal) {
   // format size according to magnitude
   // only one call per format string
   static char returnStr[20];
-  if (sizeVal < 100 * 1024) sprintf(returnStr, "%llu", sizeVal);
+  if (sizeVal < 100 * 1024) sprintf(returnStr, "%llu bytes", sizeVal);
   else if (sizeVal < ONEMEG) sprintf(returnStr, "%llukB", sizeVal / 1024);
   else if (sizeVal < ONEMEG * 1024) sprintf(returnStr, "%0.1fMB", (double)(sizeVal) / ONEMEG);
   else sprintf(returnStr, "%0.1fGB", (double)(sizeVal) / (ONEMEG * 1024));
@@ -637,7 +636,7 @@ void flush_log(bool andClose) {
 
 static void remote_log_init_SD() {
 #if !CONFIG_IDF_TARGET_ESP32C3
-  SD_MMC.mkdir(DATA_DIR);
+  STORAGE.mkdir(DATA_DIR);
   // Open remote file
   log_remote_fp = NULL;
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
@@ -653,7 +652,7 @@ void reset_log() {
   if (ramMode) ramLogClear();
   if (logMode) {
     if (log_remote_fp != NULL) flush_log(true); // Close log file
-    SD_MMC.remove(LOG_FILE_PATH);
+    STORAGE.remove(LOG_FILE_PATH);
     remote_log_init_SD();
   }
   LOG_INF("Cleared log file"); 
@@ -713,6 +712,7 @@ void logPrint(const char *format, ...) {
     xSemaphoreGive(logMutex);
   } 
 }
+
 void logLine() {
   logPrint(" \n");
 }

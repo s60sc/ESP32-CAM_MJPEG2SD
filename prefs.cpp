@@ -218,18 +218,20 @@ static bool loadPrefs() {
   return true;
 }
 
-static void updateVer(const char* verType, const char* value) {
+static void updateVer(const char* verType, int inVer) {
   // check if data file needs to be updated
-  char thisVer[5];
-  if (!strcmp(verType, "htmVer")) strcpy(thisVer, HTM_VER);
-  else if (!strcmp(verType, "jsVer")) strcpy(thisVer, JS_VER);
-  else if (!strcmp(verType, "cfgVer")) strcpy(thisVer, CFG_VER);
-  if (strcmp(value, thisVer)) {
-     // not matched, delete file to update
+  int currVer = 0;
+  if (!strcmp(verType, "htmVer")) currVer = HTM_VER;
+  else if (!strcmp(verType, "jsVer")) currVer = JS_VER;
+  else if (!strcmp(verType, "cfgVer")) currVer = CFG_VER;
+  if (currVer > inVer) {
+     // lower version, delete file to update
      if (!strcmp(verType, "htmVer")) deleteFolderOrFile(INDEX_PAGE_PATH);
      if (!strcmp(verType, "cfgVer")) deleteFolderOrFile(DATA_DIR);
      if (!strcmp(verType, "jsVer")) deleteFolderOrFile(COMMON_JS_PATH);
-     updateConfigVect(verType, thisVer);
+     char currVarStr[4];
+     itoa(currVer, currVarStr, 10);
+     updateConfigVect(verType, currVarStr);
      updatedVers = true;
   }
 }
@@ -271,6 +273,8 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "ftp_user")) strncpy(ftp_user, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "FTP_Pass") && strchr(value, '*') == NULL) strncpy(FTP_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "ftp_wd")) strncpy(ftp_wd, value, MAX_HOST_LEN-1);
+  else if(!strcmp(variable, "autoUpload")) autoUpload = (bool)intVal;
+  else if(!strcmp(variable, "deleteAfter")) deleteAfter = (bool)intVal;
 #endif
 #ifdef INCLUDE_SMTP
   else if (!strcmp(variable, "smtpUse")) smtpUse = (bool)intVal;
@@ -329,7 +333,7 @@ void updateStatus(const char* variable, const char* _value) {
     doRestart("user requested restart after data deletion"); 
   }
   else if (!strcmp(variable, "htmVer") || !strcmp(variable, "jsVer") || !strcmp(variable, "cfgVer")) {
-    updateVer(variable, value);
+    updateVer(variable, atoi(value));
     return;
   }
   else if (!strcmp(variable, "save")) {
@@ -441,7 +445,7 @@ bool loadConfig() {
     retrieveConfigVal("appId", appId);
     if (strcmp(appId, APP_NAME)) {
       // cleanup storage for different app
-      sprintf(startupFailure, "Wrong configs.txt file, expected %s, got %s", APP_NAME, appId);
+      snprintf(startupFailure, SF_LEN, "Wrong configs.txt file, expected %s, got %s", APP_NAME, appId);
       deleteFolderOrFile(DATA_DIR);
       savePrefs(false);
       return false;

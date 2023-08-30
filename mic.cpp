@@ -142,7 +142,7 @@ void startAudio() {
   // combined into AVI file as PCM channel on FTP upload or browser download
   // so can be read by media players
   if (micUse && micGain) {
-    wavFile = SD_MMC.open(WAVTEMP, FILE_WRITE);
+    wavFile = STORAGE.open(WAVTEMP, FILE_WRITE);
     wavFile.write(wavHeader, WAV_HEADER_LEN); 
     wakeTask(micHandle);
   } 

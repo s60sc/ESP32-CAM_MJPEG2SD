@@ -64,7 +64,7 @@ static void prepCam() {
         retries--;
       }
     } 
-    if (err != ESP_OK) sprintf(startupFailure, "Startup Failure: Camera init error 0x%x", err);
+    if (err != ESP_OK) snprintf(startupFailure, SF_LEN, "Startup Failure: Camera init error 0x%x", err);
     else {
       sensor_t * s = esp_camera_sensor_get();
       switch (s->id.PID) {
@@ -115,17 +115,18 @@ static void prepCam() {
 
 void setup() {   
   logSetup();
-  if (!psramFound()) sprintf(startupFailure, "Startup Failure: Need PSRAM to be enabled");
+  if (!psramFound()) snprintf(startupFailure, SF_LEN, "Startup Failure: Need PSRAM to be enabled");
+  else {
+    // prep SD card storage
+    startStorage(); 
+    
+    // Load saved user configuration
+    loadConfig();
   
-  // prep SD card storage
-  startStorage();
+    // initialise camera
+    prepCam();
+  }
   
-  // Load saved user configuration
-  loadConfig();
-
-  // initialise camera
-  prepCam();
-
 #ifdef DEV_ONLY
   devSetup();
 #endif
@@ -142,6 +143,7 @@ void setup() {
     prepPeripherals();
     prepMic(); 
     prepRecording();
+    prepTelemetry();
     LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
     checkMemory();
   } 

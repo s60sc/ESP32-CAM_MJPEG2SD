@@ -37,15 +37,14 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal;  
   else if(!strcmp(variable, "lswitch")) nightSwitch = intVal;
   else if(!strcmp(variable, "micGain")) micGain = intVal;
-  else if(!strcmp(variable, "autoUpload")) autoUpload = intVal;
   else if(!strcmp(variable, "upload")) ftpFileOrFolder(value);  
-  else if(!strcmp(variable, "uploadMove")) ftpFileOrFolder(value, true);  
+  else if(!strcmp(variable, "whichExt")) whichExt = (bool)intVal;
   else if(!strcmp(variable, "delete")) {
     stopPlayback = true;
     deleteFolderOrFile(value);
   }
   else if(!strcmp(variable, "record")) doRecording = (intVal) ? true : false;   
-  else if(!strcmp(variable, "forceRecord")) forceRecord = (intVal) ? true : false;                                       
+  else if(!strcmp(variable, "forceRecord")) forceRecord = (intVal) ? true : false; 
   else if(!strcmp(variable, "dbgMotion")) {
     // only enable show motion if motion detect enabled
     dbgMotion = (intVal && useMotion) ? true : false;
@@ -97,7 +96,9 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if(!strcmp(variable, "camTilt")) setCamTilt(intVal);
   else if(!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
   else if(!strcmp(variable, "wakePin")) wakePin = intVal;
-  
+  else if(!strcmp(variable, "teleUse")) teleUse = (bool)intVal;
+  else if(!strcmp(variable, "teleInterval")) teleInterval = intVal;
+    
   // camera settings
   else if(!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
   else if (s) {

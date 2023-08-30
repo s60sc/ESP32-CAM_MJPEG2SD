@@ -26,7 +26,6 @@ int tlPlaybackFPS;  // rate to playback the timelapse, min 1
 // status & control fields
 uint8_t FPS;
 bool nightTime = false;
-bool autoUpload = false;  // Automatically upload every created file to remote ftp server
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not 
@@ -52,6 +51,7 @@ uint8_t iSDbuffer[(RAMSIZE + CHUNK_HDR) * 2];
 static size_t highPoint;
 static File aviFile;
 static char aviFileName[FILE_NAME_LEN];
+bool whichExt = true; // which extension type of filename
 
 // SD playback
 static File playbackFile;
@@ -111,13 +111,14 @@ static void openAvi() {
   // time to open a new file on SD increases with the number of files already present
   oTime = millis();
   dateFormat(partName, sizeof(partName), true);
-  SD_MMC.mkdir(partName); // make date folder if not present
+  STORAGE.mkdir(partName); // make date folder if not present
   dateFormat(partName, sizeof(partName), false);
   // open avi file with temporary name 
-  aviFile  = SD_MMC.open(AVITEMP, FILE_WRITE);
+  aviFile = STORAGE.open(AVITEMP, FILE_WRITE);
   oTime = millis() - oTime;
   LOG_DBG("File opening time: %ums", oTime);
   startAudio();
+  startTelemetry();
   // initialisation of counters
   startTime = millis();
   frameCnt = fTimeTot = wTimeTot = dTimeTot = vidSize = 0;
@@ -149,13 +150,13 @@ static void timeLapse(camera_fb_t* fb) {
         // initialise time lapse avi
         requiredFrames = tlDurationMins * 60 / tlSecsBetweenFrames;
         dateFormat(partName, sizeof(partName), true);
-        SD_MMC.mkdir(partName); // make date folder if not present
+        STORAGE.mkdir(partName); // make date folder if not present
         dateFormat(partName, sizeof(partName), false);
         int tlen = snprintf(TLname, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u_T.%s", 
-          partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, FILE_EXT);
+          partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, AVI_EXT);
         if (tlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
-        if (SD_MMC.exists(TLTEMP)) SD_MMC.remove(TLTEMP);
-        tlFile = SD_MMC.open(TLTEMP, FILE_WRITE);
+        if (STORAGE.exists(TLTEMP)) STORAGE.remove(TLTEMP);
+        tlFile = STORAGE.open(TLTEMP, FILE_WRITE);
         tlFile.write(aviHeader, AVI_HEADER_LEN); // space for header
         prepAviIndex(true);
         LOG_INF("Started time lapse file %s, duration %u mins, for %u frames",  TLname, tlDurationMins, requiredFrames);
@@ -197,7 +198,7 @@ static void timeLapse(camera_fb_t* fb) {
         tlFile.seek(0, SeekSet); // start of file
         tlFile.write(aviHeader, AVI_HEADER_LEN);
         tlFile.close(); 
-        SD_MMC.rename(TLTEMP, TLname);
+        STORAGE.rename(TLTEMP, TLname);
         frameCntTL = intervalCnt = 0;
         LOG_DBG("Finished time lapse");
         if (autoUpload) ftpFileOrFolder(TLname); // Upload it to remote ftp server if requested
@@ -291,15 +292,17 @@ static bool closeAvi() {
   aviFile.write(aviHeader, AVI_HEADER_LEN); 
   aviFile.close();
   LOG_DBG("Final SD storage time %lu ms", millis() - cTime);
-  uint32_t hTime = millis(); 
+  uint32_t hTime = millis();
   if (vidDurationSecs >= minSeconds) {
     // name file to include actual dateTime, FPS, duration, and frame count
     int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u%s.%s", 
-      partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, frameCnt, haveWav ? "_S" : "", FILE_EXT);
+      partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, frameCnt, haveWav ? "_S" : "", AVI_EXT);
     if (alen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
-    SD_MMC.rename(AVITEMP, aviFileName);
+    STORAGE.rename(AVITEMP, aviFileName);
     LOG_DBG("AVI close time %lu ms", millis() - hTime); 
     cTime = millis() - cTime;
+    stopTelemetry(aviFileName);
+    
     // AVI stats
     LOG_INF("******** AVI recording stats ********");
     LOG_ALT("Recorded %s", aviFileName);
@@ -331,7 +334,7 @@ static bool closeAvi() {
     return true; 
   } else {
     // delete too small files if exist
-    SD_MMC.remove(AVITEMP);
+    STORAGE.remove(AVITEMP);
     LOG_INF("Insufficient capture duration: %u secs", vidDurationSecs); 
     return false;
   }
@@ -483,7 +486,7 @@ void openSDfile(const char* streamFile) {
     stopPlaying(); // in case already running
     strcpy(aviFileName, streamFile);
     LOG_INF("Playing %s", aviFileName);
-    playbackFile = SD_MMC.open(aviFileName, FILE_READ);
+    playbackFile = STORAGE.open(aviFileName, FILE_READ);
     playbackFile.seek(AVI_HEADER_LEN, SeekSet); // skip over header
     playbackFPS(aviFileName);
     isPlaying = true; // task control
@@ -681,7 +684,7 @@ void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
   deleteTask(DS18B20handle);
- // deleteTask(I2CmonitorHandle);
+  deleteTask(telemetryHandle);
   deleteTask(servoHandle);
   deleteTask(emailHandle);
   deleteTask(ftpHandle);

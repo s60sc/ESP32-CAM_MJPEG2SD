@@ -57,7 +57,7 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
   } 
   if (download) {  
     // download file as attachment, required file name in inFileName
-    LOG_INF("Download file: %s, size: %0.1fMB", inFileName, (float)(df.size()/ONEMEG));
+    LOG_INF("Download file: %s, size: %s", inFileName, fmtSize(df.size()));
     httpd_resp_set_type(req, "application/octet");
     char contentDisp[FILE_NAME_LEN + 50];
     char contentLength[10];
@@ -203,7 +203,12 @@ static esp_err_t controlHandler(httpd_req_t *req) {
     updateStatus(variable, value);
     webAppSpecificHandler(req, variable, value); 
     // handler for downloading selected file, required file name in inFileName
-    if (!strcmp(variable, "download") && atoi(value) == 1) return fileHandler(req, true);
+    if (!strcmp(variable, "download") && atoi(value) == 1) {
+#ifdef ISCAM
+      if (whichExt) changeExtension(inFileName, CSV_EXT);
+#endif
+      return fileHandler(req, true);
+    }
   }
   httpd_resp_send(req, NULL, 0); 
   return ESP_OK;

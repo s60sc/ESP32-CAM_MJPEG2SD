@@ -6,7 +6,7 @@
 
 // Storage settings
 int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sdFreeSpaceMode action is enabled
-int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload to ftp and then delete folder on SD 
+int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to ftp and then delete on SD 
 bool formatIfMountFailed = true; // Auto format the file system if mount failed. Set to false to not auto format.
 
 // hold sorted list of filenames/folders names in order of newest first
@@ -45,8 +45,9 @@ static bool prepSD_MMC() {
 #if !defined(SD_MMC_CLK)
   LOG_ERR("SD card pins not defined");
   res = false;
-#endif
+#else
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
+#endif
 #endif
   
   res = SD_MMC.begin("/sdcard", true, formatIfMountFailed);
@@ -55,7 +56,7 @@ static bool prepSD_MMC() {
   digitalWrite(4, 0); // set lamp pin fully off as sd_mmc library still initialises pin 4 in 1 line mode
 #endif 
   if (res) {
-    SD_MMC.mkdir(DATA_DIR);
+    STORAGE.mkdir(DATA_DIR);
     infoSD();
     res = true;
   } else {
@@ -84,7 +85,7 @@ bool startStorage() {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
     if (res) listFolder(DATA_DIR);
-    else sprintf(startupFailure, "Startup Failure: Check SD card inserted");
+    else snprintf(startupFailure, SF_LEN, "Startup Failure: Check SD card inserted");
     debugMemory("startStorage");
     return res; 
   }
@@ -112,7 +113,7 @@ bool startStorage() {
       listFolder(rootDir);
     }
   } else {
-    sprintf(startupFailure, "Failed to mount %s", fsType);  
+    snprintf(startupFailure, SF_LEN, "Failed to mount %s", fsType);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
   debugMemory("startStorage");
@@ -293,7 +294,15 @@ void deleteFolderOrFile(const char* deleteThis) {
     if (df.isDirectory()) LOG_ALT("Folder %s %sdeleted", fileName, STORAGE.rmdir(fileName) ? "" : "not ");
     else df.close();
   } else {
+    // delete individual file
     df.close();
     LOG_ALT("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
+#ifdef ISCAM
+    // delete corresponding csv file if exists
+    char csvDeleteName[FILE_NAME_LEN];
+    strcpy(csvDeleteName, deleteThis);
+    changeExtension(csvDeleteName, CSV_EXT);
+    if (STORAGE.remove(csvDeleteName)) LOG_INF("File %s deleted", csvDeleteName);
+#endif  
   }
 }

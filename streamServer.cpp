@@ -24,7 +24,7 @@ esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const ch
   if (!strcmp(variable, "sfile")) {
     // get folders / files on SD, save received filename if has required extension
     strcpy(inFileName, value);
-    if (!forceRecord) doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, FILE_EXT); // browser control
+    if (!forceRecord) doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, AVI_EXT); // browser control
     else strcpy(jsonBuff, "{}");                      
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);

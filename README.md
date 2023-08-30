@@ -1,19 +1,12 @@
 # ESP32-CAM_MJPEG2SD
 
-ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.
+ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file. 
 
-Recent changes up to version 8.7.5:
-- Support for Seeed XIAO ESP32S3 Sense board
-- Support for PDM microphone on ESP32S3
-- Lamp flash at night for timelapse
-- Ignore ping failure if SSID not available
-- Compiled for arduino-esp32 v2.0.11
-- Support for TTGO T-Camera Plus (see [issue 232](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/232))
-- Simplified remote access via [port forwarding](#port-forwarding)
-- Fix for [issue 250](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/250)
-- Fix for [issue 253](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/253)
-- Image rotation button **@** added
-- Workaround for [issue 254](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/254). Under **Edit Config / Wifi** set `Use ping` to off
+For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
+
+Changes in version 8.8:
+- Option to auto delete on FTP upload [issue 262](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/262).
+- Telemetry recording during camera recording [Telemetry Recording](#telemetry-recording).
 
 
 ## Purpose
@@ -45,7 +38,7 @@ The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs 
 
 The application was originally based on the Arduino CameraWebServer example but has since been extensively modified, including contributions made by [@gemi254](https://github.com/gemi254).
 
-The ESP32 Cam module has 4MB of PSRAM which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
+The ESP32 Cam module has 4MB of PSRAM (8MB on ESP32S3) which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
 The AVI files are named using a date time format **YYYYMMDD_HHMMSS** with added frame size, recording rate, duration and frame count, eg **20200130_201015_VGA_15_60_900.avi**, and stored in a per day folder **YYYYMMDD**. If audio is included the filename ends with **_S**.  
 The ESP32 time is set from an NTP server or connected browser client.
@@ -143,7 +136,7 @@ Note that there are not enough free pins on the ESP32 camera module to allow all
 Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.  
 
 The ESP32S3 Freenove board can support all of the above peripherals with its spare pins.  
-The ESP32S3 XIAO board has fewer free pins but more than the ESP32.
+The ESP32S3 XIAO Sense board has fewer free pins but more than the ESP32.
 
 On-board LEDs:
 * ESP32: Lamp 4, signal 33.
@@ -227,3 +220,13 @@ On remote device, enter url: `your_router_external_ip:10580`
 To obtain `your_router_external_ip` value, use eg: https://api.ipify.org  
 The web page will automatically derive the required port numbers.
 For security, **Authentication settings** should be defined in **Access Settings** sidebar button.
+
+## Telemetry Recording
+
+This feature is better used on an ESP32S3 camera board due to performance and memory limitations on ESP32.
+
+Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. It is FTP uploaded or deleted along with the corresponding AVI file, and can be separately downloaded.  
+
+The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for GY-91 board.
+
+To switch on telemetry recording, select the `Use telemetry recording` option bunder the **Peripherals** button. The frequency of data collection is set by `Telemetry collection interval (secs)`.

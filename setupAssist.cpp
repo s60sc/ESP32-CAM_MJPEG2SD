@@ -76,7 +76,7 @@ static bool wgetFile(const char* githubURL, const char* filePath, bool restart =
             if (fileSize <= 0) {
               httpCode = 0;
               LOG_ERR("Download failed: writeToStream");
-            } else LOG_INF("Downloaded %s, size %d bytes", filePath, fileSize);       
+            } else LOG_INF("Downloaded %s, size %s", filePath, fmtSize(fileSize));       
           } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
           https.end();
           f.close();

@@ -51,21 +51,21 @@
 #ifdef DEV_ONLY 
 //#define SIDE_ALARM // uncomment if used for side alarm
 #endif 
-#define STATIC_IP_OCTAL "132" // dev only
+#define STATIC_IP_OCTAL "133" // dev only
 #define CHECK_MEM false // leave as false
 #define FLUSH_DELAY 200 // for debugging crashes
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.7.5"
+#define APP_VER "8.8"
 
 #define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
-#define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT   
+#define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define FILE_NAME_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
 #define MAX_CONFIGS 130 // > number of entries in configs.txt
 
 #ifdef SIDE_ALARM
-#define STORAGE LittleFS 
+#define STORAGE LittleFS
 #define GITHUB_URL ""
 #else
 #define STORAGE SD_MMC
@@ -85,16 +85,18 @@
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define HTM_VER "3"
-#define JS_VER "1"
-#define CFG_VER "1"
+#define CFG_VER 2
+#define HTM_VER 4
+#define JS_VER 1
 
-#define FILE_EXT "avi"
+#define AVI_EXT "avi"
+#define CSV_EXT "csv"
 #define AVI_HEADER_LEN 310 // AVI header length
 #define CHUNK_HDR 8 // bytes per jpeg hdr in AVI 
 #define WAVTEMP "/current.wav"
 #define AVITEMP "/current.avi"
 #define TLTEMP "/current.tl"
+#define TELETEMP "/current.csv"
 
 // non default pins configured for SD card on given camera board
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
@@ -150,6 +152,7 @@ bool isNight(uint8_t nightSwitch);
 void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
 bool prepRecording();
+void prepTelemetry();
 void prepMic();
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
@@ -158,7 +161,9 @@ uint8_t setFPSlookup(uint8_t val);
 void setLamp(uint8_t lampVal);
 void startAudio();
 void startStreamServer();
+void startTelemetry();
 void stopPlaying();
+void stopTelemetry(const char* fileName);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
@@ -240,6 +245,8 @@ extern int pirPin; // if usePir is true
 extern bool pirVal;
 extern int lampPin; // if useLamp is true
 extern int wakePin; // if wakeUse is true
+extern bool teleUse;
+extern int teleInterval;
 
 // Pan / Tilt Servos 
 extern int servoPanPin; // if useServos is true
@@ -273,7 +280,7 @@ extern const uint32_t WAV_HEADER_LEN;
 // task handling
 extern TaskHandle_t playbackHandle;
 extern TaskHandle_t DS18B20handle;
-extern TaskHandle_t I2CmonitorHandle;
+extern TaskHandle_t telemetryHandle;
 extern TaskHandle_t servoHandle;
 extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
