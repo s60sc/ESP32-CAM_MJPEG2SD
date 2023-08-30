@@ -230,3 +230,5 @@ Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on G
 The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for GY-91 board.
 
 To switch on telemetry recording, select the `Use telemetry recording` option bunder the **Peripherals** button. The frequency of data collection is set by `Telemetry collection interval (secs)`.
+
+Note: esp-camera library [conflict](https://forum.arduino.cc/t/conflicitng-declaration-in-adafruit_sensor-esp32-camera/586568) if use Adafruit sensor library.
