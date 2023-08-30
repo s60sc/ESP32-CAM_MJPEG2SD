@@ -6,7 +6,7 @@ For better functionality and performance, use one of the new ESP32S3 camera boar
 
 Changes in version 8.8:
 - Option to auto delete on FTP upload [issue 262](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/262).
-- Telemetry recording during camera recording [Telemetry Recording](#telemetry-recording).
+- [Telemetry Recording](#telemetry-recording) during camera recording.
 
 
 ## Purpose
