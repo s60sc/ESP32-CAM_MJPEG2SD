@@ -20,6 +20,7 @@ aec_value~204~98~~na
 agc~1~98~~na
 agc_gain~0~98~~na
 autoUpload~0~98~~na
+deleteAfter~0~98~~na
 awb~1~98~~na
 awb_gain~1~98~~na
 bpc~1~98~~na
@@ -119,6 +120,8 @@ mqtt_user~~2~T~Mqtt user name
 mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
 usePing~1~0~C~Use ping
-cfgVer~1~99~T~na
-htmVer~3~99~T~na
+teleUse~0~3~C~Use telemetry recording
+teleInterval~1~3~N~Telemetry collection interval (secs)
+cfgVer~2~99~T~na
+htmVer~4~99~T~na
 jsVer~1~99~T~na

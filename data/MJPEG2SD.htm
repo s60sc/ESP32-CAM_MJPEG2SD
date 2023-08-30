@@ -1103,6 +1103,7 @@
                 <input type="checkbox" id="files-cb" class="menu-action">
                 <div class="pin-menu" title="Pin / unpin menu">📌</div>
                 <label for="files-cb" class="nav-toggle">🎥&nbsp;&nbsp;Playback & File Transfers&nbsp;&nbsp;</label>
+                <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="sfiles-group" style="display: grid;">
                     <label for="sfiles">Select folder / file</label>                          
@@ -1118,18 +1119,31 @@
                   </div>
                   <br>
                   <section id="buttons">
-                    <button class="local" title="Download selected file from sd card" id="download" style="float:right" value="1">Download</button>
-                    <button class="local" title="Upload selected file/folder to ftp server" id="upload" style="float:left" value="1">Ftp Upload</button>
-                    <button class="local" title="Upload selected file/folder and delete it from sd card on success" id="uploadMove" style="float:left" value="1">Ftp Move</button>
-                    <button class="local" title="Delete selected file/folder from sd card" id="delete" style="float:right" value="1">Delete</button>
+                    <button class="local" title="Download selected file from SD card" id="download" style="float:right" value="1">Download</button>
+                    <button class="local" title="Upload selected file/folder to FTP server" id="upload" style="float:left" value="1">FTP Upload</button>
+                    <button class="local" title="Delete selected file/folder from SD card" id="delete" style="float:right" value="1">Delete</button>
                   </section>
                   <br>
                   <div class="input-group" id="autoUpload-group">
-                    <label for="autoUpload">Auto upload</label>
+                    <label for="autoUpload">Auto FTP upload</label>
                     <div class="switch">
                       <input id="autoUpload" type="checkbox">
-                      <label title="Automatic ftp upload on file creation" class="slider" for="autoUpload"></label>
+                      <label title="Automatic FTP upload on file creation" class="slider" for="autoUpload"></label>
                     </div>
+                  </div>
+                  <div class="input-group" id="deleteAfter-group">
+                    <label for="deleteAfter">Auto SD Delete</label>
+                    <div class="switch">
+                      <input id="deleteAfter" type="checkbox">
+                      <label title="Automatic deletion on SD after FTP upload" class="slider" for="deleteAfter"></label>
+                    </div>
+                  </div>
+                  <div class="input-group" id="whichExt-group">
+                    <label for="whichExt">Download Type:</label>AVI&nbsp;
+                    <div class="switch">
+                      <input id="whichExt" type="checkbox">
+                      <label title="Download AVI or CSV file" class="slider" for="whichExt"></label>
+                    </div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CSV
                   </div>
                 </div>
               </nav>
@@ -1847,8 +1861,7 @@
           $('#download').value = filePath; //Store file path for download
           $('#delete').value = filePath; //Store file path for delete
           $('#upload').value = filePath; //Store file path for ftp upload
-          $('#uploadMove').value = filePath; //Store file path for ftp upload move
-          pathDir = filePath.substring(0,filePath.lastIndexOf("/"));
+          pathDir = filePath.substring(0, filePath.lastIndexOf("/"));
         }
         if (pathDir == "") $$('#sfile option:not(:first-child)').forEach(el => { el.remove()}); 
         if (filePath.substr(-4) === '.avi' && !isActive(playbackButton)) enable(playbackButton);
