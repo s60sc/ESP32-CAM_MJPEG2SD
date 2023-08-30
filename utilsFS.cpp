@@ -44,7 +44,7 @@ static bool prepSD_MMC() {
 #if CONFIG_IDF_TARGET_ESP32S3
 #if !defined(SD_MMC_CLK)
   LOG_ERR("SD card pins not defined");
-  res = false;
+  return false;
 #else
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
 #endif
