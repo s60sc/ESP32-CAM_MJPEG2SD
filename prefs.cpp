@@ -252,7 +252,7 @@ void updateStatus(const char* variable, const char* _value) {
 
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strncpy(hostName, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "ST_SSID")) strncpy(ST_SSID, value, MAX_IP_LEN-1);
+  else if (!strcmp(variable, "ST_SSID")) strncpy(ST_SSID, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "ST_Pass") && strchr(value, '*') == NULL) strncpy(ST_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "ST_ip")) strncpy(ST_ip, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "ST_gw")) strncpy(ST_gw, value, MAX_IP_LEN-1);
