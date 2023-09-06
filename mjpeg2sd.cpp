@@ -51,7 +51,7 @@ uint8_t iSDbuffer[(RAMSIZE + CHUNK_HDR) * 2];
 static size_t highPoint;
 static File aviFile;
 static char aviFileName[FILE_NAME_LEN];
-bool whichExt = true; // which extension type of filename
+bool whichExt = false; // which extension type of filename
 
 // SD playback
 static File playbackFile;
