@@ -643,9 +643,10 @@ static void startSDtasks() {
   // tasks to manage SD card operation
   xTaskCreate(&captureTask, "captureTask", 1024 * 4, NULL, 5, &captureHandle);
   xTaskCreate(&playbackTask, "playbackTask", 1024 * 4, NULL, 4, &playbackHandle);
+  // set initial camera framesize and FPS from configs
   sensor_t * s = esp_camera_sensor_get();
-  fsizePtr = s->status.framesize; 
-  setFPS(frameData[fsizePtr].defaultFPS); // initial frames per second  
+  s->set_framesize(s, (framesize_t)fsizePtr);
+  setFPS(FPS); 
   debugMemory("startSDtasks");
 }
 

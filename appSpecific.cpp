@@ -101,9 +101,9 @@ bool updateAppStatus(const char* variable, const char* value) {
     
   // camera settings
   else if(!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
-  else if (s) {
-    if (!strcmp(variable, "framesize")) {
-      fsizePtr = intVal;
+  else if (!strcmp(variable, "framesize")) {
+    fsizePtr = intVal;
+    if (s) {
       if (s->set_framesize(s, (framesize_t)fsizePtr) != ESP_OK) res = false;
       // update default FPS for this frame size
       if (playbackHandle != NULL) {
@@ -111,11 +111,13 @@ bool updateAppStatus(const char* variable, const char* value) {
         updateConfigVect("fps", String(FPS).c_str()); 
       }
     }
-    else if (!strcmp(variable, "fps")) {
-      FPS = intVal;
-      if (playbackHandle != NULL) setFPS(intVal);
-    }
-    else if(!strcmp(variable, "quality")) res = s->set_quality(s, intVal);
+  }
+  else if (!strcmp(variable, "fps")) {
+    FPS = intVal;
+    if (playbackHandle != NULL) setFPS(FPS);
+  }
+  else if (s) {
+    if (!strcmp(variable, "quality")) res = s->set_quality(s, intVal);
     else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, intVal);
     else if(!strcmp(variable, "brightness")) res = s->set_brightness(s, intVal);
     else if(!strcmp(variable, "saturation")) res = s->set_saturation(s, intVal);
