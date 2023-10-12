@@ -4,12 +4,14 @@
         /*********** initialisation  ***********/
 
         'use strict'
-        
+             
+        const isSecure = window.location.protocol == 'https:' ? true : false;
+        const defaultPort = window.location.protocol == 'https:' ? 443 : 80;
+        const webPort = !window.location.port ? defaultPort : window.location.port;
         const baseHost = document.location.hostname;
-        const webHost = "http://" + baseHost;
+        const webHost = window.location.protocol + "//" + baseHost;
         const webServer = webHost + ":" + webPort;
-        const wsServer = "ws://" + baseHost + ":" + webPort + "/ws";
-        const otaServer = webHost + ":" + otaPort;
+        const wsServer = (isSecure ? "wss" : "ws") + "://" + baseHost + ":" + webPort + "/ws";
 
         let ws = null;
         let hbTimer = null;
@@ -21,8 +23,12 @@
         const ID = 1;
         const $ = document.querySelector.bind(document);
         const $$ = document.querySelectorAll.bind(document);
-        const baseFontSize = parseInt(window.getComputedStyle($('body')).fontSize); 
+        const baseFontSize = parseInt(getComputedStyle(document.documentElement).fontSize);
         const root = getComputedStyle($(':root'));
+        const bigThumbSize = parseFloat(root.getPropertyValue('--bigThumbSize')) * baseFontSize;
+        const smallThumbSize = parseFloat(root.getPropertyValue('--smallThumbSize')) * baseFontSize;
+        let isImmed = false;
+        let sustainId = "1";
         
         async function initialise() {
           try {
@@ -31,9 +37,9 @@
             addRangeData();
             if (doCustomInit) customInit();
             setListeners();
-            if (doInitWebSocket) initWebSocket();
             doLoadStatus ? loadStatus("") : configStatus(false); 
             if (doRefreshTimer && hbTimer == null) setTimeout(refreshStatus, refreshInterval);
+            if (doInitWebSocket) initWebSocket();
           } catch (error) {
             showLog("Error: " + error.message);
             alert("Error: " + error.message);
@@ -44,13 +50,14 @@
               
         // define websocket handling
         function initWebSocket() {
-          loggingOn = true;
+          if (ws == null) {
+            ws = new WebSocket(wsServer);
+            ws.onopen = onOpen;
+            ws.onclose = onClose;
+            ws.onmessage = onMessage; 
+            ws.onerror = onError;
+          }
           showLog("Connect to: " + wsServer);
-          ws = new WebSocket(wsServer);
-          ws.onopen = onOpen;
-          ws.onclose = onClose;
-          ws.onmessage = onMessage; 
-          ws.onerror = onError;
         }
           
         // periodically check that connection is still up and get status
@@ -106,8 +113,8 @@
       
         function openTab(e) {
           // control tab viewing
-          $$('.tabcontent').forEach(el => {el.style.display = "none";});
-          $('#' + e.name).style.display = "inherit";
+          $$('.tabcontent').forEach(el => { el.style.display = "none"; });
+          $('#' + e.name).style.display = "inherit";  
           $$('.tablinks').forEach(el => {el.classList.remove("active");});
           e.classList.add("active");
           try {
@@ -123,7 +130,7 @@
           else panel.style.display = "inherit";
         }
        
-        function rangeSlider(el, isPos = true, statusVal = null) {
+         function rangeSlider(el, isPos = true, statusVal = null) {
           // update range slider marker position and value 
           const rangeVal = el.parentElement.children.rangeVal;
           if (statusVal != null) rangeVal.innerHTML = statusVal;
@@ -144,12 +151,21 @@
             rangeVal.innerHTML = el.value;
           }
           el.setAttribute('value', rangeVal.innerHTML);
-                    
-          // position for range marker
-          const rangeFontSize = parseInt(window.getComputedStyle($('input[type=range]')).fontSize); 
-          let position = (el.clientWidth - rangeFontSize) * (el.value - minval) / (maxval - minval); 
-          position += el.offsetLeft + (rangeFontSize / 2);
-          rangeVal.style.left = 'calc('+position+'px)';
+
+          // position of range marker relative to slider thumb
+          const rangeThumbSize = el.classList.contains('bigThumb') ? bigThumbSize : smallThumbSize;
+          let markerRange = el.offsetWidth - rangeThumbSize;
+          let position = markerRange * (el.value - minval) / (maxval - minval); 
+
+          // calculate absolute marker position for orientation of slider
+          if (el.classList.contains('vertical')) {
+            rangeVal.style.top = el.offsetTop + markerRange/2 - position + 'px';
+            rangeVal.style.left = el.offsetLeft + markerRange/2 - (rangeVal.offsetWidth - rangeThumbSize)/2 + 'px'; // 
+          } else if (el.classList.contains('vertInv')) {
+            rangeVal.style.top = el.offsetTop + position - markerRange/2 + 'px';
+            rangeVal.style.left = el.offsetLeft + markerRange/2 - (rangeVal.offsetWidth - rangeThumbSize)/2 + 'px';
+          } else rangeVal.style.left = el.offsetLeft + position - (rangeVal.offsetWidth - rangeThumbSize)/2 + 'px'; // default horizontal
+
         }
         
         let observer = new IntersectionObserver ( function(entries) {
@@ -172,9 +188,13 @@
          function addRangeData() {
           // add labelling for rangle sliders
           $$('input[type="range"]').forEach(el => {
-            if (!isDefined(el.parentElement.children.rangeMin)) el.insertAdjacentHTML("beforebegin", '<div name="rangeMin"/>'+el.min+'</div>');
-            el.insertAdjacentHTML("afterend", '<div name="rangeVal">'+el.value+'</div>');
-            if (!isDefined(el.parentElement.children.rangeMax)) el.insertAdjacentHTML("afterend", '<div name="rangeMax"/>'+el.max+'</div>');
+            if (el.classList.contains('vertical')) el.style.transform = 'rotate(270deg)'; 
+            else if (el.classList.contains('vertInv')) el.style.transform = 'rotate(90deg)';
+            if (!el.classList.contains('ignore')) {
+              if (!isDefined(el.parentElement.children.rangeMin)) el.insertAdjacentHTML("beforebegin", '<div name="rangeMin"/>'+el.min+'</div>'); 
+              el.insertAdjacentHTML("afterend", '<div name="rangeVal">'+el.value+'</div>');
+              if (!isDefined(el.parentElement.children.rangeMax)) el.insertAdjacentHTML("afterend", '<div name="rangeMax"/>'+el.max+'</div>');
+            }
             rangeSlider(el, false);
           });
         } 
@@ -188,7 +208,7 @@
             updateData = await response.json();
             updateStatus();
             await sleep(1000);
-          } else console.log(response.status); 
+          } else alert(response.status + ": " + response.statusText);  
         }
         
         function refreshStatus() {
@@ -229,7 +249,7 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(statusData),
           });
-          if (!response.ok) console.log(response.status);
+          if (!response.ok) alert(response.status + ": " + response.statusText); 
         } 
         
         /*********** utility functions ***********/
@@ -269,8 +289,12 @@
           el.disabled = false;
         }
         
-        function isActive(key) {
-          return key.classList.contains('active') ? true : false;
+        function isActive(el) {
+          return el.classList.contains('active') ? true : false;
+        }
+        
+        function isHidden(el) {
+           return el.classList.contains("hidden") ? true : false;
         }
         
         function isDefined(variable) {
@@ -323,7 +347,7 @@
               } 
             };
             loadNextLine(); 
-          } else console.log(response.status); 
+          } else showAlert(response.status + ": " + response.statusText); 
         }
         
         function checkTime(value) {
@@ -332,6 +356,18 @@
           let nowUTC = Math.floor(now.getTime() / 1000);
           let timeDiff = Math.abs(nowUTC - value);  
           if (timeDiff > 5) sendControl("clockUTC", nowUTC); // 5 secs 
+        }
+        
+        function setTz(value) {
+          $('#timezone').value = value;
+          sendControl('timezone', value);
+          return false;
+        }
+        
+        function callerTrail() {
+          // get trail of function calls
+          const stackTrace = new Error().stack;
+          console.log("Function call trail: " + stackTrace);
         }
         
         /*********** command processing ***********/
@@ -358,11 +394,13 @@
             const value = e.value.trim();
             const et = event.target.type;
             // input fields of given class 
-            if (e.nodeName == 'INPUT') {  
+            if (e.nodeName == 'INPUT') {
               if (e.type === 'checkbox') processStatus(ID, e.id, e.checked ? 1 : 0);
               else if (et === 'button' || et === 'file') processStatus(ID, e.id, 1);
               else if (et === 'radio') { if (e.checked) processStatus(ID, e.name, value); } 
-              else if (et === 'range') processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML); 
+              else if (et === 'range') {
+                processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML); 
+              }
               else if (e.hasAttribute('id')) processStatus(ID, e.id, value);
             }
             else if (e.tagName == 'SELECT') processStatus(ID, e.id, value);
@@ -370,7 +408,15 @@
           
           // input events
           document.addEventListener("input", function (event) {
-            if (event.target.type === 'range') rangeSlider(event.target);
+            const e = event.target;
+            if (e.type === 'range') {
+              rangeSlider(e);
+              // for element with class='immed' send data for processing immediately
+              if (e.classList.contains('immed')) {
+                isImmed = true;
+                processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML);
+              }
+            }
           });
           
           // user command entered on Log tab
@@ -381,14 +427,20 @@
             }
           });
           
+          // move away from browser tab
+          document.addEventListener('visibilitychange', () => {
+            if (document.hidden) closedTab(false); // app specific
+          });
+          
           // recalc range marker positions 
           window.addEventListener('resize', function (event) {
             $$('input[type=range]').forEach(el => { rangeSlider(el); });
           });
           
-          // close web socket on leaving page
+          // close web socket on closing browser tab
           window.addEventListener('beforeunload', function (event) {
             if (ws) closeWS();
+            closedTab(true); // app specific 
           });   
           
         }
@@ -407,6 +459,10 @@
         function sendCmd(reqStr) {
           ws.send(reqStr);
           showLog("Cmd: " + reqStr);
+        }
+        
+        function setShowLog(isLogOn) {
+          loggingOn = !!isLogOn;
         }
         
         function showLog(reqStr, fromUser = true) {
@@ -452,7 +508,7 @@
           // send only  
           if (value != null) {
             const response = await fetch(encodeURI("/control?" + key + "=" + value));
-            if (!response.ok) console.log(response.status);
+            if (!response.ok) alert(response.status + ": " + response.statusText);
           }
         }
         
@@ -462,7 +518,7 @@
           if (response.ok) {
             updateData = await response.json();
             updateStatus();
-          } else console.log(response.status); 
+          } else alert(response.status + ": " + response.statusText);  
         }
         
         /*********** config functions ***********/
@@ -474,12 +530,11 @@
             const configData = await response.json();
             // format received json into html table
             buildTable(configData, cfgGroup);
-          } else console.log(response.status); 
+          } else alert(response.status + ": " + response.statusText); 
         }
         
         function buildTable(configData, cfgGroup) {
           // dynamically build table of editable settings
-
           let divShowData = isDefined($('.config-group#Main'+cfgGroup)) ? $('.config-group#Main'+cfgGroup) : $('.config-group#Cfg');
           const retain = divShowData.id == 'Main'+cfgGroup ? true : false; // retain main page
           divShowData.innerHTML = "";
@@ -562,7 +617,7 @@
                       });
                     break;
                     default:
-                      console.log("Unhandled config input type " + value);
+                      alert("Unhandled config input type " + value);
                     break;
                   }
                   tr.insertCell(-1).innerHTML = inputHtml;
@@ -576,23 +631,21 @@
         }
 
         /*********** OTA functions ***********/
-         
+
         async function otaUploadFile() {
-          // notify server to start ota task
-          const response = await fetch('/control?startOTA=1');
+          // notify server to start ota 
+          let file = $("#otafile").files[0];
+          const response = await fetch('/control?startOTA=' + file.name);
           if (response.ok) {
             // submit file for uploading
-            let file = $("#otafile").files[0];
-            let formdata = new FormData();
-            formdata.append("otafile", file);
-            let ajax = new XMLHttpRequest();
-            ajax.upload.addEventListener("progress", progressHandler, false);
-            ajax.addEventListener("load", completeHandler, false);
-            ajax.addEventListener("error", errorHandler, false);
-            ajax.addEventListener("abort", abortHandler, false);
-            ajax.open("POST", otaServer +  '/upload');
-            ajax.send(formdata);
-          } else console.log(response.status); 
+            let xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener("progress", progressHandler, false);
+            xhr.addEventListener("load", completeHandler, false);
+            xhr.addEventListener("error", errorHandler, false);
+            xhr.addEventListener("abort", abortHandler, false);
+            xhr.open("POST", webServer +  '/upload');
+            xhr.send(file);
+          } else alert(response.status + ": " + response.statusText); 
         }
 
         function progressHandler(event) {

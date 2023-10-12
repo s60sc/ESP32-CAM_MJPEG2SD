@@ -10,6 +10,10 @@ smtp_login~~99~~na
 smtp_email~~99~~na
 Auth_Name~~99~~na
 hostName~~99~~na
+useHttps~~99~~na
+useSecure~~99~~na
+useFtps~~99~~na
+extIP~~99~~na
 restart~~99~~na
 logMode~0~99~~na
 xclkMhz~20~98~~na
@@ -106,6 +110,7 @@ servoMinAngle~0~3~N~Set min angle for servo model
 servoMaxAngle~180~3~N~Set max angle for servo model
 servoMinPulseWidth~544~3~N~Set min pulse width for servo model (usecs)
 servoMaxPulseWidth~2400~3~N~Set max pulse width for servo model (usecs)
+servoCenter~90~3~N~Angle at which servo centered
 voltDivider~2~3~N~Voltage divider resistor ratio
 voltLow~3~3~N~Warning level for low voltage
 voltInterval~5~3~N~Voltage check interval (mins)
@@ -122,6 +127,22 @@ mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
 usePing~1~0~C~Use ping
 teleUse~0~3~C~Use telemetry recording
 teleInterval~1~3~N~Telemetry collection interval (secs)
-cfgVer~2~99~T~na
-htmVer~4~99~T~na
-jsVer~1~99~T~na
+RCactive~0~3~C~Enable remote control
+servoSteerPin~~4~N~Pin used for steering servo
+reversePin~~4~N~Pin used for motor reverse
+forwardPin~~4~N~Pin used for motor forward
+lightsPin~~4~N~Pin used for RC lights output
+stickXpin~~4~N~Pin used for joystick steering
+stickYpin~~4~N~Pin used for joystick motor
+stickPushPin~~4~N~Pin used for lights control
+stickUse~0~4~C~Use joystick
+pwmFreq~50~4~N~RC Motor PWM frequency
+maxSteerAngle~45~4~N~Max steering angle from straightahead
+maxDutyCycle~100~4~N~Max motor duty cycle % (speed)
+minDutyCycle~10~4~N~Min motor duty cycle % (stop)
+allowReverse~1~4~C~Reverse motion required
+autoControl~1~4~C~Stop motor or center steering if control inactive
+waitTime~20~4~N~Min wait (ms) between updates to ESP32
+cfgVer~3~99~T~na
+htmVer~5~99~T~na
+jsVer~2~99~T~na

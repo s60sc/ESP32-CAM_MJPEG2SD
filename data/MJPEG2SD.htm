@@ -3,12 +3,12 @@
 <!-- 
   s60sc 2022, 2023
   with ideas from @marekful
--->                           
+-->
 <html>
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>ESP32-CAM_MJPEGSD</title>
+    <title>ESP32-CAM_MJPEG2SD</title>
     <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">📷</text></svg>'>
     
     <style>
@@ -44,7 +44,12 @@
         --headingSize: calc(var(--bodySize) * 1.25);
         --subheadingSize: var(--bodySize);
         --footerSize: calc(var(--bodySize) * 0.7);
+        --smallThumbSize: 1rem; /* must be specific value, not calc */
+        --bigThumbSize: 2rem; /* must be specific value, not calc */
+        --markerSize: 1rem; /* must be specific value, not calc */
       }
+      
+      html body {height: 100%;}
       
       body {
         font-family: Helvetica  !important;
@@ -147,7 +152,7 @@
         grid-column: 1/5;
         text-align: left;
       }
-      
+
       svg {
         width: calc(var(--buttonSize) * 8);
         height: var(--buttonDbl);
@@ -173,8 +178,8 @@
       text {
         font-size: var(--buttonSize); 
         fill: var(--buttonText);
-        transform: translate(50%,50%);
-        pointer-events: none;
+        transform: translate(50%, 50%);
+        pointer-events: none; 
       } 
      
       .panel {
@@ -234,22 +239,21 @@
         flex-grow: 1
       }
       
+      input {
+        height: calc(var(--inputSize) * 1.5);
+        border-radius: var(--buttonQuart);
+      }
+      
       input, #applog, #storedLog {
         font: var(--inputSize) 'Courier New';
         font-weight:bold;
         color: var(--inputText);
         background: var(--inputBackground);
-        min-width: calc(var(--buttonSize) * 10);     
+        min-width: calc(var(--buttonSize) * 10);       
       }
       
       input[type="radio"], input[type="checkbox"], progress {
         accent-color: var(--buttonActive);
-      }
-
-      input {
-        height: calc(var(--inputSize) * 1.5);
-        margin: 0 0 var(--buttonHalf) 0;
-        border-radius: var(--buttonQuart);
       }
 
       input[type="text"]{
@@ -276,58 +280,12 @@
         min-width: calc(var(--buttonSize) * 7);
         text-align: center;
       } */
+      input[type="number"] {
+        height: var(--buttonSize);
+      }
       
       input[type=number]::-webkit-inner-spin-button {
-        opacity: 1
-      }
-      
-      
-      /* checkbox toggle switch slider */
-            
-      .switch {
-        position: relative;
-        display: inline-block;
-        width: calc(var(--buttonSize) * 2);
-        height: var(--buttonSize);
-        top: var(--buttonHalf);
-      }
-
-      .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-
-      .slider {
-        position: absolute;
-        border-radius: var(--buttonSize);
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: var(--itemInactive);
-        width: calc(var(--buttonSize) * 3);                      
-        transition: .4s;
-      }
-
-      .slider:before {
-        position: absolute;
-        border-radius: 50%;
-        content: "";
-        height: var(--buttonSize);
-        width: var(--buttonSize);
-        left: var(--buttonQuart);
-        background: var(--inputBackground);
-        transition: .4s;
-      }
-
-      input:checked + .slider {
-        background-color: var(--buttonActive);
-      }
-
-      input:checked + .slider:before {
-        transform: translateX(calc(var(--buttonSize)*1.5));
+        opacity: 1;
       }
       
       #applog, #storedLog {
@@ -389,6 +347,19 @@
         font-size: calc(var(--buttonSize) * 1.5);
       }   
       
+      .svgIcon {
+        width: var(--buttonDbl);
+        height: var(--buttonDbl);
+      }
+      
+      rect.RCon {
+        fill: var(--buttonActive);
+      }
+      
+      rect.RCoff {
+        fill: var(--buttonReady);
+      }
+      
       .upperText {
         transform: translate(50%,30%);  
       }
@@ -405,65 +376,99 @@
       /*** range slider ***/
       
       .input-group>input[type=range]  {
-        min-width: calc(var(--buttonSize) * 7);  
-      }
-
-      input[type=range] {
-        -webkit-appearance: none;
-        font-size: var(--buttonSize);
-        width: 100%;
-        height: var(--buttonHalf);
-        background: var(--menuBackground);
-        cursor: pointer;
-        margin-top: calc(var(--buttonSize) * 3/4);
-      }
-
-      input[type=range]:focus {
-        outline: 0
+        min-width: calc(var(--markerSize) * 8);  
       }
       
+      input[type=range] {
+        -webkit-appearance: none;
+        background: transparent;
+      }
+
       input[type=range]::-webkit-slider-runnable-track {
+        -webkit-appearance: none;
         width: 100%;
         height: 2px;
-        cursor: pointer;
         background: var(--inputBackground); 
-        border-radius: var(--buttonHalf);
+        margin-top: 2px;
       }
 
       input[type=range]::-webkit-slider-thumb {
-        height: var(--buttonSize);
-        width: var(--buttonSize);
+        /* location of thumb relative to track */
+        height: var(--smallThumbSize);
+        width: var(--smallThumbSize);
         border-radius: 50%;
         background: var(--buttonReady); 
-        cursor: pointer;
         -webkit-appearance: none;
-        margin-top: calc(-1 * var(--buttonHalf));
+        margin-top: calc(-0.5 * var(--smallThumbSize));
       }
-      input[type=range]:focus::-webkit-slider-runnable-track {
-        background: var(--inputBackground);
+      input[type=range].bigThumb::-webkit-slider-thumb{
+        height: var(--bigThumbSize);
+        width: var(--bigThumbSize);
+        margin-top: calc(-0.5 * var(--bigThumbSize));
       }
-  
+
       div[name="rangeVal"] {
-        width: var(--buttonDbl);
-        height: var(--buttonSize);
-        line-height: 150%;
+        /* shape & location of marker relative to thumb */
+        width: calc(var(--markerSize) * 2);
+        height: var(--markerSize);
+        margin-top: calc(-0.5 * var(--smallThumbSize));
+        line-height: var(--markerSize);
         text-align: center;
         background: var(--buttonReady); 
         color: var(--buttonText); 
         font-size: var(--footerSize);
-        display: block;
+        display: inline;
         position: absolute;
-        left: 50%;
-        transform: translate(-50%, 0);
         border-radius: 25%;
-        top: -25%; 
+        pointer-events: none;
+      }
+      div[name="rangeVal"].rvThumb {
+        margin-top: calc(-0.5 * var(--bigThumbSize) - var(--buttonQuart));
       }
 
-       div[name="rangeMin"], div[name="rangeMax"] {
+      div[name="rangeMin"], div[name="rangeMax"] {
         display: inline-block;
         padding: 0 var(--buttonQuart);
+        pointer-events: none;
       }
-                               
+       
+
+      /* checkbox slider */
+
+      /* Hide the default checkbox */
+      .switch input[type="checkbox"] {
+        display: none;
+      }
+
+      /* static part */
+      .switch .slider {
+        width: calc(var(--buttonSize) * 3);  
+        height: var(--buttonSize);
+        top: calc(var(--buttonQuart) / 2);
+        background: var(--itemInactive);
+        position: relative;
+        display: inline-block;
+        border-radius: var(--buttonSize);
+      }
+      .switch input[type="checkbox"]:checked + .slider {
+        background-color: var(--buttonActive);
+      }
+
+      /* moving part */
+      .switch .slider::before {
+        content: "";
+        height: var(--buttonSize);
+        width: var(--buttonSize);
+        background: var(--inputBackground);
+        position: absolute;
+        left: var(--buttonQuart);
+        border-radius: var(--buttonSize);
+        transition: transform 0.4s;
+      }
+      .switch input[type="checkbox"]:checked + .slider::before {
+        transform: translateX(calc(var(--buttonSize)*1.5));
+      }
+
 
       .navtop{
         list-style: none;
@@ -696,6 +701,9 @@
         cursor: pointer;
       }
 
+      .displayonly {
+        pointer-events: none;
+      }
       
       .blinking {
         animation: blinker 1.5s linear infinite;
@@ -737,7 +745,7 @@
 
       #sidebar{
         margin: 0px;
-        padding: 0px;         
+        padding: 0px; 
         width: 100%;
       } 
 
@@ -749,11 +757,22 @@
         }
         #sidebar {
           width: auto;
-        }                                
+        } 
+      }
+      
+      #recording-indicator {
+        display: inline-block;
+        width: calc(var(--buttonSize) * 3/4);
+        height: calc(var(--buttonSize) * 3/4);
+        padding: var(--buttonQuart);
+        margin: var(--buttonHalf);
+        background: var(--buttonReady);
+        border-radius: var(--buttonSize);
+        border: 2px solid var(--itemBorder);
       }
       
       #stream-container {
-        margin: var(--buttonQuart) var(--buttonHalf); calc(var(--buttonSize) * 3) var(--buttonHalf);
+        margin: var(--buttonQuart) var(--buttonHalf); 
         border: 1px solid var(--itemBorder);
       }
       
@@ -769,17 +788,45 @@
         line-height: var(--buttonSize);
         cursor: pointer;
         text-decoration: none;
+        z-Index: 1;
+      }
+      
+      .RCcontrolFmt {
+        position: absolute;
+        background: var(--buttonReady);
+        width: var(--buttonDbl);
+        height: var(--buttonDbl);
+        border-radius: calc(var(--buttonSize) * 6);
+        color: var(--buttonText);
+        text-align: center;
+        line-height: var(--buttonSize);
+        cursor: pointer;
+        text-decoration: none;
+        dominant-baseline: middle;
+        text-anchor: middle;
+        z-Index: 1;
       }
 
-      #recording-indicator {
-        display: inline-block;
-        width: calc(var(--buttonSize) * 3/4);
-        height: calc(var(--buttonSize) * 3/4);
-        padding: var(--buttonQuart);
-        margin: var(--buttonHalf);
-        background: var(--buttonReady);
-        border-radius: var(--buttonSize);
-        border: 2px solid var(--itemBorder);
+      .RCbuttonFmt {
+        left: 1px; 
+        top: 1px;
+      }
+        
+      .RCmotorFmt {
+        background: transparent;
+        left: -56px; 
+        bottom: 72px;
+      }
+      
+      .RClightsFmt {
+        left: 160px; 
+        bottom: 8px;
+      }
+      
+      .RCsteerFmt {
+        background: transparent;
+        right: 140px; 
+        bottom: 4px;
       }
 
     </style>
@@ -810,49 +857,50 @@
     
     <div id="mainPage" class="tabcontent" style="display:block">
       <div id="content">
-        <div id="sidebar">
-          <div id="menu-container" class="menu-pinned">
-            <nav id="menu-selector" class="menu-pinned menu-closed">
-              <nav class="quick-nav" id="camControl" name="camera-control">📷</nav>
-              <nav class="quick-nav" id="motionRec" name="motion-record">👀</nav>
-              <nav class="quick-nav" id="fileControl" name="playback-transfers">🎥</nav>
-              <nav class="quick-nav" id="picSettings" name="picture-settings">📺</nav>
-              <nav class="quick-nav" id="accSettings" name="access-settings">🔧</nav>
-            </nav>
-            <div id="menu-top" class="menu-pinned">
-              <nav class="menu panel" id="camera-control">
-                <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
-                <div class="pin-menu" title="Pin / unpin menu">📌</div>
-                <label for="control-cb" class="nav-toggle">📷&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
-                <div class='addButtons'></div>
-                <div>                    
-                  <div class="input-group" id="framesize-group">
-                    <label for="framesize">Resolution</label>
-                    <select id="framesize" class="selectField">
-                      <option class="OV5640 hidden" value="21">QSXGA(2560x1920)</option>
-                      <option class="OV5640 hidden" value="20">P_FHD(1080x1920)</option>
-                      <option class="OV5640 hidden" value="19">WQXGA(2560x1600)</option>
-                      <option class="OV5640 hidden" value="18">QHD(2560x1440)</option>
-                      <option class="OV3660 OV5640 hidden" value="17">QXGA(2048x1564)</option>
-                      <option class="OV3660 hidden" value="16">P_3MP(864x1564)</option>
-                      <option class="OV3660 OV5640 hidden" value="15">P_HD(720x1280)</option>
-                      <option class="OV3660 OV5640 hidden" value="14">FHD(1920x1080)</option>
-                      <option value="13">UXGA(1600x1200)</option>
-                      <option value="12">SXGA(1280x1024)</option>
-                      <option value="11">HD(1280x720)</option>
-                      <option value="10">XGA(1024x768)</option>
-                      <option value="9" selected="selected">SVGA(800x600)</option> 
-                      <option value="8">VGA(640x480)</option> 
-                      <option value="7">HVGA(480x320)</option>
-                      <option value="6">CIF(400x296)</option> 
-                      <option value="5">QVGA(320x240)</option>
-                      <option value="4">240x240</option> 
-                      <option value="3">HQVGA(240x176)</option> 
-                      <option value="2">QCIF(176x144)</option> 
-                      <option value="1">QQVGA(160x120)</option> 
-                      <option value="0">96x96</option>
-                      </div>
-                    </select>
+        <div id="mainPageIcons">
+          <div id="sidebar">
+            <div id="menu-container" class="menu-pinned">
+              <nav id="menu-selector" class="menu-pinned menu-closed">
+                <nav class="quick-nav" id="camControl" name="camera-control">📷</nav>
+                <nav class="quick-nav" id="motionRec" name="motion-record">👀</nav>
+                <nav class="quick-nav" id="fileControl" name="playback-transfers">🎥</nav>
+                <nav class="quick-nav" id="picSettings" name="picture-settings">📺</nav>
+                <nav class="quick-nav" id="accSettings" name="access-settings">🔧</nav>
+              </nav>
+              <div id="menu-top" class="menu-pinned">
+                <nav class="menu panel" id="camera-control">
+                  <input type="checkbox" id="control-cb" class="menu-action" checked="checked">
+                  <div class="pin-menu" title="Pin / unpin menu">📌</div>
+                  <label for="control-cb" class="nav-toggle">📷&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
+                  <div class='addButtons'></div>
+                  <div>                    
+                    <div class="input-group" id="framesize-group">
+                      <label for="framesize">Resolution</label>
+                      <select id="framesize" class="selectField">
+                        <option class="OV5640 hidden" value="21">QSXGA(2560x1920)</option>
+                        <option class="OV5640 hidden" value="20">P_FHD(1080x1920)</option>
+                        <option class="OV5640 hidden" value="19">WQXGA(2560x1600)</option>
+                        <option class="OV5640 hidden" value="18">QHD(2560x1440)</option>
+                        <option class="OV3660 OV5640 hidden" value="17">QXGA(2048x1564)</option>
+                        <option class="OV3660 hidden" value="16">P_3MP(864x1564)</option>
+                        <option class="OV3660 OV5640 hidden" value="15">P_HD(720x1280)</option>
+                        <option class="OV3660 OV5640 hidden" value="14">FHD(1920x1080)</option>
+                        <option value="13">UXGA(1600x1200)</option>
+                        <option value="12">SXGA(1280x1024)</option>
+                        <option value="11">HD(1280x720)</option>
+                        <option value="10">XGA(1024x768)</option>
+                        <option value="9" selected="selected">SVGA(800x600)</option> 
+                        <option value="8">VGA(640x480)</option> 
+                        <option value="7">HVGA(480x320)</option>
+                        <option value="6">CIF(400x296)</option> 
+                        <option value="5">QVGA(320x240)</option>
+                        <option value="4">240x240</option> 
+                        <option value="3">HQVGA(240x176)</option> 
+                        <option value="2">QCIF(176x144)</option> 
+                        <option value="1">QQVGA(160x120)</option> 
+                        <option value="0">96x96</option>
+                      </select>
+                    </div>
                   </div>
                   <div class="input-group" id="fps-group">
                       <label for="fps">FPS</label>
@@ -1057,7 +1105,7 @@
                 <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="motion-group">
-                    <label for="enableMotion">Motion detect</label>
+                    <label for="enableMotion">Motion Detect</label>
                     <div class="switch">
                       <input id="enableMotion" type="checkbox">
                       <label title="Enable/disable motion detection" class="slider" for="enableMotion"></label>
@@ -1096,7 +1144,7 @@
                       <input id="timeLapseOn" type="checkbox">
                       <label title="Enable time lapse recording" class="slider" for="timeLapseOn"></label>
                     </div>
-                  </div>                
+                  </div>
                 </div>
               </nav>
               <nav class="menu panel" id="playback-transfers">
@@ -1124,6 +1172,15 @@
                     <button class="local" title="Delete selected file/folder from SD card" id="delete" style="float:right" value="1">Delete</button>
                   </section>
                   <br>
+  <!--
+                  <div class="input-group" id="auth-group">
+                    <label for="useFtps">Use FTPS</label>
+                    <div class="switch">
+                      <input id="useFtps" type="checkbox">
+                      <label title="Use FTPS instead of FTP" class="slider" for="useFtps"></label>
+                    </div>
+                  </div>
+  -->
                   <div class="input-group" id="autoUpload-group">
                     <label for="autoUpload">Auto FTP upload</label>
                     <div class="switch">
@@ -1165,6 +1222,10 @@
                   <div class="input-group" id="wifi-group">
                     <label for="ST_Pass">Password</label>
                     <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password">
+                  </div>
+                  <div class="input-group">
+                      <label for="extIP">External&nbsp;IP</label>
+                      <div id="extIP" class="displayonly">&nbsp;</div>
                   </div>
                   <br>
                   <div class="subheader">Clock settings</div>
@@ -1263,83 +1324,121 @@
                   <div class="input-group" id="auth-group">
                       <label for="Auth_Pass">Web password</label>
                       <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password">
-                  </div>                      
+                  </div>
+  <!--
+                  <div class="input-group" id="auth-group">
+                    <label for="useHttps">Use HTTPS</label>
+                    <div class="switch">
+                      <input id="useHttps" type="checkbox">
+                      <label title="Use HTTPS to access app" class="slider" for="useHttps"></label>
+                    </div>
+                  </div>
+  -->
+                  <div class="input-group" id="auth-group">
+                    <label for="useSecure">Check Certs</label>
+                    <div class="switch">
+                      <input id="useSecure" type="checkbox">
+                      <label title="Check remote servers certificate" class="slider" for="useSecure"></label>
+                    </div>
+                  </div>
                 </div>
               </nav>
               <div id="foot-spacer"></div>
             </div>
           </div>
+          <section id="footer"> 
+            <div class="info-group center">
+                <label for="fw_version">Version</label>
+                <div id="fw_version" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="llevel">Ambient&nbsp;Light</label>
+                <div id="llevel" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="night">Night&nbsp;Time</label>
+                <div id="night" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="atemp">Camera&nbsp;Temp</label>
+                <div id="atemp" class="info displayonly">&nbsp;</div>
+            </div> 
+            <div class="info-group center">
+                <label for="battv">Battery&nbsp;Voltage</label>
+                <div id="battv" class="info displayonly">&nbsp;</div>
+            </div> 
+            <div class="info-group center">
+                <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
+                <div id="clock" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="up_time">Up&nbsp;time</label>
+                <div id="up_time" class="info displayonly">&nbsp;</div>
+            </div>                                                 
+            <div class="info-group center">
+                <label for="wifi_rssi">Signal&nbsp;Strength</label>
+                <div id="wifi_rssi" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="free_heap">Free&nbsp;heap</label>
+                <div id="free_heap" class="info displayonly">&nbsp;</div>
+            </div>  
+            <div class="info-group center">
+                <label for="free_psram">Free&nbsp;PSRAM</label>
+                <div id="free_psram" class="info displayonly">&nbsp;</div>
+            </div>                 
+            <div class="info-group center">
+                <label for="total_bytes">Total&nbsp;space</label>
+                <div id="total_bytes" class="info displayonly">&nbsp;</div>
+            </div>                
+            <div class="info-group center">
+                <label for="used_bytes">Used&nbsp;space</label>
+                <div id="used_bytes" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="free_bytes">Free&nbsp;space</label>
+                <div id="free_bytes" class="info displayonly">&nbsp;</div>
+            </div>   
+          </section> 
         </div>
         <figure>
-            <div id="stream-container" class="image-container hidden">
-                <div class="streamSize" id="closeStream" title="Close screen">×</div>
-                <div class="streamSize" id="rotate" title="Rotate screen">@</div>
-                <div class="streamSize" id="actualSize" title="Actual size">-</div>
-                <div class="streamSize" id="maxFit" title="Fit to browser">#</div>
-                <div class="streamSize" id="fullAspect" title="Full screen with aspect">&curren;</div>
-                <div class="streamSize" id="fullSize" title="Full screen">&rect;</div>
-                <div class="streamSize" id="saveImage" title="Download screenshot">v</div>
-                <img id="stream" src="" crossorigin>
+          <div id="stream-container" class="image-container hidden">
+            <div class="streamSize" id="closeStream" title="Close screen">×</div>
+            <div class="streamSize" id="rotate" title="Rotate screen">@</div>
+            <div class="streamSize" id="actualSize" title="Actual size">-</div>
+            <div class="streamSize" id="maxFit" title="Fit to browser">#</div>
+            <div class="streamSize" id="fullAspect" title="Full screen with aspect">&curren;</div>
+            <div class="streamSize" id="fullSize" title="Full screen">&rect;</div>
+            <div class="streamSize" id="saveImage" title="Download screenshot">v</div>
+            <div id="RCenable" class="hidden">
+              <div class="RCcontrolFmt RCbuttonFmt" title="Switch RC controls on / off">  
+                <svg class="svgIcon">
+                  <rect class="RCoff"/>
+                  <text class="RCbutton local" id="RCcontrols">🎮</text>
+                </svg>
+              </div>
             </div>
+            <div id="RCdisplay" class="hidden">
+              <div class="RCcontrolFmt RClightsFmt" title="Switch RC lights on / off">  
+                <svg class="svgIcon">
+                  <rect class="RCoff"/>
+                  <text class="RCcontrol" id="RClights">💡</text> 
+                </svg>
+              </div>
+              <div class="RCcontrolFmt RCsteerFmt">
+                <input title="Control RC steering" type="range" id="steerDirection" class="RCcontrol immed bigThumb ignore" value=0>
+                <div name="rangeVal" style="top: 2px" class="rvThumb">0</div> 
+              </div>
+              <div class="RCcontrolFmt RCmotorFmt">
+                <input title="Control RC speed" type="range" id="motorSpeed" class="RCcontrol immed bigThumb ignore" value=0>
+                <div name="rangeVal" class="rvThumb">0</div> 
+              </div>
+            </div>
+            <img id="stream" src="" crossorigin>
+          </div>
         </figure>
-        </figure>
-      </div>
-        <section id="footer">
-          <div class="info-group center">
-              <label for="fw_version">Version</label>
-              <div id="fw_version" class="info displayonly">&nbsp;</div>
-          </div>
-          <div class="info-group center">
-              <label for="llevel">Ambient&nbsp;Light</label>
-              <div id="llevel" class="info displayonly">&nbsp;</div>
-          </div>
-          <div class="info-group center">
-              <label for="night">Night&nbsp;Time</label>
-              <div id="night" class="info displayonly">&nbsp;</div>
-          </div>
-          <div class="info-group center">
-              <label for="atemp">Camera&nbsp;Temp</label>
-              <div id="atemp" class="info displayonly">&nbsp;</div>
-          </div> 
-          <div class="info-group center">
-              <label for="battv">Battery&nbsp;Voltage</label>
-              <div id="battv" class="info displayonly">&nbsp;</div>
-          </div> 
-          <div class="info-group center">
-              <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
-              <div id="clock" class="info displayonly">&nbsp;</div>
-          </div>
-          <div class="info-group center">
-              <label for="up_time">Up&nbsp;time</label>
-              <div id="up_time" class="info displayonly">&nbsp;</div>
-          </div>                                                 
-          <div class="info-group center">
-              <label for="wifi_rssi">Signal&nbsp;Strength</label>
-              <div id="wifi_rssi" class="info displayonly">&nbsp;</div>
-          </div>
-          <div class="info-group center">
-              <label for="free_heap">Free&nbsp;heap</label>
-              <div id="free_heap" class="info displayonly">&nbsp;</div>
-          </div>  
-          <div class="info-group center">
-              <label for="free_psram">Free&nbsp;PSRAM</label>
-              <div id="free_psram" class="info displayonly">&nbsp;</div>
-          </div>                 
-          <div class="info-group center">
-              <label for="total_bytes">Total&nbsp;space</label>
-              <div id="total_bytes" class="info displayonly">&nbsp;</div>
-          </div>                
-          <div class="info-group center">
-              <label for="used_bytes">Used&nbsp;space</label>
-              <div id="used_bytes" class="info displayonly">&nbsp;</div>
-          </div>
-          <div class="info-group center">
-              <label for="free_bytes">Free&nbsp;space</label>
-              <div id="free_bytes" class="info displayonly">&nbsp;</div>
-          </div>   
-        </section>                         
-      </section> 
-    </div>
+      </div> 
+    </div>      
     
     <div id="ShowLog" class="tabcontent">
       <br><br>
@@ -1347,7 +1446,7 @@
         <div class="input-group" style="text-align: left">
           <label for="wsMode" class="header" title="Enable logging to websocket">Log to browser:</label>
           <div class="switch">
-              <input class="local" id="wsMode" type="checkbox">
+              <input id="wsMode" type="checkbox">
               <label title="Output log to WS" class="slider" for="wsMode"></label>
           </div>   
         </div>
@@ -1454,6 +1553,12 @@
             <text class="local midText" id="other">Other</text>
           </svg>
         </div>
+        <div id="RCconfigBtn" class="hidden">
+          <svg>
+            <rect/>
+            <text class="local midText" id="RCconfig">RC Config</text>
+          </svg>
+        </div>
       </div>
       <div>
         <p class='config-group' id='Cfg'></p>
@@ -1469,7 +1574,7 @@
         <div class="subheader" id="status"></div>
         <p id="loaded_n_total"></p>
       </form>
-    </div>   
+    </div>
         
     <div class="alertMsg">
       <span id="alertText"></span>
@@ -1478,17 +1583,12 @@
     <script>
       'use strict'
       
-      // web server ports, automatically derive from entered port number
-      const webPort = !window.location.port ? "80" : window.location.port;
-      const otaPort = String(+webPort + 1);
-      const streamPort = String(+webPort + 2);
-      
       let refreshInterval = 5000;
       let imgSize = { width: 0, height: 0 };
       let fitSize = { width: 0, height: 0 };
       let cameraModel = "OV2640";
       let firstCall = true;
-      
+
       let streamServer;
       let view;
       let viewContainer;
@@ -1497,43 +1597,77 @@
       let streamButton;
       let playbackButton;
       let rotateAngle = 0;
+      let RCmode = false;
+      let showRC = false; 
       
+      // slider orientation is one of:
+      //   horizontal : left -> right (default)
+      //   vertical   : vertical up for forward
+      //   vertInv    : vertical up for reverse / stop
+      const steerOrientation = "horizontal";
+      const motorOrientation = "vertical"; 
+      // following set from app
+      let maxSteerAngle = 45;   // max steering angle in degrees from straightahead
+      let maxDutyCycle = 100;   // maximum motor duty cycle % (speed)
+      let minDutyCycle = 10;    // minimum motor duty cycle % needed to operate motor
+      let allowReverse = true;  // set false if reverse motion not required
+      let autoControl = true;   // stop motor or center the steering if control not active
+      let servoCenter = 90;     // angle in degrees where servo is centered (SG90 style)
+
+      // shorter the waitTime, more responsive RC but more load on ESP32
+      let waitTime = 20;        // minimum wait in ms between controller updates
+
+
       function appInit() {
-        streamServer = webHost + ':' + streamPort;
+        streamServer = webHost + ':' + String(+webPort + 1);
         view = $('#stream');
         viewContainer = $('#stream-container');
         recordButton = $('#forceRecord');
         recordingIndicator = $('#recording-indicator');
         streamButton = $('#forceStream');
         playbackButton = $('#forcePlayback');
+        $('#steerDirection').min = 0 - maxSteerAngle;
+        $('#steerDirection').max = maxSteerAngle;
+        $('#steerDirection').classList.add(steerOrientation);
+        $('#motorSpeed').max = maxDutyCycle;
+        $('#motorSpeed').min = allowReverse ? 0 - maxDutyCycle : 0;
+        $('#motorSpeed').classList.add(motorOrientation);
+        const RCcfgObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => { 
+            if (!entry.isIntersecting && isHidden($('#RCdisplay'))) doLoadStatus = true; 
+          });
+        });
+        RCcfgObserver.observe($('#RCconfigBtn'));
       }
       
       async function processStatus(dest, key, value, fromUser = true) {
         // process change to status value
         if (dest == ID) {
           // operation based on ID
+          if (RCsliders(key, value)) return;
           if (key == "wifi") getConfig("0");
           else if (key == "hostName") {
             document.title = value;
             if (fromUser) sendControl(key, value);
           }
-          else if (key == "otafile") otaUploadFile();
+          else if (key == "otafile") { sendAll("stopStream", 1); otaUploadFile(); }
           else if (key == "alertMsg") showAlert(value);
           else if (key == "clearWSlog") $('#applog').innerHTML = "";
           else if (key == "clearLog") clearLog();
           else if (key == "refreshLog") getLog('/web?log.txt');
-          else if (key == "wsMode") value == 1 ? initWebSocket() : closeWS();
+          else if (key == "wsMode") setShowLog(value);
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") checkTime(value);
           else if (key == "motion") getConfig("01");
           else if (key == "other") getConfig("012");
           else if (key == "peripherals") getConfig("0123");
+          else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
           else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
           else if (key == "framesize") fromUser = setFrameSize(key, value, fromUser);
           else if (key == "get-still") getStill();
-          else if (key == "download") $("#download").value.includes('.') ? window.location.href='/control?download=1' : null;
+          else if (key == "download" && $("#download").value.includes('.')) doDownload();
           else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
           else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
@@ -1542,6 +1676,16 @@
           else if (key == "showRecord") setRecIndicator(value);
           else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
           else if (key == "forceStream") streamAction(key);
+          else if (key == "RCactive") RCstatus(Number(value));
+          else if (key == "RClights") value = RCbuttons(key, value);
+          else if (key == "RCcontrols") showRCcontrols(RCbuttons(key, value));
+          else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
+          else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
+          else if (key == "minDutyCycle") minDutyCycle = value;
+          else if (key == "servoCenter") servoCenter = value;
+          else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle); }
+          else if (key == "autoControl") autoControl = value > 0 ? true : false;
+          else if (key == "waitTime") waitTime = value;
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
         } 
@@ -1653,10 +1797,18 @@
       }
 
       /************** stream functions ****************/
+      
+      async function doDownload() {
+        stopAll("doDownload");
+        try {
+          window.location.href=streamServer+'/sustain?download=1';
+        } catch (error) {alert(error);}
+      }
 
       function getStill() {
-        stopAll();
-        view.src = streamServer + "/stream?random="+Date.now(); 
+        hide($('#RCenable'));
+        stopAll("getStill"); 
+        view.src = webServer + "/control?still="+Date.now(); 
         showView(false);
       }
      
@@ -1667,51 +1819,65 @@
       }
               
       function playbackAction(key) {
-        if (isActive($('#'+key))) deactivatePlaybackButton();
-        else activatePlaybackButton();
+        if (isActive($('#'+key))) {
+          deactivatePlaybackButton();
+        } else activatePlaybackButton();
       }      
 
       function streamAction(key) {
-        if (isActive($('#'+key))) deactivateStreamButton();
-        else activateStreamButton();
+        if (isActive($('#'+key))) {
+          sendAll("stopStream", 1);
+          deactivateStreamButton();
+        } else activateStreamButton();
       } 
-      
+
       async function checkStream() {
-        // check when stream ends to close it
+         // check when playback stream ends to close it
         let running = true;
         while (running) {
           try { await view.decode(); }
           catch { running = false; }
         }
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        stopAll();
+        if (!isHidden(viewContainer)) stopAll("checkStream"); 
       }
-      
-      function activatePlaybackButton() {
-        stopAll();
-        playbackButton.classList.add("active");
-        playbackButton.innerHTML = "▢&nbsp;Stop Playback";
-        playbackButton.classList.add("blinking");
-        view.src = streamServer + '/stream?source=file'; 
-        checkStream();
-        showView(true);
+     
+      async function activatePlaybackButton() {
+        if (isHidden(recordingIndicator)) {
+          if (isActive(streamButton)) alert("Stop streaming first");
+          else {
+            sendAll("stopPlaying", sustainId);
+            stopAll("activatePlaybackButton");
+            try {
+              playbackButton.classList.add("active");
+              playbackButton.innerHTML = "▢&nbsp;Stop Playback";
+              playbackButton.classList.add("blinking");
+              view.src = streamServer + '/sustain?playback=1'; 
+              checkStream();
+              hide($('#RCenable'));
+              showView(true);
+            } catch (error) {alert(error);}
+          } 
+        } else alert('Recording in progress');
       }
        
       function deactivatePlaybackButton() {
         playbackButton.classList.remove("active");
-        sendControl("stopStream", "1");
         playbackButton.innerHTML = "➤&nbsp;Start Playback";
         playbackButton.classList.remove("blinking");
         disable(playbackButton);
-        hide(viewContainer);
+        stopAll("deactivatePlaybackButton");
+        sendAll("stopPlaying", sustainId);
       }
 
       function activateRecordButton() {
-        stopAll();
-        recordButton.classList.add("active");
-        recordButton.innerHTML = "▢&nbsp;Stop Recording";
-        show(recordingIndicator);
-        recordingIndicator.classList.add("blinking");
+        if (!recordButton.classList.contains("active")) {
+          recordButton.classList.add("active");
+          recordButton.innerHTML = "▢&nbsp;Stop Recording";
+        }
+        if (isHidden(recordingIndicator)) {
+          show(recordingIndicator);
+          recordingIndicator.classList.add("blinking");
+        }
       }
       
       function deactivateRecordButton() {
@@ -1721,40 +1887,46 @@
         hide(recordingIndicator);
       }
 
-      function activateStreamButton() {
-        stopAll();
-        streamButton.classList.add("active");
-        view.src = streamServer + '/stream?source=sensor'; 
-        streamButton.innerHTML = "▢&nbsp;Stop Stream";
-        streamButton.classList.add('blinking');
-        showView(false);
+      function setRecIndicator(value) {
+        // indicate if motion capture is being recorded
+        if (value && isHidden(recordingIndicator)) activateRecordButton();
+        // remove recording indicator and deactivate record button if active
+        else if (!value && !isHidden(recordingIndicator)) deactivateRecordButton();
+      }
+      
+      async function activateStreamButton() {
+        stopAll("activateStreamButton");
+        try {
+          streamButton.classList.add("active");
+          streamButton.innerHTML = "▢&nbsp;Stop Stream";
+          streamButton.classList.add('blinking');
+          showRC ? show($('#RCenable')) : hide($('#RCenable')); 
+          view.src = streamServer + '/sustain?stream=1';
+          showView(false);
+        } catch (error) {alert(error);}
       }
       
       function deactivateStreamButton() {
         streamButton.classList.remove("active");
-        sendControl("stopStream", "1");
         streamButton.innerHTML ="➤&nbsp;Start Stream";
         streamButton.classList.remove('blinking');
-        hide(viewContainer);
+        stopAll("deactivateStreamButton");
+        sendAll("stopStream", 1);
       }
-      
-      function setRecIndicator(value) {
-        // indicate if motion capture is being recorded
-        if (value && recordingIndicator.classList.contains("hidden")) {
-          show(recordingIndicator);
-          recordingIndicator.classList.add("blinking");
-        } 
-        else if (!value && !recordingIndicator.classList.contains("hidden")) {
-          recordingIndicator.classList.remove("blinking");
-          hide(recordingIndicator);
+
+      function stopAll(caller) {
+        if (!isHidden(viewContainer)) {
+          stopRC();
+          window.stop();
         }
-      }
-      
-      function stopAll() {
-        window.stop();
-        if (isActive(recordButton)) deactivateRecordButton();
-        if (isActive(playbackButton)) deactivatePlaybackButton();
-        if (isActive(streamButton)) deactivateStreamButton();
+        if (isActive(playbackButton)) {
+          sendAll("stopPlaying", sustainId);
+          deactivatePlaybackButton();
+        }
+        if (isActive(streamButton)) {
+          sendAll("stopStream", sustainId);
+          deactivateStreamButton();
+        }
         hide(viewContainer);
       }
 
@@ -1790,7 +1962,10 @@
         // x close screen
         // v download still image 
         
-        if (selectedSize == 'closeStream') stopAll();
+        if (selectedSize == 'closeStream') {
+          stopAll("closeStream");
+          sendAll("stopStream", sustainId);
+        }
         else {
           if (selectedSize == 'maxFit') {
             fitSize = calculateAspectRatioFit(imgSize.width, imgSize.height, 
@@ -1823,7 +1998,7 @@
             if (document.exitFullscreen) document.exitFullscreen();
             else document.webkitExitFullscreen(); /* Safari */
           }
-
+          
           // locate size buttons on screen
           let buttonPos = baseFontSize / 4;
           $$('.streamSize').forEach(el => {
@@ -1831,10 +2006,9 @@
               el.style.right = buttonPos + 'px'; 
               buttonPos += baseFontSize * 1.25;
               show(el);
-              el.style.zIndex = 1;
             } else hide(el);
           });
-          show(viewContainer); 
+          show(viewContainer);
         }
       }
       
@@ -1851,6 +2025,7 @@
         anchor.remove();
         canvas.parentNode.removeChild(canvas);
       }
+      
 
       /************* user selection functions ************/
 
@@ -1883,7 +2058,7 @@
               $('#sfile').add(option);
             }
           });
-        } else console.log(response.status);
+        } else alert(response.status + ": " + response.statusText);
         await new Promise((resolve) => setTimeout(resolve, 500));
         $$('*').forEach(el => { el.style.cursor = ("default")});
       }
@@ -1912,19 +2087,6 @@
         show($('#aec_value-group'));
         rangeSlider($('#aec_value'));
       }
-
-      function checkTime(value) {
-        let now = new Date();
-        let nowUTC = Math.floor(now.getTime() / 1000);
-        let timeDiff = Math.abs(nowUTC - value);  
-        if (timeDiff > 5) sendControl("clockUTC", nowUTC); // 5 secs 
-      }
-      
-      function setTz(value) {
-        $('#timezone').value = value;
-        sendControl('timezone', value);
-        return false;
-      }
  
       function sdFile(key, value) {
         if (key == "delete") {
@@ -1934,12 +2096,142 @@
         if (key == "delete" || key == "uploadMove") selectFileOrFolder("/~reset", true);
       }
       
+      function sendAll(key, val) {
+        if (ws == null) sendControl(key, val);
+        else ws.send('C' + key + '=' + val);
+      }
+      
+      function configStatus(refresh) {} 
+      
+      function closedTab(isClosed) {
+        if (isClosed) stopAll("closedTab");
+      }
+      
+      /************** RC ****************/
+      
+      function RCstatus(doShow) {
+        if (doShow) {
+          showRC = true;
+          show($('#RCconfigBtn'));
+        } else { 
+          showRC = false;
+          hide($('#RCconfigBtn'));
+        }
+      }
+      
+      async function showRCcontrols(showControls) {
+        if (showControls) {
+          // start rc control
+          show($('#RCdisplay')) 
+          RCmode = true;
+          setShowLog(false); // disable showLog()
+          while (ws.readyState != WebSocket.OPEN) await sleep(50); // allow websocket to start
+          doLoadStatus = false;
+        } else stopRC();
+      }
+
+      function stopRC() {
+        resetButton('RClights');
+        resetButton('RCcontrols');
+
+        // stop rc control
+        hide($('#RCdisplay'));
+        doLoadStatus = true;
+        // close off RC activity
+        if (RCmode) {
+          ws.send('D' + servoCenter);
+          ws.send("M0");
+          debounceSendControl('RClights', '0'); 
+        }
+        RCmode = false;
+        setShowLog(true); 
+      }
+      
+      function resetButton(buttonId) {
+        const rect = $('#'+buttonId).previousElementSibling;
+        if (rect.classList.contains('RCon')) { 
+          rect.classList.remove('RCon');
+          rect.classList.add('RCoff');
+        }
+      }
+      
+      // minimum period of RC changes sent to esp32
+      let lastSend = 0;
+      function readyToSend() {
+        // prevent input overload on esp32
+        const now = (new Date).getTime();
+        if (now - lastSend > waitTime) {
+          lastSend = now;
+          return true;
+        } else return false;
+      }
+      
+      function RCsliders(key, value) {
+        // RC control
+        let checkedRC = false;
+        if (ws != null) {
+          let doSend = false;
+          let val = parseInt(value);
+          if (key == "steerDirection" || key == "motorSpeed") {
+            if (readyToSend()) doSend = true;
+            checkedRC = true;
+            if (autoControl && !isImmed) {
+              // auto centre steering or stop motor if focus lost
+              val = 0; 
+              const e = $('#'+key);
+              e.parentElement.children.rangeVal.innerHTML = '0';
+              rangeSlider(e, false);
+              doSend = true;
+            }  
+          }
+          if (doSend) {
+            if (key == "steerDirection") {
+              val += 1 * servoCenter;
+              ws.send("D" + val);
+            }
+            else if (key == "motorSpeed") {
+              if (Math.abs(val) < minDutyCycle) val = 0;
+              ws.send("M" + val);
+            }
+          }
+        }
+        isImmed = false;
+        return checkedRC;
+      }
+      
+      function RCbuttons(key, value) {
+        // RC buttons processing
+        const rect = $('#'+key).previousElementSibling;
+        if (rect.classList.contains('RCon')) {
+          rect.classList.remove('RCon');
+          rect.classList.add('RCoff');
+        } else {
+          rect.classList.remove('RCoff');
+          rect.classList.add('RCon');
+        }
+        const val = rect.classList.contains('RCon') ? 1 : 0;
+        return val;
+      }
+      
+      function updateMaxSteerAngle(val) {
+        maxSteerAngle = val;
+        $('#steerDirection').min = 0 - maxSteerAngle;
+        $('#steerDirection').max = maxSteerAngle;
+      }
+      
+      function updateMaxDutyCycle(val) {
+        maxDutyCycle = val;
+        $('#motorSpeed').max = maxDutyCycle;
+        $('#motorSpeed').min = allowReverse ? 0 - maxDutyCycle : 0;
+      }
+
+
       /***************************************************************************/
       
-      // config for common script 
+      // config for common script - leave as is
       const doCustomInit = false;
-      const doInitWebSocket = false;
-      const doLoadStatus = true;
+      const doInitWebSocket = true;
+      let doLoadStatus = true;
       const doRefreshTimer = true;
       const doCustomSync = false;
       const doHeartbeat = false;
@@ -1950,13 +2242,12 @@
         scriptElement.src = scriptFiles[i];
         document.body.appendChild(scriptElement);
       }
-
+      
       window.addEventListener('load', function() {
         initialise();
         appInit();
       });
       
-
-    </script>    
+    </script>
   </body>
 </html>
