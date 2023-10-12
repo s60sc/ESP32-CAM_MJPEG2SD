@@ -4,9 +4,13 @@ ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and p
 
 For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
-Changes in version 8.8:
-- Option to auto delete on FTP upload [issue 262](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/262).
+Changes in version 9.0:
+- Compiled for arduino-esp32 v2.0.14
+- Performance improvements for ESP32S3.
 - [Telemetry Recording](#telemetry-recording) during camera recording.
+- [Remote Control](#remote-control) of camera mounted vehicle.
+
+Release 9.0 is experimental. The STABLE release is [8.8](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/releases/tag/V8.8)
 
 
 ## Purpose
@@ -169,7 +173,7 @@ Additional options are provided on the camera index page, where:
 
 ## Audio Recording
 
-An I2S microphone eg INMP441 is supported by both ESP32 and ESP32S3. A PDM microphone eg MP34DT01 is only supported on ESP32S3. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1).  
+An I2S microphone eg INMP441 is supported by both ESP32 and ESP32S3. A PDM microphone eg MP34DT01 is only supported on ESP32S3. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1). Pins for ESP32S3 XIAO Sense are predefined.
 
 Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate. 
 
@@ -212,12 +216,13 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;fram
 
 ## Port Forwarding
 
-To access the app remotely over the internet, set up port forwarding on your router for three consecutive ports, eg:
+To access the app remotely over the internet, set up port forwarding on your router for browser on two consecutive ports, eg:
 
 ![image2](extras/portForward.png)
 
-On remote device, enter url: `your_router_external_ip:10580`  
+On remote device, enter url: `your_router_external_ip:10880`  
 To obtain `your_router_external_ip` value, use eg: https://api.ipify.org  
+Set a static IP address for your ESP camera device. 
 The web page will automatically derive the required port numbers.
 For security, **Authentication settings** should be defined in **Access Settings** sidebar button.
 
@@ -227,8 +232,27 @@ This feature is better used on an ESP32S3 camera board due to performance and me
 
 Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. It is FTP uploaded or deleted along with the corresponding AVI file, and can be separately downloaded.  
 
-The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for GY-91 board.
+The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for the GY-91 board.
 
 To switch on telemetry recording, select the `Use telemetry recording` option bunder the **Peripherals** button. The frequency of data collection is set by `Telemetry collection interval (secs)`.
 
 Note: esp-camera library [conflict](https://forum.arduino.cc/t/conflicitng-declaration-in-adafruit_sensor-esp32-camera/586568) if use Adafruit sensor library.
+
+## Remote Control
+
+Provides for remote control of device on which camera is mounted, e.g RC vehicle for FPV etc. .
+Best used with ESP32-S3 for frame rate and control responsiveness.
+
+To enable, in **Edit Config** page under **Peripherals**, select `Enable remote control`.  
+This will show an extra config button **RC Config**.  
+Pressing the **RC Config** button will allow pins to be defined for:
+- SG90 type steering servo
+- H-bridge motor control (tested with MX1508)
+- On / off lights
+- Further parameters for vehicle control.
+
+The streaming view will now have a red button in the top left. Press this to show / hide overlaid steering and motor controls. Camera view buttons can be used to change to full screen. Tethered vehicles can also be controlled via a HW-504 type joystick. Camera view (and microphone and telemetry if enabled) can be recorded.  
+Motion detection should be disabled beforehand.  
+
+#### Only use this feature if you are familiar with coding and electronics, and can fix issues yourself
+
