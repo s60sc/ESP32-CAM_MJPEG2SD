@@ -42,7 +42,7 @@ static void prepCam() {
   config.frame_size = FRAMESIZE_UXGA;  // 4M
 #endif  
   config.jpeg_quality = 10;
-  config.fb_count = 4;
+  config.fb_count = FB_BUFFERS + 1; // +1 needed
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -146,6 +146,7 @@ void setup() {
     prepTelemetry();
     LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
     checkMemory();
+    LOG_INF("************************************\n");
   } 
 }
 

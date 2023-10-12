@@ -4,6 +4,7 @@
 
 #include "appGlobals.h"
 
+
 // Ftp server params, setup via web page
 char ftp_server[MAX_HOST_LEN];
 uint16_t ftp_port = 21;
@@ -11,6 +12,7 @@ char ftp_user[MAX_HOST_LEN];
 char FTP_Pass[MAX_PWD_LEN];
 char ftp_wd[FILE_NAME_LEN]; 
 uint8_t percentLoaded = 0;
+bool useFtps = false;
 
 // FTP control
 static char rspBuf[256]; // Ftp response buffer
@@ -24,30 +26,30 @@ static fs::FS fp = STORAGE;
 #define NO_CHECK "999"
 
 // WiFi Clients
-WiFiClient client;
+WiFiClient rclient;
 WiFiClient dclient;
 
 static bool sendFtpCommand(const char* cmd, const char* param, const char* respCode, const char* respCode2 = NO_CHECK) {
   // build and send ftp command
   if (strlen(cmd)) {
-    client.print(cmd);
-    client.println(param);
+    rclient.print(cmd);
+    rclient.println(param);
   }
   LOG_DBG("Sent cmd: %s%s", cmd, param);
   
   // wait for ftp server response
   uint32_t start = millis();
-  while (!client.available() && millis() < start + (responseTimeoutSecs * 1000)) delay(1);
-  if (!client.available()) {
+  while (!rclient.available() && millis() < start + (responseTimeoutSecs * 1000)) delay(1);
+  if (!rclient.available()) {
     LOG_ERR("FTP server response timeout");
     return false;
   }
   // read in response code and message
-  client.read((uint8_t*)respCodeRx, 3); 
+  rclient.read((uint8_t*)respCodeRx, 3); 
   respCodeRx[3] = 0; // terminator
-  int readLen = client.read((uint8_t*)rspBuf, 255);
+  int readLen = rclient.read((uint8_t*)rspBuf, 255);
   rspBuf[readLen] = 0;
-  while (client.available()) client.read(); // bin the rest of response
+  while (rclient.available()) rclient.read(); // bin the rest of response
 
   // check response code with expected
   LOG_DBG("Rx code: %s, resp: %s", respCodeRx, rspBuf);
@@ -63,16 +65,21 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
 }
 
 static bool ftpConnect(){
-  // Connect to ftp and change to root dir
-  if (client.connect(ftp_server, ftp_port)) {
-    LOG_DBG("FTP connected at %s:%u", ftp_server, ftp_port);
-  } else {
+  // Connect to ftp or ftps
+  if (rclient.connect(ftp_server, ftp_port)) {LOG_DBG("FTP connected at %s:%u", ftp_server, ftp_port);}
+  else {
     LOG_ERR("Error opening ftp connection to %s:%u", ftp_server, ftp_port);
     return false;
   }
   if (!sendFtpCommand("", "", "220")) return false;
+  if (useFtps) {
+    if (sendFtpCommand("AUTH ", "TLS", "234")) {
+      /* NOT IMPLEMENTED */
+    } else LOG_WRN("FTPS not available");
+  }
   if (!sendFtpCommand("USER ", ftp_user, "331")) return false;
   if (!sendFtpCommand("PASS ", FTP_Pass, "230")) return false;
+  // change to supplied folder
   if (!sendFtpCommand("CWD ", ftp_wd, "250")) return false;
   if (!sendFtpCommand("Type I", "", "200")) return false;
   return true;
@@ -141,7 +148,7 @@ static bool ftpStoreFile(File &fh) {
 
   // open data connection
   openDataPort();
-  uint32_t writeBytes = 0, progCnt = 0; 
+  uint32_t writeBytes = 0; 
   uint32_t uploadStart = millis();
   size_t readLen, writeLen;
   if (!sendFtpCommand("STOR ", ftpSaveName, "150", "125")) return false;
@@ -155,9 +162,7 @@ static bool ftpStoreFile(File &fh) {
         LOG_ERR("Upload file to ftp failed");
         return false;
       }
-      progCnt++;
-      percentLoaded = writeBytes * 100 / fileSize;
-      if (progCnt % 50 == 0) LOG_INF("Uploaded %u%%", percentLoaded); 
+      if (calcProgress(writeBytes, fileSize, 5, percentLoaded)) LOG_INF("Uploaded %u%%", percentLoaded); 
     }
   } while (readLen > 0);
   dclient.stop();
@@ -235,9 +240,9 @@ static void FTPtask(void* parameter) {
 #endif
   bool res = uploadFolderOrFileFtp();
   // Disconnect from ftp server
-  client.println("QUIT");
+  rclient.println("QUIT");
   dclient.stop();
-  client.stop();
+  rclient.stop();
   if (res && deleteAfter) deleteFolderOrFile(storedPathName);
   uploadInProgress = false;
   vTaskDelete(NULL);

@@ -1,7 +1,6 @@
-// mjpeg2sd specific web functions
-// streamServer handles streaming and stills
+// streamServer handles streaming, playback, file downloads
 //
-// s60sc 2022
+// s60sc 2022, 2023
 //
 
 #include "appGlobals.h"
@@ -15,52 +14,26 @@
 static const size_t boundaryLen = strlen(JPEG_BOUNDARY);
 static char hdrBuf[HDR_BUF_LEN];
 static fs::FS fpv = STORAGE;
-bool forcePlayback = false;
-bool isStreaming = false;
+bool forcePlayback = false; // browser playback status
+bool isStreaming = false; // browser streaming status
 static httpd_handle_t streamServer = NULL; 
+static char variable[FILE_NAME_LEN]; 
+static char value[FILE_NAME_LEN];
 
-esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value) {
-  // update handling requiring response specific to mjpeg2sd
-  if (!strcmp(variable, "sfile")) {
-    // get folders / files on SD, save received filename if has required extension
-    strcpy(inFileName, value);
-    if (!forceRecord) doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, AVI_EXT); // browser control
-    else strcpy(jsonBuff, "{}");                      
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-  } 
-  else if (!strcmp(variable, "updateFPS")) {
-    // requires response with updated default fps
-    sprintf(jsonBuff, "{\"fps\":\"%u\"}", setFPSlookup(fsizePtr));
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
-    return ESP_OK;
-  } 
-  return ESP_OK;
-}
+size_t streamBufferSize = 0;
+byte* streamBuffer = NULL; // buffer for stream frame
 
-static esp_err_t streamHandler(httpd_req_t* req) {
-  // send mjpeg stream or single frame
-  esp_err_t res = ESP_OK;
-  char variable[FILE_NAME_LEN]; 
-  char value[FILE_NAME_LEN];
-  bool singleFrame = false;                                       
+esp_err_t appSpecificSustainHandler(httpd_req_t* req, const char* variable) {
+  // send mjpeg stream (live or playback)
+  esp_err_t res = ESP_OK; 
   size_t jpgLen = 0;
   uint8_t* jpgBuf = NULL;
   uint32_t startTime = millis();
   uint32_t frameCnt = 0;
   uint32_t mjpegLen = 0;
   mjpegStruct mjpegData;
-
-  // obtain key from query string
-  extractQueryKey(req, variable);
-  strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-
-  if (!strcmp(variable, "random")) singleFrame = true;
-  doPlayback = false;
-  if (!strcmp(variable, "source") && !strcmp(value, "file")) {
+  stopPlaying();
+  if (!strcmp(variable, "playback")) {
     forcePlayback = true;
     if (fpv.exists(inFileName)) {
       if (stopPlayback) LOG_WRN("Playback refused - capture in progress");
@@ -70,9 +43,9 @@ static esp_err_t streamHandler(httpd_req_t* req) {
       }
     } else LOG_WRN("File %s doesn't exist when Playback requested", inFileName);
   }
-
-  // output header if streaming request
-  if (!singleFrame) httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
+  // output header for streaming request
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
 
   if (doPlayback) {
     // playback mjpeg from SD
@@ -82,7 +55,7 @@ static esp_err_t streamHandler(httpd_req_t* req) {
       jpgLen = mjpegData.buffLen;
       size_t buffOffset = mjpegData.buffOffset;
       if (!jpgLen && !buffOffset) {
-        // complete mjpeg streaming
+        // complete mjpeg playback streaming
         res = httpd_resp_send(req, JPEG_BOUNDARY, boundaryLen);
         doPlayback = false; 
       } else {
@@ -100,68 +73,106 @@ static esp_err_t streamHandler(httpd_req_t* req) {
         mjpegData = getNextFrame(); 
       }
     }
-  } else { 
-    // live images
-    do {
-      isStreaming = true;
-      camera_fb_t* fb;
+    httpd_resp_sendstr_chunk(req, NULL);
+    
+  } else if (!strcmp(variable, "stream")) {
+    // start live streaming
+    isStreaming = true;
+    streamBufferSize = 0;
+    while (isStreaming) {
       if (dbgMotion) {
         // motion tracking stream, wait for new move mapping image
         xSemaphoreTake(motionMutex, portMAX_DELAY);
         fetchMoveMap(&jpgBuf, &jpgLen);
-        if (!jpgLen) res = ESP_FAIL;
+        res = jpgLen ? ESP_OK : ESP_FAIL;
       } else {
-        // stream from camera
-        fb = esp_camera_fb_get();
-        if (fb == NULL) return ESP_FAIL;
-        jpgLen = fb->len;
-        jpgBuf = fb->buf;
+        // stream from camera at current frame rate
+        xSemaphoreTake(frameSemaphore, portMAX_DELAY);
+        jpgLen = streamBufferSize;
+        res = jpgLen ? ESP_OK : ESP_FAIL;
+        // use frame stored by processFrame()
+        if (jpgLen) jpgBuf = streamBuffer;
       }
       if (res == ESP_OK) {
-        if (singleFrame) {
-           httpd_resp_set_type(req, "image/jpeg");
-           httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-           // send single jpeg to browser
-           res = httpd_resp_send(req, (const char*)jpgBuf, jpgLen); 
-        } else {
-          // send next frame in stream
-          res = httpd_resp_send_chunk(req, JPEG_BOUNDARY, boundaryLen);    
-          size_t hdrLen = snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, jpgLen);
-          if (res == ESP_OK) res = httpd_resp_send_chunk(req, hdrBuf, hdrLen);
-          if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
-        }
+        // send next frame in stream
+        res = httpd_resp_send_chunk(req, JPEG_BOUNDARY, boundaryLen);    
+        size_t hdrLen = snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, jpgLen);
+        if (res == ESP_OK) res = httpd_resp_send_chunk(req, hdrBuf, hdrLen);
+        if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
         frameCnt++;
-      }
-      xSemaphoreGive(motionMutex);
-      if (fb != NULL) esp_camera_fb_return(fb);
-      fb = NULL;  
+      } 
+      if (dbgMotion) xSemaphoreGive(motionMutex);
       mjpegLen += jpgLen;
-      if (res != ESP_OK) break;
-    } while (!singleFrame && isStreaming);
+      jpgLen = streamBufferSize = 0;
+    }
+    httpd_resp_sendstr_chunk(req, NULL);
     uint32_t mjpegTime = millis() - startTime;
     float mjpegTimeF = float(mjpegTime) / 1000; // secs
-    if (singleFrame) LOG_INF("JPEG: %uB in %ums", jpgLen, mjpegTime);
-    else LOG_INF("MJPEG: %u frames, total %s in %0.1fs @ %0.1ffps", frameCnt, fmtSize(mjpegLen), mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
+    LOG_INF("MJPEG: %u frames, total %s in %0.1fs @ %0.1ffps", frameCnt, fmtSize(mjpegLen), mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
+  } else {
+    httpd_resp_sendstr_chunk(req, NULL);
+    LOG_ERR("Unknown request: %s", variable);
   }
   return res;
 }
 
-void startStreamServer() {
-if (psramFound()) heap_caps_malloc_extmem_enable(0); 
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-#if CONFIG_IDF_TARGET_ESP32S3
-  config.stack_size = 1024 * 8;
+ static esp_err_t sustainHandler(httpd_req_t* req) {
+  if (extractQueryKeyVal(req, variable, value) != ESP_OK) return ESP_FAIL;
+  if (!strcmp(variable, "download")) {
+#ifdef ISCAM
+    if (whichExt) changeExtension(inFileName, CSV_EXT);
 #endif
-  httpd_uri_t streamUri = {.uri = "/stream", .method = HTTP_GET, .handler = streamHandler, .user_ctx = NULL};
-  config.server_port = STREAM_PORT;
-  config.ctrl_port = STREAM_PORT; // not used
-  config.lru_purge_enable = true;
-  if (httpd_start(&streamServer, &config) == ESP_OK) {
-    httpd_register_uri_handler(streamServer, &streamUri);
-    LOG_INF("Starting streaming server on port: %u", config.server_port);
-  } else LOG_ERR("Failed to start streaming server");
-  if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
-  debugMemory("startStreamserver");
+    fileHandler(req, true); // download
+  } else appSpecificSustainHandler(req, variable);
+  return ESP_OK;
 }
 
- 
+void startStreamServer() {
+if (psramFound()) heap_caps_malloc_extmem_enable(0); 
+  esp_err_t res = ESP_FAIL;
+  size_t prvtkey_len = strlen(prvtkey_pem);
+  size_t cacert_len = strlen(cacert_pem);
+  if (useHttps && (!cacert_len || !prvtkey_len)) {
+    useHttps = false;
+    LOG_ALT("HTTPS not available as server keys not defined, using HTTP");
+  }
+  
+  if (useHttps) {
+    // HTTPS server
+    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+#if CONFIG_IDF_TARGET_ESP32S3
+    config.httpd.stack_size = 1024 * 8;
+#endif  
+    config.cacert_pem = (const uint8_t*)cacert_pem;
+    config.cacert_len = cacert_len + 1;
+    config.prvtkey_pem = (const uint8_t*)prvtkey_pem;
+    config.prvtkey_len = prvtkey_len + 1;
+    config.httpd.server_port = STREAMS_PORT;
+    config.httpd.ctrl_port = STREAMS_PORT;
+    config.httpd.lru_purge_enable = true; // close least used socket 
+    config.httpd.max_uri_handlers = 2;
+    config.httpd.max_open_sockets = SUSTAIN_CLIENTS;
+    res = httpd_ssl_start(&streamServer, &config);
+  } else {
+    // HTTP server
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+#if CONFIG_IDF_TARGET_ESP32S3
+    config.stack_size = 1024 * 8;
+#endif  
+    config.server_port = STREAM_PORT;
+    config.ctrl_port = STREAM_PORT;
+    config.lru_purge_enable = true;   
+    config.max_uri_handlers = 2;
+    config.max_open_sockets = SUSTAIN_CLIENTS;
+    res = httpd_start(&streamServer, &config);
+  }
+  
+  httpd_uri_t sustainUri = {.uri = "/sustain", .method = HTTP_GET, .handler = sustainHandler, .user_ctx = NULL};
+  if (res == ESP_OK) {
+    httpd_register_uri_handler(streamServer, &sustainUri);
+    LOG_INF("Starting streaming server on port: %u", useHttps ? STREAMS_PORT : STREAM_PORT);
+  } else LOG_ERR("Failed to start streaming server");
+  if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
+  if (streamBuffer == NULL) streamBuffer = (byte*)ps_malloc(MAX_JPEG); 
+  debugMemory("startStreamserver");
+}

@@ -59,9 +59,10 @@ static void setupMdnsHost() {
   snprintf(mdnsName, MAX_IP_LEN, hostName);
   if (MDNS.begin(mdnsName)) {
     // Add service to MDNS
-    MDNS.addService("http", "tcp", WEB_PORT);
-    // MDNS.addService("ws", "udp", 83);
-    // MDNS.addService("ftp", "tcp", 21);    
+    MDNS.addService("http", "tcp", HTTP_PORT);
+    MDNS.addService("https", "tcp", HTTPS_PORT);
+    //MDNS.addService("ws", "udp", 83);
+    //MDNS.addService("ftp", "tcp", 21);    
     LOG_INF("mDNS service: http://%s.local", mdnsName);
   } else LOG_ERR("mDNS host: %s Failed", mdnsName);
   debugMemory("setupMdnsHost");
@@ -103,7 +104,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
     case ARDUINO_EVENT_WIFI_STA_STOP: LOG_INF("Wifi Station stopped %s", ST_SSID); break;
     case ARDUINO_EVENT_WIFI_AP_START: {
       if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID) || !strlen(AP_SSID)) {
-        LOG_INF("Wifi AP SSID: %s started, use 'http://%s' to connect", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+        LOG_INF("Wifi AP SSID: %s started, use '%s://%s' to connect", WiFi.softAPSSID().c_str(), useHttps ? "https" : "http", WiFi.softAPIP().toString().c_str());
         APstarted = true;
       }
       break;
@@ -115,7 +116,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
       }
       break;
     }
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP: LOG_INF("Wifi Station IP, use 'http://%s' to connect", WiFi.localIP().toString().c_str()); break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP: LOG_INF("Wifi Station IP, use '%s://%s' to connect", useHttps ? "https" : "http", WiFi.localIP().toString().c_str()); break;
     case ARDUINO_EVENT_WIFI_STA_LOST_IP: LOG_INF("Wifi Station lost IP"); break;
     case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED: break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED: LOG_INF("WiFi Station connection to %s, using hostname: %s", ST_SSID, hostName); break;
@@ -189,7 +190,7 @@ bool startWifi(bool firstcall) {
   if (wlStat == WL_NO_SSID_AVAIL || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use 
   if (wlStat != WL_CONNECTED) LOG_WRN("SSID %s %s", ST_SSID, wifiStatusStr(wlStat));
 #if CONFIG_IDF_TARGET_ESP32S3
-  setupMdnsHost(); // not on ESP32 as uses 6k of heap
+  //setupMdnsHost(); // not on ESP32 as uses 6k of heap
 #endif
   // show stats of requested SSID
   int numNetworks = WiFi.scanNetworks();
@@ -197,11 +198,13 @@ bool startWifi(bool firstcall) {
     if (!strcmp(WiFi.SSID(i).c_str(), ST_SSID))
       LOG_INF("Wifi stats for %s - signal strength: %d dBm; Encryption: %s; channel: %u",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
   }
+  getExtIP();
+  LOG_INF("Remote server certificates %s checked", useSecure ? "are" : "not");
   if (pingHandle == NULL) startPing();
   return wlStat == WL_CONNECTED ? true : false;
 }
 
-static void resetWatchDog() {
+void resetWatchDog() {
   // use ping task as watchdog in case of freeze
   static bool watchDogStarted = false;
   if (watchDogStarted) esp_task_wdt_reset();
@@ -288,8 +291,7 @@ void stopPing() {
 }
 
 const char* extIpHost = "https://api.ipify.org";
-const int ipAddrLen = 16;
-char ipExtAddr[ipAddrLen] = {"Not assigned"};
+char extIP[MAX_IP_LEN] = "Not assigned"; // router external IP]
 
 void getExtIP() {
   // Get external IP address
@@ -308,16 +310,18 @@ void getExtIP() {
     https.end();
     hclient.stop();
     if (newExtIp.length()) {
-      if (strcmp(newExtIp.c_str(), ipExtAddr)) {
+      if (strcmp(newExtIp.c_str(), extIP)) {
         // external IP changed
-        strncpy(ipExtAddr, newExtIp.c_str(), ipAddrLen-1);
+        strncpy(extIP, newExtIp.c_str(), sizeof(extIP)-1);
+        updateStatus("extIP", extIP);
+        updateStatus("save", "1");
+        LOG_INF("External IP: %s", extIP);
 #ifdef INCLUDE_SMTP
-        emailAlert("External IP changed", ipExtAddr);
+        emailAlert("External IP changed", extIP);
 #endif
       }
-    } else LOG_ERR("No IP returned");
+    } else LOG_ERR("No External IP returned");
   }
-  LOG_INF("External IP: %s", ipExtAddr);
 }
 
 
@@ -325,7 +329,7 @@ void getExtIP() {
 
 // Needs to be a time zone string from: https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv
 char timezone[FILE_NAME_LEN] = "GMT0";
-char ntpServer[FILE_NAME_LEN] = "pool.ntp.org";
+char ntpServer[MAX_HOST_LEN] = "pool.ntp.org";
 uint8_t alarmHour;
 
 time_t getEpoch() {
@@ -442,10 +446,19 @@ void showProgress(const char* marker) {
   // show progess as dots 
   static uint8_t dotCnt = 0;
   logPrint(marker); // progress marker
-  if (++dotCnt >= 50) {
+  if (++dotCnt >= DOT_MAX) {
     dotCnt = 0;
     logLine();
   }
+}
+
+bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress) {
+  // calculate percentage progress, only report back on percentReport boundary
+  uint8_t percentage = (progressVal * 100) / totalVal;
+  if (percentage >= pcProgress + percentReport) {
+    pcProgress = percentage;
+    return true;
+  } else return false;
 }
 
 void urlDecode(char* inVal) {
@@ -507,8 +520,8 @@ char* fmtSize (uint64_t sizeVal) {
   // format size according to magnitude
   // only one call per format string
   static char returnStr[20];
-  if (sizeVal < 100 * 1024) sprintf(returnStr, "%llu bytes", sizeVal);
-  else if (sizeVal < ONEMEG) sprintf(returnStr, "%llukB", sizeVal / 1024);
+  if (sizeVal < 50 * 1024) sprintf(returnStr, "%llu bytes", sizeVal);
+  else if (sizeVal < ONEMEG) sprintf(returnStr, "%lluKB", sizeVal / 1024);
   else if (sizeVal < ONEMEG * 1024) sprintf(returnStr, "%0.1fMB", (double)(sizeVal) / ONEMEG);
   else sprintf(returnStr, "%0.1fGB", (double)(sizeVal) / (ONEMEG * 1024));
   return returnStr;
@@ -539,12 +552,12 @@ void doRestart(const char* restartStr) {
   ESP.restart();
 }
 
-uint16_t smoothAnalog(int analogPin) {
+uint16_t smoothAnalog(int analogPin, int samples) {
   // get averaged analog pin value 
   uint32_t level = 0; 
   if (analogPin > 0) {
-    for (int j = 0; j < ADC_SAMPLES; j++) level += analogRead(analogPin); 
-    level /= ADC_SAMPLES;
+    for (int j = 0; j < samples; j++) level += analogRead(analogPin); 
+    level /= samples;
   }
   return level;
 }
@@ -579,6 +592,7 @@ static SemaphoreHandle_t logSemaphore = NULL;
 static SemaphoreHandle_t logMutex = NULL;
 static int logWait = 100; // ms
 bool useLogColors = false;  // true to colorise log messages (eg if using idf.py, but not arduino)
+bool wsLogEnabled = false;
 
 #define WRITE_CACHE_CYCLE 5
 bool logMode = false; // log to SD
@@ -678,7 +692,7 @@ static void logTask(void *arg) {
 
 void logPrint(const char *format, ...) {
   // feeds logTask to format message, then outputs as required
-  if (xSemaphoreTake(logMutex, logWait / portTICK_PERIOD_MS) == pdTRUE) {
+  if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(logWait)) == pdTRUE) {
     strncpy(fmtBuf, format, MAX_OUT);
     fmtBuf[MAX_OUT - 1] = 0;
     va_start(arglist, format); 
@@ -707,7 +721,7 @@ void logPrint(const char *format, ...) {
     // output to web socket if open
     if (msgLen > 1) {
       outBuf[msgLen - 1] = 0; // lose final '/n'
-      wsAsyncSend(outBuf);
+       if (wsLogEnabled) wsAsyncSend(outBuf);
     }
     xSemaphoreGive(logMutex);
   } 
@@ -720,7 +734,7 @@ void logLine() {
 void logSetup() {
   // prep logging environment
   Serial.begin(115200);
-  Serial.setDebugOutput(false);
+  Serial.setDebugOutput(DBG_ON);
   printf("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
   if (CHECK_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
@@ -777,6 +791,49 @@ const char* encode64(const char* inp) {
   for (int i = 0; i < len; i += 3) 
     strncat(encoded, (char*)encode64chunk((uint8_t*)inp + i, min(len - i, 3)), 4);
   return encoded;
+}
+
+
+/************** qualitive core idle time monitoring *************/
+
+#include "esp_freertos_hooks.h"
+
+#define INTERVAL_TIME 100 // reporting interval in ms
+#define TICKS_PER_INTERVAL (pdMS_TO_TICKS(INTERVAL_TIME))
+
+static uint32_t idleCalls[portNUM_PROCESSORS] = {0};
+static uint32_t idleCnt[portNUM_PROCESSORS];
+
+static bool hookCallback() {
+  idleCalls[xPortGetCoreID()]++;
+  return true;
+}
+
+uint32_t* reportIdle() {
+  static uint32_t idlePercent[portNUM_PROCESSORS];
+  for (int i = 0; i < portNUM_PROCESSORS; i++)
+    idlePercent[i] = (100 * idleCnt[i]) / TICKS_PER_INTERVAL;
+  return idlePercent;
+}
+
+static void idleMonTask(void* p) {
+  while (true) {
+    for (int i = 0; i < portNUM_PROCESSORS; i++) {
+      idleCnt[i] = idleCalls[i];
+      idleCalls[i] = 0;
+    }
+    vTaskDelay(TICKS_PER_INTERVAL);
+  }
+  vTaskDelete(NULL);
+}
+
+void startIdleMon() {
+  // report on each core idle time per interval
+  // Core 0: wifi, Core 1: Arduino
+  LOG_INF("Start core idle time monitoring @ interval %ums", INTERVAL_TIME);
+  for (int i = 0; i < portNUM_PROCESSORS; i++) 
+    esp_register_freertos_idle_hook_for_cpu(hookCallback, i);
+  xTaskCreatePinnedToCore(idleMonTask, "idlemon", 1024, NULL, 5, NULL, 0);
 }
 
 

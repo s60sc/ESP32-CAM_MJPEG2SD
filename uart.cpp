@@ -57,7 +57,7 @@ static bool readUart() {
         uart_get_buffered_data_len(uartId, (size_t*)&msgLen);
         delay(10);
       }
-      msgLen = uart_read_bytes(uartId, uartBuffRx, msgLen, 20 / portTICK_PERIOD_MS);
+      msgLen = uart_read_bytes(uartId, uartBuffRx, msgLen, pdMS_TO_TICKS(20));
       uint16_t* rxPtr = (uint16_t*)uartBuffRx;
       if (rxPtr[0] != header) {
         // ignore data that received from client when it reboots if using UART0

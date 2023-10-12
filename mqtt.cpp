@@ -195,7 +195,7 @@ void startMqttClient(void){
     } else {
       LOG_DBG("Mqtt started");        
       int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
-      if (id==-1){
+      if (id == -1){
         LOG_ERR("Mqtt failed to subscribe: %s", cmd_topic );
         stopMqttClient();
         return;

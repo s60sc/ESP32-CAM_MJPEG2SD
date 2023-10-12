@@ -34,6 +34,8 @@ char* jsonBuff = NULL;
 bool configLoaded = false;
 static bool updatedVers = false;
 static char appId[16];
+static char variable[FILE_NAME_LEN] = {0,};
+static char value[FILE_NAME_LEN] = {0,};
 
 /********************* generic Config functions ****************************/
 
@@ -48,6 +50,10 @@ static bool getNextKeyVal(char* keyName, char* keyVal) {
   // end of vector reached, reset
   row = 0;
   return false;
+}
+
+void reloadConfigs() {
+  while (getNextKeyVal(variable, value)) updateStatus(variable, value);
 }
 
 static int getKeyPos(std::string thisKey) {
@@ -197,7 +203,7 @@ static bool loadPrefs() {
   }
   if (!strlen(ST_SSID)) {
      // first call only after instal
-    prefs.getString("ST_SSID", ST_SSID, MAX_PWD_LEN);
+    prefs.getString("ST_SSID", ST_SSID, MAX_PWD_LEN); // max 15 chars
     updateConfigVect("ST_SSID", ST_SSID);
   } 
 
@@ -267,6 +273,9 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "AP_SSID")) strncpy(AP_SSID, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "AP_Pass") && strchr(value, '*') == NULL) strncpy(AP_Pass, value, MAX_PWD_LEN-1); 
   else if (!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
+  else if (!strcmp(variable, "useHttps")) useHttps = (bool)intVal;
+  else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
+  else if (!strcmp(variable, "extIP")) strncpy(extIP, value, MAX_IP_LEN-1);
 #ifdef INCLUDE_FTP
   else if (!strcmp(variable, "ftp_server")) strncpy(ftp_server, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "ftp_port")) ftp_port = intVal;
@@ -275,6 +284,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "ftp_wd")) strncpy(ftp_wd, value, FILE_NAME_LEN-1);
   else if(!strcmp(variable, "autoUpload")) autoUpload = (bool)intVal;
   else if(!strcmp(variable, "deleteAfter")) deleteAfter = (bool)intVal;
+  else if(!strcmp(variable, "useFtps")) useFtps = (bool)intVal;
 #endif
 #ifdef INCLUDE_SMTP
   else if (!strcmp(variable, "smtpUse")) smtpUse = (bool)intVal;
@@ -309,6 +319,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
   else if (!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
   else if (!strcmp(variable, "usePing")) usePing = (bool)intVal;
+  else if (!strcmp(variable, "wsMode")) wsLogEnabled = (bool)intVal;
   else if (!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
@@ -368,7 +379,7 @@ void buildJsonString(uint8_t filter) {
     p += sprintf(p, "\"free_heap\":\"%s\",", fmtSize(ESP.getFreeHeap()));    
     p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
     p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
-
+    p += sprintf(p, "\"extIP\":\"%s\",", extIP); 
     if (!filter) {
       // populate first part of json string from config vect
       for (const auto& row : configs) 
@@ -439,8 +450,6 @@ bool loadConfig() {
   if (jsonBuff == NULL) {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
-  char variable[32] = {0,};
-  char value[FILE_NAME_LEN] = {0,};
   if (loadConfigVect()) {
     retrieveConfigVal("appId", appId);
     if (strcmp(appId, APP_NAME)) {
@@ -467,7 +476,7 @@ bool loadConfig() {
       updatedVers = true;
     }
     // load variables from stored config vector
-    while (getNextKeyVal(variable, value)) updateStatus(variable, value);
+    reloadConfigs();
     if (updatedVers) saveConfigVect(); // save new *Ver properties
     configLoaded = true;
     debugMemory("loadConfig");
@@ -477,6 +486,6 @@ bool loadConfig() {
   // no config file
   loadPrefs(); 
   setDefaults();
-  while (getNextKeyVal(variable, value)) updateStatus(variable, value);
+  reloadConfigs();
   return false;
 }

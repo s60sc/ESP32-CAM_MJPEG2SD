@@ -5,33 +5,39 @@
 #pragma once
 #include "globals.h"
 
-#if defined(CONFIG_IDF_TARGET_ESP32)
-// default pin configuration for ESP32 cam boards
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM  
-#elif defined(CONFIG_IDF_TARGET_ESP32S3)
-// default pin configuration below for Freenove ESP32S3 cam boards
-#define CAMERA_MODEL_ESP32S3_EYE // Has PSRAM
-#endif
-
 /**************************************************************************
- Uncomment one only of the camera models below if not using a default above
- and comment out above define block
+ Copy & Paste one of the camera models below into the following #define block
  Selecting wrong model may crash your device due to pin conflict
 ***************************************************************************/
+/*
+ * ESP32 models
+CAMERA_MODEL_AI_THINKER 
+CAMERA_MODEL_WROVER_KIT 
+CAMERA_MODEL_ESP_EYE 
+CAMERA_MODEL_M5STACK_PSRAM 
+CAMERA_MODEL_M5STACK_V2_PSRAM 
+CAMERA_MODEL_M5STACK_WIDE 
+CAMERA_MODEL_M5STACK_ESP32CAM
+CAMERA_MODEL_M5STACK_UNITCAM
+CAMERA_MODEL_TTGO_T_JOURNAL 
+CAMERA_MODEL_ESP32_CAM_BOARD
+CAMERA_MODEL_TTGO_T_CAMERA_PLUS
 
-//#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
-//#define CAMERA_MODEL_ESP_EYE // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_PSRAM // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_V2_PSRAM // M5Camera version B Has PSRAM
-//#define CAMERA_MODEL_M5STACK_WIDE // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_ESP32CAM // No PSRAM
-//#define CAMERA_MODEL_M5STACK_UNITCAM // No PSRAM
-//#define CAMERA_MODEL_TTGO_T_JOURNAL // No PSRAM
-//#define CAMERA_MODEL_XIAO_ESP32S3 // Has PSRAM
-//#define CAMERA_MODEL_ESP32_CAM_BOARD
-//#define CAMERA_MODEL_ESP32S2_CAM_BOARD
-//#define CAMERA_MODEL_ESP32S3_CAM_LCD
-//#define CAMERA_MODEL_TTGO_T_CAMERA_PLUS
+* ESP32S3 models
+CAMERA_MODEL_XIAO_ESP32S3 
+CAMERA_MODEL_FREENOVE_ESP32S3_CAM
+CAMERA_MODEL_ESP32S3_EYE 
+CAMERA_MODEL_ESP32S3_CAM_LCD
+*/
+
+// User's ESP32 cam board
+#if defined(CONFIG_IDF_TARGET_ESP32)
+#define CAMERA_MODEL_AI_THINKER 
+
+// User's ESP32S3 cam board
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
+#endif
 
 /**************************************************************************/
 
@@ -39,10 +45,12 @@
 
 #define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
 
-// web server ports
-#define WEB_PORT 80 // app control
-#define OTA_PORT (WEB_PORT + 1) // OTA update
-#define STREAM_PORT (WEB_PORT + 2) // camera images
+// web server ports 
+#define HTTP_PORT 80 // insecure app access
+#define HTTPS_PORT 443 // secure app access
+#define STREAM_PORT (HTTP_PORT + 1)   
+#define STREAMS_PORT (HTTPS_PORT + 1)   
+
 
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
@@ -51,18 +59,24 @@
 #ifdef DEV_ONLY 
 //#define SIDE_ALARM // uncomment if used for side alarm
 #endif 
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define CHECK_MEM false // leave as false
-#define FLUSH_DELAY 200 // for debugging crashes
+#define FLUSH_DELAY 0 // for debugging crashes
+#define DBG_ON false // esp debug output
+#define DOT_MAX 50
+//#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "8.8"
+#define APP_VER "9.0"
 
-#define MAX_CLIENTS 2 // allowing too many concurrent web clients can cause errors
+#define FB_BUFFERS 2 // stream / record
+#define SUSTAIN_CLIENTS 1 // stream, playback, download. 
+#define HTTP_CLIENTS 2 // http, ws
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define FILE_NAME_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 130 // > number of entries in configs.txt
+#define MAX_CONFIGS 150 // must be > number of entries in configs.txt
+#define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 
 #ifdef SIDE_ALARM
 #define STORAGE LittleFS
@@ -85,9 +99,9 @@
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 2
-#define HTM_VER 4
-#define JS_VER 1
+#define CFG_VER 3
+#define HTM_VER 5
+#define JS_VER 2
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -99,7 +113,7 @@
 #define TELETEMP "/current.csv"
 
 // non default pins configured for SD card on given camera board
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
+#if defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
@@ -141,7 +155,6 @@ void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
 void doIOExtPing();
-esp_err_t extractQueryKey(httpd_req_t *req, char* variable);
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudio(bool isValid);
@@ -149,6 +162,7 @@ mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
 bool isNight(uint8_t nightSwitch);
+void motorSpeed(int speedVal);
 void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
 bool prepRecording();
@@ -159,9 +173,12 @@ void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
 uint8_t setFPSlookup(uint8_t val);
 void setLamp(uint8_t lampVal);
+void setLights(bool lightsOn);
+void setSteering(int steerVal);
 void startAudio();
 void startStreamServer();
 void startTelemetry();
+void stickTimer(bool restartTimer);
 void stopPlaying();
 void stopTelemetry(const char* fileName);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
@@ -192,6 +209,7 @@ extern int tlPlaybackFPS;  // rate to playback the timelapse, min 1
 extern bool autoUpload;
 extern bool dbgMotion;
 extern bool doPlayback;
+extern bool isStreaming;
 extern bool doRecording; // whether to capture to SD or not
 extern bool forceRecord; // Recording enabled by rec button
 extern bool forcePlayback; // playback enabled by user
@@ -206,7 +224,6 @@ extern float motionVal;  // motion sensitivity setting - min percentage of chang
 extern uint8_t nightSwitch; // initial white level % for night/day switching
 extern bool nightTime; 
 extern bool stopPlayback;
-extern bool isStreaming;
 extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)  
 extern bool timeLapseOn; // enable time lapse recording
 extern int maxFrames;
@@ -220,6 +237,8 @@ extern uint8_t aviHeader[];
 extern const uint8_t dcBuf[]; // 00dc
 extern const uint8_t wbBuf[]; // 01wb
 extern byte* uartData;
+extern size_t streamBufferSize;
+extern byte* streamBuffer; // buffer for stream frame
 
 // peripherals
 
@@ -245,6 +264,7 @@ extern int pirPin; // if usePir is true
 extern bool pirVal;
 extern int lampPin; // if useLamp is true
 extern int wakePin; // if wakeUse is true
+extern int lightsPin;
 extern bool teleUse;
 extern int teleInterval;
 
@@ -267,6 +287,7 @@ extern int servoMinAngle; // degrees
 extern int servoMaxAngle;
 extern int servoMinPulseWidth; // usecs
 extern int servoMaxPulseWidth;
+extern int servoCenter;
 
 // battery monitor
 extern int voltDivider;
@@ -277,6 +298,24 @@ extern int voltInterval;
 extern const uint32_t SAMPLE_RATE; // audio sample rate
 extern const uint32_t WAV_HEADER_LEN;
 
+// RC
+extern bool RCactive;
+extern int reversePin;
+extern int forwardPin;
+extern int servoSteerPin;
+extern int lightsPin;
+extern int pwmFreq;
+extern int maxSteerAngle;  
+extern int maxDutyCycle;  
+extern int minDutyCycle;  
+extern bool allowReverse;   
+extern bool autoControl; 
+extern int waitTime; 
+extern bool stickUse;
+extern int stickPushPin;
+extern int stickXpin; 
+extern int stickYpin; 
+
 // task handling
 extern TaskHandle_t playbackHandle;
 extern TaskHandle_t DS18B20handle;
@@ -285,7 +324,8 @@ extern TaskHandle_t servoHandle;
 extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t ftpHandle;
-extern SemaphoreHandle_t frameMutex;
+extern TaskHandle_t stickHandle;
+extern SemaphoreHandle_t frameSemaphore;
 extern SemaphoreHandle_t motionMutex;
 
 

@@ -9,13 +9,12 @@
 //#pragma GCC diagnostic ignored "-Wunused-variable"
 //#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 //#pragma GCC diagnostic ignored "-Wignored-qualifiers"
-
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
 
 /******************** Libraries *******************/
 
 #include "Arduino.h"
 #include <driver/i2s.h>
-#include "esp_http_server.h"
 #include <ESPmDNS.h> 
 #include <HTTPClient.h>
 #include "lwip/sockets.h"
@@ -27,20 +26,58 @@
 #include <LittleFS.h>
 #include <sstream>
 #include <Update.h>
-#include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
+#include <esp_http_server.h>
+#include <esp_https_server.h>
+
+
+// ADC
+#define ADC_ATTEN ADC_11db
+#define ADC_SAMPLES 16
+#if CONFIG_IDF_TARGET_ESP32S3
+#define ADC_BITS 13
+#define MAX_ADC 8191 // maximum ADC value at given resolution
+#else
+#define ADC_BITS 12
+#define MAX_ADC 4095 // maximum ADC value at given resolution
+#endif
+#define CENTER_ADC (MAX_ADC / 2) 
+
+// data folder defs
+#define DATA_DIR "/data"
+#define HTML_EXT ".htm"
+#define TEXT_EXT ".txt"
+#define JS_EXT ".js"
+#define CSS_EXT ".css"
+#define ICO_EXT ".ico"
+#define SVG_EXT ".svg"
+#define CONFIG_FILE_PATH DATA_DIR "/configs" TEXT_EXT
+#define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
+#define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT
+#define COMMON_JS_PATH DATA_DIR "/common" JS_EXT 
+
+#define FILLSTAR "****************************************************************"
+#define DELIM '~'
+#define ONEMEG (1024 * 1024)
+#define MAX_PWD_LEN 64
+#define MAX_HOST_LEN 32
+#define MAX_IP_LEN 16
+#define BOUNDARY_VAL "123456789000000000000987654321"
+#define SF_LEN 100
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
+esp_err_t appSpecificSustainHandler(httpd_req_t* req, const char* variable);
+esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const char* value);
+void appSpecificWsHandler(const char* wsMsg);
 void buildAppJsonString(bool filter);
 bool updateAppStatus(const char* variable, const char* value);
-esp_err_t webAppSpecificHandler(httpd_req_t *req, const char* variable, const char* value);
-void wsAppSpecificHandler(const char* wsMsg);
 
 // global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp    
 void buildJsonString(uint8_t filter);
+bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
 bool checkAlarm(int _alarmHour = -1);
 bool checkDataFiles();
@@ -57,6 +94,8 @@ const char* encode64(const char* inp);
 const uint8_t* encode64chunk(const uint8_t* inp, int rem);
 const char* espErrMsg(esp_err_t errCode);
 bool externalPeripheral(byte pinNum, uint32_t outputData = 0);
+esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value);
+esp_err_t fileHandler(httpd_req_t* req, bool download = false);
 void flush_log(bool andClose = false);
 char* fmtSize (uint64_t sizeVal);
 void formatElapsedTime(char* timeStr, uint32_t timeVal);
@@ -84,18 +123,20 @@ void prepPeripherals();
 void prepSMTP();
 void prepTemperature();
 void prepUart();
+void reloadConfigs();
 void ramLogPrep();
 float readTemperature(bool isCelsius);
 float readVoltage();
 void remote_log_init();
 void removeChar(char *s, char c);
 void reset_log();
+void resetWatchDog();
 bool retrieveConfigVal(const char* variable, char* value);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
 void showProgress(const char* marker = ".");
-uint16_t smoothAnalog(int analogPin);
+uint16_t smoothAnalog(int analogPin, int samples = ADC_SAMPLES);
 float smoothSensor(float latestVal, float smoothedVal, float alpha);
 void startFTPtask();
 void startOTAtask();
@@ -126,12 +167,16 @@ extern char AP_gw[];
 extern char hostName[]; //Host name for ddns
 extern char ST_SSID[]; //Router ssid
 extern char ST_Pass[]; //Router passd
+extern bool useHttps;
+extern bool useSecure;
+extern bool useFtps;
 
 extern char ST_ip[]; //Leave blank for dhcp
 extern char ST_sn[];
 extern char ST_gw[];
 extern char ST_ns1[];
 extern char ST_ns2[];
+extern char extIP[];
 
 extern char Auth_Name[]; 
 extern char Auth_Pass[];
@@ -143,10 +188,10 @@ extern uint8_t percentLoaded;
 extern int refreshVal;
 extern bool configLoaded;
 extern bool dataFilesChecked;
-extern const char* git_rootCACertificate;
 extern char ipExtAddr[];
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
-  
+extern bool wsLogEnabled;
+
 // ftp server
 extern char ftp_server[];
 extern char ftp_user[];
@@ -179,6 +224,15 @@ extern bool smtpUse; // whether or not to send email alerts
 extern int smtpFrame; // which captured frame number to use for email image
 extern int smtpMaxEmails; // too many could cause account suspension
 
+// certificates
+extern const char* git_rootCACertificate;
+extern const char* ftps_rootCACertificate;
+extern const char* smtp_rootCACertificate;
+extern const char* mqtt_rootCACertificate;
+extern const char* prvtkey_pem; // app https server private key
+extern const char* cacert_pem; // app https server public certificate
+
+// app status
 extern char timezone[];
 extern char ntpServer[];
 extern uint8_t alarmHour;
@@ -204,39 +258,6 @@ extern UBaseType_t uxHighWaterMarkArr[];
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
 extern int sdFreeSpaceMode; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload to ftp and then delete folder on SD 
 extern bool formatIfMountFailed ; // Auto format the file system if mount failed. Set to false to not auto format.
-
-// ADC
-#define ADC_ATTEN ADC_11db
-#define ADC_SAMPLES 16
-#if CONFIG_IDF_TARGET_ESP32S3
-#define ADC_BITS 13
-#define MAX_ADC 8191 // maximum ADC value at given resolution
-#else
-#define ADC_BITS 12
-#define MAX_ADC 4095 // maximum ADC value at given resolution
-#endif
-
-// data folder defs
-#define DATA_DIR "/data"
-#define HTML_EXT ".htm"
-#define TEXT_EXT ".txt"
-#define JS_EXT ".js"
-#define CSS_EXT ".css"
-#define ICO_EXT ".ico"
-#define SVG_EXT ".svg"
-#define CONFIG_FILE_PATH DATA_DIR "/configs" TEXT_EXT
-#define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
-#define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT
-#define COMMON_JS_PATH DATA_DIR "/common" JS_EXT 
-
-#define FILLSTAR "****************************************************************"
-#define DELIM '~'
-#define ONEMEG (1024 * 1024)
-#define MAX_PWD_LEN 64
-#define MAX_HOST_LEN 32
-#define MAX_IP_LEN 16
-#define BOUNDARY_VAL "123456789000000000000987654321"
-#define SF_LEN 100
 
 /*********************** Log formatting ************************/
 

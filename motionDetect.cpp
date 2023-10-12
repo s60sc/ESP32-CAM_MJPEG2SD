@@ -162,6 +162,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     }
   }
   if (motionStatus) LOG_DBG("*** Motion - ongoing %u frames", motionCnt);
+  LOG_DBG("============================");
 
   if (dbgMotion) { 
     // build jpeg of changeMap for debug streaming

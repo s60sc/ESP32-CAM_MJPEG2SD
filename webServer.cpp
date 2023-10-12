@@ -1,16 +1,10 @@
 // Provides web server for user control of app
-// httpServer handles browser http requests and websocket interaction 
-// otaServer does file uploads
 // 
-// s60sc 2022
+// s60sc 2022 - 2023
 
 #include "appGlobals.h"
 
 #define MAX_PAYLOAD_LEN 1000 // bigger than biggest websocket msg
-#define DATA_UPDATE 999
-
-static esp_err_t fileHandler(httpd_req_t* req, bool download = false);
-static void startOTAserver();
 
 char inFileName[FILE_NAME_LEN];
 static char variable[FILE_NAME_LEN]; 
@@ -18,10 +12,11 @@ static char value[FILE_NAME_LEN];
 static char retainAction[2];
 int refreshVal = 5000; // msecs
 
-static WebServer otaServer(OTA_PORT); 
 static httpd_handle_t httpServer = NULL; // web server port 
-static int fdWs = -1; //websocket sockfd
+static int fdWs = -1; // websocket sockfd
 static httpd_ws_frame_t wsPkt;
+bool useHttps = false;
+bool useSecure = false;
 
 static fs::FS fp = STORAGE;
 byte chunk[CHUNKSIZE];
@@ -41,7 +36,7 @@ static bool sendChunks(File df, httpd_req_t *req) {
   return true;
 }
 
-static esp_err_t fileHandler(httpd_req_t* req, bool download) {
+esp_err_t fileHandler(httpd_req_t* req, bool download) {
   // send file contents to browser
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   if (!strcmp(inFileName, LOG_FILE_PATH)) flush_log(false);
@@ -51,8 +46,8 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
     char errMsg[200];
     snprintf(errMsg, 200, "File does not exist or cannot be opened: %s", inFileName);
     LOG_ERR("%s", errMsg);
-    httpd_resp_set_status(req, HTTPD_400);
-    httpd_resp_send(req, errMsg, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_set_status(req, "404 File Not Found");
+    httpd_resp_sendstr(req, errMsg);
     return ESP_FAIL;
   } 
   if (download) {  
@@ -70,11 +65,10 @@ static esp_err_t fileHandler(httpd_req_t* req, bool download) {
   if (sendChunks(df, req)) LOG_INF("Sent %s to browser", inFileName);
   else {
     LOG_ERR("Failed to send %s to browser", inFileName);
-    httpd_resp_set_status(req, HTTPD_400);
-    httpd_resp_send(req, "Failed to send file to browser", HTTPD_RESP_USE_STRLEN);
+    httpd_resp_set_status(req, "500 Failed to send file");
+    httpd_resp_sendstr(req, "Failed to send file to browser");
     return ESP_FAIL;  
   }
-  httpd_resp_send(req, NULL, 0);
   return ESP_OK;
 }
 
@@ -93,22 +87,21 @@ static void displayLog(httpd_req_t *req) {
     startPtr += chunk;
     if (startPtr == RAM_LOG_LEN - 1) startPtr = 0;
   } while (startPtr != endPtr);
-  httpd_resp_send_chunk(req, NULL, 0);
+  httpd_resp_sendstr_chunk(req, NULL);
 }
-
 
 static esp_err_t indexHandler(httpd_req_t* req) {
   strcpy(inFileName, INDEX_PAGE_PATH);
   // first check if a startup failure needs to be reported
   if (strlen(startupFailure)) {
     httpd_resp_set_type(req, "text/html");                        
-    return httpd_resp_send(req, startupFailure, HTTPD_RESP_USE_STRLEN);
+    return httpd_resp_sendstr(req, startupFailure);
   }
   // Show wifi wizard if not setup, using access point mode  
   if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
-    httpd_resp_set_type(req, "text/html");                              
-    return httpd_resp_send(req, defaultPage_html, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_set_type(req, "text/html");                             
+    return httpd_resp_sendstr(req, defaultPage_html);
   } else {
     // first check if authentication is required
     if (strlen(Auth_Name)) {
@@ -127,24 +120,26 @@ static esp_err_t indexHandler(httpd_req_t* req) {
         // not authenticated
         httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
         httpd_resp_set_status(req, "401 Unauthorised");
-        return httpd_resp_send(req, NULL, 0);
+        return httpd_resp_sendstr(req, NULL);
       }
     }
   }
   return fileHandler(req);
 }
 
-esp_err_t extractQueryKey(httpd_req_t *req, char* variable) {
+esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value) {
   size_t queryLen = httpd_req_get_url_query_len(req) + 1;
   httpd_req_get_url_query_str(req, variable, queryLen);
   urlDecode(variable);
   // extract key 
   char* endPtr = strchr(variable, '=');
-  if (endPtr != NULL) *endPtr = 0; // split variable into 2 strings, first is key name
-  else {
+  if (endPtr != NULL) {
+    *endPtr = 0; // split variable into 2 strings, first is key name
+    strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
+  } else {
     LOG_ERR("Invalid query string %s", variable);
-    httpd_resp_set_status(req, HTTPD_400);
-    httpd_resp_send(req, "Invalid query string", HTTPD_RESP_USE_STRLEN);
+    httpd_resp_set_status(req, "400 Invalid query string");
+    httpd_resp_sendstr(req, "Invalid query string");
     return ESP_FAIL;
   }
   return ESP_OK;
@@ -160,7 +155,7 @@ static esp_err_t webHandler(httpd_req_t* req) {
   if (!strcmp(variable, "OTA.htm")) {
     // request for built in OTA page, if index html defective
     httpd_resp_set_type(req, "text/html"); 
-    return httpd_resp_send(req, otaPage_html, HTTPD_RESP_USE_STRLEN);
+    return httpd_resp_sendstr(req, otaPage_html);
   } else if (!strcmp(HTML_EXT, variable+(strlen(variable)-strlen(HTML_EXT)))) {
     // any other html file
     httpd_resp_set_type(req, "text/html");
@@ -189,28 +184,23 @@ static esp_err_t webHandler(httpd_req_t* req) {
 
 static esp_err_t controlHandler(httpd_req_t *req) {
   // process control query from browser 
-  // obtain key from query string
-  extractQueryKey(req, variable);
+  // obtain details from query string
+  if (extractQueryKeyVal(req, variable, value) != ESP_OK) return ESP_FAIL;
   if (!strcmp(variable, "displayLog")) displayLog(req);
-  else if (!strcmp(variable, "startOTA")) startOTAserver();
   else {
     strcpy(value, variable + strlen(variable) + 1); // value points to second part of string
     if (!strcmp(variable, "reset")) {
-      httpd_resp_send(req, NULL, 0); // stop browser resending reset
+      httpd_resp_sendstr(req, NULL); // stop browser resending reset
       doRestart("user requested restart"); 
       return ESP_OK;
     }
-    updateStatus(variable, value);
-    webAppSpecificHandler(req, variable, value); 
-    // handler for downloading selected file, required file name in inFileName
-    if (!strcmp(variable, "download") && atoi(value) == 1) {
-#ifdef ISCAM
-      if (whichExt) changeExtension(inFileName, CSV_EXT);
-#endif
-      return fileHandler(req, true);
+    if (!strcmp(variable, "startOTA")) snprintf(inFileName, FILE_NAME_LEN + 9, "%s/%s", DATA_DIR, value); 
+    else {
+      updateStatus(variable, value);
+      appSpecificWebHandler(req, variable, value); 
     }
   }
-  httpd_resp_send(req, NULL, 0); 
+  httpd_resp_sendstr(req, NULL); 
   return ESP_OK;
 }
 
@@ -218,7 +208,7 @@ static esp_err_t statusHandler(httpd_req_t *req) {
   uint8_t filter = (uint8_t)httpd_req_get_url_query_len(req); // filter number is length of query string
   buildJsonString(filter);
   httpd_resp_set_type(req, "application/json");
-  httpd_resp_send(req, jsonBuff, HTTPD_RESP_USE_STRLEN);
+  httpd_resp_sendstr(req, jsonBuff);
   return ESP_OK;
 }
 
@@ -252,7 +242,7 @@ bool parseJson(int rxSize) {
 }
 
 static esp_err_t updateHandler(httpd_req_t *req) {
-  // extract key pairs from received json string
+  // bulk update of config, extract key pairs from received json string
   size_t rxSize = min(req->content_len, (size_t)JSON_BUFF_LEN);
   int ret = 0;
   // obtain json payload
@@ -261,25 +251,100 @@ static esp_err_t updateHandler(httpd_req_t *req) {
     if (ret < 0) {  
       if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
       else {
-        LOG_ERR("Post request failed with status %i", ret);
-        return ESP_FAIL;
+        LOG_ERR("Update request failed with status %i", ret);
       }
     }
   } while (ret > 0);
-  httpd_resp_send(req, NULL, 0); 
-  if (parseJson(rxSize)) webAppSpecificHandler (req, "action", retainAction); 
-  return ESP_OK;
+  httpd_resp_sendstr(req, NULL); 
+  if (ret >= 0 && parseJson(rxSize)) appSpecificWebHandler(req, "action", retainAction); 
+  return ret < 0 ? ESP_FAIL : ESP_OK;
 }
 
-static void sendCrossOriginHeader() {
-  // prevent CORS from blocking request
-  otaServer.sendHeader("Access-Control-Allow-Origin", "*");
-  otaServer.sendHeader("Access-Control-Max-Age", "600");
-  otaServer.sendHeader("Access-Control-Allow-Methods", "POST,GET,HEAD,OPTIONS");
-  otaServer.sendHeader("Access-Control-Allow-Headers", "*");
-  otaServer.send(204);
-};
+void progress(size_t prg, size_t sz) {
+  static uint8_t pcProgress = 0;
+  if (calcProgress(prg, sz, 5, pcProgress)) LOG_INF("OTA uploaded %d%%", pcProgress); 
+}
 
+static esp_err_t uploadHandler(httpd_req_t *req) {
+  // upload file for storage or firmware update
+  esp_err_t res = ESP_FAIL;
+  size_t fileSize = req->content_len;
+  size_t rxSize = min(fileSize, (size_t)JSON_BUFF_LEN);
+  int bytesRead = -1;
+  LOG_INF("Upload file %s", inFileName);
+  
+  if (strstr(value, ".bin") != NULL) {
+    // partition update - sketch or SPIFFS
+    LOG_INF("Firmware update using file %s", inFileName);
+    OTAprereq();
+    if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
+    // a spiffs binary must have 'spiffs' in the filename
+    int cmd = (strstr(inFileName, "spiffs") != NULL) ? U_SPIFFS : U_FLASH;
+    if (cmd == U_SPIFFS) STORAGE.end(); // close relevant file system
+    if (Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+      do {
+        bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
+        if (bytesRead < 0) {  
+          if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
+            delay(10);
+            continue;
+          } else {
+            LOG_ERR("Upload request failed with status %i", bytesRead);
+            break;
+          }
+        }
+        Update.write((uint8_t*)jsonBuff, (size_t)bytesRead);
+        Update.onProgress(progress);
+        fileSize -= bytesRead;
+      } while (bytesRead > 0);
+      if (!fileSize) Update.end(true); // true to set the size to the current progress
+    }
+    if (Update.hasError()) LOG_ERR("OTA failed with error: %s", Update.errorString());
+    else LOG_INF("OTA update complete for %s", cmd == U_FLASH ? "Sketch" : "SPIFFS");
+    httpd_resp_set_hdr(req, "Connection", "close");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_sendstr(req, Update.hasError() ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");   
+    doRestart("Restart after OTA");
+
+  } else {
+    // create / replace data file on storage
+    File uf = fp.open(inFileName, FILE_WRITE);
+    if (!uf) LOG_ERR("Failed to open %s on storage", inFileName);
+    else {
+      // obtain file content
+      do {
+        bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
+        if (bytesRead < 0) {  
+          if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
+            delay(10);
+            continue;
+          } else {
+            LOG_ERR("Upload request failed with status %i", bytesRead);
+            break;
+          }
+        }
+        uf.write((const uint8_t*)jsonBuff, bytesRead);
+      } while (bytesRead > 0);
+      uf.close();
+      res = bytesRead < 0 ? ESP_FAIL : ESP_OK;
+      httpd_resp_sendstr(req, res == ESP_OK ? "Completed upload file" : "Failed to upload file, retry");
+      if (res == ESP_OK) LOG_INF("Uploaded file %s", inFileName);
+      else LOG_ERR("Failed to upload file %s", inFileName);     
+    }
+  }
+  return res;
+}
+
+static esp_err_t sendCrossOriginHeader(httpd_req_t *req) {
+  // prevent CORS from blocking request
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Max-Age", "600");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "POST,GET,HEAD,OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+  httpd_resp_set_status(req, "204");
+  httpd_resp_sendstr(req, NULL); 
+  return ESP_OK;
+}
 
 void wsAsyncSend(const char* wsData) {
   // websockets send function, used for async logging and status updates
@@ -327,7 +392,7 @@ static esp_err_t wsHandler(httpd_req_t *req) {
       return ret;
     }
     wsMsg[wsPkt.len] = 0; // terminator
-    if (wsPkt.type == HTTPD_WS_TYPE_TEXT) wsAppSpecificHandler((char*)wsMsg);
+    if (wsPkt.type == HTTPD_WS_TYPE_TEXT) appSpecificWsHandler((char*)wsMsg);
   }
   return ESP_OK;
 }
@@ -340,122 +405,61 @@ void killWebSocket() {
   }
 }
 
+
 void startWebServer() {
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  esp_err_t res = ESP_FAIL;
+  size_t prvtkey_len = strlen(prvtkey_pem);
+  size_t cacert_len = strlen(cacert_pem);
+  if (useHttps && (!cacert_len || !prvtkey_len)) {
+    useHttps = false;
+    LOG_ALT("HTTPS not available as server keys not defined, using HTTP");
+  }
+  if (useHttps) {
+    // HTTPS server
+    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+    config.cacert_pem = (const uint8_t*)cacert_pem;
+    config.cacert_len = cacert_len + 1;
+    config.prvtkey_pem = (const uint8_t*)prvtkey_pem;
+    config.prvtkey_len = prvtkey_len + 1;
+    config.httpd.server_port = HTTPS_PORT;
+    config.httpd.ctrl_port = HTTPS_PORT;
+    config.httpd.lru_purge_enable = true; // close least used socket 
+    config.httpd.max_uri_handlers = 8;
+    config.httpd.max_open_sockets = HTTP_CLIENTS;
+    res = httpd_ssl_start(&httpServer, &config);
+  } else {
+    // HTTP server
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 #if CONFIG_IDF_TARGET_ESP32S3
-  config.stack_size = 1024 * 8;
+    config.stack_size = 1024 * 8;
 #endif  
-  config.server_port = WEB_PORT;
-  config.ctrl_port = WEB_PORT; 
-  config.lru_purge_enable = true;
+    config.server_port = HTTP_PORT;
+    config.ctrl_port = HTTP_PORT;
+    config.lru_purge_enable = true;   
+    config.max_uri_handlers = 8;
+    config.max_open_sockets = HTTP_CLIENTS;
+    res = httpd_start(&httpServer, &config);
+  }
+  
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
   httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
   httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
   httpd_uri_t updateUri = {.uri = "/update", .method = HTTP_POST, .handler = updateHandler, .user_ctx = NULL};
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
   httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
-
-  config.max_open_sockets = MAX_CLIENTS; 
-  if (httpd_start(&httpServer, &config) == ESP_OK) {
+  httpd_uri_t uploadUri = {.uri = "/upload", .method = HTTP_POST, .handler = uploadHandler, .user_ctx = NULL};
+  httpd_uri_t optionsUri = {.uri = "/upload", .method = HTTP_OPTIONS, .handler = sendCrossOriginHeader, .user_ctx = NULL};
+ 
+  if (res == ESP_OK) {
     httpd_register_uri_handler(httpServer, &indexUri);
     httpd_register_uri_handler(httpServer, &webUri);
     httpd_register_uri_handler(httpServer, &controlUri);
     httpd_register_uri_handler(httpServer, &updateUri);
     httpd_register_uri_handler(httpServer, &statusUri);
     httpd_register_uri_handler(httpServer, &wsUri);
-    LOG_INF("Starting web server on port: %u", config.server_port);
+    httpd_register_uri_handler(httpServer, &uploadUri);
+    httpd_register_uri_handler(httpServer, &optionsUri);
+    LOG_INF("Starting web server on port: %u", useHttps ? HTTPS_PORT : HTTP_PORT);
   } else LOG_ERR("Failed to start web server");
   debugMemory("startWebserver");
-}
-
-/*
- To apply web based OTA update.
- In Arduino IDE, create sketch binary:
- - select Tools / Partition Scheme / Minimal SPIFFS
- - select Sketch / Export compiled Binary
- On browser, press OTA Upload button
- On returned page, select Choose file and navigate to sketch .bin file,
- or data file to be uploaded to the storage /data folder
- */
-
-static void uploadHandler() {
-  // re-entrant callback function
-  // apply received .bin file to OTA partition
-  // or data file to SD card or SPIFFS partition
-  HTTPUpload& upload = otaServer.upload();  
-  static File df;
-  static int cmd = DATA_UPDATE;    
-  String filename = upload.filename;
-  
-  if (upload.status == UPLOAD_FILE_START) {
-    if (strstr(filename.c_str(), ".bin") != NULL) {
-      // partition update, sketch or SPIFFS
-      LOG_INF("Partition update using file %s", filename.c_str());
-      // a spiffs binary must have 'spiffs' in the filename
-      cmd = (strstr(filename.c_str(), "spiffs") != NULL)  ? U_SPIFFS : U_FLASH;
-      if (cmd == U_SPIFFS) STORAGE.end();// close relevant file system
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) Update.printError(Serial);
-    } else {
-      // replace relevant data file on storage
-      char replaceFile[FILE_NAME_LEN] = DATA_DIR;
-      strcat(replaceFile, "/");
-      strcat(replaceFile, filename.c_str());
-      LOG_INF("Data file update using %s", replaceFile);
-      // Create file
-      df = fp.open(replaceFile, FILE_WRITE);
-      if (!df) {
-        LOG_ERR("Failed to open %s on storage", replaceFile);
-        return;
-      }
-    } 
-  } else if (upload.status == UPLOAD_FILE_WRITE) {
-    if (cmd == DATA_UPDATE) {
-      // web page update
-      if (df.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        LOG_ERR("Failed to save %s on Storage", df.name());
-        return;
-      }
-    } else {
-      // OTA update, if crashes, check that correct partition scheme has been selected
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
-    }
-  } else if (upload.status == UPLOAD_FILE_END) {
-    if (cmd == DATA_UPDATE) {
-      // data file update
-      df.close();
-      LOG_INF("Data file update complete");
-    } else {
-      if (Update.end(true)) { // true to set the size to the current progress
-        LOG_INF("OTA update complete for %s", cmd == U_FLASH ? "Sketch" : "SPIFFS");
-      } else Update.printError(Serial);
-    }
-  }
-}
-
-static void otaFinish() {
-  flush_log(true);
-  otaServer.sendHeader("Connection", "close");
-  otaServer.sendHeader("Access-Control-Allow-Origin", "*");
-  otaServer.send(200, "text/plain", (Update.hasError()) ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");
-  doRestart("OTA completed");
-}
-
-static void OTAtask(void* parameter) {
-  // receive OTA upload details
-  LOG_INF("Starting OTA server on port: %u", OTA_PORT);
-  otaServer.on("/upload", HTTP_OPTIONS, sendCrossOriginHeader); 
-  otaServer.on("/upload", HTTP_POST, otaFinish, uploadHandler);
-  otaServer.begin();
-  while (true) {
-    otaServer.handleClient();
-    delay(100);
-  }
-}
-
-static void startOTAserver() {
-  OTAprereq();
-  if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
-  // start OTA task
-  static TaskHandle_t otaHandle = NULL;
-  if (otaHandle == NULL) xTaskCreate(&OTAtask, "OTAtask", 1024 * 4, NULL, 1, &otaHandle);  
 }

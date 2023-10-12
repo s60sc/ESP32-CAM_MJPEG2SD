@@ -75,8 +75,9 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
   // send email to defined smtp server
   char content[100];
   WiFiClientSecure client;
-  client.setInsecure(); // not SSL
-
+  if (useSecure && strlen(smtp_rootCACertificate)) client.setCACert(smtp_rootCACertificate);
+  else client.setInsecure(); // no cert check
+  
   // connect to smtp account and authenticate
   if (!client.connect(smtp_server, smtp_port)) {
     // if failure reports 'SSL - Memory allocation failed', 
@@ -189,7 +190,7 @@ void prepSMTP() {
   if (smtpUse) {
     dayStart = millis();
     emailCount = 0;
-    if (SMTPbuffer == NULL) SMTPbuffer = (byte*)ps_malloc(ONEMEG/2); 
+    if (SMTPbuffer == NULL) SMTPbuffer = (byte*)ps_malloc(MAX_JPEG); 
     LOG_INF("Email alerts active");
   } 
   debugMemory("prepSmtp");

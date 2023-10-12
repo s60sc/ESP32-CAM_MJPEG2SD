@@ -24,7 +24,7 @@ int tlDurationMins; // a new file starts when previous ends
 int tlPlaybackFPS;  // rate to playback the timelapse, min 1 
 
 // status & control fields
-uint8_t FPS;
+uint8_t FPS = 0;
 bool nightTime = false;
 uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
@@ -42,11 +42,10 @@ static uint32_t oTime; // file opening time
 static uint32_t cTime; // file closing time
 static uint32_t sTime; // file streaming time
 
-uint8_t frameDataRows = 14; 
+uint8_t frameDataRows = 14; // number of frame sizes
 static uint16_t frameInterval; // units of 0.1ms between frames
 
 // SD card storage
-#define MAX_JPEG ONEMEG/2 // UXGA jpeg frame buffer at highest quality 375kB rounded up
 uint8_t iSDbuffer[(RAMSIZE + CHUNK_HDR) * 2];
 static size_t highPoint;
 static File aviFile;
@@ -60,18 +59,19 @@ static size_t readLen;
 static uint8_t recFPS;
 static uint32_t recDuration;
 static uint8_t saveFPS = 99;
-bool doPlayback = false;
+bool doPlayback = false; // controls playback
 
 // task control
 TaskHandle_t captureHandle = NULL;
 TaskHandle_t playbackHandle = NULL;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
+SemaphoreHandle_t frameSemaphore;
 SemaphoreHandle_t motionMutex = NULL;
 SemaphoreHandle_t aviMutex = NULL;
-static volatile bool isPlaying = false;
+static volatile bool isPlaying = false; // controls playback on app
 bool isCapturing = false;
-bool stopPlayback = false;
+bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
 
 /**************** timers & ISRs ************************/
@@ -79,28 +79,28 @@ bool timeLapseOn = false;
 static void IRAM_ATTR frameISR() {
   // interrupt at current frame rate
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  vTaskNotifyGiveFromISR(captureHandle, &xHigherPriorityTaskWoken); // wake capture task to process frame
   if (isPlaying) xSemaphoreGiveFromISR (playbackSemaphore, &xHigherPriorityTaskWoken ); // notify playback to send frame
+  vTaskNotifyGiveFromISR(captureHandle, &xHigherPriorityTaskWoken); // wake capture task to process frame
   if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
 }
 
 void controlFrameTimer(bool restartTimer) {
-  // frame timer control, timer3 so dont conflict with cam
-  static hw_timer_t* timer3 = NULL;
+  // frame timer control, timer 3 so dont conflict with cam
+  static hw_timer_t* frameTimer = NULL;
   // stop current timer
-  if (timer3) {
-    timerAlarmDisable(timer3);   
-    timerDetachInterrupt(timer3); 
-    timerEnd(timer3);
+  if (frameTimer) {
+    timerAlarmDisable(frameTimer);   
+    timerDetachInterrupt(frameTimer); 
+    timerEnd(frameTimer);
   }
   if (restartTimer) {
     // (re)start timer 3 interrupt per required framerate
-    timer3 = timerBegin(3, 8000, true); // 0.1ms tick
+    frameTimer = timerBegin(3, 8000, true); // 0.1ms tick
     frameInterval = 10000 / FPS; // in units of 0.1ms 
     LOG_DBG("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
-    timerAlarmWrite(timer3, frameInterval, true); 
-    timerAlarmEnable(timer3);
-    timerAttachInterrupt(timer3, &frameISR, true);
+    timerAlarmWrite(frameTimer, frameInterval, true); 
+    timerAlarmEnable(frameTimer);
+    timerAttachInterrupt(frameTimer, &frameISR, true);
   }
 }
 
@@ -254,6 +254,7 @@ static void saveFrame(camera_fb_t* fb) {
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
   LOG_DBG("Frame processing time %u ms", fTime);
+  LOG_DBG("============================");
 }
 
 static bool closeAvi() {
@@ -348,9 +349,18 @@ static boolean processFrame() {
   bool res = true;
   uint32_t dTime = millis();
   bool finishRecording = false;
+
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) return false;
   timeLapse(fb);
+  if (!streamBufferSize) {
+    if (fb->len < MAX_JPEG && streamBuffer != NULL) {
+      memcpy(streamBuffer, fb->buf, fb->len);
+      streamBufferSize = fb->len;   
+      xSemaphoreGive(frameSemaphore); // signal frame ready for stream
+    }
+  }
+  
   // determine if time to monitor, then get motion capture status
   if (!forceRecord && useMotion) { 
     if (dbgMotion) checkMotion(fb, false); // check each frame for debug
@@ -397,10 +407,9 @@ static boolean processFrame() {
       if (lampAuto) setLamp(0); // switch off lamp
     }
     wasCapturing = isCapturing;
-    LOG_DBG("============================");
   }
-  if (fb != NULL) esp_camera_fb_return(fb);
-  fb = NULL; 
+
+  esp_camera_fb_return(fb);
   if (finishRecording) {
     // cleanly finish recording (normal or forced)
     if (stopPlayback) closeAvi();
@@ -414,7 +423,7 @@ static void captureTask(void* parameter) {
   uint32_t ulNotifiedValue;
   while (true) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    if (ulNotifiedValue > 5) ulNotifiedValue = 5; // prevent too big queue if FPS excessive
+    if (ulNotifiedValue > FB_BUFFERS) ulNotifiedValue = FB_BUFFERS; // prevent too big queue if FPS excessive
     // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
     while (ulNotifiedValue-- > 0) processFrame();
   }
@@ -489,8 +498,8 @@ void openSDfile(const char* streamFile) {
     playbackFile = STORAGE.open(aviFileName, FILE_READ);
     playbackFile.seek(AVI_HEADER_LEN, SeekSet); // skip over header
     playbackFPS(aviFileName);
-    isPlaying = true; // task control
-    doPlayback = true; // browser control
+    isPlaying = true; //playback status
+    doPlayback = true; // control playback
     readSD(); // prime playback task
   }
 }
@@ -512,9 +521,8 @@ mjpegStruct getNextFrame(bool firstCall) {
     hTime = millis();  
     remainingBuff = completedPlayback = false;
     frameCnt = remainingFrame = vidSize =  buffOffset = 0;
-    wTimeTot = fTimeTot = hTimeTot = tTimeTot = 0;
+    wTimeTot = fTimeTot = hTimeTot = tTimeTot = 1; // avoid divide by 0
   }  
-  
   LOG_DBG("http send time %lu ms", millis() - hTime);
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
@@ -575,7 +583,6 @@ mjpegStruct getNextFrame(bool firstCall) {
     remainingFrame -= mjpegData.buffLen;
     buffOffset += mjpegData.buffLen;
     if (buffOffset >= buffLen) remainingBuff = false;
-    
   } else {
     // finished, close SD file used for streaming
     playbackFile.close();
@@ -608,14 +615,14 @@ mjpegStruct getNextFrame(bool firstCall) {
 }
 
 void stopPlaying() {
-  isStreaming = false; // if on another browser instance
   if (isPlaying) {
     // force stop any currently running playback
     stopPlayback = true;
     // wait till stopped cleanly, but prevent infinite loop
     uint32_t timeOut = millis();
-    while (isPlaying && millis() - timeOut < 2000) delay(10);
-    if (isPlaying) {
+    while (doPlayback && millis() - timeOut < 2000) delay(10);
+    if (doPlayback) {
+      // not yet closed, so force close
       logLine();
       LOG_WRN("Force closed playback");
       doPlayback = false; // stop webserver playback
@@ -623,7 +630,7 @@ void stopPlaying() {
       xSemaphoreGive(playbackSemaphore);
       xSemaphoreGive(readSemaphore);
       delay(200);
-    }
+    } 
     stopPlayback = false;
     isPlaying = false;
   }
@@ -656,12 +663,14 @@ bool prepRecording() {
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
   motionMutex = xSemaphoreCreateMutex();
+  frameSemaphore = xSemaphoreCreateBinary();
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
   else {
     esp_camera_fb_return(fb);
     fb = NULL;
   }
+  reloadConfigs(); // apply camera config
   startSDtasks();
   LOG_INF("To record new AVI, do one of:");
   LOG_INF("- press Start Recording on web page");
@@ -690,11 +699,14 @@ void endTasks() {
   deleteTask(emailHandle);
   deleteTask(ftpHandle);
   deleteTask(uartClientHandle);
+  deleteTask(stickHandle);
 }
 
 void OTAprereq() {
   // stop timer isrs, and free up heap space, or crashes esp32
+  doPlayback = forceRecord = false;
   controlFrameTimer(false);
+  stickTimer(false);
   stopPing();
   endTasks();
   esp_camera_deinit();

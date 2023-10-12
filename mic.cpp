@@ -82,6 +82,13 @@ static void startMic() {
   // install & start up the I2S peripheral as microphone when activated
   int queueSize = 4;
   i2s_queue = xQueueCreate(queueSize, sizeof(i2s_event_t));
+#if defined(CAMERA_MODEL_XIAO_ESP32S3)
+  // built in PDM mic
+  micType = PDM_MIC;
+  micSWsPin = 42;
+  micSdPin = 41;
+  micSckPin = -1;
+#endif
   if (micType == PDM_MIC) i2s_mic_config.mode = (i2s_mode_t)((int)(i2s_mic_config.mode) | I2S_MODE_PDM);
   i2s_driver_install(I2S_CHAN, &i2s_mic_config, queueSize, &i2s_queue);
   // set i2s microphone pins
@@ -108,7 +115,7 @@ static void getRecording() {
   captureRunning = true;
   while (doMicCapture) {
      // wait for i2s buffer to be ready
-     if (xQueueReceive(i2s_queue, &event, (2 * SAMPLE_RATE) /  portTICK_PERIOD_MS) == pdPASS) {
+     if (xQueueReceive(i2s_queue, &event, pdMS_TO_TICKS(2 * SAMPLE_RATE)) == pdPASS) {
        if (event.type == I2S_EVENT_RX_DONE) {
          i2s_read(I2S_CHAN, sampleBuffer, sampleBytes, &bytesRead, portMAX_DELAY);
          int samplesRead = bytesRead / sampleWidth;

@@ -164,7 +164,7 @@ bool checkFreeSpace() {
       deleteFolderOrFile(oldestDir);
       freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
     }
-    LOG_INF("Storage free space: %uMB", freeSize);
+    LOG_INF("Storage free space: %s", fmtSize(STORAGE.totalBytes() - STORAGE.usedBytes()));
     res = true;
   }
   return res;
