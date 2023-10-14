@@ -10,7 +10,8 @@ Changes in version 9.0:
 - [Telemetry Recording](#telemetry-recording) during camera recording.
 - [Remote Control](#remote-control) of camera mounted vehicle.
 
-Release 9.0 is experimental. The STABLE release is [8.8](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/releases/tag/V8.8)
+Release 9.0 is experimental. The STABLE release is [8.8](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/releases/tag/V8.8)  
+Note that v8.8 will auto download v9.0 data folder, so load v8.8 data folder content manually.
 
 
 ## Purpose
