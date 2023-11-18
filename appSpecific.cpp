@@ -1,15 +1,18 @@
 // mjpeg2sd app specific functions
 //
 // Direct access URLs:
-// - Streaming: app_ip:81//sustain?stream=1 
-// - Stills: app_ip://control?still=1
+// - Network streaming: app_ip/sustain?stream=1 
+// - Stills: app_ip/control?still=1
 //
-// s60sc 2022 
+// s60sc 2022, 2023
 
 #include "appGlobals.h"
 
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN];
+static char alertCaption[100];
+static bool alertReady = false;
+static bool doGetExtIP = false;
 
 /************************ webServer callbacks *************************/
 
@@ -20,7 +23,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   int intVal = atoi(value);
   float fltVal = atof(value);
   if (!strcmp(variable, "custom")) return res;
-  else if (!strcmp(variable, "stopStream")) isStreaming = false;
+  else if (!strcmp(variable, "stopStream")) stopSustainTask(intVal);
   else if (!strcmp(variable, "stopPlaying")) stopPlaying();
   else if (!strcmp(variable, "minf")) minSeconds = intVal; 
   else if (!strcmp(variable, "motionVal")) motionVal = intVal;
@@ -42,6 +45,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
   else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
   else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal;  
+  else if (!strcmp(variable, "nvrStream")) nvrStream = (bool)intVal; 
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
   else if (!strcmp(variable, "micGain")) micGain = intVal;
   else if (!strcmp(variable, "upload")) ftpFileOrFolder(value);  
@@ -107,9 +111,9 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "teleInterval")) teleInterval = intVal;
   else if (!strcmp(variable, "RCactive")) RCactive = (bool)intVal;
   else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
-  else if (!strcmp(variable, "reversePin")) reversePin = intVal;
-  else if (!strcmp(variable, "forwardPin")) forwardPin = intVal;
-  else if (!strcmp(variable, "lightsPin")) lightsPin = intVal;
+  else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
+  else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
+  else if (!strcmp(variable, "lightsRCpin")) lightsRCpin = intVal;
   else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
   else if (!strcmp(variable, "RClights")) setLights((bool)intVal);
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
@@ -121,7 +125,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "stickUse")) stickUse = (bool)intVal; 
   else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
   else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
-  else if (!strcmp(variable, "stickPushPin")) stickPushPin = intVal; 
+  else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
 
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
@@ -304,13 +308,51 @@ void buildAppJsonString(bool filter) {
   *p = 0;
 }
 
+/******************************************************************/
+
+void externalAlert(const char* subject, const char* message) {
+  // alert any configured external servers
+  if (tgramUse) tgramAlert(subject, message);
+  if (smtpUse) emailAlert(subject, message);
+}
+
 bool appDataFiles() {
   // callback from setupAssist.cpp, for any app specific files 
   return true;
 }
 
+void currentStackUsage() {
+  checkStackUse(captureHandle, 0);
+  checkStackUse(DS18B20handle, 1);
+  checkStackUse(emailHandle, 2);
+  checkStackUse(ftpHandle, 3);
+  checkStackUse(logHandle, 4);
+  checkStackUse(micHandle, 5);
+  checkStackUse(mqttTaskHandle, 6);
+  // 7: pingtask
+  checkStackUse(playbackHandle, 8);
+  checkStackUse(servoHandle, 9);
+  checkStackUse(stickHandle, 10);
+  checkStackUse(telegramHandle, 11);
+  checkStackUse(telemetryHandle, 12);
+  checkStackUse(uartClientHandle, 13);
+  // 14: http webserver
+  for (int i=0; i < MAX_STREAMS; i++) checkStackUse(sustainHandle[i], 15 + i);
+}
+
 void doAppPing() {
-  if (IP_EMAIL) if (checkAlarm(1)) getExtIP();
+  if (DEBUG_MEM) {
+    currentStackUsage();
+    checkMemory();
+  }
+  if (checkAlarm()) {
+    if (tgramUse) doGetExtIP = true; 
+    else getExtIP();
+    if (smtpUse) {
+      emailCount = 0;
+      LOG_INF("Reset daily email allowance");
+    }
+  }
   doIOExtPing();
   // check for night time actions
   if (isNight(nightSwitch)) {
@@ -323,4 +365,68 @@ void doAppPing() {
      goToSleep(wakePin, true);
     }
   } 
+}
+
+/************** telegram app specific **************/
+
+void tgramAlert(const char* subject, const char* message) {
+  // send motion alert to Telegram
+  const char* pos1 = strchr(subject + 1, '/'); // extract filename
+  const char* pos2 = strrchr(subject + 1, '.'); // remove extension
+  // make filename into command
+  if (pos1 != NULL && pos2 != NULL) {
+    strncpy(alertCaption, pos1, pos2 - pos1);
+    strcat(alertCaption, " from ");
+    strncat(alertCaption, hostName, sizeof(alertCaption) - strlen(alertCaption) - 1);
+    if (alertBufferSize) alertReady = true; // return image
+  } else LOG_ERR("Unable to send motion alert");
+}
+
+static bool downloadAvi(const char* userCmd) {
+  char* pos = strchr(userCmd, '_'); // if contains '_', assume filename
+  if (pos != NULL) {
+    // add folder name and avi extension to incoming file name
+    char fileName[FILE_NAME_LEN];
+    strncpy(fileName, userCmd, FILE_NAME_LEN - 1);
+    pos = strchr(fileName, '_');
+    memmove(pos, fileName, sizeof(fileName) - (pos - fileName));
+    strncat(fileName, ".avi", sizeof(fileName - 1) - strlen(fileName)); 
+    if (STORAGE.exists(fileName)) sendTgramFile(fileName, "image/jpeg", "");
+    else sendTgramMessage("AVI file not found: ", fileName, "");
+  }
+  return (bool)pos;
+}
+
+void appSpecificTelegramTask(void* p) {
+  // process Telegram interactions
+  snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap", hostName); 
+  sendTgramMessage("Rebooted", "", "");
+  char userCmd[FILE_NAME_LEN];
+  
+  while (true) {
+    // service requests from Telegram
+    if (getTgramUpdate(userCmd)) {     
+      if (!strcmp(userCmd, "/snap")) {
+        doKeepFrame = true;
+        delay(1000); // time to get frame
+        sprintf(userCmd, "/snap from %s", hostName);
+        sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
+      } else {
+        // initially assume it is an avi file download request
+        if (!downloadAvi(userCmd)) sendTgramMessage("Request not recognised: ", userCmd, "");
+      }
+    } else {
+      // send out any outgoing alerts from app
+      if (alertReady) {
+        alertReady = false;
+        sendTgramPhoto(alertBuffer, alertBufferSize, alertCaption);
+        alertBufferSize = 0;
+      } else if (doGetExtIP) {
+        // called here to save stack space
+        getExtIP();
+        doGetExtIP = false;
+      } else delay(2000); // avoid thrashing
+    }
+  }
+  vTaskDelete(NULL);
 }

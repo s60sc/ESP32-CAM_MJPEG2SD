@@ -86,7 +86,7 @@ static bool setupSensors() {
     return false;
   }
 #endif
-  return true;
+  return false;
 }
 
 static size_t getSensorData(size_t highPoint) {
@@ -143,7 +143,7 @@ static void telemetryTask(void* pvParameters) {
     teleFile.close();
     // rename temp file to specific file name
     STORAGE.rename(TELETEMP, teleFileName); 
-    LOG_INF("Saved telemetery file %s", teleFileName);
+    LOG_INF("Saved telemetry file %s", teleFileName);
   }
 }
 
@@ -151,15 +151,16 @@ void prepTelemetry() {
   // called by app initialisation
   if (teleUse) {
     teleBuf = psramFound() ? (char*)ps_malloc(RAMSIZE + BUF_OVERFLOW) : (char*)malloc(RAMSIZE + BUF_OVERFLOW);
-    if (setupSensors()) xTaskCreate(&telemetryTask, "telemetryTask", 1024 * 4, NULL, 3, &telemetryHandle);
+    if (setupSensors()) xTaskCreate(&telemetryTask, "telemetryTask", TELEM_STACK_SIZE, NULL, 3, &telemetryHandle);
     else teleUse = false;
     LOG_INF("Telemetry recording %s available", teleUse ? "is" : "NOT");
+    debugMemory("prepTelemetry");
   }
 }
 
 void startTelemetry() {
   // called when camera recording started
-  if (teleUse) xTaskNotifyGive(telemetryHandle); // wake up task
+  if (teleUse && telemetryHandle != NULL) xTaskNotifyGive(telemetryHandle); // wake up task
 }
 
 void stopTelemetry(const char* fileName) {

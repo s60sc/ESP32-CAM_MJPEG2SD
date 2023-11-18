@@ -100,10 +100,10 @@ int voltInterval; // interval in minutes to check battery voltage
 
 // RC pins and control
 bool RCactive = false;
-int reversePin;
-int forwardPin;
+int motorRevPin;
+int motorFwdPin;
 int servoSteerPin;
-int lightsPin;
+int lightsRCpin;
 int pwmFreq = 50;
 int maxSteerAngle;  
 int maxDutyCycle;  
@@ -111,7 +111,7 @@ int minDutyCycle;
 bool allowReverse;   
 bool autoControl; 
 int waitTime; 
-int stickPushPin; // digital pin connected to switch output
+int stickzPushPin; // digital pin connected to switch output
 int stickXpin; // analog pin connected to X output
 int stickYpin; // analog pin connected to Y output
 
@@ -137,7 +137,6 @@ bool getPIRval() {
   if (!externalPeripheral(pirPin)) pirVal = digitalRead(pirPin); 
   return pirVal; 
 }
- 
 
 // Control a Pan-Tilt-Camera stand using two servos connected to pins specified above
 // Or control an RC servo
@@ -218,7 +217,7 @@ static void prepServos() {
   oldPanVal = oldTiltVal = oldSteerVal = servoCenter + 1;
 
   if (servoUse || servoSteerPin) {
-    xTaskCreate(&servoTask, "servoTask", 1024, NULL, 1, &servoHandle); 
+    xTaskCreate(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, 1, &servoHandle); 
     // initial angle
     if (servoPanPin) setCamPan(servoCenter);
     if (servoTiltPin) setCamTilt(servoCenter);
@@ -286,11 +285,7 @@ void prepTemperature() {
 #if USE_DS18B20
   if (ds18b20Pin < EXTPIN) {
     if (ds18b20Pin) {
-      size_t stacksize = 1024;
-#if CONFIG_IDF_TARGET_ESP32S3
-      stacksize = 1024 * 2;
-#endif
-      xTaskCreate(&DS18B20task, "DS18B20task", stacksize, NULL, 1, &DS18B20handle); 
+      xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, 1, &DS18B20handle); 
       haveDS18B20 = true;
       LOG_INF("Using DS18B20 sensor");
     } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
@@ -332,7 +327,7 @@ float getNTCcelsius (uint16_t resistance, float oldTemp) {
 // Read voltage from battery connected to ADC pin
 // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
 static float currentVoltage = -1.0; // no monitoring
-
+TaskHandle_t battHandle = NULL;
 float readVoltage()  {
   // use external voltage sensor if available, else use local value
   externalPeripheral(voltPin);
@@ -345,16 +340,13 @@ static void battTask(void* parameter) {
     // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
     currentVoltage = (float)(smoothAnalog(voltPin)) * 3.3 * voltDivider / MAX_ADC;
 
-#ifdef INCLUDE_SMTP
-    static bool sentEmailAlert = false;
-    if (currentVoltage < voltLow && !sentEmailAlert) {
-      sentEmailAlert = true; // only sent once per esp32 session
-      smtpBufferSize = 0; // no attachment
+    static bool sentExtAlert = false;
+    if (currentVoltage < voltLow && !sentExtAlert) {
+      sentExtAlert = true; // only sent once per esp32 session
       char battMsg[20];
       sprintf(battMsg, "Voltage is %0.2fV", currentVoltage);
-      emailAlert("Low battery", battMsg);
+      externalAlert("Low battery", battMsg);
     }
-#endif
     delay(voltInterval * 60 * 1000); // mins
   }
   vTaskDelete(NULL);
@@ -363,7 +355,7 @@ static void battTask(void* parameter) {
 static void setupBatt() {
   if (voltUse && (voltPin < EXTPIN)) {
     if (voltPin) {
-      xTaskCreate(&battTask, "battTask", 2048, NULL, 1, NULL);
+      xTaskCreate(&battTask, "battTask", BATT_STACK_SIZE, NULL, 1, &battHandle);
       LOG_INF("Monitor batt voltage");
       debugMemory("setupBatt");
     } else LOG_WRN("No voltage pin defined");
@@ -471,7 +463,7 @@ void twinkleLed(uint8_t ledPin, uint16_t interval, uint8_t blinks) {
 
 void setLights(bool lightsOn) {
   // External on / off light
-  if (lightsPin > 0) digitalWrite(lightsPin, lightsOn);
+  if (lightsRCpin > 0) digitalWrite(lightsRCpin, lightsOn);
 }
 
 /********************* interact with UART **********************/
@@ -561,11 +553,11 @@ MX1508 DC Motor Driver with PWM Control
 
 void prepMotors() {
   if (RCactive) {
-    if (forwardPin > 0) {
+    if (motorFwdPin > 0) {
       // setup gpio pins used for motor (forward, optional reverse), and pwm frequency
-      LOG_INF("initialising MCPWM, using pins %d, %d", forwardPin, reversePin);
-      mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, forwardPin);
-      if (reversePin > 0) mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0B, reversePin); 
+      LOG_INF("initialising MCPWM, using pins %d, %d", motorFwdPin, motorRevPin);
+      mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, motorFwdPin);
+      if (motorRevPin > 0) mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0B, motorRevPin); 
       mcpwm_config_t pwm_config;
       pwm_config.frequency = pwmFreq;  // pwm frequency
       pwm_config.cmpr_a = 0;    // duty cycle of PWMxA
@@ -604,8 +596,8 @@ void motorSpeed(int speedVal) {
   // speedVal is signed duty cycle, convert to unsigned float
   float speedValFloat = (float)(abs(speedVal));
   if (speedVal == 0) motorStop();
-  else if (forwardPin > 0 && speedVal > 0.0) motorForward(speedValFloat);
-  else if (reversePin > 0 && speedVal < 0.0) motorReverse(speedValFloat); 
+  else if (motorFwdPin > 0 && speedVal > 0.0) motorForward(speedValFloat);
+  else if (motorRevPin > 0 && speedVal < 0.0) motorReverse(speedValFloat); 
 }
 
 
@@ -684,15 +676,11 @@ static void prepJoystick() {
       xOffset = smoothAnalog(stickXpin, 8) - CENTER_ADC;
       yOffset = smoothAnalog(stickYpin, 8) - CENTER_ADC;
       LOG_DBG("X-offset: %d, Y-offset: %d", xOffset, yOffset);
-      if (stickPushPin > 0) {
-        pinMode(stickPushPin, INPUT_PULLUP);
-        attachInterrupt(digitalPinToInterrupt(stickPushPin), buttonISR, FALLING); 
+      if (stickzPushPin > 0) {
+        pinMode(stickzPushPin, INPUT_PULLUP);
+        attachInterrupt(digitalPinToInterrupt(stickzPushPin), buttonISR, FALLING); 
       }
-      int stackSize = 2048;
-#ifdef CONFIG_IDF_TARGET_ESP32S3 
-      stackSize = 4096;
-#endif
-      xTaskCreate(&stickTask, "stickTask", stackSize, NULL, 5, &stickHandle);
+      xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, 5, &stickHandle);
       stickTimer(true);
       LOG_INF("Joystick available");
     } else LOG_WRN("Joystick pins not defined");

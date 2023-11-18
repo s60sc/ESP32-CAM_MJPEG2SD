@@ -59,49 +59,55 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #ifdef DEV_ONLY 
 //#define SIDE_ALARM // uncomment if used for side alarm
 #endif 
-#define STATIC_IP_OCTAL "132" // dev only
-#define CHECK_MEM false // leave as false
+#define STATIC_IP_OCTAL "133" // dev only
+#define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
 #define DOT_MAX 50
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.0"
+#define APP_VER "9.1"
 
-#define FB_BUFFERS 2 // stream / record
-#define SUSTAIN_CLIENTS 1 // stream, playback, download. 
 #define HTTP_CLIENTS 2 // http, ws
+#define MAX_STREAMS 2 // stream, playback, download / NVR
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define FILE_NAME_LEN 64
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 150 // must be > number of entries in configs.txt
+#define MAX_CONFIGS 160 // must be > number of entries in configs.txt
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#define FB_BUFFERS 12 // 1 being processed, rest being filled
+#else
+#define FB_BUFFERS 4 // 1 being processed, rest being filled
+#endif
 #define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
+#define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
+#define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
+#define WARN_HEAP (32 * 1024) // low free heap warning
+#define WARN_ALLOC (16 * 1024) // low free max allocatable free heap block
 
 #ifdef SIDE_ALARM
 #define STORAGE LittleFS
-#define GITHUB_URL ""
+#define GITHUB_PATH ""
 #else
 #define STORAGE SD_MMC
-#define GITHUB_URL "https://raw.githubusercontent.com/s60sc/ESP32-CAM_MJPEG2SD/master"
+#define GITHUB_PATH "/s60sc/ESP32-CAM_MJPEG2SD/master"
 #endif
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
-#define RAM_LOG_LEN 5000 // size of ram stored system message log in bytes
 #define INCLUDE_FTP 
 #define INCLUDE_SMTP
 #define INCLUDE_MQTT
+#define INCLUDE_TGRAM
 #define ISCAM // cam specific code in generics
-// set true for emailing external ip changes
-#define IP_EMAIL false
 
 #define IS_IO_EXTENDER false // must be false except for IO_Extender
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 3
-#define HTM_VER 5
-#define JS_VER 2
+#define CFG_VER 4
+#define HTM_VER 6
+#define JS_VER  3
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -127,6 +133,29 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define SD_MMC_D0 22  // MISO
 #endif
 
+#ifdef CONFIG_IDF_TARGET_ESP32S3 
+#define SERVER_STACK_SIZE (1024 * 8)
+#define DS18B20_STACK_SIZE (1024 * 2)
+#define STICK_STACK_SIZE (1024 * 4)
+#else
+#define SERVER_STACK_SIZE (1024 * 4)
+#define DS18B20_STACK_SIZE (1024)
+#define STICK_STACK_SIZE (1024 * 2)
+#endif
+#define BATT_STACK_SIZE (1024 * 2)
+#define CAPTURE_STACK_SIZE (1024 * 4)
+#define EMAIL_STACK_SIZE (1024 * 6)
+#define FTP_STACK_SIZE (1024 * 4)
+#define LOG_STACK_SIZE (1024 * 3)
+#define MIC_STACK_SIZE (1024 * 4)
+#define MQTT_STACK_SIZE (1024 * 4)
+#define PING_STACK_SIZE (1024 * 5)
+#define PLAYBACK_STACK_SIZE (1024 * 2)
+#define SERVO_STACK_SIZE (1024)
+#define SUSTAIN_STACK_SIZE (1024 * 4)
+#define TGRAM_STACK_SIZE (1024 * 5)
+#define TELEM_STACK_SIZE (1024 * 4)
+#define UART_STACK_SIZE (1024 * 2)
 
 /******************** Libraries *******************/
 
@@ -154,6 +183,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = 
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
+void currentStackUsage();
 void doIOExtPing();
 bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
@@ -168,6 +198,7 @@ void prepAviIndex(bool isTL = false);
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
+void resetMotionMapSize();
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
@@ -176,10 +207,11 @@ void setLamp(uint8_t lampVal);
 void setLights(bool lightsOn);
 void setSteering(int steerVal);
 void startAudio();
-void startStreamServer();
+void startSustainTasks();
 void startTelemetry();
 void stickTimer(bool restartTimer);
 void stopPlaying();
+void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
@@ -209,7 +241,6 @@ extern int tlPlaybackFPS;  // rate to playback the timelapse, min 1
 extern bool autoUpload;
 extern bool dbgMotion;
 extern bool doPlayback;
-extern bool isStreaming;
 extern bool doRecording; // whether to capture to SD or not
 extern bool forceRecord; // Recording enabled by rec button
 extern bool forcePlayback; // playback enabled by user
@@ -230,6 +261,10 @@ extern int maxFrames;
 extern char inFileName[];
 extern uint8_t xclkMhz;
 extern char camModel[];
+extern bool doKeepFrame;
+extern int alertFrame; // which captured frame number to use for email image
+extern int alertMax; // too many could cause account suspension (daily emails)
+extern bool nvrStream;
 
 // buffers
 extern uint8_t iSDbuffer[];
@@ -237,8 +272,8 @@ extern uint8_t aviHeader[];
 extern const uint8_t dcBuf[]; // 00dc
 extern const uint8_t wbBuf[]; // 01wb
 extern byte* uartData;
-extern size_t streamBufferSize;
-extern byte* streamBuffer; // buffer for stream frame
+extern size_t streamBufferSize[];
+extern byte* streamBuffer[]; // buffer for stream frame
 
 // peripherals
 
@@ -300,10 +335,10 @@ extern const uint32_t WAV_HEADER_LEN;
 
 // RC
 extern bool RCactive;
-extern int reversePin;
-extern int forwardPin;
+extern int motorRevPin;
+extern int motorFwdPin;
 extern int servoSteerPin;
-extern int lightsPin;
+extern int lightsRCpin;
 extern int pwmFreq;
 extern int maxSteerAngle;  
 extern int maxDutyCycle;  
@@ -312,21 +347,29 @@ extern bool allowReverse;
 extern bool autoControl; 
 extern int waitTime; 
 extern bool stickUse;
-extern int stickPushPin;
+extern int stickzPushPin;
 extern int stickXpin; 
 extern int stickYpin; 
 
 // task handling
-extern TaskHandle_t playbackHandle;
+extern TaskHandle_t battHandle;
+extern TaskHandle_t captureHandle;
 extern TaskHandle_t DS18B20handle;
-extern TaskHandle_t telemetryHandle;
-extern TaskHandle_t servoHandle;
-extern TaskHandle_t uartClientHandle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t ftpHandle;
+extern TaskHandle_t logHandle;
+extern TaskHandle_t micHandle;
+extern TaskHandle_t mqttTaskHandle;
+extern TaskHandle_t playbackHandle;
+extern esp_ping_handle_t pingHandle;
+extern TaskHandle_t servoHandle;
 extern TaskHandle_t stickHandle;
-extern SemaphoreHandle_t frameSemaphore;
-extern SemaphoreHandle_t motionMutex;
+extern TaskHandle_t sustainHandle[];
+extern TaskHandle_t telegramHandle;
+extern TaskHandle_t telemetryHandle;
+extern TaskHandle_t uartClientHandle;
+extern SemaphoreHandle_t frameSemaphore[];
+extern SemaphoreHandle_t motionSemaphore;
 
 
 /************************** structures ********************************/

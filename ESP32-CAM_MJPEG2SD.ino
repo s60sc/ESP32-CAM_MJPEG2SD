@@ -42,7 +42,7 @@ static void prepCam() {
   config.frame_size = FRAMESIZE_UXGA;  // 4M
 #endif  
   config.jpeg_quality = 10;
-  config.fb_count = FB_BUFFERS + 1; // +1 needed
+  config.fb_count = FB_BUFFERS;
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -119,7 +119,7 @@ void setup() {
   else {
     // prep SD card storage
     startStorage(); 
-    
+
     // Load saved user configuration
     loadConfig();
   
@@ -138,18 +138,21 @@ void setup() {
   if (strlen(startupFailure)) LOG_ERR("%s", startupFailure);
   else {
     // start rest of services
-    startStreamServer();
+    startSustainTasks(); 
     prepSMTP(); 
     prepPeripherals();
     prepMic(); 
-    prepRecording();
     prepTelemetry();
+    prepRecording(); 
+    prepTelegram();
     LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
     checkMemory();
-    LOG_INF("************************************\n");
   } 
 }
 
 void loop() {
+  // confirm not blocked in setup
+  LOG_INF("=============== Total tasks: %u ===============\n", uxTaskGetNumberOfTasks() - 1);
+  delay(1000);
   vTaskDelete(NULL); // free 8k ram
 }

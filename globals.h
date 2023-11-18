@@ -9,14 +9,13 @@
 //#pragma GCC diagnostic ignored "-Wunused-variable"
 //#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 //#pragma GCC diagnostic ignored "-Wignored-qualifiers"
-#pragma GCC diagnostic ignored "-Wclass-memaccess"
+//#pragma GCC diagnostic ignored "-Wclass-memaccess"
 
 /******************** Libraries *******************/
 
 #include "Arduino.h"
 #include <driver/i2s.h>
 #include <ESPmDNS.h> 
-#include <HTTPClient.h>
 #include "lwip/sockets.h"
 #include <vector>
 #include "ping/ping_sock.h"
@@ -27,11 +26,11 @@
 #include <sstream>
 #include <Update.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <esp_http_server.h>
 #include <esp_https_server.h>
-
 
 // ADC
 #define ADC_ATTEN ADC_11db
@@ -57,6 +56,7 @@
 #define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
 #define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT
 #define COMMON_JS_PATH DATA_DIR "/common" JS_EXT 
+#define GITHUB_HOST "raw.githubusercontent.com"
 
 #define FILLSTAR "****************************************************************"
 #define DELIM '~'
@@ -66,10 +66,13 @@
 #define MAX_IP_LEN 16
 #define BOUNDARY_VAL "123456789000000000000987654321"
 #define SF_LEN 100
+#define RAM_LOG_LEN (1024 * 7) // size of system message log in bytes stored in slow RTC ram (max 8KB - vars)
+#define MIN_STACK_FREE 512
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
-esp_err_t appSpecificSustainHandler(httpd_req_t* req, const char* variable);
+void appSpecificTelegramTask(void* p);
+esp_err_t appSpecificSustainHandler(httpd_req_t* req);
 esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const char* value);
 void appSpecificWsHandler(const char* wsMsg);
 void buildAppJsonString(bool filter);
@@ -79,10 +82,11 @@ bool updateAppStatus(const char* variable, const char* value);
 void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
-bool checkAlarm(int _alarmHour = -1);
+bool checkAlarm();
 bool checkDataFiles();
-bool checkFreeSpace();
+bool checkFreeStorage();
 void checkMemory();
+uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx);
 void debugMemory(const char* caller);
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
 void deleteFolderOrFile(const char* deleteThis);
@@ -93,18 +97,20 @@ void emailAlert(const char* _subject, const char* _message);
 const char* encode64(const char* inp);
 const uint8_t* encode64chunk(const uint8_t* inp, int rem);
 const char* espErrMsg(esp_err_t errCode);
+void externalAlert(const char* subject, const char* message);
 bool externalPeripheral(byte pinNum, uint32_t outputData = 0);
 esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value);
 esp_err_t fileHandler(httpd_req_t* req, bool download = false);
 void flush_log(bool andClose = false);
 char* fmtSize (uint64_t sizeVal);
+void forceCrash();
 void formatElapsedTime(char* timeStr, uint32_t timeVal);
 void formatHex(const char* inData, size_t inLen);
 bool ftpFileOrFolder(const char* fileFolder);
 const char* getEncType(int ssidIndex);
 void getExtIP();
 time_t getEpoch();
-size_t getFreeSpace();
+size_t getFreeStorage();
 bool getLocalNTP();
 float getNTCcelsius(uint16_t resistance, float oldTemp);
 void getOldestDir(char* oldestDir);
@@ -121,14 +127,17 @@ void OTAprereq();
 bool parseJson(int rxSize);
 void prepPeripherals();
 void prepSMTP();
+bool prepTelegram();
 void prepTemperature();
 void prepUart();
 void reloadConfigs();
-void ramLogPrep();
 float readTemperature(bool isCelsius);
 float readVoltage();
 void remote_log_init();
-void removeChar(char *s, char c);
+void remoteServerClose(WiFiClientSecure& sclient);
+bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert);
+void removeChar(char* s, char c);
+void replaceChar(char* s, char c, char r);
 void reset_log();
 void resetWatchDog();
 bool retrieveConfigVal(const char* variable, char* value);
@@ -152,9 +161,16 @@ void urlDecode(char* inVal);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSend(const char* wsData);
+// mqtt.cpp
 void startMqttClient();  
 void stopMqttClient();  
 void mqttPublish(const char* payload);
+// telegram.cpp
+bool getTgramUpdate(char* response);
+bool sendTgramMessage(const char* info, const char* item, const char* parseMode);
+bool sendTgramPhoto(uint8_t* photoData, size_t photoSize, const char* caption);
+bool sendTgramFile(const char* fileName, const char* contentType, const char* caption);
+void tgramAlert(const char* subject, const char* message);
 
 /******************** Global utility declarations *******************/
 
@@ -181,7 +197,7 @@ extern char extIP[];
 extern char Auth_Name[]; 
 extern char Auth_Pass[];
 
-extern int responseTimeoutSecs; // time to wait for FTP or SMTP response
+extern int responseTimeoutSecs; // how long to wait for remote server in secs
 extern bool allowAP; // set to true to allow AP to startup if cannot reconnect to STA (router)
 extern int wifiTimeoutSecs; // how often to check wifi status
 extern uint8_t percentLoaded;
@@ -190,7 +206,7 @@ extern bool configLoaded;
 extern bool dataFilesChecked;
 extern char ipExtAddr[];
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
-extern bool wsLogEnabled;
+extern bool wsLog;
 
 // ftp server
 extern char ftp_server[];
@@ -198,7 +214,6 @@ extern char ftp_user[];
 extern uint16_t ftp_port;
 extern char FTP_Pass[];
 extern char ftp_wd[];
-extern byte chunk[];
 extern bool autoUpload;
 extern bool deleteAfter;
 
@@ -208,6 +223,8 @@ extern char SMTP_Pass[];
 extern char smtp_email[];
 extern char smtp_server[];
 extern uint16_t smtp_port;
+extern bool smtpUse; // whether or not to use smtp
+extern int emailCount;
 
 // Mqtt broker
 extern bool mqtt_active;
@@ -217,18 +234,22 @@ extern char mqtt_user[];
 extern char mqtt_user_Pass[];
 extern char mqtt_topic_prefix[];  
 
-// control sending emails 
-extern size_t smtpBufferSize;
-extern byte* SMTPbuffer;
-extern bool smtpUse; // whether or not to send email alerts
-extern int smtpFrame; // which captured frame number to use for email image
-extern int smtpMaxEmails; // too many could cause account suspension
+// control sending alerts 
+extern size_t alertBufferSize;
+extern byte* alertBuffer;
+
+// Telegram
+extern bool tgramUse;
+extern char tgramToken[];
+extern char tgramChatId[];
+extern char tgramHdr[];
 
 // certificates
 extern const char* git_rootCACertificate;
 extern const char* ftps_rootCACertificate;
 extern const char* smtp_rootCACertificate;
 extern const char* mqtt_rootCACertificate;
+extern const char* telegram_rootCACertificate;
 extern const char* prvtkey_pem; // app https server private key
 extern const char* cacert_pem; // app https server public certificate
 
@@ -238,15 +259,15 @@ extern char ntpServer[];
 extern uint8_t alarmHour;
 extern char* jsonBuff; 
 extern bool dbgVerbose;
-extern bool logMode;
+extern bool sdLog;
 extern char alertMsg[];
-extern char* messageLog;
-extern bool mlogCycle;
+extern bool ramLog;
+extern int logType;
+extern char messageLog[];
 extern uint16_t mlogEnd;
-extern uint16_t mlogLen;
 extern bool timeSynchronized;
 extern bool monitorOpen; 
-extern const char* defaultPage_html;
+extern const char* setupPage_html;
 extern const char* otaPage_html;
 extern SemaphoreHandle_t wsSendMutex;
 extern char startupFailure[];
@@ -283,6 +304,6 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
 #define LOG_ERR(format, ...) logPrint(ERR_FORMAT(format "~"), ##__VA_ARGS__)
 #define DBG_FORMAT(format) LOG_COLOR_DBG "[%s DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
 #define LOG_DBG(format, ...) if (dbgVerbose) logPrint(DBG_FORMAT(format), ##__VA_ARGS__)
-#define CHK_FORMAT(format) LOG_COLOR_ERR "[######### CHECK @ %s:%u] " format LOG_NO_COLOR "\n", pathToFileName(__FILE__), __LINE__
+#define CHK_FORMAT(format) LOG_COLOR_ERR "[###### CHECK @ %s:%u] " format LOG_NO_COLOR "\n", pathToFileName(__FILE__), __LINE__
 #define LOG_CHK(format, ...) do { logPrint(CHK_FORMAT(format), ##__VA_ARGS__); delay(FLUSH_DELAY); } while (0)
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)

@@ -16,7 +16,7 @@ bool mqtt_active = false;         //Is enabled
 bool mqttRunning = false;         //Is mqtt task running
 bool mqttConnected = false;       //Is connected to broker?
 esp_mqtt_client_handle_t mqtt_client = nullptr;
-static TaskHandle_t mqttTaskHandle = NULL;
+TaskHandle_t mqttTaskHandle = NULL;
 static char remoteQuery[FILE_NAME_LEN * 2] = "";
 static char lwt_topic[FILE_NAME_LEN / 2];
 static char cmd_topic[FILE_NAME_LEN / 2];
@@ -202,7 +202,7 @@ void startMqttClient(void){
       } 
       else LOG_DBG("Mqtt subscribed: %s", cmd_topic );
       // Create a mqtt task
-      BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", 4096, NULL, 1, &mqttTaskHandle);
+      BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, 1, &mqttTaskHandle);
       LOG_INF("Created mqtt task: %u", xReturned );
       mqttRunning = true;
     }

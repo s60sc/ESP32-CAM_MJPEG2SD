@@ -38,9 +38,9 @@ static bool prepSD_MMC() {
       D1          4
   */
   bool res = false;
-  if (psramFound()) heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
+  if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); // small number to force vector into psram
   fileVec.reserve(1000);
-  if (psramFound()) heap_caps_malloc_extmem_enable(4096);
+  if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
 #if CONFIG_IDF_TARGET_ESP32S3
 #if !defined(SD_MMC_CLK)
   LOG_ERR("SD card pins not defined");
@@ -91,7 +91,6 @@ bool startStorage() {
   }
   
   // One of SPIFFS or LittleFS
-  ramLogPrep();
   if (!strlen(fsType)) {
 #ifdef _SPIFFS_H_
     if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
@@ -142,11 +141,7 @@ void inline getFileDate(File file, char* fileDate) {
   strftime(fileDate, sizeof(fileDate), "%Y-%m-%d %H:%M:%S", &lt);
 }
 
-size_t getFreeSpace() {
-  return STORAGE.totalBytes() - STORAGE.usedBytes();
-}
-
-bool checkFreeSpace() { 
+bool checkFreeStorage() { 
   // Check for sufficient space on storage
   bool res = false;
   size_t freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
@@ -220,7 +215,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // build relevant option list
     strcpy(jsonBuff, returnDirs ? "{" : "{\"/\":\".. [ Up ]\",");            
     File file = root.openNextFile();
-    if (psramFound()) heap_caps_malloc_extmem_enable(5); // small number to force vector into psram
+    if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); // small number to force vector into psram
     while (file) {
       if (returnDirs && file.isDirectory() && strstr(DATA_DIR, file.name()) == NULL) {  
         // build folder list, ignore data folder
@@ -238,7 +233,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
       }
       file = root.openNextFile();
     }
-    if (psramFound()) heap_caps_malloc_extmem_enable(4096);
+    if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
   }
   
   if (noEntries && !hasExtension) sprintf(jsonBuff, "{\"/\":\"List folders\",\"%s\":\"Go to current (today)\",\"%s\":\"Go to previous (yesterday)\"}", currentDir, previousDir);

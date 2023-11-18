@@ -1,17 +1,25 @@
 # ESP32-CAM_MJPEG2SD
 
-ESP32 / ESP32S3 Camera application to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file. 
+Application for ESP32 / ESP32S3 with OV2640 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
+The application supports:
+* [Motion detection by camera](#motion-detection-by-camera) or PIR
+* Time lapse recording
+* [Audio Recording](#audio-recording) from I2S or PDM microphones
+* Camera pan / tilt servos and lamp control
+* [Telemetry Recording](#telemetry-recording) during camera recording.
+* [Remote Control](#remote-control) of camera mounted vehicle.
+* Alert notification using [Telegram](#telegram-bot) or Email
+* Concurrent streaming to web browser and NVR
+* Transfer recordings using FTP, or download from browser
+* [MQTT](#mqtt) control.
+* Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 
-For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
+The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
-Changes in version 9.0:
-- Compiled for arduino-esp32 v2.0.14
-- Performance improvements for ESP32S3.
-- [Telemetry Recording](#telemetry-recording) during camera recording.
-- [Remote Control](#remote-control) of camera mounted vehicle.
-
-Release 9.0 is experimental.  
-The previous release is [8.8](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/releases/tag/V8.8). Note that v8.8 will auto download v9.0 data folder, so load v8.8 data folder content manually.
+Changes in version 9.1:
+* Telegram support.
+* All web traffic now uses single port.
+* RTC ram log added to persist over soft resets
 
 
 ## Purpose
@@ -41,7 +49,7 @@ The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs 
 
 ## Design
 
-The application was originally based on the Arduino CameraWebServer example but has since been extensively modified, including contributions made by [@gemi254](https://github.com/gemi254).
+The application was originally based on the Arduino CameraWebServer example but is now independently coded, including contributions made by [@gemi254](https://github.com/gemi254).
 
 The ESP32 Cam module has 4MB of PSRAM (8MB on ESP32S3) which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
@@ -73,13 +81,12 @@ Browser functions only tested on Chrome.
 
 ## Main Function
 
-A recording is generated either by the camera itself detecting motion as given in the [**Motion detection by Camera**](#motion-detection-by-camera) section below, or
-by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
+A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
 In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
 To play back a recording, select the file using **Playback & File Transfers** sidebar button to select the day folder then the required AVI file.
 After selecting the AVI file, press **Start Playback** button to playback the recording. 
-The **Start Stream** button shows a live feed from the camera.
+The **Start Stream** button shows a live feed from the camera. To enable a scond stream for an NVR, under **Edit Config** -> **Motion** tab, select `Enable NVR` which will then be available via URL: http://your_ip/sustain?stream=1
 
 Recordings can then be uploaded to an FTP server or downloaded to the browser for playback on a media application, eg VLC.
 
@@ -106,10 +113,14 @@ SD storage management:
 * Folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the **FTP Upload** button. Can be uploaded in AVI format.
 * Download selected AVI file from SD card to browser using **Download** button.
 * Delete, or upload and delete oldest folder when card free space is running out.  
-  
-* Log viewing options via web page (may slow recorded frame rate), displayed using **Show Log** button:
-  * **Log to browser**: log is dynamically output via websocket
-  * **Log to SD card**: log is stored on SD card, use **Retrieve SD Log** button to retrieve or refresh.  
+
+View application log via web page, displayed using **Show Log** tab:
+  * Select log type for display:
+    * RTC RAM: Cyclic 7KB log saved in RTC RAM (default)
+    * Websocket: log is dynamically output via websocket
+    * SD card: Unlimited size log saved to SD card
+  * Use sliders to enable features
+  * Use buttons to refresh or clear selected log
 
 
 ## Configuration Web Page
@@ -150,9 +161,9 @@ On-board LEDs:
   * XIAO: Lamp n/a, signal 21.
 
 **Other**:
-SD and email management. An email can be sent when motion is detected.
+SD, email, telegram, etc management. 
 
-When a feature is enable or disabled, the ESP should be rebooted using **Reboot ESP** button.
+When a feature is enable or disabled, the **Save** button should be used to persist the change, and the ESP should be rebooted using **Reboot ESP** button.
 
 
 ## Motion detection by Camera
@@ -201,7 +212,7 @@ The OV3660 has not been tested.
 
 ## MQTT
 
-To enable MQTT, under __Edit Config__ -> __Others__, enter fields:
+To enable MQTT, under **Edit Config** -> **Others** tab, enter fields:
 * `Mqtt server ip to connect`
 * `Mqtt topic path prefix`
 * optionally `Mqtt user name` and `Mqtt user password`
@@ -217,14 +228,13 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;fram
 
 ## Port Forwarding
 
-To access the app remotely over the internet, set up port forwarding on your router for browser on two consecutive ports, eg:
+To access the app remotely over the internet, set up port forwarding on your router for browser on HTTP port, eg:
 
 ![image2](extras/portForward.png)
 
 On remote device, enter url: `your_router_external_ip:10880`  
 To obtain `your_router_external_ip` value, use eg: https://api.ipify.org  
-Set a static IP address for your ESP camera device. 
-The web page will automatically derive the required port numbers.
+Set a static IP address for your ESP camera device.  
 For security, **Authentication settings** should be defined in **Access Settings** sidebar button.
 
 ## Telemetry Recording
@@ -239,9 +249,23 @@ To switch on telemetry recording, select the `Use telemetry recording` option bu
 
 Note: esp-camera library [conflict](https://forum.arduino.cc/t/conflicitng-declaration-in-adafruit_sensor-esp32-camera/586568) if use Adafruit sensor library.
 
+## Telegram Bot
+
+Only enable either Telegram or SMTP email.  
+Use [IDBot](https://t.me/myidbot) to obtain your Chat ID.  
+Use [BotFather](https://t.me/botfather) to create a Telegram Bot and obtain the Bot Token.  
+In **Edit Config** page under **Other** tab, paste in `Telegram chat identifier` and `Telegram Bot token` and select `Use Telegram Bot`.  
+You may want to make the bot private.  
+Note that this feature uses a lot of heap space due to TLS.
+
+The Telegram Bot will now receive motion alerts from the app showing a frame from the recording with a caption containing a command link for the associated recording (max 50MB) which can be downloaded and played.  
+
+<img src="extras/telegram.png" width="500" height="500">
+
+
 ## Remote Control
 
-Provides for remote control of device on which camera is mounted, e.g RC vehicle for FPV etc. .
+Provides for remote control of device on which camera is mounted, e.g RC vehicle for FPV etc.  
 Best used with ESP32-S3 for frame rate and control responsiveness.
 
 To enable, in **Edit Config** page under **Peripherals**, select `Enable remote control`.  

@@ -8,8 +8,8 @@
 
 static fs::FS fp = STORAGE;
 
-static bool wgetFile(const char* githubURL, const char* filePath, bool restart = false) {
-  // download file from github
+static bool wgetFile(const char* filePath) {
+  // download required data file from github repository and store
   bool res = false;
   if (fp.exists(filePath)) {
     // if file exists but is empty, delete it to allow re-download
@@ -19,40 +19,36 @@ static bool wgetFile(const char* githubURL, const char* filePath, bool restart =
     if (!fSize) fp.remove(filePath);
   }
   if (!fp.exists(filePath)) {
-    if (WiFi.status() != WL_CONNECTED) return false;  
     char downloadURL[150];
-    snprintf(downloadURL, 150, "%s%s", githubURL, filePath);
+    snprintf(downloadURL, 150, "%s%s", GITHUB_PATH, filePath);
     File f = fp.open(filePath, FILE_WRITE);
     if (f) {
-      HTTPClient https;
       WiFiClientSecure wclient;
-      if (useSecure && strlen(git_rootCACertificate)) wclient.setCACert(git_rootCACertificate);
-      else wclient.setInsecure(); // no cert check     
-      if (!https.begin(wclient, downloadURL)) {
-        char errBuf[100];
-        wclient.lastError(errBuf, 100);
-        checkMemory();
-        LOG_ERR("Could not connect to github server, err: %s", errBuf);
-      } else {
-        LOG_INF("Downloading %s from %s", filePath, downloadURL);    
-        int httpCode = https.GET();
-        int fileSize = 0;
-        if (httpCode == HTTP_CODE_OK) {
-          fileSize = https.writeToStream(&f);
-          if (fileSize <= 0) {
-            httpCode = 0;
-            LOG_ERR("Download failed: writeToStream");
-          } else LOG_INF("Downloaded %s, size %s", filePath, fmtSize(fileSize));       
-        } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
-        https.end();
-        f.close();
-        if (httpCode == HTTP_CODE_OK) res = true;
-        else fp.remove(filePath);
-      }
+      if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, git_rootCACertificate)) {
+        HTTPClient https;
+        if (https.begin(wclient, GITHUB_HOST, HTTPS_PORT, downloadURL, true)) {
+          LOG_INF("Downloading %s from %s", filePath, downloadURL);    
+          int httpCode = https.GET();
+          int fileSize = 0;
+          if (httpCode == HTTP_CODE_OK) {
+            fileSize = https.writeToStream(&f);
+            if (fileSize <= 0) {
+              httpCode = 0;
+              LOG_ERR("Download failed: writeToStream");
+            } else LOG_INF("Downloaded %s, size %s", filePath, fmtSize(fileSize));       
+          } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
+          https.end();
+          f.close();
+          if (httpCode == HTTP_CODE_OK) {
+            if (!strcmp(filePath, CONFIG_FILE_PATH)) doRestart("config file downloaded");
+            res = true;
+          } else {
+            LOG_ERR("HTTP Get failed with code: %u", httpCode);
+            fp.remove(filePath);
+          }
+        }
+      } else remoteServerClose(wclient);
     } else LOG_ERR("Open failed: %s", filePath);
-    if (restart) {
-      if (loadConfig()) doRestart("config file downloaded");
-    }
   } else res = true;
   return res;
 }
@@ -61,16 +57,16 @@ bool checkDataFiles() {
   // Download any missing data files
   if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
   bool res = false;
-  if (strlen(GITHUB_URL)) {
-    res = wgetFile(GITHUB_URL, CONFIG_FILE_PATH, true);
-    if (res) res = wgetFile(GITHUB_URL, COMMON_JS_PATH); 
-    if (res) res = wgetFile(GITHUB_URL, INDEX_PAGE_PATH); 
+  if (strlen(GITHUB_PATH)) {
+    res = wgetFile(CONFIG_FILE_PATH);
+    if (res) res = wgetFile(COMMON_JS_PATH); 
+    if (res) res = wgetFile(INDEX_PAGE_PATH); 
     if (res) res = appDataFiles(); 
-  }
+  } else res = true; // no download needed
   return res;
 }
 
-const char* defaultPage_html = R"~(
+const char* setupPage_html = R"~(
 <!doctype html>
 <html>
 <head>
@@ -116,7 +112,7 @@ function Config(){
 </html>
 )~";
 
-// in case app html is not present, or corrupted
+// in case app html file is not present, or corrupted
 // <ip address>/web?OTA.htm
 const char* otaPage_html = R"~(
 <html>

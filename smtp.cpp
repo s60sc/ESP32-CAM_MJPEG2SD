@@ -12,11 +12,6 @@
 
 #include "appGlobals.h"
 
-// control sending emails 
-bool smtpUse; // whether or not to send email alerts
-int smtpFrame = 5; // which captured frame number to use for email image
-int smtpMaxEmails = 10; // too many could cause account suspension
-
 // SMTP connection params, setup via web page
 char smtp_login[MAX_HOST_LEN]; // sender email account 
 char SMTP_Pass[MAX_PWD_LEN]; // 16 digit app password, not account password
@@ -29,17 +24,15 @@ uint16_t smtp_port; // gmail SSL port 465;
 
 // SMTP control
 // Calling function has to populate SMTPbuffer and set smtpBufferSize for attachment data
-size_t smtpBufferSize = 0;
-byte* SMTPbuffer = NULL; // buffer for smtp frame
 TaskHandle_t emailHandle = NULL; 
-static const uint32_t dayLen = 24 * 60 * 60 * 1000;
-static uint32_t dayStart;
-static int emailCount;
 static char rspBuf[256]; // smtp response buffer
 static char respCodeRx[4]; // smtp response code 
 static char subject[50];
 static char message[100];
 
+bool smtpUse = false; // whether or not to send email alerts
+int emailCount = 0;
+int alertMax = 10; // only applied to emails
 
 static bool sendSmtpCommand(WiFiClientSecure& client, const char* cmd, const char* respCode) {
   // wait from smtp server response, check response code and extract response data
@@ -74,22 +67,11 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
 
   // send email to defined smtp server
   char content[100];
-  WiFiClientSecure client;
-  if (useSecure && strlen(smtp_rootCACertificate)) client.setCACert(smtp_rootCACertificate);
-  else client.setInsecure(); // no cert check
   
-  // connect to smtp account and authenticate
-  if (!client.connect(smtp_server, smtp_port)) {
-    // if failure reports 'SSL - Memory allocation failed', 
-    // this indicates lack of heap space
-    char errBuf[100];
-    client.lastError(errBuf, 100);
-    checkMemory();
-	  LOG_ERR("Could not connect to mail server %s on port %u: %s", 
-	    smtp_server, smtp_port, errBuf);
-	  return false;
-  }
-  bool res = false;
+  WiFiClientSecure client;
+  bool res = remoteServerConnect(client, smtp_server, smtp_port, smtp_rootCACertificate); 
+  if (!res) return false;
+  
   while (true) { // fake non loop to enable breaks
     if (!sendSmtpCommand(client, "", "220")) break;
   
@@ -128,7 +110,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
     client.println(message);
     client.println();
     
-    if (smtpBufferSize) {
+    if (alertBufferSize) {
       // send attachment
       client.println(content); // boundary
       sprintf(content, "Content-Type: %s", mimeType); 
@@ -137,9 +119,9 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
       sprintf(content, "Content-Disposition: attachment; filename=\"%s\"", fileName); 
       client.println(content); 
       // base64 encode attachment and send out in chunks
-      size_t chunk = 3;
-      for (size_t i = 0; i < smtpBufferSize; i += chunk) 
-        client.write(encode64chunk(SMTPbuffer + i, min(smtpBufferSize - i, chunk)), 4);
+      size_t chunkSize = 3;
+      for (size_t i = 0; i < alertBufferSize; i += chunkSize) 
+        client.write(encode64chunk(alertBuffer + i, min(alertBufferSize - i, chunkSize)), 4);
     } 
     client.println("\n"); // two lines to finish header
         
@@ -150,26 +132,19 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
     break;
   }
   // cleanly terminate connection
-  client.flush();
-  client.stop();
-  smtpBufferSize = 0;
+  remoteServerClose(client);
+  alertBufferSize = 0;
   return res;
 }
 
 static void emailTask(void* parameter) {
   //  send email
-  if (millis() - dayStart > dayLen) {
-    // reset counters when a day has elapsed
-    emailCount = 0;
-    dayStart = millis();
-    LOG_INF("Reset daily email allowance");
-  }
-  if (emailCount < smtpMaxEmails) { 
+  if (emailCount < alertMax) { 
     // send email if under daily limit
     if (emailSend()) LOG_ALT("Sent daily email %u", emailCount + 1);
     else LOG_WRN("Failed to send email");
   }
-  if (++emailCount == smtpMaxEmails) LOG_WRN("Daily email limit %u reached", smtpMaxEmails);
+  if (++emailCount == alertMax) LOG_WRN("Daily email limit %u reached", alertMax);
   emailHandle = NULL;
   vTaskDelete(NULL);
 }
@@ -177,20 +152,21 @@ static void emailTask(void* parameter) {
 void emailAlert(const char* _subject, const char* _message) {
   // send email to alert on required event
   if (smtpUse) {
-    if (emailHandle == NULL) {
-      strncpy(subject, _subject, 20);
-      snprintf(subject+strlen(subject), 30, " from %s", hostName);
-      strncpy(message, _message, 100);
-      xTaskCreate(&emailTask, "emailTask", 1024 * 6, NULL, 1, &emailHandle);
-    } else LOG_WRN("Email alert already in progress");
+    if (alertBuffer != NULL) {
+      if (emailHandle == NULL) {
+        strncpy(subject, _subject, sizeof(subject)-1);
+        snprintf(subject+strlen(subject), sizeof(subject)-strlen(subject), " from %s", hostName);
+        strncpy(message, _message, sizeof(message)-1);
+        xTaskCreate(&emailTask, "emailTask", EMAIL_STACK_SIZE, NULL, 1, &emailHandle);
+      } else LOG_WRN("Email alert already in progress");
+    } else LOG_WRN("Need to restart to setup email");
   }
 }
 
 void prepSMTP() {
   if (smtpUse) {
-    dayStart = millis();
     emailCount = 0;
-    if (SMTPbuffer == NULL) SMTPbuffer = (byte*)ps_malloc(MAX_JPEG); 
+    if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_JPEG); 
     LOG_INF("Email alerts active");
   } 
   debugMemory("prepSmtp");

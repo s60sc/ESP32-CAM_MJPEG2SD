@@ -19,21 +19,23 @@ bool useHttps = false;
 bool useSecure = false;
 
 static fs::FS fp = STORAGE;
-byte chunk[CHUNKSIZE];
+static byte* chunk;
 
-static bool sendChunks(File df, httpd_req_t *req) {   
+static esp_err_t sendChunks(File df, httpd_req_t *req) {   
   // use chunked encoding to send large content to browser
-  size_t chunksize;
-  do {
-    chunksize = df.read(chunk, CHUNKSIZE); 
-    if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) {
-      df.close();
-      return false;
-    }
-  } while (chunksize != 0);
+  size_t chunksize = 0;
+  while ((chunksize = df.read(chunk, CHUNKSIZE))) {
+    if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) break;
+    httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
+  } 
   df.close();
-  httpd_resp_send_chunk(req, NULL, 0);
-  return true;
+  httpd_resp_sendstr_chunk(req, NULL);
+  if (chunksize) {
+    LOG_ERR("Failed to send %s to browser", inFileName);
+    httpd_resp_set_status(req, "500 Failed to send file");
+    httpd_resp_sendstr(req, NULL);
+  } 
+  return chunksize ? ESP_FAIL : ESP_OK;
 }
 
 esp_err_t fileHandler(httpd_req_t* req, bool download) {
@@ -43,11 +45,9 @@ esp_err_t fileHandler(httpd_req_t* req, bool download) {
   File df = fp.open(inFileName);
   if (!df) {
     df.close();
-    char errMsg[200];
-    snprintf(errMsg, 200, "File does not exist or cannot be opened: %s", inFileName);
-    LOG_ERR("%s", errMsg);
+    LOG_ERR("File does not exist or cannot be opened: %s", inFileName);
     httpd_resp_set_status(req, "404 File Not Found");
-    httpd_resp_sendstr(req, errMsg);
+    httpd_resp_sendstr(req, NULL);
     return ESP_FAIL;
   } 
   if (download) {  
@@ -61,33 +61,29 @@ esp_err_t fileHandler(httpd_req_t* req, bool download) {
     snprintf(contentLength, 10, "%i", df.size());
     httpd_resp_set_hdr(req, "Content-Length", contentLength);
   }
-  
-  if (sendChunks(df, req)) LOG_INF("Sent %s to browser", inFileName);
-  else {
-    LOG_ERR("Failed to send %s to browser", inFileName);
-    httpd_resp_set_status(req, "500 Failed to send file");
-    httpd_resp_sendstr(req, "Failed to send file to browser");
-    return ESP_FAIL;  
-  }
-  return ESP_OK;
+  return sendChunks(df, req);
 }
 
 static void displayLog(httpd_req_t *req) {
   // output ram log to browser
-  // prep log start point
-  int startPtr = (mlogCycle) ? mlogEnd  : 0; 
-  int endPtr = mlogEnd;
-  httpd_resp_set_type(req, "text/plain"); 
-  
-  // output log in chunks
-  do {
-    int maxChunk = endPtr > startPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr - 1;
-    size_t chunk = std::min(CHUNKSIZE, maxChunk);  
-    if (chunk > 0) httpd_resp_send_chunk(req, messageLog + startPtr, chunk); 
-    startPtr += chunk;
-    if (startPtr == RAM_LOG_LEN - 1) startPtr = 0;
-  } while (startPtr != endPtr);
-  httpd_resp_sendstr_chunk(req, NULL);
+  if (ramLog) {
+    int startPtr, endPtr;
+    startPtr = endPtr = mlogEnd;  
+    httpd_resp_set_type(req, "text/plain"); 
+    
+    // output log in chunks
+    do {
+      int maxChunk = startPtr < endPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr;
+      size_t chunkSize = std::min(CHUNKSIZE, maxChunk);    
+      if (chunkSize > 0) httpd_resp_send_chunk(req, messageLog + startPtr, chunkSize); 
+      startPtr += chunkSize;
+      if (startPtr >= RAM_LOG_LEN) startPtr = 0;
+    } while (startPtr != endPtr);
+    httpd_resp_sendstr_chunk(req, NULL);
+  } else {
+    LOG_WRN("RAM Log not enabled");
+    httpd_resp_sendstr(req, "400 RAM Log not enabled");
+  }
 }
 
 static esp_err_t indexHandler(httpd_req_t* req) {
@@ -101,7 +97,7 @@ static esp_err_t indexHandler(httpd_req_t* req) {
   if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");                             
-    return httpd_resp_sendstr(req, defaultPage_html);
+    return httpd_resp_sendstr(req, setupPage_html);
   } else {
     // first check if authentication is required
     if (strlen(Auth_Name)) {
@@ -139,7 +135,7 @@ esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value) {
   } else {
     LOG_ERR("Invalid query string %s", variable);
     httpd_resp_set_status(req, "400 Invalid query string");
-    httpd_resp_sendstr(req, "Invalid query string");
+    httpd_resp_sendstr(req, NULL);
     return ESP_FAIL;
   }
   return ESP_OK;
@@ -405,9 +401,9 @@ void killWebSocket() {
   }
 }
 
-
 void startWebServer() {
   esp_err_t res = ESP_FAIL;
+  chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
   size_t prvtkey_len = strlen(prvtkey_pem);
   size_t cacert_len = strlen(cacert_pem);
   if (useHttps && (!cacert_len || !prvtkey_len)) {
@@ -417,6 +413,9 @@ void startWebServer() {
   if (useHttps) {
     // HTTPS server
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+#if CONFIG_IDF_TARGET_ESP32S3
+    config.httpd.stack_size = SERVER_STACK_SIZE;
+#endif  
     config.cacert_pem = (const uint8_t*)cacert_pem;
     config.cacert_len = cacert_len + 1;
     config.prvtkey_pem = (const uint8_t*)prvtkey_pem;
@@ -424,20 +423,20 @@ void startWebServer() {
     config.httpd.server_port = HTTPS_PORT;
     config.httpd.ctrl_port = HTTPS_PORT;
     config.httpd.lru_purge_enable = true; // close least used socket 
-    config.httpd.max_uri_handlers = 8;
-    config.httpd.max_open_sockets = HTTP_CLIENTS;
+    config.httpd.max_uri_handlers = 10;
+    config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     res = httpd_ssl_start(&httpServer, &config);
   } else {
     // HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 #if CONFIG_IDF_TARGET_ESP32S3
-    config.stack_size = 1024 * 8;
+    config.stack_size = SERVER_STACK_SIZE;
 #endif  
     config.server_port = HTTP_PORT;
     config.ctrl_port = HTTP_PORT;
     config.lru_purge_enable = true;   
-    config.max_uri_handlers = 8;
-    config.max_open_sockets = HTTP_CLIENTS;
+    config.max_uri_handlers = 10;
+    config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     res = httpd_start(&httpServer, &config);
   }
   
@@ -449,6 +448,8 @@ void startWebServer() {
   httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
   httpd_uri_t uploadUri = {.uri = "/upload", .method = HTTP_POST, .handler = uploadHandler, .user_ctx = NULL};
   httpd_uri_t optionsUri = {.uri = "/upload", .method = HTTP_OPTIONS, .handler = sendCrossOriginHeader, .user_ctx = NULL};
+  httpd_uri_t sustainUri = {.uri = "/sustain", .method = HTTP_GET, .handler = appSpecificSustainHandler, .user_ctx = NULL};
+  httpd_uri_t checkUri = {.uri = "/sustain", .method = HTTP_HEAD, .handler = appSpecificSustainHandler, .user_ctx = NULL};
  
   if (res == ESP_OK) {
     httpd_register_uri_handler(httpServer, &indexUri);
@@ -459,7 +460,15 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &wsUri);
     httpd_register_uri_handler(httpServer, &uploadUri);
     httpd_register_uri_handler(httpServer, &optionsUri);
+    httpd_register_uri_handler(httpServer, &sustainUri);
+    httpd_register_uri_handler(httpServer, &checkUri);
     LOG_INF("Starting web server on port: %u", useHttps ? HTTPS_PORT : HTTP_PORT);
+    LOG_INF("Remote server certificates %s checked", useSecure ? "are" : "not");
+    if (DEBUG_MEM) {
+      uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
+      LOG_INF("Task httpServer stack space %u", freeStack);
+    }
   } else LOG_ERR("Failed to start web server");
+  
   debugMemory("startWebserver");
 }

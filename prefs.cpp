@@ -75,9 +75,9 @@ bool updateConfigVect(const char* variable, const char* value) {
   int keyPos = getKeyPos(thisKey);
   if (keyPos >= 0) {
     // update value
-    if (psramFound()) heap_caps_malloc_extmem_enable(0); 
+    if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); 
     configs[keyPos][1] = thisVal;
-    if (psramFound()) heap_caps_malloc_extmem_enable(4096); 
+    if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
     return true;    
   }
   return false; 
@@ -112,13 +112,13 @@ static void loadVectItem(const std::string keyValGrpLabel) {
       configs.push_back({token[0], token[1], token[2], token[3], token[4]});
     }
   }
-  if (configs.size() > MAX_CONFIGS) LOG_ALT("Config file entries: %u exceed max: %u", configs.size(), MAX_CONFIGS);
+  if (configs.size() > MAX_CONFIGS) LOG_ERR("Config file entries: %u exceed max: %u", configs.size(), MAX_CONFIGS);
 }
 
 static void saveConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_WRITE);
   char configLine[FILE_NAME_LEN + 101];
-  if (!file) LOG_ALT("Failed to save to configs file");
+  if (!file) LOG_ERR("Failed to save to configs file");
   else {
     sort(configs.begin(), configs.end());
     configs.erase(unique(configs.begin(), configs.end()), configs.end()); // remove any dups
@@ -146,7 +146,7 @@ static bool loadConfigVect() {
     return false;
   } else {
     // force vector into psram if available
-    if (psramFound()) heap_caps_malloc_extmem_enable(0); 
+    if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); 
     configs.reserve(MAX_CONFIGS);
     // extract each config line from file
     while (true) {
@@ -160,7 +160,7 @@ static bool loadConfigVect() {
       return a[0] < b[0];}
     );
     // return malloc to default 
-    if (psramFound()) heap_caps_malloc_extmem_enable(4096);
+    if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
   }
   file.close();
   return true;
@@ -232,6 +232,7 @@ static void updateVer(const char* verType, int inVer) {
   else if (!strcmp(verType, "cfgVer")) currVer = CFG_VER;
   if (currVer > inVer) {
      // lower version, delete file to update
+     LOG_WRN("Deleting file as out of date");
      if (!strcmp(verType, "htmVer")) deleteFolderOrFile(INDEX_PAGE_PATH);
      if (!strcmp(verType, "cfgVer")) deleteFolderOrFile(DATA_DIR);
      if (!strcmp(verType, "jsVer")) deleteFolderOrFile(COMMON_JS_PATH);
@@ -276,6 +277,17 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "useHttps")) useHttps = (bool)intVal;
   else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
   else if (!strcmp(variable, "extIP")) strncpy(extIP, value, MAX_IP_LEN-1);
+#ifdef INCLUDE_TGRAM
+  else if (!strcmp(variable, "tgramUse")) {
+    tgramUse = (bool)intVal;
+    if (tgramUse) {
+      smtpUse = false;
+      updateConfigVect("smtpUse", "0");
+    }
+  }
+  else if (!strcmp(variable, "tgramToken")) strncpy(tgramToken, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "tgramChatId")) strncpy(tgramChatId, value, MAX_IP_LEN-1);
+#endif
 #ifdef INCLUDE_FTP
   else if (!strcmp(variable, "ftp_server")) strncpy(ftp_server, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "ftp_port")) ftp_port = intVal;
@@ -287,14 +299,20 @@ void updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "useFtps")) useFtps = (bool)intVal;
 #endif
 #ifdef INCLUDE_SMTP
-  else if (!strcmp(variable, "smtpUse")) smtpUse = (bool)intVal;
+  else if (!strcmp(variable, "smtpUse")) {
+    smtpUse = (bool)intVal;
+    if (smtpUse) {
+      tgramUse = false;
+      updateConfigVect("tgramUse", "0");
+    }
+  }
   else if (!strcmp(variable, "smtp_login")) strncpy(smtp_login, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "smtp_server")) strncpy(smtp_server, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "smtp_email")) strncpy(smtp_email, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "SMTP_Pass") && strchr(value, '*') == NULL) strncpy(SMTP_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "smtp_port")) smtp_port = intVal;
-  else if (!strcmp(variable, "smtpFrame")) smtpFrame = intVal;
-  else if (!strcmp(variable, "smtpMaxEmails")) smtpMaxEmails = intVal;
+  else if (!strcmp(variable, "smtpFrame")) alertFrame = intVal;
+  else if (!strcmp(variable, "smtpMaxEmails")) alertMax = intVal;
 #endif
 #ifdef INCLUDE_MQTT
   else if (!strcmp(variable, "mqtt_active")) {
@@ -313,21 +331,28 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
   else if (!strcmp(variable, "timezone")) strncpy(timezone, value, FILE_NAME_LEN-1);
   else if (!strcmp(variable, "ntpServer")) strncpy(ntpServer, value, FILE_NAME_LEN-1);
-  else if (!strcmp(variable, "alarmHour")) alarmHour = intVal;
+  else if (!strcmp(variable, "alarmHour")) alarmHour = (uint8_t)intVal;
   else if (!strcmp(variable, "sdMinCardFreeSpace")) sdMinCardFreeSpace = intVal;
   else if (!strcmp(variable, "sdFreeSpaceMode")) sdFreeSpaceMode = intVal;
   else if (!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
   else if (!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
   else if (!strcmp(variable, "usePing")) usePing = (bool)intVal;
-  else if (!strcmp(variable, "wsMode")) wsLogEnabled = (bool)intVal;
   else if (!strcmp(variable, "dbgVerbose")) {
     dbgVerbose = (intVal) ? true : false;
     Serial.setDebugOutput(dbgVerbose);
   } 
-  else if (!strcmp(variable, "logMode")) {
-    logMode = (bool)intVal; 
+  else if (!strcmp(variable, "logType")) {
+    logType = intVal;
+    wsLog = (logType == 1) ? true : false;
+  } 
+  else if (!strcmp(variable, "sdLog")) {
+    sdLog = (bool)intVal; 
     remote_log_init();
-  }
+  } 
+  else if (!strcmp(variable, "ramLog")) {
+    ramLog = (bool)intVal; 
+    remote_log_init();
+  } 
   else if (!strcmp(variable, "refreshVal")) refreshVal = intVal; 
   else if (!strcmp(variable, "formatIfMountFailed")) formatIfMountFailed = (bool)intVal;
   else if (!strcmp(variable, "resetLog")) reset_log(); 
@@ -344,11 +369,11 @@ void updateStatus(const char* variable, const char* _value) {
     doRestart("user requested restart after data deletion"); 
   }
   else if (!strcmp(variable, "htmVer") || !strcmp(variable, "jsVer") || !strcmp(variable, "cfgVer")) {
-    updateVer(variable, atoi(value));
+    updateVer(variable, intVal);
     return;
   }
   else if (!strcmp(variable, "save")) {
-    savePrefs();
+    if (intVal) savePrefs();
     saveConfigVect();
   } else {
     res = updateAppStatus(variable, value);
@@ -384,19 +409,20 @@ void buildJsonString(uint8_t filter) {
       // populate first part of json string from config vect
       for (const auto& row : configs) 
         p += sprintf(p, "\"%s\":\"%s\",", row[0].c_str(), row[1].c_str());
+      p += sprintf(p, "\"logType\":\"%d\",", logType);
       // passwords stored in prefs on NVS 
       p += sprintf(p, "\"ST_Pass\":\"%.*s\",", strlen(ST_Pass), FILLSTAR);
       p += sprintf(p, "\"AP_Pass\":\"%.*s\",", strlen(AP_Pass), FILLSTAR);
       p += sprintf(p, "\"Auth_Pass\":\"%.*s\",", strlen(Auth_Pass), FILLSTAR);
-  #ifdef INCLUDE_FTP 
+#ifdef INCLUDE_FTP 
       p += sprintf(p, "\"FTP_Pass\":\"%.*s\",", strlen(FTP_Pass), FILLSTAR);
-  #endif
-  #ifdef INCLUDE_SMTP
+#endif
+#ifdef INCLUDE_SMTP
       p += sprintf(p, "\"SMTP_Pass\":\"%.*s\",", strlen(SMTP_Pass), FILLSTAR);
-  #endif
-  #ifdef INCLUDE_MQTT
+#endif
+#ifdef INCLUDE_MQTT
       p += sprintf(p, "\"mqtt_user_Pass\":\"%.*s\",", strlen(mqtt_user_Pass), FILLSTAR);
-  #endif
+#endif
     }
   } else {
     // build json string for requested config group
@@ -480,7 +506,6 @@ bool loadConfig() {
     if (updatedVers) saveConfigVect(); // save new *Ver properties
     configLoaded = true;
     debugMemory("loadConfig");
-    wakeupResetReason();
     return true;
   }
   // no config file

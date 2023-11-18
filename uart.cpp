@@ -182,7 +182,7 @@ void prepUart() {
       LOG_INF("Prepare IO Extender");
       responseMutex = xSemaphoreCreateMutex();
       writeMutex = xSemaphoreCreateMutex();
-      if (!IS_IO_EXTENDER) xTaskCreate(uartClientTask, "uartClientTask", 2048, NULL, 1, &uartClientHandle);
+      if (!IS_IO_EXTENDER) xTaskCreate(uartClientTask, "uartClientTask", UART_STACK_SIZE, NULL, 1, &uartClientHandle);
       else configureUart();
       xSemaphoreGive(responseMutex);
       xSemaphoreGive(writeMutex);

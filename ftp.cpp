@@ -23,6 +23,7 @@ static bool uploadInProgress = false;
 bool deleteAfter = false; // auto delete after upload
 bool autoUpload = false;  // Automatically upload every created file to remote ftp server
 static fs::FS fp = STORAGE;
+static byte* chunk;
 #define NO_CHECK "999"
 
 // WiFi Clients
@@ -238,6 +239,7 @@ static void FTPtask(void* parameter) {
 #ifdef ISCAM
   doPlayback = false; // close any current playback
 #endif
+  chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
   bool res = uploadFolderOrFileFtp();
   // Disconnect from ftp server
   rclient.println("QUIT");
@@ -245,6 +247,7 @@ static void FTPtask(void* parameter) {
   rclient.stop();
   if (res && deleteAfter) deleteFolderOrFile(storedPathName);
   uploadInProgress = false;
+  free(chunk);
   vTaskDelete(NULL);
 }
 
@@ -253,7 +256,7 @@ bool ftpFileOrFolder(const char* fileFolder) {
   setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
-    xTaskCreate(&FTPtask, "FTPtask", 1024 * 4, NULL, 1, &ftpHandle);    
+    xTaskCreate(&FTPtask, "FTPtask", FTP_STACK_SIZE, NULL, 1, &ftpHandle);    
     return true;
   } else LOG_WRN("Unable to upload %s as another upload in progress", storedPathName);
   return false;

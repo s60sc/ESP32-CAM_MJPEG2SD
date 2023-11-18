@@ -39,7 +39,7 @@ static const uint8_t sampleWidth = sizeof(int16_t);
 static const size_t sampleBytes = DMA_BUFF_LEN * sampleWidth;
 static File wavFile;
 static int totalSamples = 0;
-static TaskHandle_t micHandle = NULL;
+TaskHandle_t micHandle = NULL;
 static bool doMicCapture = false;
 static bool captureRunning = false;
 static int16_t* sampleBuffer = NULL;
@@ -183,7 +183,7 @@ void prepMic() {
     if (micSckPin && micSWsPin && micSdPin) {
       micType = micSckPin == -1 ? PDM_MIC : I2S_MIC;
       LOG_INF("Sound recording is available using %s mic on I2S%i", micType ? "PDM" : "I2S", I2S_CHAN);
-      xTaskCreate(micTask, "micTask", 1024 * 4, NULL, 1, &micHandle);
+      xTaskCreate(micTask, "micTask", MIC_STACK_SIZE, NULL, 1, &micHandle);
       debugMemory("prepMic");
     } else {
       micUse = false;

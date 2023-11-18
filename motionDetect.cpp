@@ -164,18 +164,17 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   if (motionStatus) LOG_DBG("*** Motion - ongoing %u frames", motionCnt);
   LOG_DBG("============================");
 
-  if (dbgMotion) { 
-    // build jpeg of changeMap for debug streaming
+  if (dbgMotion && !jpgImgSize) {
+    // ready to setup next movement map for streaming
     dTime = millis();
+    // build jpeg of changeMap for debug streaming
     if (!fmt2jpg(changeMap, num_pixels, sampleWidth, sampleHeight, PIXFORMAT_GRAYSCALE, 80, &jpg_buf, &jpg_len))
       LOG_ERR("motionDetect: fmt2jpg() failed");
-    // prevent streaming from accessing jpeg while it is being updated
-    xSemaphoreTake(motionMutex, portMAX_DELAY); 
     memcpy(jpgImg, jpg_buf, jpg_len);
-    jpgImgSize = jpg_len; 
-    xSemaphoreGive(motionMutex);
+    jpgImgSize = jpg_len;                      
     free(jpg_buf);
     jpg_buf = NULL;
+    xSemaphoreGive(motionSemaphore);
     LOG_DBG("Created changeMap JPEG %d bytes in %lums", jpg_len, millis() - dTime);
   }
 
@@ -184,9 +183,14 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   return nightTime ? false : motionStatus;
 }
 
+void resetMotionMapSize() {
+  // flag that image processed by showStream()
+  jpgImgSize = 0;
+}
+
 bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   // return change map jpeg for streaming
-  if (useMotion){                    
+  if (useMotion) {                   
     *out = jpgImg;
     *out_len = jpgImgSize;
     static size_t lastImgLen = 0;
@@ -195,7 +199,7 @@ bool fetchMoveMap(uint8_t **out, size_t *out_len) {
       lastImgLen = jpgImgSize;
       return true;
     } else return false;
-  }else{
+  } else {
      // dummy if motionDetect.cpp not used
     *out_len = 0;
     return false;

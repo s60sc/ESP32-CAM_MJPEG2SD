@@ -22,6 +22,7 @@ char startupFailure[SF_LEN] = {0};
 
 #include <esp_task_wdt.h>
 
+// following wifi values should be set via web interface, not hardcoded here
 char hostName[MAX_HOST_LEN] = ""; // Default Host name
 char ST_SSID[MAX_HOST_LEN]  = ""; //Default router ssid
 char ST_Pass[MAX_PWD_LEN] = ""; //Default router passd
@@ -48,7 +49,7 @@ int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
 bool allowAP = true;  // set to true to allow AP to startup if cannot connect to STA (router)
 int wifiTimeoutSecs = 30; // how often to check wifi status
 static bool APstarted = false;
-static esp_ping_handle_t pingHandle = NULL;
+esp_ping_handle_t pingHandle = NULL;
 bool usePing = true;
 
 static void startPing();
@@ -199,7 +200,6 @@ bool startWifi(bool firstcall) {
       LOG_INF("Wifi stats for %s - signal strength: %d dBm; Encryption: %s; channel: %u",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
   }
   getExtIP();
-  LOG_INF("Remote server certificates %s checked", useSecure ? "are" : "not");
   if (pingHandle == NULL) startPing();
   return wlStat == WL_CONNECTED ? true : false;
 }
@@ -209,7 +209,7 @@ void resetWatchDog() {
   static bool watchDogStarted = false;
   if (watchDogStarted) esp_task_wdt_reset();
   else {
-    esp_task_wdt_init(wifiTimeoutSecs * 2, true); // enable panic so ESP32 restarts
+    esp_task_wdt_init(wifiTimeoutSecs * 2, true); // panic abort on watchdog alert (contains wdt_isr)
     esp_task_wdt_add(NULL);
     watchDogStarted = true;
     LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
@@ -229,6 +229,15 @@ static void statusCheck() {
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   //uint32_t elapsed_time;
   //esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
+  if (DEBUG_MEM) {
+    static uint32_t minStack = UINT32_MAX;
+    uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
+    if (freeStack < minStack) {
+      minStack = freeStack;
+      if (freeStack < MIN_STACK_FREE) LOG_WRN("Task ping stack space only: %u", freeStack);
+      else LOG_INF("Task ping stack space reduced to: %u", freeStack);
+    }
+  }
   resetWatchDog();
   statusCheck();
 }
@@ -264,11 +273,7 @@ static void startPing() {
   pingConfig.count = ESP_PING_COUNT_INFINITE;
   pingConfig.interval_ms = wifiTimeoutSecs * 1000;
   pingConfig.timeout_ms = 5000;
-#if CONFIG_IDF_TARGET_ESP32S3
-  pingConfig.task_stack_size = 1024 * 8;
-#else
-  pingConfig.task_stack_size = 1024 * 6;
-#endif
+  pingConfig.task_stack_size = PING_STACK_SIZE;
   pingConfig.task_prio = 1;
   // set ping task callback functions 
   esp_ping_callbacks_t cbs;
@@ -290,47 +295,72 @@ void stopPing() {
   }
 }
 
-const char* extIpHost = "https://api.ipify.org";
-char extIP[MAX_IP_LEN] = "Not assigned"; // router external IP]
+#define EXT_IP_HOST "api.ipify.org"
+char extIP[MAX_IP_LEN] = "Not assigned"; // router external IP
 
 void getExtIP() {
   // Get external IP address
-  HTTPClient https;
   WiFiClientSecure hclient;
-  hclient.setInsecure();
-  if (!https.begin(hclient, extIpHost)) {
-    char errBuf[100];
-    hclient.lastError(errBuf, 100);
-    LOG_ERR("Could not connect to server, err: %s", errBuf);
-  } else {
-    String newExtIp = "";
-    int httpCode = https.GET();
-    if (httpCode == HTTP_CODE_OK) newExtIp = https.getString();  
-    else LOG_ERR("Request failed, error: %s", https.errorToString(httpCode).c_str());    
-    https.end();
-    hclient.stop();
-    if (newExtIp.length()) {
-      if (strcmp(newExtIp.c_str(), extIP)) {
-        // external IP changed
-        strncpy(extIP, newExtIp.c_str(), sizeof(extIP)-1);
-        updateStatus("extIP", extIP);
-        updateStatus("save", "1");
-        LOG_INF("External IP: %s", extIP);
-#ifdef INCLUDE_SMTP
-        emailAlert("External IP changed", extIP);
-#endif
-      }
-    } else LOG_ERR("No External IP returned");
+  if (remoteServerConnect(hclient, EXT_IP_HOST, HTTPS_PORT, "")) {
+    HTTPClient https;
+    if (https.begin(hclient, EXT_IP_HOST, HTTPS_PORT, "/", true)) {
+      char newExtIp[MAX_IP_LEN] = "";
+      int httpCode = https.GET();
+      if (httpCode == HTTP_CODE_OK) {
+        strncpy(newExtIp, https.getString().c_str(), sizeof(newExtIp) - 1);  
+        if (strcmp(newExtIp, extIP)) {
+          // external IP changed
+          strncpy(extIP, newExtIp, sizeof(extIP) - 1);
+          updateStatus("extIP", extIP);
+          updateStatus("save", "0");
+          externalAlert("External IP changed", extIP);
+        } else LOG_INF("External IP: %s", extIP);
+      } else LOG_ERR("Request failed, error: %s", https.errorToString(httpCode).c_str());    
+      https.end();     
+    }
+    remoteServerClose(hclient);
   }
 }
 
+/************** generic WiFiClientSecure functions ******************/
+
+bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert) {
+  // Connect to server if not already connected or previously disconnected
+  if (sclient.connected()) return true;
+  else {
+    // not connected, so try for a period of time
+    if (useSecure && strlen(serverCert)) sclient.setCACert(serverCert);
+    else sclient.setInsecure(); // no cert check
+
+    uint32_t startTime = millis();
+    while (!sclient.connected()) {
+      if (sclient.connect(serverName, serverPort)) break;
+      if (millis() - startTime > responseTimeoutSecs * 1000) break;
+      delay(2000);
+    }
+    if (sclient.connected()) return true;
+    else {
+      // failed to connect in allocated time
+      // 'SSL - Memory allocation failed' indicates lack of heap space
+      char errBuf[100];
+      sclient.lastError(errBuf, sizeof(errBuf));
+      LOG_ERR("Timed out connecting to server: %s, Err: %s", serverName, errBuf);
+    }
+  }
+  return false;
+}
+
+void remoteServerClose(WiFiClientSecure& sclient) {
+  if (sclient.available()) sclient.flush();
+  if (sclient.connected()) sclient.stop();
+}
 
 /************************** NTP  **************************/
 
 // Needs to be a time zone string from: https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv
 char timezone[FILE_NAME_LEN] = "GMT0";
 char ntpServer[MAX_HOST_LEN] = "pool.ntp.org";
-uint8_t alarmHour;
+uint8_t alarmHour = 1;
 
 time_t getEpoch() {
   struct timeval tv;
@@ -391,18 +421,20 @@ void formatElapsedTime(char* timeStr, uint32_t timeVal) {
   sprintf(timeStr, "%u-%02u:%02u:%02u", days, hours, mins, secs);
 }
 
-
-static time_t setAlarm(bool initAlarm) {
+static time_t setAlarm(uint8_t alarmHour) {
   // calculate future alarm datetime based on current datetime
   // ensure relevant timezone identified (default GMT0)
   time_t currEpoch = getEpoch();
   struct tm* timeinfo = localtime(&currEpoch);
-  // set alarm date & time for next day at given hour
-  int nextDay = initAlarm ? 0 : 1; // same day on first call, next day on subsequent
-  timeinfo->tm_mday += nextDay;
-  timeinfo->tm_hour = alarmHour;
-  timeinfo->tm_min = 0;
-  timeinfo->tm_sec = 0;
+  // set alarm date & time for next given hour
+  int nextDay = 0; // try same day then next day
+  do {
+    timeinfo->tm_mday += nextDay;
+    timeinfo->tm_hour = alarmHour;
+    timeinfo->tm_min = 0;
+    timeinfo->tm_sec = 0;
+    nextDay = 1;
+  } while (mktime(timeinfo) < getEpoch());
   char inBuff[30];
   strftime(inBuff, sizeof(inBuff), "%d/%m/%Y %H:%M:%S", timeinfo);
   LOG_INF("Alarm scheduled at %s", inBuff);
@@ -410,22 +442,15 @@ static time_t setAlarm(bool initAlarm) {
   return mktime(timeinfo);
 }
 
-bool checkAlarm(int _alarmHour) {
+bool checkAlarm() {
   // call from appPing() to check if daily alarm time at given hour has occurred
-  if (_alarmHour >= 0) alarmHour = _alarmHour;
-  bool rescheduled = false;
   static time_t rolloverEpoch = 0;
-  if (timeSynchronized) {
-    if (!rolloverEpoch) {
-      rolloverEpoch = setAlarm(true); // initialise for this day
-      rescheduled = true;
-    }
-    else if (getEpoch() >= rolloverEpoch) {
-      rolloverEpoch = setAlarm(false); // recalculate for next day
-      rescheduled = true;
-    }
+  if (timeSynchronized && getEpoch() >= rolloverEpoch) {
+    // alarm time reached
+    rolloverEpoch = setAlarm(alarmHour); // set next alarm time
+    return true;
   }
-  return rescheduled;
+  return false;
 }
 
 /********************** misc functions ************************/
@@ -516,6 +541,15 @@ void removeChar(char* s, char c) {
   s[writer] = 0;
 }
 
+void replaceChar(char* s, char c, char r) {
+  // replace specified character in string
+  int reader = 0;
+  while (s[reader]) {
+    if (s[reader] == c) s[reader] = r;
+    reader++;       
+  }
+}
+
 char* fmtSize (uint64_t sizeVal) {
   // format size according to magnitude
   // only one call per format string
@@ -528,19 +562,30 @@ char* fmtSize (uint64_t sizeVal) {
 }
 
 void checkMemory() {
-  LOG_INF("Free: heap %u, block: %u, pSRAM %u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
+  LOG_INF("Free: heap %u, block: %u, min: %u, pSRAM %u", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
+  if (ESP.getFreeHeap() < WARN_HEAP) LOG_WRN("Free heap only %u, min %u", ESP.getFreeHeap(), ESP.getMinFreeHeap());
+  if (ESP.getMaxAllocHeap() < WARN_ALLOC) LOG_WRN("Max allocatable heap block is only %u", ESP.getMaxAllocHeap());
 }
 
-uint32_t checkStackUse(TaskHandle_t thisTask) {
+uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx) {
   // get minimum free stack size for task since started
-  uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(thisTask);
-  LOG_INF("Task %s min stack space: %u\n", pcTaskGetTaskName(thisTask), freeStack);
+  static uint32_t minStack[20]; 
+  uint32_t freeStack = 0;
+  if (thisTask != NULL) {
+    freeStack = (uint32_t)uxTaskGetStackHighWaterMark(thisTask);
+    if (!minStack[taskIdx]) minStack[taskIdx] = freeStack; // initialise
+    if (freeStack < minStack[taskIdx]) {
+      minStack[taskIdx] = freeStack;
+      if (freeStack < MIN_STACK_FREE) LOG_WRN("Task %s stack space only: %u", pcTaskGetTaskName(thisTask), freeStack);
+      else LOG_INF("Task %s stack space reduced to %u", pcTaskGetTaskName(thisTask), freeStack);
+    }
+  }
   return freeStack;
 }
 
 void debugMemory(const char* caller) {
-  if (CHECK_MEM) {
-    logPrint("%s > Free: heap %u, block: %u, pSRAM %u\n", caller, ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), ESP.getFreePsram());
+  if (DEBUG_MEM) {
+    logPrint("%s > Free: heap %u, block: %u, min: %u, pSRAM %u\n", caller, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
     delay(FLUSH_DELAY);
   }
 }
@@ -587,52 +632,39 @@ static va_list arglist;
 static char fmtBuf[MAX_OUT];
 static char outBuf[MAX_OUT];
 char alertMsg[MAX_OUT];
-static TaskHandle_t logHandle = NULL;
+TaskHandle_t logHandle = NULL;
 static SemaphoreHandle_t logSemaphore = NULL;
 static SemaphoreHandle_t logMutex = NULL;
 static int logWait = 100; // ms
 bool useLogColors = false;  // true to colorise log messages (eg if using idf.py, but not arduino)
-bool wsLogEnabled = false;
+bool wsLog = false;
 
 #define WRITE_CACHE_CYCLE 5
-bool logMode = false; // log to SD
-static bool ramMode = false; // log to RAM
+bool sdLog = false; // log to SD
+int logType = 0; // which log contents to display (0 : ram, 1 : sd, 2 : ws)
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
-// RAM memory based logging
-char* messageLog; // used to hold system message log
-uint16_t mlogEnd = 0;
-uint16_t mlogLen = 0;
-bool mlogCycle = false; // if cycled thru log end
+// RAM memory based logging in RTC slow memory
+RTC_NOINIT_ATTR bool ramLog; // log to RAM
+RTC_NOINIT_ATTR uint16_t mlogEnd; // cannot init here
+RTC_NOINIT_ATTR char messageLog[RAM_LOG_LEN];
 
 static void ramLogClear() {
-  if (mlogLen) {
-    mlogEnd = 0;
-    mlogCycle = false; 
-    messageLog[0] = '\0';
-  }
+  mlogEnd = 0;
+  memset(messageLog, 0, RAM_LOG_LEN);
 }
-
-
-void ramLogPrep() {
-  ramMode = true;
-  mlogLen = RAM_LOG_LEN;
-  messageLog = psramFound() ? (char*)ps_malloc(mlogLen) : (char*)malloc(mlogLen); 
-  ramLogClear();
-  LOG_INF("Setup RAM based log, size %u", mlogLen);
-}
-
+  
 static void ramLogStore(size_t msgLen) {
   // save log entry in ram buffer
-  if (mlogEnd + msgLen > RAM_LOG_LEN - 2) {
-    // log needs to roll over cyclic buffer, before saving message
+  if (mlogEnd + msgLen >= RAM_LOG_LEN) {
+    // log needs to roll around cyclic buffer
+    uint16_t firstPart = RAM_LOG_LEN - mlogEnd;
+    memcpy(messageLog + mlogEnd, outBuf, firstPart);
+    msgLen -= firstPart;
+    memcpy(messageLog, outBuf + firstPart, msgLen);
     mlogEnd = 0;
-    mlogCycle = true;
-    strcpy(messageLog, outBuf);
-    messageLog[RAM_LOG_LEN-1] = '\n'; // so that newline at end of final whitespace
-    messageLog[RAM_LOG_LEN-2] = '\0'; // ensure there is always a terminator
-  } else strcat(messageLog, outBuf);
+  } else memcpy(messageLog + mlogEnd, outBuf, msgLen);
   mlogEnd += msgLen;
 }
 
@@ -663,18 +695,18 @@ static void remote_log_init_SD() {
 }
 
 void reset_log() {
-  if (ramMode) ramLogClear();
-  if (logMode) {
+  if (logType == 0) ramLogClear();
+  if (logType == 2) {
     if (log_remote_fp != NULL) flush_log(true); // Close log file
     STORAGE.remove(LOG_FILE_PATH);
     remote_log_init_SD();
   }
-  LOG_INF("Cleared log file"); 
+  if (logType != 1) LOG_INF("Cleared %s log file", logType == 0 ? "RAM" : "SD"); 
 }
 
 void remote_log_init() {
   // setup required log mode
-  if (logMode) {
+  if (sdLog) {
     flush_log(false);
     remote_log_init_SD(); // store log on sd card
   } else flush_log(true);
@@ -694,10 +726,11 @@ void logPrint(const char *format, ...) {
   // feeds logTask to format message, then outputs as required
   if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(logWait)) == pdTRUE) {
     strncpy(fmtBuf, format, MAX_OUT);
-    fmtBuf[MAX_OUT - 1] = 0;
     va_start(arglist, format); 
     vTaskPrioritySet(logHandle, uxTaskPriorityGet(NULL) + 1);
     xTaskNotifyGive(logHandle);
+    outBuf[MAX_OUT - 2] = '\n'; 
+    outBuf[MAX_OUT - 1] = 0; // ensure always have ending newline
     xSemaphoreTake(logSemaphore, portMAX_DELAY); // wait for logTask to complete        
     // output to monitor console if attached
     size_t msgLen = strlen(outBuf);
@@ -709,7 +742,7 @@ void logPrint(const char *format, ...) {
     }
     if (monitorOpen) Serial.print(outBuf); 
     else delay(10); // allow time for other tasks
-    if (logMode) {
+    if (sdLog) {
       if (log_remote_fp != NULL) {
         // output to SD if file opened
         fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
@@ -717,11 +750,11 @@ void logPrint(const char *format, ...) {
         if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
       } 
     }
-    if (ramMode) ramLogStore(msgLen); // store in ram instead
+    if (ramLog) ramLogStore(msgLen); // store in ram 
     // output to web socket if open
     if (msgLen > 1) {
       outBuf[msgLen - 1] = 0; // lose final '/n'
-       if (wsLogEnabled) wsAsyncSend(outBuf);
+      if (wsLog) wsAsyncSend(outBuf);
     }
     xSemaphoreGive(logMutex);
   } 
@@ -736,12 +769,15 @@ void logSetup() {
   Serial.begin(115200);
   Serial.setDebugOutput(DBG_ON);
   printf("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
-  if (CHECK_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
+  if (DEBUG_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
   xSemaphoreGive(logMutex);
-  xTaskCreate(logTask, "logTask", 1024 * 2, NULL, 1, &logHandle);
+  xTaskCreate(logTask, "logTask", LOG_STACK_SIZE, NULL, 1, &logHandle);
+  if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
+  LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
+  wakeupResetReason();
   debugMemory("logSetup"); 
 }
 
@@ -760,6 +796,13 @@ const char* espErrMsg(esp_err_t errCode) {
   return errText;
 }
 
+void forceCrash() {
+  // force crash for testing purposes
+  delay(5000);
+#pragma GCC diagnostic ignored "-Wdiv-by-zero"
+  printf("%u\n", 1/0);
+#pragma GCC diagnostic warning "-Wdiv-by-zero"
+}
 
 /****************** base 64 ******************/
 
@@ -796,6 +839,7 @@ const char* encode64(const char* inp) {
 
 /************** qualitive core idle time monitoring *************/
 
+// not working properly
 #include "esp_freertos_hooks.h"
 
 #define INTERVAL_TIME 100 // reporting interval in ms
@@ -870,7 +914,7 @@ static esp_reset_reason_t printResetReason() {
     case ESP_RST_DEEPSLEEP: LOG_INF("Reset after exiting deep sleep mode"); break;
     case ESP_RST_BROWNOUT: LOG_INF("Brownout reset (software or hardware)"); break;
     case ESP_RST_SDIO: LOG_INF("Reset over SDIO"); break;
-    default: LOG_INF("Unhandled reset reason"); break;
+    default: LOG_WRN("Unhandled reset reason"); break;
   }
   return bootReason;
 }

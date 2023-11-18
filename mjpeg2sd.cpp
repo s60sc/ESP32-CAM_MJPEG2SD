@@ -30,6 +30,7 @@ uint8_t fsizePtr; // index to frameData[]
 uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not 
 uint8_t xclkMhz = 20; // camera clock rate MHz
+bool doKeepFrame = false;
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -61,13 +62,16 @@ static uint32_t recDuration;
 static uint8_t saveFPS = 99;
 bool doPlayback = false; // controls playback
 
+size_t alertBufferSize = 0;
+byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
+
 // task control
 TaskHandle_t captureHandle = NULL;
 TaskHandle_t playbackHandle = NULL;
 static SemaphoreHandle_t readSemaphore;
 static SemaphoreHandle_t playbackSemaphore;
-SemaphoreHandle_t frameSemaphore;
-SemaphoreHandle_t motionMutex = NULL;
+SemaphoreHandle_t frameSemaphore[MAX_STREAMS] = {NULL};
+SemaphoreHandle_t motionSemaphore = NULL;
 SemaphoreHandle_t aviMutex = NULL;
 static volatile bool isPlaying = false; // controls playback on app
 bool isCapturing = false;
@@ -207,6 +211,14 @@ static void timeLapse(camera_fb_t* fb) {
   } else frameCntTL = intervalCnt = 0;
 }
 
+static void keepFrame(camera_fb_t* fb) {
+  // keep required frame for external server alert
+  if (fb->len < MAX_JPEG && alertBuffer != NULL) {
+    memcpy(alertBuffer, fb->buf, fb->len);
+    alertBufferSize = fb->len;
+  }
+}
+
 static void saveFrame(camera_fb_t* fb) {
   // save frame on SD card
   uint32_t fTime = millis();
@@ -236,16 +248,19 @@ static void saveFrame(camera_fb_t* fb) {
   } 
   wTime = millis() - wTime;
   wTimeTot += wTime;
-  LOG_DBG("SD storage time %u ms", wTime);
+  LOG_DBG("SD storage time %u ms", wTime); 
   // whats left or small frame
   memcpy(iSDbuffer+highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
   
-  if (smtpUse) {
-    if (frameCnt == smtpFrame) {
-      // save required frame for email alert
-      smtpBufferSize = fb->len;
-      if (fb->len < MAX_JPEG && SMTPbuffer != NULL) memcpy(SMTPbuffer, fb->buf, fb->len);
+  if (smtpUse || tgramUse) {
+    if (frameCnt == alertFrame) {
+      keepFrame(fb);
+      if (smtpUse) {
+        char subjectMsg[50];
+        snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s", hostName);
+        emailAlert("Motion Alert", subjectMsg);
+      }
     }
   }
   buildAviIdx(jpegSize); // save avi index for frame
@@ -328,10 +343,8 @@ static bool closeAvi() {
       mqttPublish(jsonBuff);
     }
     if (autoUpload) ftpFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
-    checkFreeSpace();
-    char subjectMsg[50];
-    sprintf(subjectMsg, "Frame %u attached", smtpFrame);
-    emailAlert("Motion Alert", subjectMsg);
+    checkFreeStorage();
+    if (tgramUse) tgramAlert(aviFileName, "");
     return true; 
   } else {
     // delete too small files if exist
@@ -351,16 +364,19 @@ static boolean processFrame() {
   bool finishRecording = false;
 
   camera_fb_t* fb = esp_camera_fb_get();
-  if (fb == NULL) return false;
+  if (fb == NULL || !fb->len || fb->len > MAX_JPEG) return false;
   timeLapse(fb);
-  if (!streamBufferSize) {
-    if (fb->len < MAX_JPEG && streamBuffer != NULL) {
-      memcpy(streamBuffer, fb->buf, fb->len);
-      streamBufferSize = fb->len;   
-      xSemaphoreGive(frameSemaphore); // signal frame ready for stream
+  for (int i = 0; i < MAX_STREAMS; i++) {
+    if (!streamBufferSize[i] && streamBuffer[i] != NULL) {
+      memcpy(streamBuffer[i], fb->buf, fb->len);
+      streamBufferSize[i] = fb->len;   
+      xSemaphoreGive(frameSemaphore[i]); // signal frame ready for stream
     }
   }
-  
+  if (doKeepFrame) {
+    keepFrame(fb);
+    doKeepFrame = false;
+  }
   // determine if time to monitor, then get motion capture status
   if (!forceRecord && useMotion) { 
     if (dbgMotion) checkMotion(fb, false); // check each frame for debug
@@ -455,8 +471,7 @@ static fnameStruct extractMeta(const char* fname) {
   char fnameStr[FILE_NAME_LEN];
   strcpy(fnameStr, fname);
   // replace all '_' with space for sscanf
-  for (int i = 0; i <= strlen(fnameStr); i++) 
-    if (fnameStr[i] == '_') fnameStr[i] = ' ';
+  replaceChar(fnameStr, '_', ' ');
   int items = sscanf(fnameStr, "%*s %*s %*s %hhu %u %hu", &fnameMeta.recFPS, &fnameMeta.recDuration, &fnameMeta.frameCnt);
   if (items != 3) LOG_ERR("failed to parse %s, items %u", fname, items);
   return fnameMeta;
@@ -648,8 +663,8 @@ static void playbackTask(void* parameter) {
 
 static void startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreate(&captureTask, "captureTask", 1024 * 4, NULL, 5, &captureHandle);
-  xTaskCreate(&playbackTask, "playbackTask", 1024 * 4, NULL, 4, &playbackHandle);
+  xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, 5, &captureHandle);
+  xTaskCreate(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, 4, &playbackHandle);
   // set initial camera framesize and FPS from configs
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, (framesize_t)fsizePtr);
@@ -662,8 +677,9 @@ bool prepRecording() {
   readSemaphore = xSemaphoreCreateBinary();
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
-  motionMutex = xSemaphoreCreateMutex();
-  frameSemaphore = xSemaphoreCreateBinary();
+  motionSemaphore = xSemaphoreCreateBinary();
+  for (int i = 0; i < MAX_STREAMS; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
+  if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_JPEG); 
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
   else {
@@ -700,6 +716,7 @@ void endTasks() {
   deleteTask(ftpHandle);
   deleteTask(uartClientHandle);
   deleteTask(stickHandle);
+  deleteTask(telegramHandle);
 }
 
 void OTAprereq() {
