@@ -244,7 +244,7 @@
         border-radius: var(--buttonQuart);
       }
       
-      input, #applog, #storedLog {
+      input, #appLog {
         font: var(--inputSize) 'Courier New';
         font-weight:bold;
         color: var(--inputText);
@@ -288,7 +288,7 @@
         opacity: 1;
       }
       
-      #applog, #storedLog {
+      #appLog {
         height:50vh;
         width:90%;
         border:2px solid var(--itemBorder);
@@ -828,6 +828,10 @@
         right: 140px; 
         bottom: 4px;
       }
+      
+      fieldset {
+        margin: 0px;
+      }
 
     </style>
   </head>
@@ -1096,7 +1100,8 @@
                       <label class="slider" for="raw_gma"></label>
                     </div>
                   </div>                  
-                </div>            
+                </div>
+                <br><br>
               </nav>
               <nav class="menu panel" id="motion-record">
                 <input type="checkbox" id="motion-cb" class="menu-action">
@@ -1155,7 +1160,7 @@
                 <div>
                   <div class="input-group" id="sfiles-group" style="display: grid;">
                     <label for="sfiles">Select folder / file</label>                          
-                    <select title="Select sd card file or folder" id="sfile" size="15">
+                    <select title="Select sd card file or folder" id="sfile" size="12">
                       <option value="/~reset" selected="selected">-- Select --</option>
                       <option value="/">Get Folders</option>
                       <option value="/~current">List current (today)</option>
@@ -1171,7 +1176,6 @@
                     <button class="local" title="Upload selected file/folder to FTP server" id="upload" style="float:left" value="1">FTP Upload</button>
                     <button class="local" title="Delete selected file/folder from SD card" id="delete" style="float:right" value="1">Delete</button>
                   </section>
-                  <br>
   <!--
                   <div class="input-group" id="auth-group">
                     <label for="useFtps">Use FTPS</label>
@@ -1200,9 +1204,10 @@
                     <div class="switch">
                       <input id="whichExt" type="checkbox">
                       <label title="Download AVI or CSV file" class="slider" for="whichExt"></label>
-                    </div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CSV
+                    </div>&nbsp;CSV
                   </div>
                 </div>
+                <br><br>
               </nav>
               <nav class="menu panel" id="access-settings">
                 <input type="checkbox" id="other-cb" class="menu-action">
@@ -1342,6 +1347,7 @@
                     </div>
                   </div>
                 </div>
+                <br><br>
               </nav>
               <div id="foot-spacer"></div>
             </div>
@@ -1441,40 +1447,44 @@
     </div>      
     
     <div id="ShowLog" class="tabcontent">
-      <br><br>
-      <div class="grid-cols3">
-        <div class="input-group" style="text-align: left">
-          <label for="wsMode" class="header" title="Enable logging to websocket">Log to browser:</label>
-          <div class="switch">
-              <input id="wsMode" type="checkbox">
-              <label title="Output log to WS" class="slider" for="wsMode"></label>
-          </div>   
+      <br>
+      <div class="grid-cols4">
+        <div class="input-group" style="grid-column: span 2">
+          <fieldset> 
+          <legend id="selectLog">Select Log</legend> 
+          <div>
+            <label title="Display RTC RAM log" for="rtcram">RTC RAM</label>
+            <input class="local" id="rtcram" type="radio" name="logType" value="0" checked>
+            <label title="Display Websocket log" for="websock">&nbsp;Websocket</label>
+            <input class="local" id="websock" type="radio" name="logType" value="1">
+            <label title="Display SD Card log" for="sdcard">&nbsp;SD Card</label>
+            <input class="local" id="sdcard" type="radio" name="logType" value="2">
+          </div>
+          </fieldset>
         </div>
-        <div>
-          <svg>
-            <rect/>
-            <text class="local" id="clearWSlog">Clear WS Log</text>
-          </svg>
-        </div>
-        <div class="input-group" id="dbg-group" style="text-align: left">
+        <div class="input-group" id="dbg-group" style="align-items: center; grid-column: span 2">
           <label for="dbgVerbose" class="header" title="Set verbose logging">Verbose:</label>
           <div class="switch">
             <input id="dbgVerbose" type="checkbox">
             <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
           </div>
         </div>
-      </div>
-      <br>
-      <div id="applog"></div>
-      <br><br>
-      <div class="grid-cols3">
-        <div class="input-group" style="text-align: left">
-          <label for="logMode" class="header" title="Enable logging to sd card">Log to SD card:</label>
+        <div style="grid-column: span 4"><br></div>
+        <div class="input-group" style="text-align: left; grid-column: span 2">
+          <label for="ramLog" class="header" title="Enable logging to RTC RAM">Log to RTC RAM:</label>
           <div class="switch">
-              <input id="logMode" type="checkbox">
-              <label title="Output log to SD" class="slider" for="logMode"></label>
+            <input id="ramLog" type="checkbox">
+            <label title="Output log to RTC RAM" class="slider" for="ramLog"></label>
+          </div>   
+        </div>
+        <div class="input-group" style="text-align: left; grid-column: span 2">
+          <label for="sdLog" class="header" title="Enable logging to sd card">Log to SD card:</label>
+          <div class="switch">
+            <input id="sdLog" type="checkbox">
+            <label title="Output log to SD card" class="slider" for="sdLog"></label>
           </div>  
         </div> 
+        <div style="grid-column: span 4"><br></div>
         <div>
           <svg>
             <rect/>
@@ -1487,11 +1497,23 @@
             <text class="local" id="clearLog">Clear Log</text>
           </svg>
         </div>
+        <div>
+          <svg>
+            <rect/>
+            <text id="save" class="midText">Save</text>
+          </svg>
+        </div>
+        <div>
+          <svg>
+            <rect/>
+            <text id="reset" class="midText">Reboot ESP</text>
+          </svg>
+        </div>
       </div>
       <br>
-      <div id="storedLog"></div>
+      <div id="appLog"></div>
+      <br>
     </div>
-    <br>
     
     <div id="EditConfig" class="tabcontent">
       <br>
@@ -1589,7 +1611,6 @@
       let cameraModel = "OV2640";
       let firstCall = true;
 
-      let streamServer;
       let view;
       let viewContainer;
       let recordButton;
@@ -1619,7 +1640,6 @@
 
 
       function appInit() {
-        streamServer = webHost + ':' + String(+webPort + 1);
         view = $('#stream');
         viewContainer = $('#stream-container');
         recordButton = $('#forceRecord');
@@ -1650,12 +1670,11 @@
             document.title = value;
             if (fromUser) sendControl(key, value);
           }
-          else if (key == "otafile") { sendAll("stopStream", 1); otaUploadFile(); }
-          else if (key == "alertMsg") showAlert(value);
-          else if (key == "clearWSlog") $('#applog').innerHTML = "";
+          else if (key == "otafile") { sendAll("stopStream", "0"); sendControl("stopStream", "1"); otaUploadFile(); }
+          else if (key == "alertMsg") showAlert(value); 
           else if (key == "clearLog") clearLog();
-          else if (key == "refreshLog") getLog('/web?log.txt');
-          else if (key == "wsMode") setShowLog(value);
+          else if (key == "refreshLog") getLog();
+          else if (key == "logType") { logType = value; getLog(); sendControl(key, value); return; }
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") checkTime(value);
           else if (key == "motion") getConfig("01");
@@ -1798,10 +1817,18 @@
 
       /************** stream functions ****************/
       
+      async function checkTask(viewURL) {
+        // required to get response code as not available from <img> tag
+        const response = await fetch(webServer + viewURL, {method: 'HEAD', mode: 'cors'});
+        if (response.ok) return true;
+        else alert(response.status + ": " + response.statusText); 
+        return false;
+      }
+      
       async function doDownload() {
         stopAll("doDownload");
         try {
-          window.location.href=streamServer+'/sustain?download=1';
+          if (await checkTask('/sustain?download=1')) window.location.href = webServer + '/sustain?download=1';
         } catch (error) {alert(error);}
       }
 
@@ -1813,26 +1840,21 @@
       }
      
       function recordAction(key) {
-        if (isActive($('#'+key))) deactivateRecordButton();
-        else activateRecordButton();
+        isActive($('#'+key)) ? deactivateRecordButton() : activateRecordButton();
         return isActive($('#'+key)) ? 1 : 0;
       }
               
       function playbackAction(key) {
-        if (isActive($('#'+key))) {
-          deactivatePlaybackButton();
-        } else activatePlaybackButton();
+        isActive($('#'+key)) ? deactivatePlaybackButton() : activatePlaybackButton();
       }      
 
       function streamAction(key) {
-        if (isActive($('#'+key))) {
-          sendAll("stopStream", 1);
-          deactivateStreamButton();
-        } else activateStreamButton();
+        isActive($('#'+key)) ? deactivateStreamButton() : activateStreamButton();
       } 
 
       async function checkStream() {
          // check when playback stream ends to close it
+        await sleep(2000); // initial delay
         let running = true;
         while (running) {
           try { await view.decode(); }
@@ -1845,17 +1867,17 @@
         if (isHidden(recordingIndicator)) {
           if (isActive(streamButton)) alert("Stop streaming first");
           else {
-            sendAll("stopPlaying", sustainId);
+            sendAll("stopPlaying", 1);
             stopAll("activatePlaybackButton");
-            try {
-              playbackButton.classList.add("active");
-              playbackButton.innerHTML = "▢&nbsp;Stop Playback";
-              playbackButton.classList.add("blinking");
-              view.src = streamServer + '/sustain?playback=1'; 
+            playbackButton.classList.add("active");
+            playbackButton.innerHTML = "▢&nbsp;Stop Playback";
+            playbackButton.classList.add("blinking");
+            if (await checkTask('/sustain?playback=1')) {
+              view.src = webServer + '/sustain?playback=1'; 
               checkStream();
               hide($('#RCenable'));
               showView(true);
-            } catch (error) {alert(error);}
+            } else deactivatePlaybackButton();
           } 
         } else alert('Recording in progress');
       }
@@ -1866,7 +1888,7 @@
         playbackButton.classList.remove("blinking");
         disable(playbackButton);
         stopAll("deactivatePlaybackButton");
-        sendAll("stopPlaying", sustainId);
+        sendAll("stopPlaying", 1);
       }
 
       function activateRecordButton() {
@@ -1896,14 +1918,14 @@
       
       async function activateStreamButton() {
         stopAll("activateStreamButton");
-        try {
-          streamButton.classList.add("active");
-          streamButton.innerHTML = "▢&nbsp;Stop Stream";
-          streamButton.classList.add('blinking');
-          showRC ? show($('#RCenable')) : hide($('#RCenable')); 
-          view.src = streamServer + '/sustain?stream=1';
+        streamButton.classList.add("active");
+        streamButton.innerHTML = "▢&nbsp;Stop Stream";
+        streamButton.classList.add('blinking');
+        showRC ? show($('#RCenable')) : hide($('#RCenable')); 
+        if (await checkTask('/sustain?stream=0')) {
+          view.src = webServer + '/sustain?stream=0'; 
           showView(false);
-        } catch (error) {alert(error);}
+        } else deactivateStreamButton();
       }
       
       function deactivateStreamButton() {
@@ -1911,7 +1933,7 @@
         streamButton.innerHTML ="➤&nbsp;Start Stream";
         streamButton.classList.remove('blinking');
         stopAll("deactivateStreamButton");
-        sendAll("stopStream", 1);
+        sendAll("stopStream", "0");
       }
 
       function stopAll(caller) {
@@ -1919,14 +1941,8 @@
           stopRC();
           window.stop();
         }
-        if (isActive(playbackButton)) {
-          sendAll("stopPlaying", sustainId);
-          deactivatePlaybackButton();
-        }
-        if (isActive(streamButton)) {
-          sendAll("stopStream", sustainId);
-          deactivateStreamButton();
-        }
+        if (isActive(playbackButton)) deactivatePlaybackButton();
+        if (isActive(streamButton)) deactivateStreamButton();
         hide(viewContainer);
       }
 
@@ -1964,7 +1980,7 @@
         
         if (selectedSize == 'closeStream') {
           stopAll("closeStream");
-          sendAll("stopStream", sustainId);
+          sendAll("stopStream", "0");
         }
         else {
           if (selectedSize == 'maxFit') {
@@ -2059,7 +2075,7 @@
             }
           });
         } else alert(response.status + ": " + response.statusText);
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await sleep(500); 
         $$('*').forEach(el => { el.style.cursor = ("default")});
       }
       
@@ -2097,8 +2113,8 @@
       }
       
       function sendAll(key, val) {
-        if (ws == null) sendControl(key, val);
-        else ws.send('C' + key + '=' + val);
+        sendControl(key, val);
+        if (ws != null) ws.send('C' + key + '=' + val);
       }
       
       function configStatus(refresh) {} 
@@ -2124,7 +2140,7 @@
           // start rc control
           show($('#RCdisplay')) 
           RCmode = true;
-          setShowLog(false); // disable showLog()
+          loggingOn = false;
           while (ws.readyState != WebSocket.OPEN) await sleep(50); // allow websocket to start
           doLoadStatus = false;
         } else stopRC();
@@ -2144,7 +2160,7 @@
           debounceSendControl('RClights', '0'); 
         }
         RCmode = false;
-        setShowLog(true); 
+        if (logType == 1) loggingOn = true; 
       }
       
       function resetButton(buttonId) {

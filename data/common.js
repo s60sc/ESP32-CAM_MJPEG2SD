@@ -29,6 +29,7 @@
         const smallThumbSize = parseFloat(root.getPropertyValue('--smallThumbSize')) * baseFontSize;
         let isImmed = false;
         let sustainId = "1";
+        let logType = 0;
         
         async function initialise() {
           try {
@@ -168,12 +169,18 @@
 
         }
         
-        let observer = new IntersectionObserver ( function(entries) {
+        let rangeObserver = new IntersectionObserver ( function(entries) {
           // recalc each range slider that becomes visible
             entries.forEach(el => { if (el.isIntersecting === true) rangeSlider(el['target']); });
           }, { threshold: [0] }
         );
-        $$('input[type=range]').forEach(el => { observer.observe(el); });
+        $$('input[type=range]').forEach(el => { rangeObserver.observe(el); });
+        
+        let logObserver = new IntersectionObserver (entries => {
+          // refresh log when becomes visible
+          entries.forEach(entry => { if (entry.isIntersecting === true) getLog(); });
+        }); 
+        logObserver.observe($('#appLog'));
         
         function addButtons() {
           // add commmon buttons to relevant sections
@@ -317,37 +324,48 @@
         function dbg(msg) {
           console.log('***** '+msg);
         }
+        
+        function dbgTrail(msg) {
+          // get trail of function calls
+          dbg(msg);
+          const stackTrace = new Error().stack;
+          console.log("Function call trail: " + stackTrace);
+        }
 
         function clearLog() {
           if (window.confirm('This will delete all log entries. Are you sure ?')) { 
-            $('#storedLog').innerHTML = "";
-            sendControl("resetLog", "1");
+            $('#appLog').innerHTML = "";
+            if (logType != 1) sendControl("resetLog", "1");
           }
         }
         
-        async function getLog(requestURL = "/control?displayLog=1") {
+        async function getLog() {
           // request display of stored log file
-          const log = $('#storedLog');
+          const log = $('#appLog');
           log.innerHTML = "";
-          const response = await fetch(encodeURI(requestURL));
-          if (response.ok) {
-            const logData = await response.text();
-            let start = 0;
-            const loadNextLine = () => {
-              const index = logData.indexOf("\n", start);
-              if (index !== -1) {
-                log.innerHTML += colorise(logData.substring(start, index)) + '<br>';
-                start = index + 1;
-                // auto scroll log as loaded
-                const bottom = 2 * baseFontSize;// 2 lines
-                const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
-                if (pos < bottom) log.scrollTop = log.scrollHeight;
-                // stop browser hanging while log is loaded
-                setTimeout(loadNextLine, 1); 
-              } 
-            };
-            loadNextLine(); 
-          } else showAlert(response.status + ": " + response.statusText); 
+          loggingOn = (logType == 1) ? true : false; 
+          if (logType != 1) {
+            const requestURL = logType == 0 ? '/control?displayLog=1' : '/web?log.txt';
+            const response = await fetch(encodeURI(requestURL));
+            if (response.ok) {
+              const logData = await response.text();
+              let start = 0;
+              const loadNextLine = () => {
+                const index = logData.indexOf("\n", start);
+                if (index !== -1) {
+                  log.innerHTML += colorise(logData.substring(start, index)) + '<br>';
+                  start = index + 1;
+                  // auto scroll log as loaded
+                  const bottom = 2 * baseFontSize;// 2 lines
+                  const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
+                  if (pos < bottom) log.scrollTop = log.scrollHeight;
+                  // stop browser hanging while log is loaded
+                  setTimeout(loadNextLine, 1); 
+                } 
+              };
+              loadNextLine(); 
+            } else showAlert(response.status + ": " + response.statusText); 
+          }
         }
         
         function checkTime(value) {
@@ -362,12 +380,6 @@
           $('#timezone').value = value;
           sendControl('timezone', value);
           return false;
-        }
-        
-        function callerTrail() {
-          // get trail of function calls
-          const stackTrace = new Error().stack;
-          console.log("Function call trail: " + stackTrace);
         }
         
         /*********** command processing ***********/
@@ -398,9 +410,7 @@
               if (e.type === 'checkbox') processStatus(ID, e.id, e.checked ? 1 : 0);
               else if (et === 'button' || et === 'file') processStatus(ID, e.id, 1);
               else if (et === 'radio') { if (e.checked) processStatus(ID, e.name, value); } 
-              else if (et === 'range') {
-                processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML); 
-              }
+              else if (et === 'range') processStatus(ID, e.id, e.parentElement.children.rangeVal.innerHTML); 
               else if (e.hasAttribute('id')) processStatus(ID, e.id, value);
             }
             else if (e.tagName == 'SELECT') processStatus(ID, e.id, value);
@@ -461,10 +471,6 @@
           showLog("Cmd: " + reqStr);
         }
         
-        function setShowLog(isLogOn) {
-          loggingOn = !!isLogOn;
-        }
-        
         function showLog(reqStr, fromUser = true) {
           if (loggingOn) {
             let date = new Date();
@@ -472,7 +478,7 @@
             let logText = fromUser ? "[" + date.toLocaleTimeString() + " Web] " : "";
             logText += reqStr;
             // append to log display 
-            let log = $('#applog');
+            let log = $('#appLog');
             log.innerHTML += colorise(logText) + '<br>';
             // auto scroll new entry unless scroll bar is not at bottom
             const bottom = 2 * baseFontSize;// 2 lines
@@ -519,6 +525,11 @@
             updateData = await response.json();
             updateStatus();
           } else alert(response.status + ": " + response.statusText);  
+        }
+        
+        function getSustainId() {
+          // generate unique sustainId
+          return Date.now() % 1000000000;
         }
         
         /*********** config functions ***********/
