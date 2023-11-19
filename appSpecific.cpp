@@ -376,6 +376,7 @@ void tgramAlert(const char* subject, const char* message) {
   // make filename into command
   if (pos1 != NULL && pos2 != NULL) {
     strncpy(alertCaption, pos1, pos2 - pos1);
+    alertCaption[pos2 - pos1] = 0;
     strcat(alertCaption, " from ");
     strncat(alertCaption, hostName, sizeof(alertCaption) - strlen(alertCaption) - 1);
     if (alertBufferSize) alertReady = true; // return image
