@@ -190,7 +190,7 @@ void resetMotionMapSize() {
 
 bool fetchMoveMap(uint8_t **out, size_t *out_len) {
   // return change map jpeg for streaming
-  if (useMotion) {                   
+  if (useMotion && jpgImgSize) {                   
     *out = jpgImg;
     *out_len = jpgImgSize;
     static size_t lastImgLen = 0;

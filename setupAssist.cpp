@@ -112,22 +112,34 @@ function Config(){
 </html>
 )~";
 
-// in case app html file is not present, or corrupted
-// <ip address>/web?OTA.htm
 const char* otaPage_html = R"~(
 <html>
   <head>
-    <title>Built In OTA</title>
+    <title>OTA</title>
+    <style>
+      html body {height: 100%;}
+      body {
+        font-family: Helvetica  !important;
+        background: #181818;
+        color: WhiteSmoke;
+        font-size: 1rem;; 
+      }
+    </style>
   </head>
   <body>
-    <br></br>
+    <br>
+    <h3>Upload data file or bin file to ESP32</h3>
+    <br>
+    <a href="javascript:history.back()" style="color: WhiteSmoke;">Go Back</a>
+    <br><br><br>
     <form id="upload_form" enctype="multipart/form-data" method="post">
       <input type="file" name="otafile" id="otafile" onchange="otaUploadFile()"><br>
-      <br></br>
-      <progress id="progressBar" value="0" max="100" style="width:300px;"></progress>
+      <br>
+      <progress id="progressOta" value="0" max="100" style="width:200px;"></progress>%
       <h3 id="status"></h3>
       <p id="loaded_n_total"></p>
     </form>
+    
     <script>
       const defaultPort = window.location.protocol == 'http:' ? 80 : 443; 
       const webPort = !window.location.port ? defaultPort : window.location.port; // in case alternative ports specified
@@ -147,27 +159,30 @@ const char* otaPage_html = R"~(
           xhr.addEventListener("abort", abortHandler, false);
           xhr.open("POST", webServer +  '/upload');
           xhr.send(file);
-        } else console.log(response.status); 
+        } else alert(response.status + ": " + response.statusText); 
       }
 
       function progressHandler(event) {
         $("#loaded_n_total").innerHTML = "Uploaded " + event.loaded + " of " + event.total + " bytes";
         let percent = (event.loaded / event.total) * 100;
-        $("#progressBar").value = Math.round(percent);
+        $("#progressOta").value = Math.round(percent);
         $("#status").innerHTML = Math.round(percent) + "% transferred";
         if (event.loaded  == event.total) $("#status").innerHTML = 'Uploaded, wait for completion result';
       }
 
       function completeHandler(event) {
         $("#status").innerHTML = event.target.responseText;
+        $("#progressOta").value = 0;
       }
 
       function errorHandler(event) {
         $("#status").innerHTML = "Upload Failed";
+        $("#progressOta").value = 0;
       }
 
       function abortHandler(event) {
         $("#status").innerHTML = "Upload Aborted";
+        $("#progressOta").value = 0;
       }
     </script>
   </body>

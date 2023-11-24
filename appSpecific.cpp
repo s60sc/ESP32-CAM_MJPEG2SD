@@ -205,20 +205,17 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
   } 
   else if (!strcmp(variable, "still")) {
     // send single jpeg to browser
-    size_t jpgLen = 0;
-    uint8_t* jpgBuf = NULL;
     uint32_t startTime = millis();
-    camera_fb_t* fb = esp_camera_fb_get();
-    if (fb == NULL) return ESP_FAIL;
-    jpgLen = fb->len;
-    jpgBuf = fb->buf;
-    httpd_resp_set_type(req, "image/jpeg");
-    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-    httpd_resp_send(req, (const char*)jpgBuf, jpgLen); 
-    esp_camera_fb_return(fb);
-    fb = NULL;  
-    uint32_t jpegTime = millis() - startTime;
-    LOG_INF("JPEG: %uB in %ums", jpgLen, jpegTime);
+    doKeepFrame = true;
+    while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) delay(100);
+    if (!doKeepFrame && alertBufferSize) {
+      httpd_resp_set_type(req, "image/jpeg");
+      httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+      httpd_resp_send(req, (const char*)alertBuffer, alertBufferSize);   
+      uint32_t jpegTime = millis() - startTime;
+      LOG_INF("JPEG: %uB in %ums", alertBufferSize, jpegTime);
+      alertBufferSize = 0;
+    } else LOG_ERR("Failed to get still");
   }
   return ESP_OK;
 }
@@ -286,7 +283,8 @@ void buildAppJsonString(bool filter) {
   p += sprintf(p, "\"allowReverse\":\"%d\",", allowReverse);   
   p += sprintf(p, "\"autoControl\":\"%d\",", autoControl);
   p += sprintf(p, "\"waitTime\":\"%d\",", waitTime); 
-  
+  p += sprintf(p, "\"sustainId\":\"%u\",", sustainId); 
+    
   // Extend info
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) p += sprintf(p, "\"card\":\"%s\",", "NO card");
@@ -337,7 +335,7 @@ void currentStackUsage() {
   checkStackUse(telemetryHandle, 12);
   checkStackUse(uartClientHandle, 13);
   // 14: http webserver
-  for (int i=0; i < MAX_STREAMS; i++) checkStackUse(sustainHandle[i], 15 + i);
+  for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 15 + i);
 }
 
 void doAppPing() {
@@ -352,6 +350,7 @@ void doAppPing() {
       emailCount = 0;
       LOG_INF("Reset daily email allowance");
     }
+    LOG_INF("Daily rollover");
   }
   doIOExtPing();
   // check for night time actions
@@ -403,6 +402,7 @@ void appSpecificTelegramTask(void* p) {
   snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap", hostName); 
   sendTgramMessage("Rebooted", "", "");
   char userCmd[FILE_NAME_LEN];
+  doGetExtIP = true;
   
   while (true) {
     // service requests from Telegram

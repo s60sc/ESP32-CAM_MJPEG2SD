@@ -366,7 +366,7 @@ static boolean processFrame() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL || !fb->len || fb->len > MAX_JPEG) return false;
   timeLapse(fb);
-  for (int i = 0; i < MAX_STREAMS; i++) {
+  for (int i = 0; i < numStreams; i++) {
     if (!streamBufferSize[i] && streamBuffer[i] != NULL) {
       memcpy(streamBuffer[i], fb->buf, fb->len);
       streamBufferSize[i] = fb->len;   
@@ -635,7 +635,7 @@ void stopPlaying() {
     stopPlayback = true;
     // wait till stopped cleanly, but prevent infinite loop
     uint32_t timeOut = millis();
-    while (doPlayback && millis() - timeOut < 2000) delay(10);
+    while (doPlayback && millis() - timeOut < MAX_FRAME_WAIT) delay(10);
     if (doPlayback) {
       // not yet closed, so force close
       logLine();
@@ -678,7 +678,7 @@ bool prepRecording() {
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
-  for (int i = 0; i < MAX_STREAMS; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
+  for (int i = 0; i < numStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_JPEG); 
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
@@ -707,6 +707,7 @@ static void deleteTask(TaskHandle_t thisTaskHandle) {
 }
 
 void endTasks() {
+  for (int i = 0; i < numStreams; i++) deleteTask(sustainHandle[i]);
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
   deleteTask(DS18B20handle);

@@ -21,8 +21,10 @@ char startupFailure[SF_LEN] = {0};
 /************************** Wifi **************************/
 
 #include <esp_task_wdt.h>
+ 
+/** Do not hard code anything below here unless you know what you are doing **/
+/** Use the web interface to configure wifi settings **/
 
-// following wifi values should be set via web interface, not hardcoded here
 char hostName[MAX_HOST_LEN] = ""; // Default Host name
 char ST_SSID[MAX_HOST_LEN]  = ""; //Default router ssid
 char ST_Pass[MAX_PWD_LEN] = ""; //Default router passd
@@ -199,7 +201,6 @@ bool startWifi(bool firstcall) {
     if (!strcmp(WiFi.SSID(i).c_str(), ST_SSID))
       LOG_INF("Wifi stats for %s - signal strength: %d dBm; Encryption: %s; channel: %u",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
   }
-  getExtIP();
   if (pingHandle == NULL) startPing();
   return wlStat == WL_CONNECTED ? true : false;
 }

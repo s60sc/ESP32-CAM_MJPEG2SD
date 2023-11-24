@@ -8,7 +8,7 @@
 
 #include "appGlobals.h"
 
-#define AUX_STRUCT_SIZE 1108 // size of http request aux data - sizeof(struct httpd_req_aux)
+#define AUX_STRUCT_SIZE 2048 // size of http request aux data - sizeof(struct httpd_req_aux) = 1108 in esp_http_server
 // stream separator
 #define STREAM_CONTENT_TYPE "multipart/x-mixed-replace;boundary=" BOUNDARY_VAL
 #define JPEG_BOUNDARY "\r\n--" BOUNDARY_VAL "\r\n"
@@ -16,7 +16,6 @@
 #define HDR_BUF_LEN 64
 
 
-static char hdrBuf[HDR_BUF_LEN];
 static fs::FS fpv = STORAGE;
 bool forcePlayback = false; // browser playback status
 bool nvrStream = false;
@@ -25,6 +24,8 @@ size_t streamBufferSize[MAX_STREAMS] = {0};
 byte* streamBuffer[MAX_STREAMS] = {NULL}; // buffer for stream frame
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN];
+uint32_t sustainId = 0;
+uint8_t numStreams = 1;
 
 TaskHandle_t sustainHandle[MAX_STREAMS]; 
 struct httpd_sustain_req_t {
@@ -55,7 +56,7 @@ static esp_err_t showPlayback(httpd_req_t* req) {
     // output header for playback request
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
-    
+    char hdrBuf[HDR_BUF_LEN];
     openSDfile(inFileName);
     mjpegData = getNextFrame(true);
     while (doPlayback) {
@@ -76,10 +77,8 @@ static esp_err_t showPlayback(httpd_req_t* req) {
           // send buffer 
           if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)iSDbuffer+buffOffset, jpgLen);
         }
-        if (res == ESP_OK) {
-          mjpegData = getNextFrame(); 
-          httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
-        } else {
+        if (res == ESP_OK) mjpegData = getNextFrame(); 
+        else {
           // when browser closes playback get send error
           LOG_DBG("Playback aborted due to error: %s", espErrMsg(res));
           break;
@@ -87,6 +86,7 @@ static esp_err_t showPlayback(httpd_req_t* req) {
       }
     }
     httpd_resp_sendstr_chunk(req, NULL);
+    sustainId = currEpoch;
   }
   return res;
 }
@@ -101,16 +101,17 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
   uint32_t mjpegLen = 0;
   isStreaming[taskNum] = true;
   streamBufferSize[taskNum] = 0;
-  resetMotionMapSize();
+  if (dbgMotion && !taskNum) resetMotionMapSize();
   // output header for streaming request
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
+  char hdrBuf[HDR_BUF_LEN];
   while (isStreaming[taskNum]) {
     // stream from camera at current frame rate
-    xSemaphoreTake(frameSemaphore[taskNum], portMAX_DELAY);
+    if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
     if (dbgMotion && !taskNum) {
       // motion tracking stream on task 0 only, wait for new move mapping image
-      xSemaphoreTake(motionSemaphore, portMAX_DELAY);
+      if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
       fetchMoveMap(&jpgBuf, &jpgLen);
       if (!jpgLen) continue;
     } else {
@@ -122,7 +123,7 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
     }
     if (res == ESP_OK) {
       // send next frame in stream
-      res = httpd_resp_sendstr_chunk(req, JPEG_BOUNDARY);    
+      res = httpd_resp_sendstr_chunk(req, JPEG_BOUNDARY);  
       snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, jpgLen);
       if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, hdrBuf);
       if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
@@ -135,8 +136,7 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
       // get send error when browser closes stream 
       LOG_DBG("Streaming aborted due to error: %s", espErrMsg(res));
       break;
-    }
-    httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));       
+    }     
   }
   httpd_resp_sendstr_chunk(req, NULL);
   uint32_t mjpegTime = millis() - startTime;
@@ -176,7 +176,7 @@ static void sustainTask(void* p) {
 
 void startSustainTasks() {
   // start httpd sustain tasks
-  int numStreams = nvrStream ? 2 : 1;
+  if (nvrStream) numStreams = MAX_STREAMS;
   for (int i = 0; i < numStreams; i++) {
     if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(MAX_JPEG); 
     sustainReq[i].taskNum = i; // so task knows its number
@@ -186,38 +186,47 @@ void startSustainTasks() {
   debugMemory("startSustainTasks");
 }
 
-
 esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
   // handle long running request as separate task
-  uint8_t i = UINT8_MAX;
+  esp_err_t res = ESP_FAIL;
   // obtain details from query string
   if (extractQueryKeyVal(req, variable, value) == ESP_OK) {
     // playback, download, web streaming uses task 0
     // remote streaming eg NVR uses task 1
     uint8_t taskNum = !strcmp(variable, "stream") ? atoi(value) : 0;
-    if (taskNum >= MAX_STREAMS) taskNum = MAX_STREAMS - 1;
-    if (!sustainReq[taskNum].inUse) i = taskNum;
-    
-    if (i < UINT8_MAX) {
+    if (taskNum < numStreams) {
       if (req->method == HTTP_HEAD) { 
-        // task available
-        httpd_resp_sendstr(req, NULL);
-        return ESP_OK;
+        if (!sustainReq[taskNum].inUse) {
+          // task available
+          sustainId = currEpoch;
+          res = ESP_OK;
+        } else {
+          // task not free, try stopping it for new stream
+          if (!strcmp(variable, "stream")) {
+            isStreaming[taskNum] = false;
+            if (!taskNum) doPlayback = false; // only for task 0
+          }
+          httpd_resp_set_status(req, "500 No free task");
+        }
+      } else {
+        // action request
+        if (!sustainReq[taskNum].inUse) {
+          // make copy of request data and pass request to task indexed in request
+          uint8_t i = taskNum;
+          sustainReq[i].inUse = true;
+          sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
+          new (sustainReq[i].req) httpd_req_t(*req);
+          sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
+          memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
+          strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
+          // activate relevant task
+          xTaskNotifyGive(sustainHandle[i]);
+          delay(100);
+          return ESP_OK;
+        } else httpd_resp_set_status(req, "500 No free task");
       }
-      // make copy of request data and pass request to task indexed in request
-      sustainReq[i].inUse = true;
-      sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
-      new (sustainReq[i].req) httpd_req_t(*req);
-      sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
-      memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
-      strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity)-1); 
-      // activate relevant task
-      xTaskNotifyGive(sustainHandle[i]);
-      return ESP_OK;
-    }
-  }
-  // failure, abort the request
-  httpd_resp_set_status(req, "500 No free task");
+    } else httpd_resp_set_status(req, "400 Invalid task num");
+  } else httpd_resp_set_status(req, "400 Bad URL");
   httpd_resp_sendstr(req, NULL);
-  return ESP_FAIL;
+  return res;
 }

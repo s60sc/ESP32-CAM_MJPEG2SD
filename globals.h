@@ -207,6 +207,7 @@ extern bool dataFilesChecked;
 extern char ipExtAddr[];
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
 extern bool wsLog;
+extern uint32_t sustainId;
 
 // ftp server
 extern char ftp_server[];
@@ -272,6 +273,7 @@ extern const char* otaPage_html;
 extern SemaphoreHandle_t wsSendMutex;
 extern char startupFailure[];
 extern bool whichExt;
+extern time_t currEpoch;
 
 extern UBaseType_t uxHighWaterMarkArr[];
 

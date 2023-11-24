@@ -26,7 +26,7 @@ static esp_err_t sendChunks(File df, httpd_req_t *req) {
   size_t chunksize = 0;
   while ((chunksize = df.read(chunk, CHUNKSIZE))) {
     if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) break;
-    httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
+    // httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
   } 
   df.close();
   httpd_resp_sendstr_chunk(req, NULL);
@@ -269,7 +269,7 @@ static esp_err_t uploadHandler(httpd_req_t *req) {
   int bytesRead = -1;
   LOG_INF("Upload file %s", inFileName);
   
-  if (strstr(value, ".bin") != NULL) {
+  if (strstr(inFileName, ".bin") != NULL) {
     // partition update - sketch or SPIFFS
     LOG_INF("Firmware update using file %s", inFileName);
     OTAprereq();

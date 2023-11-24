@@ -48,8 +48,6 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 // web server ports 
 #define HTTP_PORT 80 // insecure app access
 #define HTTPS_PORT 443 // secure app access
-#define STREAM_PORT (HTTP_PORT + 1)   
-#define STREAMS_PORT (HTTPS_PORT + 1)   
 
 
 /*********************** Fixed defines leave as is ***********************/ 
@@ -67,7 +65,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.1"
+#define APP_VER "9.1.2"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 2 // stream, playback, download / NVR
@@ -85,6 +83,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
 #define WARN_HEAP (32 * 1024) // low free heap warning
 #define WARN_ALLOC (16 * 1024) // low free max allocatable free heap block
+#define MAX_FRAME_WAIT 1200
 
 #ifdef SIDE_ALARM
 #define STORAGE LittleFS
@@ -105,9 +104,9 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 4
-#define HTM_VER 6
-#define JS_VER  3
+#define CFG_VER 5
+#define HTM_VER 7
+#define JS_VER  4
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -265,6 +264,7 @@ extern bool doKeepFrame;
 extern int alertFrame; // which captured frame number to use for email image
 extern int alertMax; // too many could cause account suspension (daily emails)
 extern bool nvrStream;
+extern uint8_t numStreams;
 
 // buffers
 extern uint8_t iSDbuffer[];

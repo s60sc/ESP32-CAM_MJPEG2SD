@@ -21,6 +21,9 @@ Changes in version 9.1:
 * All web traffic now uses single port.
 * RTC ram log added to persist over soft resets
 
+Changes in version 9.1.2
+* New stream terminates older stream except NVR
+
 
 ## Purpose
 

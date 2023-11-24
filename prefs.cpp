@@ -36,6 +36,7 @@ static bool updatedVers = false;
 static char appId[16];
 static char variable[FILE_NAME_LEN] = {0,};
 static char value[FILE_NAME_LEN] = {0,};
+time_t currEpoch = 0;
 
 /********************* generic Config functions ****************************/
 
@@ -394,7 +395,7 @@ void buildJsonString(uint8_t filter) {
     p += sprintf(p, "\"alertMsg\":\"%s\",", alertMsg); 
     alertMsg[0] = 0;
     // generic footer
-    time_t currEpoch = getEpoch(); 
+    currEpoch = getEpoch(); 
     p += sprintf(p, "\"clockUTC\":\"%u\",", (uint32_t)currEpoch); 
     char timeBuff[20];
     strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
