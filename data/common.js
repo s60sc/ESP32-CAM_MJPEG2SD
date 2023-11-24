@@ -28,7 +28,6 @@
         const bigThumbSize = parseFloat(root.getPropertyValue('--bigThumbSize')) * baseFontSize;
         const smallThumbSize = parseFloat(root.getPropertyValue('--smallThumbSize')) * baseFontSize;
         let isImmed = false;
-        let sustainId = "1";
         let logType = 0;
         
         async function initialise() {
@@ -276,6 +275,22 @@
           return new Promise(resolve => setTimeout(resolve, ms));
         }
         
+        async function fetchRetry(url, options, interval, timeout) {
+          let response;
+          let retries = Math.ceil(timeout / interval);
+          while (retries--) {
+            try {
+              response = await fetch(url, options);
+              if (response.ok) {
+                sleep(interval);
+                return response;
+              }
+            } catch {}
+            await new Promise((resolve) => setTimeout(resolve, interval));
+          }
+          return response;
+        }
+              
         function hide(el) {
           el.classList.add('hidden')
           el.style.display = "none";
@@ -527,11 +542,6 @@
           } else alert(response.status + ": " + response.statusText);  
         }
         
-        function getSustainId() {
-          // generate unique sustainId
-          return Date.now() % 1000000000;
-        }
-        
         /*********** config functions ***********/
         
         async function getConfig(cfgGroup) {
@@ -639,46 +649,5 @@
             // add the newly created table at placeholder
             divShowData.appendChild(table);
           } else cfgGroupNow = -1;
-        }
-
-        /*********** OTA functions ***********/
-
-        async function otaUploadFile() {
-          // notify server to start ota 
-          let file = $("#otafile").files[0];
-          const response = await fetch('/control?startOTA=' + file.name);
-          if (response.ok) {
-            // submit file for uploading
-            let xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener("progress", progressHandler, false);
-            xhr.addEventListener("load", completeHandler, false);
-            xhr.addEventListener("error", errorHandler, false);
-            xhr.addEventListener("abort", abortHandler, false);
-            xhr.open("POST", webServer +  '/upload');
-            xhr.send(file);
-          } else alert(response.status + ": " + response.statusText); 
-        }
-
-        function progressHandler(event) {
-          $("#loaded_n_total").innerHTML = "Uploaded " + event.loaded + " of " + event.total + " bytes";
-          let percent = (event.loaded / event.total) * 100;
-          $("#progressOta").value = Math.round(percent);
-          $("#status").innerHTML = Math.round(percent) + "% transferred";
-          if (event.loaded  == event.total) $("#status").innerHTML = 'Uploaded, wait for completion result';
-        }
-
-        function completeHandler(event) {
-          $("#status").innerHTML = event.target.responseText;
-          $("#progressOta").value = 0;
-        }
-
-        function errorHandler(event) {
-          $("#status").innerHTML = "Upload Failed";
-          $("#progressOta").value = 0;
-        }
-
-        function abortHandler(event) {
-          $("#status").innerHTML = "Upload Aborted";
-          $("#progressOta").value = 0;
         }
         

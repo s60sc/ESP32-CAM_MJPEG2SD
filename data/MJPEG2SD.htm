@@ -842,7 +842,7 @@
         <button class="tablinks camTab active" name="mainPage">Camera</button>
         <button class="tablinks" name="ShowLog">Show Log</button>
         <button class="tablinks" name="EditConfig">Edit Config</button>
-        <button class="tablinks" name="OTAUpload">OTA Upload</button>
+        <a href="/web?OTA.htm"><button class="tablinks">OTA Upload</button></a>
       </ul>
       <section id="main">
         <nav id="maintoolbar">
@@ -1586,17 +1586,6 @@
         <p class='config-group' id='Cfg'></p>
       </div>
     </div>
-           
-    <div id="OTAUpload" class="tabcontent">
-      <br><br>
-      <form id="upload_form" enctype="multipart/form-data" method="post">
-        <input class="local" type="file" name="otafile" id="otafile">
-        <br><br>
-        <progress id="progressOta" value="0" max="100"></progress>%
-        <div class="subheader" id="status"></div>
-        <p id="loaded_n_total"></p>
-      </form>
-    </div>
         
     <div class="alertMsg">
       <span id="alertText"></span>
@@ -1610,6 +1599,8 @@
       let fitSize = { width: 0, height: 0 };
       let cameraModel = "OV2640";
       let firstCall = true;
+      let appClock = Math.ceil(Date.now() / 1000);
+      let sustainId = "1";
 
       let view;
       let viewContainer;
@@ -1670,16 +1661,16 @@
             document.title = value;
             if (fromUser) sendControl(key, value);
           }
-          else if (key == "otafile") { sendAll("stopStream", "0"); sendControl("stopStream", "1"); otaUploadFile(); }
           else if (key == "alertMsg") showAlert(value); 
           else if (key == "clearLog") clearLog();
           else if (key == "refreshLog") getLog();
           else if (key == "logType") { logType = value; getLog(); sendControl(key, value); return; }
           else if (key == "refreshVal") refreshInterval = value * 1000; 
-          else if (key == "clockUTC") checkTime(value);
+          else if (key == "clockUTC") { appClock = value; checkTime(value); }
           else if (key == "motion") getConfig("01");
           else if (key == "other") getConfig("012");
           else if (key == "peripherals") getConfig("0123");
+          else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
           else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
@@ -1819,9 +1810,11 @@
       
       async function checkTask(viewURL) {
         // required to get response code as not available from <img> tag
-        const response = await fetch(webServer + viewURL, {method: 'HEAD', mode: 'cors'});
-        if (response.ok) return true;
-        else alert(response.status + ": " + response.statusText); 
+        const response = await fetchRetry(webServer + viewURL, {method: 'HEAD', mode: 'cors'}, 100, 500);
+        if (response.ok) {
+          sustainId = +appClock + Math.ceil(refreshInterval / 1000);
+          return true;
+        } else alert(response.status + ": " + response.statusText); 
         return false;
       }
       
@@ -1836,6 +1829,7 @@
         hide($('#RCenable'));
         stopAll("getStill"); 
         view.src = webServer + "/control?still="+Date.now(); 
+        sustainId = +appClock + Math.ceil(refreshInterval / 1000);
         showView(false);
       }
      
@@ -1882,13 +1876,13 @@
         } else alert('Recording in progress');
       }
        
-      function deactivatePlaybackButton() {
+      function deactivatePlaybackButton(sendStop = true) {
         playbackButton.classList.remove("active");
         playbackButton.innerHTML = "➤&nbsp;Start Playback";
         playbackButton.classList.remove("blinking");
         disable(playbackButton);
         stopAll("deactivatePlaybackButton");
-        sendAll("stopPlaying", 1);
+        if (sendStop) sendAll("stopPlaying", 1);
       }
 
       function activateRecordButton() {
@@ -1928,21 +1922,21 @@
         } else deactivateStreamButton();
       }
       
-      function deactivateStreamButton() {
+      function deactivateStreamButton(sendStop = true) {
         streamButton.classList.remove("active");
         streamButton.innerHTML ="➤&nbsp;Start Stream";
         streamButton.classList.remove('blinking');
         stopAll("deactivateStreamButton");
-        sendAll("stopStream", "0");
+        if (sendStop) sendAll("stopStream", "0");
       }
 
-      function stopAll(caller) {
+      function stopAll(caller, sendStop = true) {
         if (!isHidden(viewContainer)) {
           stopRC();
           window.stop();
         }
-        if (isActive(playbackButton)) deactivatePlaybackButton();
-        if (isActive(streamButton)) deactivateStreamButton();
+        if (isActive(playbackButton)) deactivatePlaybackButton(sendStop);
+        if (isActive(streamButton)) deactivateStreamButton(sendStop);
         hide(viewContainer);
       }
 
