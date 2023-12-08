@@ -1,4 +1,4 @@
-/*
+  /*
 * Capture ESP32 Cam JPEG images into a AVI file and store on SD
 * AVI files stored on the SD card can also be selected and streamed to a browser as MJPEG.
 *
@@ -115,17 +115,13 @@ static void prepCam() {
 
 void setup() {   
   logSetup();
-  if (!psramFound()) snprintf(startupFailure, SF_LEN, "Startup Failure: Need PSRAM to be enabled");
-  else {
-    // prep SD card storage
-    startStorage(); 
-
-    // Load saved user configuration
-    loadConfig();
-  
-    // initialise camera
-    prepCam();
-  }
+  // prep SD card storage
+  startStorage(); 
+  // Load saved user configuration
+  loadConfig();
+  // initialise camera
+  if (psramFound()) prepCam();
+  else snprintf(startupFailure, SF_LEN, "Startup Failure: Need PSRAM to be enabled");
   
 #ifdef DEV_ONLY
   devSetup();
@@ -140,6 +136,7 @@ void setup() {
     // start rest of services
     startSustainTasks(); 
     prepSMTP(); 
+    prepUpload();
     prepPeripherals();
     prepMic(); 
     prepTelemetry();

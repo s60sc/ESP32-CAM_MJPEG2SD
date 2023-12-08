@@ -6,8 +6,9 @@
 
 // Storage settings
 int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sdFreeSpaceMode action is enabled
-int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to ftp and then delete on SD 
+int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to FTP/HFS and then delete on SD 
 bool formatIfMountFailed = true; // Auto format the file system if mount failed. Set to false to not auto format.
+static fs::FS fp = STORAGE;
 
 // hold sorted list of filenames/folders names in order of newest first
 static std::vector<std::string> fileVec;
@@ -56,7 +57,7 @@ static bool prepSD_MMC() {
   digitalWrite(4, 0); // set lamp pin fully off as sd_mmc library still initialises pin 4 in 1 line mode
 #endif 
   if (res) {
-    STORAGE.mkdir(DATA_DIR);
+    fp.mkdir(DATA_DIR);
     infoSD();
     res = true;
   } else {
@@ -69,7 +70,7 @@ static bool prepSD_MMC() {
 static void listFolder(const char* rootDir) { 
   // list contents of folder
   LOG_INF("Sketch size %s", fmtSize(ESP.getSketchSize()));    
-  File root = STORAGE.open(rootDir);
+  File root = fp.open(rootDir);
   File file = root.openNextFile();
   while (file) {
     LOG_INF("File: %s, size: %s", file.path(), fmtSize(file.size()));
@@ -121,7 +122,7 @@ bool startStorage() {
 
 void getOldestDir(char* oldestDir) {
   // get oldest folder by its date name
-  File root = STORAGE.open("/");
+  File root = fp.open("/");
   File file = root.openNextFile();
   if (file) strcpy(oldestDir, file.path()); // initialise oldestDir
   while (file) {
@@ -153,8 +154,8 @@ bool checkFreeStorage() {
       char oldestDir[FILE_NAME_LEN];
       getOldestDir(oldestDir);
       LOG_WRN("Deleting oldest folder: %s %s", oldestDir, sdFreeSpaceMode == 2 ? "after uploading" : "");
-#ifdef INCLUDE_FTP 
-      if (sdFreeSpaceMode == 2) ftpFileOrFolder(oldestDir); // Upload and then delete oldest folder
+#ifdef INCLUDE_FTP_HFS
+      if (sdFreeSpaceMode == 2) fsFileOrFolder(oldestDir); // Upload and then delete oldest folder
 #endif
       deleteFolderOrFile(oldestDir);
       freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
@@ -205,7 +206,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // ignore leading '/' if not the only character
     bool returnDirs = strlen(fileName) > 1 ? (strchr(fileName+1, '/') == NULL ? false : true) : true; 
     // open relevant folder to list contents
-    File root = STORAGE.open(fileName);
+    File root = fp.open(fileName);
     if (strlen(fileName)) {
       if (!root) LOG_ERR("Failed to open directory %s", fileName);
       if (!root.isDirectory()) LOG_ERR("Not a directory %s", fileName);
@@ -257,7 +258,7 @@ void deleteFolderOrFile(const char* deleteThis) {
   // delete supplied file or folder, unless it is a reserved folder
   char fileName[FILE_NAME_LEN];
   setFolderName(deleteThis, fileName);
-  File df = STORAGE.open(fileName);
+  File df = fp.open(fileName);
   if (!df) {
     LOG_ERR("Failed to open %s", fileName);
     return;

@@ -182,8 +182,8 @@ static bool savePrefs(bool retain = true) {
   prefs.putString("ST_Pass", ST_Pass);
   prefs.putString("AP_Pass", AP_Pass); 
   prefs.putString("Auth_Pass", Auth_Pass); 
-#ifdef INCLUDE_FTP          
-  prefs.putString("FTP_Pass", FTP_Pass);
+#ifdef INCLUDE_FTP_HFS
+  prefs.putString("FS_Pass", FS_Pass);
 #endif
 #ifdef INCLUDE_SMTP
   prefs.putString("SMTP_Pass", SMTP_Pass);
@@ -212,8 +212,8 @@ static bool loadPrefs() {
   updateConfigVect("ST_Pass", ST_Pass);
   prefs.getString("AP_Pass", AP_Pass, MAX_PWD_LEN);
   prefs.getString("Auth_Pass", Auth_Pass, MAX_PWD_LEN); 
-#ifdef INCLUDE_FTP
-  prefs.getString("FTP_Pass", FTP_Pass, MAX_PWD_LEN);
+#ifdef INCLUDE_FTP_HFS
+  prefs.getString("FS_Pass", FS_Pass, MAX_PWD_LEN);
 #endif
 #ifdef INCLUDE_SMTP
   prefs.getString("SMTP_Pass", SMTP_Pass, MAX_PWD_LEN);
@@ -277,6 +277,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
   else if (!strcmp(variable, "useHttps")) useHttps = (bool)intVal;
   else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
+  else if (!strcmp(variable, "doGetExtIP")) doGetExtIP = (bool)intVal;  
   else if (!strcmp(variable, "extIP")) strncpy(extIP, value, MAX_IP_LEN-1);
 #ifdef INCLUDE_TGRAM
   else if (!strcmp(variable, "tgramUse")) {
@@ -289,13 +290,14 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "tgramToken")) strncpy(tgramToken, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "tgramChatId")) strncpy(tgramChatId, value, MAX_IP_LEN-1);
 #endif
-#ifdef INCLUDE_FTP
-  else if (!strcmp(variable, "ftp_server")) strncpy(ftp_server, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "ftp_port")) ftp_port = intVal;
-  else if (!strcmp(variable, "ftp_user")) strncpy(ftp_user, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "FTP_Pass") && strchr(value, '*') == NULL) strncpy(FTP_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "ftp_wd")) strncpy(ftp_wd, value, FILE_NAME_LEN-1);
-  else if(!strcmp(variable, "autoUpload")) autoUpload = (bool)intVal;
+#ifdef INCLUDE_FTP_HFS
+  else if (!strcmp(variable, "fsServer")) strncpy(fsServer, value, MAX_HOST_LEN-1);
+  else if (!strcmp(variable, "fsPort")) fsPort = intVal;
+  else if (!strcmp(variable, "ftpUser")) strncpy(ftpUser, value, MAX_HOST_LEN-1);
+  else if (!strcmp(variable, "FS_Pass") && strchr(value, '*') == NULL) strncpy(FS_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
+  else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
+  else if(!strcmp(variable, "fsUse")) fsUse = (bool)intVal;
   else if(!strcmp(variable, "deleteAfter")) deleteAfter = (bool)intVal;
   else if(!strcmp(variable, "useFtps")) useFtps = (bool)intVal;
 #endif
@@ -312,7 +314,6 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "smtp_email")) strncpy(smtp_email, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "SMTP_Pass") && strchr(value, '*') == NULL) strncpy(SMTP_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "smtp_port")) smtp_port = intVal;
-  else if (!strcmp(variable, "smtpFrame")) alertFrame = intVal;
   else if (!strcmp(variable, "smtpMaxEmails")) alertMax = intVal;
 #endif
 #ifdef INCLUDE_MQTT
@@ -415,8 +416,8 @@ void buildJsonString(uint8_t filter) {
       p += sprintf(p, "\"ST_Pass\":\"%.*s\",", strlen(ST_Pass), FILLSTAR);
       p += sprintf(p, "\"AP_Pass\":\"%.*s\",", strlen(AP_Pass), FILLSTAR);
       p += sprintf(p, "\"Auth_Pass\":\"%.*s\",", strlen(Auth_Pass), FILLSTAR);
-#ifdef INCLUDE_FTP 
-      p += sprintf(p, "\"FTP_Pass\":\"%.*s\",", strlen(FTP_Pass), FILLSTAR);
+#ifdef INCLUDE_FTP_HFS
+      p += sprintf(p, "\"FS_Pass\":\"%.*s\",", strlen(FS_Pass), FILLSTAR);
 #endif
 #ifdef INCLUDE_SMTP
       p += sprintf(p, "\"SMTP_Pass\":\"%.*s\",", strlen(SMTP_Pass), FILLSTAR);

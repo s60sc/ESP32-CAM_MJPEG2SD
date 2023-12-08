@@ -12,7 +12,7 @@ static char variable[FILE_NAME_LEN];
 static char value[FILE_NAME_LEN];
 static char alertCaption[100];
 static bool alertReady = false;
-static bool doGetExtIP = false;
+static bool depthColor = true;
 
 /************************ webServer callbacks *************************/
 
@@ -36,7 +36,13 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "detectStartBand")) detectStartBand = intVal;
   else if (!strcmp(variable, "detectEndBand")) detectEndBand = intVal;
   else if (!strcmp(variable, "detectChangeThreshold")) detectChangeThreshold = intVal;
-  else if (!strcmp(variable, "enableMotion")){
+  else if (!strcmp(variable, "mlUse")) mlUse = (bool)intVal;
+  else if (!strcmp(variable, "mlProbability")) mlProbability = fltVal < 0 ? 0.0 : (fltVal > 1.0 ? 1.0 : fltVal);
+  else if (!strcmp(variable, "depthColor")) {
+    depthColor = (bool)intVal;
+    colorDepth = depthColor ? RGB888_BYTES : GRAYSCALE_BYTES;
+  }
+  else if (!strcmp(variable, "enableMotion")) {
     // Turn on/off motion detection 
     useMotion = (intVal) ? true : false; 
     LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
@@ -48,7 +54,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "nvrStream")) nvrStream = (bool)intVal; 
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
   else if (!strcmp(variable, "micGain")) micGain = intVal;
-  else if (!strcmp(variable, "upload")) ftpFileOrFolder(value);  
+  else if (!strcmp(variable, "upload")) fsFileOrFolder(value); 
   else if (!strcmp(variable, "whichExt")) whichExt = (bool)intVal;
   else if (!strcmp(variable, "delete")) {
     stopPlayback = true;
@@ -258,6 +264,14 @@ void appSpecificWsHandler(const char* wsMsg) {
   }
 }
 
+esp_err_t appSpecificHeaderHandler(httpd_req_t *req) {
+  // check if header field present, if so extract value 
+  esp_err_t res = ESP_OK;
+  // char value[IN_FILE_NAME_LEN];
+  // res = extractHeaderVal()
+  return res;
+}
+
 void buildAppJsonString(bool filter) {
   // build app specific part of json string
   char* p = jsonBuff + 1;
@@ -323,7 +337,7 @@ void currentStackUsage() {
   checkStackUse(captureHandle, 0);
   checkStackUse(DS18B20handle, 1);
   checkStackUse(emailHandle, 2);
-  checkStackUse(ftpHandle, 3);
+  checkStackUse(fsHandle, 3);
   checkStackUse(logHandle, 4);
   checkStackUse(micHandle, 5);
   checkStackUse(mqttTaskHandle, 6);
@@ -344,8 +358,7 @@ void doAppPing() {
     checkMemory();
   }
   if (checkAlarm()) {
-    if (tgramUse) doGetExtIP = true; 
-    else getExtIP();
+    getExtIP();
     if (smtpUse) {
       emailCount = 0;
       LOG_INF("Reset daily email allowance");
@@ -391,7 +404,7 @@ static bool downloadAvi(const char* userCmd) {
     pos = strchr(fileName, '_');
     memmove(pos, fileName, sizeof(fileName) - (pos - fileName));
     strncat(fileName, ".avi", sizeof(fileName - 1) - strlen(fileName)); 
-    if (STORAGE.exists(fileName)) sendTgramFile(fileName, "image/jpeg", "");
+    if (STORAGE.exists(fileName)) sendTgramFile(fileName, "video/x-msvideo", "");
     else sendTgramMessage("AVI file not found: ", fileName, "");
   }
   return (bool)pos;
@@ -402,7 +415,6 @@ void appSpecificTelegramTask(void* p) {
   snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap", hostName); 
   sendTgramMessage("Rebooted", "", "");
   char userCmd[FILE_NAME_LEN];
-  doGetExtIP = true;
   
   while (true) {
     // service requests from Telegram
@@ -422,10 +434,6 @@ void appSpecificTelegramTask(void* p) {
         alertReady = false;
         sendTgramPhoto(alertBuffer, alertBufferSize, alertCaption);
         alertBufferSize = 0;
-      } else if (doGetExtIP) {
-        // called here to save stack space
-        getExtIP();
-        doGetExtIP = false;
       } else delay(2000); // avoid thrashing
     }
   }

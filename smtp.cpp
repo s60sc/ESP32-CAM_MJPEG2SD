@@ -158,6 +158,7 @@ void emailAlert(const char* _subject, const char* _message) {
         snprintf(subject+strlen(subject), sizeof(subject)-strlen(subject), " from %s", hostName);
         strncpy(message, _message, sizeof(message)-1);
         xTaskCreate(&emailTask, "emailTask", EMAIL_STACK_SIZE, NULL, 1, &emailHandle);
+        debugMemory("emailAlert");
       } else LOG_WRN("Email alert already in progress");
     } else LOG_WRN("Need to restart to setup email");
   }
@@ -169,5 +170,4 @@ void prepSMTP() {
     if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_JPEG); 
     LOG_INF("Email alerts active");
   } 
-  debugMemory("prepSmtp");
 }

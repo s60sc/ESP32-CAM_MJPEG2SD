@@ -101,7 +101,7 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
   uint32_t mjpegLen = 0;
   isStreaming[taskNum] = true;
   streamBufferSize[taskNum] = 0;
-  if (dbgMotion && !taskNum) resetMotionMapSize();
+  if (!taskNum) motionJpegLen = 0;
   // output header for streaming request
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
@@ -112,8 +112,10 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
     if (dbgMotion && !taskNum) {
       // motion tracking stream on task 0 only, wait for new move mapping image
       if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
-      fetchMoveMap(&jpgBuf, &jpgLen);
+      // use image created by checkMotion()
+      jpgLen = motionJpegLen;
       if (!jpgLen) continue;
+      jpgBuf = motionJpeg;
     } else {
       // live stream 
       if (!streamBufferSize[taskNum]) continue;
@@ -131,7 +133,7 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
     } 
     mjpegLen += jpgLen;
     jpgLen = streamBufferSize[taskNum] = 0;
-    if (dbgMotion && !taskNum) resetMotionMapSize();
+    if (dbgMotion && !taskNum) motionJpegLen = 0;
     if (res != ESP_OK) {
       // get send error when browser closes stream 
       LOG_DBG("Streaming aborted due to error: %s", espErrMsg(res));

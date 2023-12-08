@@ -16,13 +16,17 @@
 // INMP441 I2S microphone pinout, connect L/R to GND for left channel
 // MP34DT01 PDM microphone pinout, connect SEL to GND for left channel
 // if micSckPin > 0, an I2S microphone is assumed, if micSckPin = -1 a PDM microphone is assumed
-int micSckPin; // I2S SCK, PDM n/a
-int micSWsPin;  // I2S WS / PDM CLK
-int micSdPin;  // I2S SD / PDM DAT
+int micSckPin; // I2S SCK / PDM n/a
+int micSWsPin; // I2S WS  / PDM CLK
+int micSdPin;  // I2S SD  / PDM DAT
 // For XIAO_ESP32S3 Sense Cam board, the internal PDM pins are
+// I2S SCK -1
 // I2S WS / PDM CLK 42
 // I2S SD / PDM DAT 41
-// I2S SCK -1
+// For ESP32S3-EYE Cam board, the internal I2S pins are
+// I2S SCK 41
+// I2S WS 42
+// I2S SD 2
 
 #define I2S_MIC 0
 #define PDM_MIC 1

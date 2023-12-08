@@ -71,6 +71,7 @@
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
+esp_err_t appSpecificHeaderHandler(httpd_req_t *req);
 void appSpecificTelegramTask(void* p);
 esp_err_t appSpecificSustainHandler(httpd_req_t* req);
 esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const char* value);
@@ -85,7 +86,7 @@ bool changeExtension(char* fileName, const char* newExt);
 bool checkAlarm();
 bool checkDataFiles();
 bool checkFreeStorage();
-void checkMemory();
+void checkMemory(const char* source = "");
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx);
 void debugMemory(const char* caller);
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
@@ -99,6 +100,7 @@ const uint8_t* encode64chunk(const uint8_t* inp, int rem);
 const char* espErrMsg(esp_err_t errCode);
 void externalAlert(const char* subject, const char* message);
 bool externalPeripheral(byte pinNum, uint32_t outputData = 0);
+esp_err_t extractHeaderVal(httpd_req_t *req, const char* variable, char* value);
 esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value);
 esp_err_t fileHandler(httpd_req_t* req, bool download = false);
 void flush_log(bool andClose = false);
@@ -106,7 +108,7 @@ char* fmtSize (uint64_t sizeVal);
 void forceCrash();
 void formatElapsedTime(char* timeStr, uint32_t timeVal);
 void formatHex(const char* inData, size_t inLen);
-bool ftpFileOrFolder(const char* fileFolder);
+bool fsFileOrFolder(const char* fileFolder);
 const char* getEncType(int ssidIndex);
 void getExtIP();
 time_t getEpoch();
@@ -130,6 +132,7 @@ void prepSMTP();
 bool prepTelegram();
 void prepTemperature();
 void prepUart();
+void prepUpload();
 void reloadConfigs();
 float readTemperature(bool isCelsius);
 float readVoltage();
@@ -147,7 +150,6 @@ void setupADC();
 void showProgress(const char* marker = ".");
 uint16_t smoothAnalog(int analogPin, int samples = ADC_SAMPLES);
 float smoothSensor(float latestVal, float smoothedVal, float alpha);
-void startFTPtask();
 void startOTAtask();
 void startSecTimer(bool startTimer);
 bool startStorage();
@@ -205,18 +207,20 @@ extern int refreshVal;
 extern bool configLoaded;
 extern bool dataFilesChecked;
 extern char ipExtAddr[];
+extern bool doGetExtIP;
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
 extern bool wsLog;
 extern uint32_t sustainId;
 
-// ftp server
-extern char ftp_server[];
-extern char ftp_user[];
-extern uint16_t ftp_port;
-extern char FTP_Pass[];
-extern char ftp_wd[];
+// remote file server
+extern char fsServer[];
+extern char ftpUser[];
+extern uint16_t fsPort;
+extern char FS_Pass[];
+extern char fsWd[];
 extern bool autoUpload;
 extern bool deleteAfter;
+extern bool fsUse;
 
 //  SMTP server
 extern char smtp_login[];
@@ -251,6 +255,7 @@ extern const char* ftps_rootCACertificate;
 extern const char* smtp_rootCACertificate;
 extern const char* mqtt_rootCACertificate;
 extern const char* telegram_rootCACertificate;
+extern const char* hfs_rootCACertificate;
 extern const char* prvtkey_pem; // app https server private key
 extern const char* cacert_pem; // app https server public certificate
 

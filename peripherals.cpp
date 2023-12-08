@@ -1,6 +1,6 @@
 
 // Optional peripherals, to support:
-// - pin sensors eg PIR
+// - pin sensors eg PIR / radar
 // - pin controllers eg Lamp
 // - servos, eg camera pan / tilt / steer
 // - DS18B20 temperature sensor
@@ -77,7 +77,7 @@ int servoPanPin; // if servoUse is true
 int servoTiltPin;
 
 // ambient / module temperature reading 
-int ds18b20Pin; // if USE_DS18B20 true
+int ds18b20Pin; // if INCLUDE_DS18B20 true
 
 // batt monitoring 
 // only pin 33 can be used on ESP32-Cam module as it is the only available analog pin
@@ -132,7 +132,7 @@ void doIOExtPing() {
 bool pirVal = false;
 
 bool getPIRval() {
-  // get PIR status 
+  // get PIR or radar sensor status 
   // if use external PIR, will have delayed response
   if (!externalPeripheral(pirPin)) pirVal = digitalRead(pirPin); 
   return pirVal; 
@@ -236,7 +236,7 @@ static void prepServos() {
     If DS18B20 is not present, use ESP internal temperature sensor
 */
 
-#if USE_DS18B20
+#if INCLUDE_DS18B20
 #include <OneWire.h> 
 #include <DallasTemperature.h>
 #endif
@@ -256,7 +256,7 @@ TaskHandle_t DS18B20handle = NULL;
 static bool haveDS18B20 = false;
 
 static void DS18B20task(void* pvParameters) {
-#if USE_DS18B20
+#if INCLUDE_DS18B20
   // get current temperature from DS18B20 device
   OneWire oneWire(ds18b20Pin);
   DallasTemperature sensors(&oneWire);
@@ -282,7 +282,7 @@ static void DS18B20task(void* pvParameters) {
 }
 
 void prepTemperature() {
-#if USE_DS18B20
+#if INCLUDE_DS18B20
   if (ds18b20Pin < EXTPIN) {
     if (ds18b20Pin) {
       xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, 1, &DS18B20handle); 
@@ -302,7 +302,7 @@ void prepTemperature() {
 
 float readTemperature(bool isCelsius) {
   // return latest read temperature value in celsius (true) or fahrenheit (false), unless error
-#if USE_DS18B20
+#if INCLUDE_DS18B20
   // use external DS18B20 sensor if available, else use local value
   externalPeripheral(ds18b20Pin);
 #endif

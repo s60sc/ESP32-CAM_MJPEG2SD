@@ -2,7 +2,7 @@
 
 Application for ESP32 / ESP32S3 with OV2640 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
-* [Motion detection by camera](#motion-detection-by-camera) or PIR
+* [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
 * Time lapse recording
 * [Audio Recording](#audio-recording) from I2S or PDM microphones
 * Camera pan / tilt servos and lamp control
@@ -10,7 +10,7 @@ The application supports:
 * [Remote Control](#remote-control) of camera mounted vehicle.
 * Alert notification using [Telegram](#telegram-bot) or Email
 * Concurrent streaming to web browser and NVR
-* Transfer recordings using FTP, or download from browser
+* Transfer recordings using FTP or HTTPS, or download from browser
 * [MQTT](#mqtt) control.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 
@@ -21,8 +21,12 @@ Changes in version 9.1:
 * All web traffic now uses single port.
 * RTC ram log added to persist over soft resets
 
-Changes in version 9.1.2
+Changes in version 9.1.2:
 * New stream terminates older stream except NVR
+
+Changes in version 9.2:
+* Interface for [Machine Learning](#machine-learning) support.
+* HTTPS upload alternative to FTP, see `ftp.cpp` for details. 
 
 
 ## Purpose
@@ -84,14 +88,14 @@ Browser functions only tested on Chrome.
 
 ## Main Function
 
-A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using a PIR.
+A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using an active high motion sensor such as PIR or RCWL-0516 microwave radar.
 In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
 To play back a recording, select the file using **Playback & File Transfers** sidebar button to select the day folder then the required AVI file.
 After selecting the AVI file, press **Start Playback** button to playback the recording. 
 The **Start Stream** button shows a live feed from the camera. To enable a scond stream for an NVR, under **Edit Config** -> **Motion** tab, select `Enable NVR` which will then be available via URL: http://your_ip/sustain?stream=1
 
-Recordings can then be uploaded to an FTP server or downloaded to the browser for playback on a media application, eg VLC.
+Recordings can then be uploaded to an FTP or HTTPS server or downloaded to the browser for playback on a media application, eg VLC.
 
 A time lapse feature is also available which can run in parallel with motion capture. Time lapse files have the format **20200130_201015_VGA_15_60_900_T.avi**
 
@@ -101,7 +105,7 @@ A time lapse feature is also available which can run in parallel with motion cap
 The operation of the application can be modified dynamically as below, by using the main web page, which should mostly be self explanatory.
 
 Connections:
-* The FTP, Wifi, SMTP, and time zone parameters can be defined in **Access Settings** sidebar button. 
+* The FTP / HTTPS, Wifi, SMTP, and time zone parameters can be defined in **Access Settings** sidebar button. 
   - for **Time Zone** use dropdown, or paste in values from second column [here](https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv)
 * To make the changes persistent, press the **Save** button
 * mdns name services in order to use `http://[Host Name]` instead of ip address.
@@ -113,7 +117,7 @@ To change the recording parameters:
 
 SD storage management:
 * Folders or files within folders can be deleted by selecting the required file or folder from the drop down list then pressing the **Delete** button and confirming.
-* Folders or files within folders can be uploaded to a remote server via FTP by selecting the required file or folder from the drop down list then pressing the **FTP Upload** button. Can be uploaded in AVI format.
+* Folders or files within folders can be uploaded to a remote server via FTP / HTTPS by selecting the required file or folder from the drop down list then pressing the **File Upload** button. Can be uploaded in AVI format.
 * Download selected AVI file from SD card to browser using **Download** button.
 * Delete, or upload and delete oldest folder when card free space is running out.  
 
@@ -137,7 +141,7 @@ Additional WiFi and webserver settings.
 See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 
 **Peripherals** eg:
-* Select if a PIR is to be used (which can also be used in parallel with camera motion detection).
+* Select if a PIR or radar sensor is to be used (which can also be used in parallel with camera motion detection).
 * Auto switch the lamp on for nightime PIR detection.
 * Control pan / tilt cradle for camera.
 * Connect a PDM or I2S microphone.
@@ -178,12 +182,12 @@ For movement detection a high sample rate of 1 in 2 is used. When movement has b
 
 Motion detection by camera is enabled by default, to disable click off **Enable motion detect** in **Motion Detect & Recording** sidebar button.
 
+<img align=right src="extras/motion.png" width="200" height="200">
+
 Additional options are provided on the camera index page, where:
 * `Motion Sensitivity` sets a threshold for movement detection, higher is more sensitive.
-* `Show Motion` if enabled and the **Start Stream** button pressed, shows images of how movement is detected for calibration purposes. Gray pixels show movement, which turn to black if the motion threshold is reached.
-* `Min Frames` is the minimum number of frames to be captured or the file is deleted
-
-![image1](extras/motion.png)
+* `Show Motion` if enabled and the **Start Stream** button pressed, shows images of how movement is detected for calibration purposes. Grayscale images are displayed with red pixels showing movement.
+* `Min Frames` is the minimum number of frames to be captured or the file is deleted.  
  
 
 ## Audio Recording
@@ -244,7 +248,7 @@ For security, **Authentication settings** should be defined in **Access Settings
 
 This feature is better used on an ESP32S3 camera board due to performance and memory limitations on ESP32.
 
-Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. It is FTP uploaded or deleted along with the corresponding AVI file, and can be separately downloaded.  
+Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. It is uploaded or deleted along with the corresponding AVI file, and can be separately downloaded.  
 
 The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for the GY-91 board.
 
@@ -284,3 +288,15 @@ Motion detection should be disabled beforehand.
 
 #### Only use this feature if you are familiar with coding and electronics, and can fix issues yourself
 
+## Machine Learning
+
+Machine Learning AI can be used to further discriminate whether to save a recording when motion detection has occurred by classsifying whether the object in the frame is of interest, eg a human, type of animal, vehicle etc. 
+
+Only feasible on ESP32S3 due to memory use and built in AI Acceleration support.
+#### Only use this feature if you are familiar with Machine Learning
+
+The interface is designed to work with user models packaged as Arduino libraries by the [Edge Impulse](https://edgeimpulse.com/) AI platform.
+More details in `motionDetect.cpp`.  
+Use 96x96 grayscale or RGB images and train the model with for example the following Transfer learning Neural Network settings:  
+
+<img src="extras/tinyml.png" width="500" height="400">

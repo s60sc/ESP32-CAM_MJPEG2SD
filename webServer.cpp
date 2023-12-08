@@ -6,7 +6,7 @@
 
 #define MAX_PAYLOAD_LEN 1000 // bigger than biggest websocket msg
 
-char inFileName[FILE_NAME_LEN];
+char inFileName[IN_FILE_NAME_LEN];
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN]; 
 static char retainAction[2];
@@ -53,10 +53,10 @@ esp_err_t fileHandler(httpd_req_t* req, bool download) {
   if (download) {  
     // download file as attachment, required file name in inFileName
     LOG_INF("Download file: %s, size: %s", inFileName, fmtSize(df.size()));
-    httpd_resp_set_type(req, "application/octet");
-    char contentDisp[FILE_NAME_LEN + 50];
+    httpd_resp_set_type(req, "application/octet-stream");
+    char contentDisp[IN_FILE_NAME_LEN + 50];
     char contentLength[10];
-    snprintf(contentDisp, FILE_NAME_LEN + 50, "attachment; filename=%s", inFileName);
+    snprintf(contentDisp, sizeof(contentDisp) - 1, "attachment; filename=%s", inFileName);
     httpd_resp_set_hdr(req, "Content-Disposition", contentDisp);
     snprintf(contentLength, 10, "%i", df.size());
     httpd_resp_set_hdr(req, "Content-Length", contentLength);
@@ -123,7 +123,21 @@ static esp_err_t indexHandler(httpd_req_t* req) {
   return fileHandler(req);
 }
 
+esp_err_t extractHeaderVal(httpd_req_t *req, const char* variable, char* value) {
+  // check if header field present, if so extract value
+  esp_err_t res = ESP_FAIL;
+  size_t hdrFieldLen = httpd_req_get_hdr_value_len(req, variable);
+  if (!hdrFieldLen) LOG_WRN("Field %s not present", variable);
+  else if (hdrFieldLen >= IN_FILE_NAME_LEN - 1) LOG_WRN("Field %s value too long (%d)", variable, hdrFieldLen);
+  else {
+    res = httpd_req_get_hdr_value_str(req, variable, value, hdrFieldLen + 1);
+    if (res != ESP_OK) LOG_ERR("Value for %s could not be retrieved: %s", variable, espErrMsg(res));
+  }
+  return res;
+}
+
 esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value) {
+  // get variable and value pair from URL query
   size_t queryLen = httpd_req_get_url_query_len(req) + 1;
   httpd_req_get_url_query_str(req, variable, queryLen);
   urlDecode(variable);
@@ -173,8 +187,8 @@ static esp_err_t webHandler(httpd_req_t* req) {
     // any svg file
     httpd_resp_set_type(req, "image/svg+xml");
   } else LOG_WRN("Unknown file type %s", variable);  
-  int dlen = snprintf(inFileName, FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, variable);               
-  if (dlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
+  int dlen = snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, variable);               
+  if (dlen >= IN_FILE_NAME_LEN) LOG_WRN("file name truncated");
   return fileHandler(req);
 }
 
@@ -190,7 +204,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
       doRestart("user requested restart"); 
       return ESP_OK;
     }
-    if (!strcmp(variable, "startOTA")) snprintf(inFileName, FILE_NAME_LEN + 9, "%s/%s", DATA_DIR, value); 
+    if (!strcmp(variable, "startOTA")) snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, value); 
     else {
       updateStatus(variable, value);
       appSpecificWebHandler(req, variable, value); 
@@ -263,69 +277,71 @@ void progress(size_t prg, size_t sz) {
 
 static esp_err_t uploadHandler(httpd_req_t *req) {
   // upload file for storage or firmware update
-  esp_err_t res = ESP_FAIL;
-  size_t fileSize = req->content_len;
-  size_t rxSize = min(fileSize, (size_t)JSON_BUFF_LEN);
-  int bytesRead = -1;
-  LOG_INF("Upload file %s", inFileName);
+  esp_err_t res = appSpecificHeaderHandler(req);
+  if (res == ESP_OK) {
+    size_t fileSize = req->content_len;
+    size_t rxSize = min(fileSize, (size_t)JSON_BUFF_LEN);
+    int bytesRead = -1;
+    LOG_INF("Upload file %s", inFileName);
+    
+    if (strstr(inFileName, ".bin") != NULL) {
+      // partition update - sketch or SPIFFS
+      LOG_INF("Firmware update using file %s", inFileName);
+      OTAprereq();
+      if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
+      // a spiffs binary must have 'spiffs' in the filename
+      int cmd = (strstr(inFileName, "spiffs") != NULL) ? U_SPIFFS : U_FLASH;
+      if (cmd == U_SPIFFS) STORAGE.end(); // close relevant file system
+      if (Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+        do {
+          bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
+          if (bytesRead < 0) {  
+            if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
+              delay(10);
+              continue;
+            } else {
+              LOG_ERR("Upload request failed with status %i", bytesRead);
+              break;
+            }
+          }
+          Update.write((uint8_t*)jsonBuff, (size_t)bytesRead);
+          Update.onProgress(progress);
+          fileSize -= bytesRead;
+        } while (bytesRead > 0);
+        if (!fileSize) Update.end(true); // true to set the size to the current progress
+      }
+      if (Update.hasError()) LOG_ERR("OTA failed with error: %s", Update.errorString());
+      else LOG_INF("OTA update complete for %s", cmd == U_FLASH ? "Sketch" : "SPIFFS");
+      httpd_resp_set_hdr(req, "Connection", "close");
+      httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+      httpd_resp_sendstr(req, Update.hasError() ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");   
+      doRestart("Restart after OTA");
   
-  if (strstr(inFileName, ".bin") != NULL) {
-    // partition update - sketch or SPIFFS
-    LOG_INF("Firmware update using file %s", inFileName);
-    OTAprereq();
-    if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
-    // a spiffs binary must have 'spiffs' in the filename
-    int cmd = (strstr(inFileName, "spiffs") != NULL) ? U_SPIFFS : U_FLASH;
-    if (cmd == U_SPIFFS) STORAGE.end(); // close relevant file system
-    if (Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
-      do {
-        bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
-        if (bytesRead < 0) {  
-          if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
-            delay(10);
-            continue;
-          } else {
-            LOG_ERR("Upload request failed with status %i", bytesRead);
-            break;
+    } else {
+      // create / replace data file on storage
+      File uf = fp.open(inFileName, FILE_WRITE);
+      if (!uf) LOG_ERR("Failed to open %s on storage", inFileName);
+      else {
+        // obtain file content
+        do {
+          bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
+          if (bytesRead < 0) {  
+            if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
+              delay(10);
+              continue;
+            } else {
+              LOG_ERR("Upload request failed with status %i", bytesRead);
+              break;
+            }
           }
-        }
-        Update.write((uint8_t*)jsonBuff, (size_t)bytesRead);
-        Update.onProgress(progress);
-        fileSize -= bytesRead;
-      } while (bytesRead > 0);
-      if (!fileSize) Update.end(true); // true to set the size to the current progress
-    }
-    if (Update.hasError()) LOG_ERR("OTA failed with error: %s", Update.errorString());
-    else LOG_INF("OTA update complete for %s", cmd == U_FLASH ? "Sketch" : "SPIFFS");
-    httpd_resp_set_hdr(req, "Connection", "close");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-    httpd_resp_sendstr(req, Update.hasError() ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");   
-    doRestart("Restart after OTA");
-
-  } else {
-    // create / replace data file on storage
-    File uf = fp.open(inFileName, FILE_WRITE);
-    if (!uf) LOG_ERR("Failed to open %s on storage", inFileName);
-    else {
-      // obtain file content
-      do {
-        bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
-        if (bytesRead < 0) {  
-          if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
-            delay(10);
-            continue;
-          } else {
-            LOG_ERR("Upload request failed with status %i", bytesRead);
-            break;
-          }
-        }
-        uf.write((const uint8_t*)jsonBuff, bytesRead);
-      } while (bytesRead > 0);
-      uf.close();
-      res = bytesRead < 0 ? ESP_FAIL : ESP_OK;
-      httpd_resp_sendstr(req, res == ESP_OK ? "Completed upload file" : "Failed to upload file, retry");
-      if (res == ESP_OK) LOG_INF("Uploaded file %s", inFileName);
-      else LOG_ERR("Failed to upload file %s", inFileName);     
+          uf.write((const uint8_t*)jsonBuff, bytesRead);
+        } while (bytesRead > 0);
+        uf.close();
+        res = bytesRead < 0 ? ESP_FAIL : ESP_OK;
+        httpd_resp_sendstr(req, res == ESP_OK ? "Completed upload file" : "Failed to upload file, retry");
+        if (res == ESP_OK) LOG_INF("Uploaded file %s", inFileName);
+        else LOG_ERR("Failed to upload file %s", inFileName);     
+      }
     }
   }
   return res;

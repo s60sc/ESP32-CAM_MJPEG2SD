@@ -36,7 +36,6 @@
 bool tgramUse = false;
 char tgramToken[MAX_PWD_LEN] = "";
 char tgramChatId[MAX_IP_LEN] = "";
-int alertFrame = 5; // which captured frame number to use for alert photo
 
 char tgramHdr[FILE_NAME_LEN];
 static char keyValue[50] = ""; // holds value for searched key in JSON response

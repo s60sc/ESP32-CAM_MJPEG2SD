@@ -221,7 +221,9 @@ static void statusCheck() {
   // regular status checks
   doAppPing();
   if (!timeSynchronized) getLocalNTP();
+#ifndef DEV_ONLY
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
+#endif
 #ifdef INCLUDE_MQTT
   if (mqtt_active) startMqttClient();
 #endif
@@ -298,28 +300,33 @@ void stopPing() {
 
 #define EXT_IP_HOST "api.ipify.org"
 char extIP[MAX_IP_LEN] = "Not assigned"; // router external IP
+bool doGetExtIP = true;
 
 void getExtIP() {
   // Get external IP address
-  WiFiClientSecure hclient;
-  if (remoteServerConnect(hclient, EXT_IP_HOST, HTTPS_PORT, "")) {
-    HTTPClient https;
-    if (https.begin(hclient, EXT_IP_HOST, HTTPS_PORT, "/", true)) {
-      char newExtIp[MAX_IP_LEN] = "";
-      int httpCode = https.GET();
-      if (httpCode == HTTP_CODE_OK) {
-        strncpy(newExtIp, https.getString().c_str(), sizeof(newExtIp) - 1);  
-        if (strcmp(newExtIp, extIP)) {
-          // external IP changed
-          strncpy(extIP, newExtIp, sizeof(extIP) - 1);
-          updateStatus("extIP", extIP);
-          updateStatus("save", "0");
-          externalAlert("External IP changed", extIP);
-        } else LOG_INF("External IP: %s", extIP);
-      } else LOG_ERR("Request failed, error: %s", https.errorToString(httpCode).c_str());    
-      https.end();     
+  if (doGetExtIP) { 
+    WiFiClientSecure hclient;
+    if (remoteServerConnect(hclient, EXT_IP_HOST, HTTPS_PORT, "")) {
+      HTTPClient https;
+      int httpCode = HTTP_CODE_NOT_FOUND;
+      if (https.begin(hclient, EXT_IP_HOST, HTTPS_PORT, "/", true)) {
+        char newExtIp[MAX_IP_LEN] = "";
+        httpCode = https.GET();
+        if (httpCode == HTTP_CODE_OK) {
+          strncpy(newExtIp, https.getString().c_str(), sizeof(newExtIp) - 1);  
+          if (strcmp(newExtIp, extIP)) {
+            // external IP changed
+            strncpy(extIP, newExtIp, sizeof(extIP) - 1);
+            updateStatus("extIP", extIP);
+            updateStatus("save", "0");
+            externalAlert("External IP changed", extIP);
+          } else LOG_INF("External IP: %s", extIP);
+        } else LOG_ERR("Request failed, error: %s", https.errorToString(httpCode).c_str());    
+        if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
+        https.end();     
+      }
+      remoteServerClose(hclient);
     }
-    remoteServerClose(hclient);
   }
 }
 
@@ -329,24 +336,26 @@ bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint
   // Connect to server if not already connected or previously disconnected
   if (sclient.connected()) return true;
   else {
-    // not connected, so try for a period of time
-    if (useSecure && strlen(serverCert)) sclient.setCACert(serverCert);
-    else sclient.setInsecure(); // no cert check
-
-    uint32_t startTime = millis();
-    while (!sclient.connected()) {
-      if (sclient.connect(serverName, serverPort)) break;
-      if (millis() - startTime > responseTimeoutSecs * 1000) break;
-      delay(2000);
-    }
-    if (sclient.connected()) return true;
-    else {
-      // failed to connect in allocated time
-      // 'SSL - Memory allocation failed' indicates lack of heap space
-      char errBuf[100];
-      sclient.lastError(errBuf, sizeof(errBuf));
-      LOG_ERR("Timed out connecting to server: %s, Err: %s", serverName, errBuf);
-    }
+    if (ESP.getFreeHeap() > TLS_HEAP) {
+      // not connected, so try for a period of time
+      if (useSecure && strlen(serverCert)) sclient.setCACert(serverCert);
+      else sclient.setInsecure(); // no cert check
+  
+      uint32_t startTime = millis();
+      while (!sclient.connected()) {
+        if (sclient.connect(serverName, serverPort)) break;
+        if (millis() - startTime > responseTimeoutSecs * 1000) break;
+        delay(2000);
+      }
+      if (sclient.connected()) return true;
+      else {
+        // failed to connect in allocated time
+        // 'SSL - Memory allocation failed' indicates lack of heap space
+        char errBuf[100];
+        sclient.lastError(errBuf, sizeof(errBuf));
+        LOG_ERR("Timed out connecting to server: %s, Err: %s", serverName, errBuf);
+      }
+    } else LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), serverName);
   }
   return false;
 }
@@ -562,8 +571,8 @@ char* fmtSize (uint64_t sizeVal) {
   return returnStr;
 }
 
-void checkMemory() {
-  LOG_INF("Free: heap %u, block: %u, min: %u, pSRAM %u", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
+void checkMemory(const char* source ) {
+  LOG_INF("%s Free: heap %u, block: %u, min: %u, pSRAM %u", source, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
   if (ESP.getFreeHeap() < WARN_HEAP) LOG_WRN("Free heap only %u, min %u", ESP.getFreeHeap(), ESP.getMinFreeHeap());
   if (ESP.getMaxAllocHeap() < WARN_ALLOC) LOG_WRN("Max allocatable heap block is only %u", ESP.getMaxAllocHeap());
 }

@@ -205,13 +205,13 @@ static void timeLapse(camera_fb_t* fb) {
         STORAGE.rename(TLTEMP, TLname);
         frameCntTL = intervalCnt = 0;
         LOG_DBG("Finished time lapse");
-        if (autoUpload) ftpFileOrFolder(TLname); // Upload it to remote ftp server if requested
+        if (autoUpload) fsFileOrFolder(TLname); // Upload it to remote ftp server if requested
       }
     }
   } else frameCntTL = intervalCnt = 0;
 }
 
-static void keepFrame(camera_fb_t* fb) {
+void keepFrame(camera_fb_t* fb) {
   // keep required frame for external server alert
   if (fb->len < MAX_JPEG && alertBuffer != NULL) {
     memcpy(alertBuffer, fb->buf, fb->len);
@@ -253,16 +253,6 @@ static void saveFrame(camera_fb_t* fb) {
   memcpy(iSDbuffer+highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
   
-  if (smtpUse || tgramUse) {
-    if (frameCnt == alertFrame) {
-      keepFrame(fb);
-      if (smtpUse) {
-        char subjectMsg[50];
-        snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s", hostName);
-        emailAlert("Motion Alert", subjectMsg);
-      }
-    }
-  }
   buildAviIdx(jpegSize); // save avi index for frame
   vidSize += jpegSize + CHUNK_HDR;
   frameCnt++; 
@@ -342,7 +332,7 @@ static bool closeAvi() {
       sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
     }
-    if (autoUpload) ftpFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
+    if (autoUpload) fsFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
     checkFreeStorage();
     if (tgramUse) tgramAlert(aviFileName, "");
     return true; 
@@ -688,6 +678,9 @@ bool prepRecording() {
   }
   reloadConfigs(); // apply camera config
   startSDtasks();
+#if INCLUDE_TINYML
+  LOG_INF("%sUsing TinyML", mlUse ? "" : "Not ");
+#endif
   LOG_INF("To record new AVI, do one of:");
   LOG_INF("- press Start Recording on web page");
   if (pirUse) {
@@ -714,7 +707,7 @@ void endTasks() {
   deleteTask(telemetryHandle);
   deleteTask(servoHandle);
   deleteTask(emailHandle);
-  deleteTask(ftpHandle);
+  deleteTask(fsHandle);
   deleteTask(uartClientHandle);
   deleteTask(stickHandle);
   deleteTask(telegramHandle);

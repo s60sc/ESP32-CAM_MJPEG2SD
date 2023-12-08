@@ -41,9 +41,11 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 
 /**************************************************************************/
 
-#define USE_DS18B20 false  // if true, requires additional libraries: OneWire and DallasTemperature
+#define INCLUDE_TINYML false    // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
 
-#define ALLOW_SPACES false // set true to allow whitespace in configs.txt key values
+#define INCLUDE_DS18B20 false   // if true, requires additional libraries: OneWire and DallasTemperature
+
+#define ALLOW_SPACES false  // set true to allow whitespace in configs.txt key values
 
 // web server ports 
 #define HTTP_PORT 80 // insecure app access
@@ -65,12 +67,13 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.1.2"
+#define APP_VER "9.2"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 2 // stream, playback, download / NVR
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define FILE_NAME_LEN 64
+#define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
 #define MAX_CONFIGS 160 // must be > number of entries in configs.txt
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -81,9 +84,12 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
+#define TLS_HEAP (64 * 1024) // min free heap for TLS session
 #define WARN_HEAP (32 * 1024) // low free heap warning
 #define WARN_ALLOC (16 * 1024) // low free max allocatable free heap block
 #define MAX_FRAME_WAIT 1200
+#define RGB888_BYTES 3 // number of bytes per pixel
+#define GRAYSCALE_BYTES 1 // number of bytes per pixel 
 
 #ifdef SIDE_ALARM
 #define STORAGE LittleFS
@@ -94,7 +100,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #endif
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
-#define INCLUDE_FTP 
+#define INCLUDE_FTP_HFS
 #define INCLUDE_SMTP
 #define INCLUDE_MQTT
 #define INCLUDE_TGRAM
@@ -104,8 +110,8 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 5
-#define HTM_VER 7
+#define CFG_VER 6
+#define HTM_VER 8
 #define JS_VER  4
 
 #define AVI_EXT "avi"
@@ -144,7 +150,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define BATT_STACK_SIZE (1024 * 2)
 #define CAPTURE_STACK_SIZE (1024 * 4)
 #define EMAIL_STACK_SIZE (1024 * 6)
-#define FTP_STACK_SIZE (1024 * 4)
+#define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)
 #define MIC_STACK_SIZE (1024 * 4)
 #define MQTT_STACK_SIZE (1024 * 4)
@@ -184,20 +190,19 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
 void currentStackUsage();
 void doIOExtPing();
-bool fetchMoveMap(uint8_t **out, size_t *out_len);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudio(bool isValid);
 mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
 bool isNight(uint8_t nightSwitch);
+void keepFrame(camera_fb_t* fb);
 void motorSpeed(int speedVal);
 void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
-void resetMotionMapSize();
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
@@ -215,7 +220,6 @@ void stopTelemetry(const char* fileName);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
-
 /******************** Global app declarations *******************/
 
 // motion detection parameters
@@ -230,6 +234,8 @@ extern int detectNumBands;
 extern int detectStartBand;
 extern int detectEndBand; // inclusive
 extern int detectChangeThreshold; // min difference in pixel comparison to indicate a change
+extern bool mlUse; // whether to use ML for motion detection, requires INCLUDE_TINYML to be true
+extern float mlProbability; // minimum probability (0.0 - 1.0) for positive classification
 
 // record timelapse avi independently of motion capture, file name has same format as avi except ends with T
 extern int tlSecsBetweenFrames; // too short interval will interfere with other activities
@@ -255,13 +261,13 @@ extern uint8_t nightSwitch; // initial white level % for night/day switching
 extern bool nightTime; 
 extern bool stopPlayback;
 extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)  
+extern uint8_t colorDepth;
 extern bool timeLapseOn; // enable time lapse recording
 extern int maxFrames;
 extern char inFileName[];
 extern uint8_t xclkMhz;
 extern char camModel[];
 extern bool doKeepFrame;
-extern int alertFrame; // which captured frame number to use for email image
 extern int alertMax; // too many could cause account suspension (daily emails)
 extern bool nvrStream;
 extern uint8_t numStreams;
@@ -274,6 +280,8 @@ extern const uint8_t wbBuf[]; // 01wb
 extern byte* uartData;
 extern size_t streamBufferSize[];
 extern byte* streamBuffer[]; // buffer for stream frame
+extern size_t motionJpegLen;
+extern uint8_t* motionJpeg;
 
 // peripherals
 
@@ -283,7 +291,7 @@ extern bool useUART0;
 extern int uartTxdPin;
 extern int uartRxdPin;
 // peripherals used
-extern bool pirUse; // true to use PIR for motion detection
+extern bool pirUse; // true to use PIR or radar sensor (RCWL-0516) for motion detection
 extern bool lampUse; // true to use lamp
 extern bool lampAuto; // if true in conjunction with usePir & useLamp, switch on lamp when PIR activated
 extern bool lampNight;
@@ -307,7 +315,7 @@ extern int teleInterval;
 extern int servoPanPin; // if useServos is true
 extern int servoTiltPin;
 // ambient / module temperature reading 
-extern int ds18b20Pin; // if USE_DS18B20 true
+extern int ds18b20Pin; // if INCLUDE_DS18B20 true
 // batt monitoring 
 extern int voltPin; 
 
@@ -356,7 +364,7 @@ extern TaskHandle_t battHandle;
 extern TaskHandle_t captureHandle;
 extern TaskHandle_t DS18B20handle;
 extern TaskHandle_t emailHandle;
-extern TaskHandle_t ftpHandle;
+extern TaskHandle_t fsHandle;
 extern TaskHandle_t logHandle;
 extern TaskHandle_t micHandle;
 extern TaskHandle_t mqttTaskHandle;
@@ -398,13 +406,13 @@ const frameStruct frameData[] = {
   {"XGA", 1024, 768, 5, 3, 1},   
   {"HD", 1280, 720, 5, 3, 1}, 
   {"SXGA", 1280, 1024, 5, 3, 1}, 
-  {"UXGA", 1600, 1200, 5, 3, 1},  
+  {"UXGA", 1600, 1200, 5, 4, 1},  
   {"FHD", 920, 1080, 5, 3, 1},    // 3MP Sensors
   {"P_HD", 720, 1280, 5, 3, 1},
   {"P_3MP", 864, 1536, 5, 3, 1},
   {"QXGA", 2048, 1536, 5, 4, 1},
   {"QHD", 2560, 1440, 5, 4, 1},   // 5MP Sensors
   {"WQXGA", 2560, 1600, 5, 4, 1},
-  {"P_FHD", 1080, 1920, 5, 3, 1},
+  {"P_FHD", 1080, 1920, 5, 4, 1},
   {"QSXGA", 2560, 1920, 4, 4, 1}
 };
