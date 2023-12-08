@@ -1,9 +1,10 @@
 appId~ESP-CAM_MJPEG~99~~na
 ST_SSID~~99~~na
-ftp_port~21~99~~na
-ftp_server~~99~~na
-ftp_user~~99~~na
-ftp_wd~~99~~na
+fsPort~21~99~~na
+fsServer~~99~~na
+ftpUser~~99~~na
+fsWd~~99~~na
+fsUse~~99~~na
 smtp_port~465~99~~na
 smtp_server~smtp.gmail.com~99~~na
 smtp_login~~99~~na
@@ -67,6 +68,7 @@ AP_ip~~0~T~AP IP Address if not 192.168.4.1
 AP_sn~~0~T~AP subnet
 AP_gw~~0~T~AP gateway
 allowAP~1~0~C~Allow simultaneous AP 
+doGetExtIP~1~0~C~Enable get external IP
 wifiTimeoutSecs~30~0~N~WiFi connect timeout (secs)
 ntpServer~pool.ntp.org~0~T~NTP Server address
 alarmHour~1~2~N~Hour of day for daily actions
@@ -87,9 +89,11 @@ detectNumBands~10~1~N~Total num of detection bands
 detectStartBand~3~1~N~Top band where motion is checked
 detectEndBand~8~1~N~Bottom band where motion is checked
 detectChangeThreshold~15~1~N~Pixel difference to indicate change
+mlUse~0~1~C~Use Machine Learning
+mlProbability~0.8~1~N~ML minimum positive probability 0.0 - 1.0
+depthColor~0~1~C~Color depth for motion detection: Gray <> RGB
 nvrStream~0~1~C~Enable NVR on /sustain?stream=1
 smtpUse~0~2~C~Enable email sending
-smtpFrame~5~2~N~Number of frame sent in alert
 smtpMaxEmails~10~2~N~Max daily alerts
 sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
 sdFreeSpaceMode~1~2~S:No Check:Delete oldest:Ftp then delete~Action mode on SD min free
@@ -149,6 +153,6 @@ waitTime~20~4~N~Min wait (ms) between updates to ESP32
 tgramUse~0~2~C~Use Telegram Bot
 tgramToken~~2~T~Telegram Bot token
 tgramChatId~~2~T~Telegram chat identifier
-cfgVer~5~99~T~na
-htmVer~7~99~T~na
+cfgVer~6~99~T~na
+htmVer~8~99~T~na
 jsVer~4~99~T~na

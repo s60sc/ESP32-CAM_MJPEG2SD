@@ -1173,7 +1173,7 @@
                   <br>
                   <section id="buttons">
                     <button class="local" title="Download selected file from SD card" id="download" style="float:right" value="1">Download</button>
-                    <button class="local" title="Upload selected file/folder to FTP server" id="upload" style="float:left" value="1">FTP Upload</button>
+                    <button class="local" title="Upload selected file/folder to Fileserver" id="upload" style="float:left" value="1">File Upload</button>
                     <button class="local" title="Delete selected file/folder from SD card" id="delete" style="float:right" value="1">Delete</button>
                   </section>
   <!--
@@ -1186,17 +1186,17 @@
                   </div>
   -->
                   <div class="input-group" id="autoUpload-group">
-                    <label for="autoUpload">Auto FTP upload</label>
+                    <label for="autoUpload">Auto upload</label>
                     <div class="switch">
                       <input id="autoUpload" type="checkbox">
-                      <label title="Automatic FTP upload on file creation" class="slider" for="autoUpload"></label>
+                      <label title="Automatic upload to file server on file creation" class="slider" for="autoUpload"></label>
                     </div>
                   </div>
                   <div class="input-group" id="deleteAfter-group">
                     <label for="deleteAfter">Auto SD Delete</label>
                     <div class="switch">
                       <input id="deleteAfter" type="checkbox">
-                      <label title="Automatic deletion on SD after FTP upload" class="slider" for="deleteAfter"></label>
+                      <label title="Automatic deletion on SD after file server upload" class="slider" for="deleteAfter"></label>
                     </div>
                   </div>
                   <div class="input-group" id="whichExt-group">
@@ -1277,27 +1277,34 @@
                     </select>
                   </div>
                   <br>                          
-                  <div class="subheader">Ftp settings</div>
+                  <div class="subheader">FTP / HTTPS settings</div>
                   <div class="input-group" id="ftp-group">
-                    <label for="ftp_server">Ftp Server</label>
-                    <input id="ftp_server" name="ftp_server" length=32 placeholder="Ftp server name">
+                    <label for="fsServer">File Server</label>
+                    <input id="fsServer" name="fsServer" length=32 placeholder="File server name">
                   </div>
                   <div class="input-group" id="ftp-group">
-                    <label for="ftp_port">Ftp port</label>
-                    <input id="ftp_port" name="ftp_port" length=6 placeholder="Ftp port">
-                  </div>                          
-                  <div class="input-group" id="ftp-group">
-                    <label for="ftp_user">Ftp user name</label>
-                    <input id="ftp_user" name="ftp_user" length=32 placeholder="Ftp user name">
+                    <label for="fsPort">FS port</label>
+                    <input id="fsPort" name="fsPport" length=6 placeholder="File server port">
                   </div>
                   <div class="input-group" id="ftp-group">
-                    <label for="FTP_Pass">Ftp password</label>
-                    <input id="FTP_Pass" name="FTP_Pass" length=32 placeholder="Ftp password">
+                    <label for="ftpUser">FTP user name</label>
+                    <input id="ftpUser" name="ftpUser" length=32 placeholder="FTP user name">
                   </div>
                   <div class="input-group" id="ftp-group">
-                    <label for="ftp_wd">Ftp root dir</label>
-                    <input id="ftp_wd" name="ftp_wd" length=64 placeholder="Ftp working directory">
-                  </div>                          
+                    <label for="FS_Pass">FS password</label>
+                    <input id="FS_Pass" name="FS_Pass" length=32 placeholder="File server password">
+                  </div>
+                  <div class="input-group" id="ftp-group">
+                    <label for="fsWd">FS root dir</label>
+                    <input id="fsWd" name="fsWd" length=64 placeholder="Working directory path">
+                  </div>
+                  <div class="input-group" id="ftp-group">
+                    <label for="fsUse">Upload method:</label>FTP&nbsp;
+                    <div class="switch">
+                      <input id="fsUse" type="checkbox">
+                      <label title="Upload file using FTP or HFS" class="slider" for="fsUse"></label>
+                    </div>&nbsp;HFS
+                  </div>
                   <br>
                   <div class="subheader">SMTP settings</div>
                   <div class="input-group" id="smtp-group">
@@ -1330,7 +1337,7 @@
                       <label for="Auth_Pass">Web password</label>
                       <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password">
                   </div>
-  <!--
+<!--
                   <div class="input-group" id="auth-group">
                     <label for="useHttps">Use HTTPS</label>
                     <div class="switch">
@@ -1338,7 +1345,7 @@
                       <label title="Use HTTPS to access app" class="slider" for="useHttps"></label>
                     </div>
                   </div>
-  -->
+-->
                   <div class="input-group" id="auth-group">
                     <label for="useSecure">Check Certs</label>
                     <div class="switch">
@@ -2045,7 +2052,7 @@
         if (filePath != '/~reset') {
           $('#download').value = filePath; //Store file path for download
           $('#delete').value = filePath; //Store file path for delete
-          $('#upload').value = filePath; //Store file path for ftp upload
+          $('#upload').value = filePath; //Store file path for file server upload
           pathDir = filePath.substring(0, filePath.lastIndexOf("/"));
         }
         if (pathDir == "") $$('#sfile option:not(:first-child)').forEach(el => { el.remove()}); 
