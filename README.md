@@ -299,4 +299,4 @@ The interface is designed to work with user models packaged as Arduino libraries
 More details in `motionDetect.cpp`.  
 Use 96x96 grayscale or RGB images and train the model with for example the following Transfer learning Neural Network settings:  
 
-<img src="extras/tinyml.png" width="500" height="400">
+<img src="extras/TinyML.png" width="500" height="400">
