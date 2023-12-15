@@ -294,11 +294,111 @@ void deleteFolderOrFile(const char* deleteThis) {
     df.close();
     LOG_ALT("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
 #ifdef ISCAM
-    // delete corresponding csv file if exists
-    char csvDeleteName[FILE_NAME_LEN];
-    strcpy(csvDeleteName, deleteThis);
-    changeExtension(csvDeleteName, CSV_EXT);
-    if (STORAGE.remove(csvDeleteName)) LOG_INF("File %s deleted", csvDeleteName);
+    // delete corresponding csv and srt files if exist
+    char otherDeleteName[FILE_NAME_LEN];
+    strcpy(otherDeleteName, deleteThis);
+    changeExtension(otherDeleteName, CSV_EXT);
+    if (STORAGE.remove(otherDeleteName)) LOG_INF("File %s deleted", otherDeleteName);
+    changeExtension(otherDeleteName, SRT_EXT);
+    if (STORAGE.remove(otherDeleteName)) LOG_INF("File %s deleted", otherDeleteName);
 #endif  
   }
+}
+
+/************** uncompressed tarball **************/
+
+#define BLOCKSIZE 512
+
+static esp_err_t writeHeader(File& inFile, httpd_req_t* req) {  
+  char tarHeader[BLOCKSIZE] = {}; // 512 bytes tar header
+  strncpy(tarHeader, inFile.name(), 99); // name of file
+  sprintf(tarHeader + 100, "0000666"); // file permissions stored as ascii octal number
+  sprintf(tarHeader + 124, "%011o", inFile.size()); // length of file in bytes as 6 digit ascii octal number
+  memcpy(tarHeader + 148, "        ", 8); // init as 8 spaces to calc checksum
+  tarHeader[156] = '0'; // type of entry - 0 for ordinary file
+  strcpy(tarHeader + 257, "ustar"); // magic
+  memcpy(tarHeader + 263, "00", 2); // version as two 0 digits
+
+  // Calculate and set the checksum
+  uint32_t checksum = 0;
+  for (const auto& ch : tarHeader) checksum += ch;
+  sprintf(tarHeader + 148, "%06o", checksum); // six digit octal number with leading zeroes followed by a NUL and then a space.
+
+  return httpd_resp_send_chunk(req, tarHeader, BLOCKSIZE);
+}
+
+esp_err_t downloadFile(File& df, httpd_req_t* req) {
+  // download file as attachment, required file name in inFileName
+  // setup download header, create zip file if required, and download file
+  esp_err_t res = ESP_OK;
+  bool needZip = false;
+  char downloadName[FILE_NAME_LEN];
+  strcpy(downloadName, df.name());
+  size_t downloadSize = df.size();
+  char fsSavePath[FILE_NAME_LEN];
+  strcpy(fsSavePath, inFileName);
+#ifdef ISCAM
+  changeExtension(fsSavePath, CSV_EXT);
+  
+  // check if ancillary files present
+  needZip = STORAGE.exists(fsSavePath);
+  const char* extensions[3] = {AVI_EXT, CSV_EXT, SRT_EXT};
+  if (needZip) {
+    // ancillary files, calculate total size for http header
+    downloadSize = 0;
+    for (const auto& ext : extensions) {
+      changeExtension(fsSavePath, ext);
+      File inFile = STORAGE.open(fsSavePath, FILE_READ);
+      if (inFile) {
+        // round up file size to 512 byte boundary and add header size
+        downloadSize += (((inFile.size() + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE) + BLOCKSIZE;
+        strcpy(downloadName, inFile.name());
+        inFile.close();
+      }
+    }
+    downloadSize += BLOCKSIZE * 2; // end of tarball marker
+    changeExtension(downloadName, "zip"); 
+  } 
+#endif 
+
+  // create http header
+  LOG_INF("Download file: %s, size: %s", downloadName, fmtSize(downloadSize));
+  httpd_resp_set_type(req, "application/octet-stream");
+  // header field values must remain valid until first send
+  char contentDisp[IN_FILE_NAME_LEN + 50];
+  snprintf(contentDisp, sizeof(contentDisp) - 1, "attachment; filename=%s", downloadName);
+  httpd_resp_set_hdr(req, "Content-Disposition", contentDisp);
+  char contentLength[10];
+  snprintf(contentLength, sizeof(contentLength) - 1, "%i", downloadSize);
+  httpd_resp_set_hdr(req, "Content-Length", contentLength);
+
+  if (needZip) {
+#ifdef ISCAM
+    // package avi file and ancillary files into uncompressed tarball
+    for (const auto& ext : extensions) {
+      changeExtension(fsSavePath, ext);
+      File inFile = STORAGE.open(fsSavePath, FILE_READ);
+      if (inFile) {
+        res = writeHeader(inFile, req);
+        if (res == ESP_OK) res = sendChunks(inFile, req, false);
+        if (res == ESP_OK) {
+          // write end of file filler
+          size_t remainingBytes = inFile.size() % BLOCKSIZE;
+          if (remainingBytes) {
+            char zeroBlock[BLOCKSIZE - remainingBytes] = {};
+            res = httpd_resp_send_chunk(req, zeroBlock, sizeof(zeroBlock));
+          }
+          inFile.close();
+        }
+      }
+    }
+
+    // Write two blocks filled with zeros to mark the end of the archive
+    char zeroBlock[BLOCKSIZE] = {};
+    res = httpd_resp_send_chunk(req, zeroBlock, BLOCKSIZE);
+    res = httpd_resp_send_chunk(req, zeroBlock, BLOCKSIZE);
+    res = httpd_resp_sendstr_chunk(req, NULL);
+#endif
+  } else res = sendChunks(df, req); // send AVI
+  return res;
 }

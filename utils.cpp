@@ -419,7 +419,7 @@ void syncToBrowser(uint32_t browserUTC) {
   }
 }
 
-void formatElapsedTime(char* timeStr, uint32_t timeVal) {
+void formatElapsedTime(char* timeStr, uint32_t timeVal, bool noDays) {
   // elapsed time that app has been running
   uint32_t secs = timeVal / 1000; //convert milliseconds to seconds
   uint32_t mins = secs / 60; //convert seconds to minutes
@@ -428,7 +428,8 @@ void formatElapsedTime(char* timeStr, uint32_t timeVal) {
   secs = secs - (mins * 60); //subtract the converted seconds to minutes in order to display 59 secs max
   mins = mins - (hours * 60); //subtract the converted minutes to hours in order to display 59 minutes max
   hours = hours - (days * 24); //subtract the converted hours to days in order to display 23 hours max
-  sprintf(timeStr, "%u-%02u:%02u:%02u", days, hours, mins, secs);
+  if (noDays) sprintf(timeStr, "%02u:%02u:%02u", hours, mins, secs);
+  else sprintf(timeStr, "%u-%02u:%02u:%02u", days, hours, mins, secs);
 }
 
 static time_t setAlarm(uint8_t alarmHour) {

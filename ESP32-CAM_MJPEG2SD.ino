@@ -140,8 +140,8 @@ void setup() {
     prepPeripherals();
     prepMic(); 
     prepTelemetry();
-    prepRecording(); 
     prepTelegram();
+    prepRecording(); 
     LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
     checkMemory();
   } 

@@ -156,10 +156,8 @@ static void sustainTask(void* p) {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     uint8_t i = *(uint8_t*)p; // identify task number
-    if (!strcmp(sustainReq[i].activity, "download")) {
-      if (whichExt) changeExtension(inFileName, CSV_EXT);
+    if (!strcmp(sustainReq[i].activity, "download"))
       fileHandler(sustainReq[i].req, true); // download
-    } 
     else if (!strcmp(sustainReq[i].activity, "playback")) showPlayback(sustainReq[i].req);
     else if (!strcmp(sustainReq[i].activity, "stream")) showStream(sustainReq[i].req, i);
     else {

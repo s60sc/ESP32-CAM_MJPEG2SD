@@ -13,6 +13,7 @@ The application supports:
 * Transfer recordings using FTP or HTTPS, or download from browser
 * [MQTT](#mqtt) control.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
+* Interface for [Machine Learning](#machine-learning) support.
 
 The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
@@ -25,9 +26,11 @@ Changes in version 9.1.2:
 * New stream terminates older stream except NVR
 
 Changes in version 9.2:
-* Interface for [Machine Learning](#machine-learning) support.
+* Interface for Machine Learning support.
 * HTTPS upload alternative to FTP, see `ftp.cpp` for details. 
 
+Changes in version 9.3:
+* Subtitles for [Telemetry Recording](#telemetry-recording)
 
 ## Purpose
 
@@ -248,7 +251,7 @@ For security, **Authentication settings** should be defined in **Access Settings
 
 This feature is better used on an ESP32S3 camera board due to performance and memory limitations on ESP32.
 
-Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. It is uploaded or deleted along with the corresponding AVI file, and can be separately downloaded.  
+Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. A subtitle (SRT) file is also created named after the corresponding AVI file. The CSV and SRT files are uploaded or deleted along with the corresponding AVI file. For downloading, the AVI, CSV and SRT files are bundled into a zip file. If the SRT file is in the same folder as the AVI file, telemetry data subtitles will be displayed by a media player. 
 
 The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for the GY-91 board.
 

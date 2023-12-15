@@ -21,15 +21,17 @@ bool useSecure = false;
 static fs::FS fp = STORAGE;
 static byte* chunk;
 
-static esp_err_t sendChunks(File df, httpd_req_t *req) {   
+esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {   
   // use chunked encoding to send large content to browser
   size_t chunksize = 0;
   while ((chunksize = df.read(chunk, CHUNKSIZE))) {
     if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) break;
     // httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
   } 
-  df.close();
-  httpd_resp_sendstr_chunk(req, NULL);
+  if (endChunking) {
+    df.close();
+    httpd_resp_sendstr_chunk(req, NULL);
+  }
   if (chunksize) {
     LOG_ERR("Failed to send %s to browser", inFileName);
     httpd_resp_set_status(req, "500 Failed to send file");
@@ -50,18 +52,7 @@ esp_err_t fileHandler(httpd_req_t* req, bool download) {
     httpd_resp_sendstr(req, NULL);
     return ESP_FAIL;
   } 
-  if (download) {  
-    // download file as attachment, required file name in inFileName
-    LOG_INF("Download file: %s, size: %s", inFileName, fmtSize(df.size()));
-    httpd_resp_set_type(req, "application/octet-stream");
-    char contentDisp[IN_FILE_NAME_LEN + 50];
-    char contentLength[10];
-    snprintf(contentDisp, sizeof(contentDisp) - 1, "attachment; filename=%s", inFileName);
-    httpd_resp_set_hdr(req, "Content-Disposition", contentDisp);
-    snprintf(contentLength, 10, "%i", df.size());
-    httpd_resp_set_hdr(req, "Content-Length", contentLength);
-  }
-  return sendChunks(df, req);
+  return (download) ? downloadFile(df, req) : sendChunks(df, req);
 }
 
 static void displayLog(httpd_req_t *req) {

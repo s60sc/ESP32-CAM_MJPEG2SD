@@ -67,7 +67,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.2"
+#define APP_VER "9.3"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 2 // stream, playback, download / NVR
@@ -110,18 +110,20 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 6
-#define HTM_VER 8
+#define CFG_VER 7
+#define HTM_VER 9
 #define JS_VER  4
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
+#define SRT_EXT "srt"
 #define AVI_HEADER_LEN 310 // AVI header length
 #define CHUNK_HDR 8 // bytes per jpeg hdr in AVI 
 #define WAVTEMP "/current.wav"
 #define AVITEMP "/current.avi"
 #define TLTEMP "/current.tl"
 #define TELETEMP "/current.csv"
+#define SRTTEMP "/current.srt"
 
 // non default pins configured for SD card on given camera board
 #if defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
@@ -264,7 +266,6 @@ extern bool useMotion; // whether to use camera for motion detection (with motio
 extern uint8_t colorDepth;
 extern bool timeLapseOn; // enable time lapse recording
 extern int maxFrames;
-extern char inFileName[];
 extern uint8_t xclkMhz;
 extern char camModel[];
 extern bool doKeepFrame;

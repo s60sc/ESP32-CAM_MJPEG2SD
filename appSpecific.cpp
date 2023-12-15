@@ -55,7 +55,6 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
   else if (!strcmp(variable, "micGain")) micGain = intVal;
   else if (!strcmp(variable, "upload")) fsFileOrFolder(value); 
-  else if (!strcmp(variable, "whichExt")) whichExt = (bool)intVal;
   else if (!strcmp(variable, "delete")) {
     stopPlayback = true;
     deleteFolderOrFile(value);

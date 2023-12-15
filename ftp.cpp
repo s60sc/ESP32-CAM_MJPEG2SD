@@ -92,9 +92,9 @@ static bool hfsStoreFile(File &fh) {
   // Upload individual file to HTTPS server
   // reject if folder or not valid file type
 #ifdef ISCAM
-  if (!strstr(fh.name(), AVI_EXT) && !strstr(fh.name(), CSV_EXT)) return false; 
+  if (!strstr(fh.name(), AVI_EXT) && !strstr(fh.name(), CSV_EXT) && !strstr(fh.name(), SRT_EXT)) return false; 
 #else
-  if (strstr(fh.name(), FILE_EXT) == NULL) return false; 
+  if (!strstr(fh.name(), FILE_EXT)) return false; 
 #endif
   LOG_INF("Upload file: %s, size: %s", fh.name(), fmtSize(fh.size()));    
 
@@ -229,9 +229,9 @@ static bool ftpStoreFile(File &fh) {
   // Upload individual file to current folder, overwrite any existing file 
   // reject if folder, or not valid file type    
 #ifdef ISCAM
-  if (strstr(fh.name(), AVI_EXT) == NULL && strstr(fh.name(), CSV_EXT) == NULL) return false; 
+  if (!strstr(fh.name(), AVI_EXT) && !strstr(fh.name(), CSV_EXT) && !strstr(fh.name(), SRT_EXT)) return false; 
 #else
-  if (strstr(fh.name(), FILE_EXT) == NULL) return false; 
+  if (!strstr(fh.name(), FILE_EXT)) return false; 
 #endif
   char ftpSaveName[FILE_NAME_LEN];
   strcpy(ftpSaveName, fh.name());
@@ -299,19 +299,26 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
   File root = fp.open(fileOrFolder);
   if (!root.isDirectory()) {
     // Upload a single file 
+    char fsSaveName[FILE_NAME_LEN];
+    strcpy(fsSaveName, root.path());
     if (getFolderName(root.path())) res = fsUse ? hfsStoreFile(root) : ftpStoreFile(root); 
 #ifdef ISCAM
-    // upload corresponding csv file if exists
+    // upload corresponding csv and srt files if exist
     if (res) {
-      char fsSaveName[FILE_NAME_LEN];
-      strcpy(fsSaveName, root.path());
       changeExtension(fsSaveName, CSV_EXT);
       if (fp.exists(fsSaveName)) {
         File csv = fp.open(fsSaveName);
-        res = fsUse ? hfsStoreFile(root) : ftpStoreFile(root);
+        res = fsUse ? hfsStoreFile(csv) : ftpStoreFile(csv);
         csv.close();
       }
+      changeExtension(fsSaveName, SRT_EXT);
+      if (fp.exists(fsSaveName)) {
+        File srt = fp.open(fsSaveName);
+        res = fsUse ? hfsStoreFile(srt) : ftpStoreFile(srt);
+        srt.close();
+      }
     }
+    if (!res) LOG_ERR("Failed to upload: %s", fsSaveName);
 #endif
   } else {  
     // Upload a whole folder, file by file
@@ -349,7 +356,6 @@ static void fileServerTask(void* parameter) {
     else { 
       bool res = uploadFolderOrFileFs(storedPathName);
       if (res && deleteAfter) deleteFolderOrFile(storedPathName);
-      if (!res) LOG_ERR("Failed to upload: %s", storedPathName);
     }
   } else LOG_DBG("Root or null is not allowed %s", storedPathName);  
   uploadInProgress = false;

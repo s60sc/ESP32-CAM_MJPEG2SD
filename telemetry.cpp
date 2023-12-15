@@ -1,8 +1,9 @@
 //
-// Telemetry recording to storage during camera recording
+// Telemetry data recorded to storage during camera recording
 // Formatted as CSV file for presentation in spreadsheet
+// and as a SRT file to provide video subtitles when used with a media player
 // Sensor data obtained from user supplied libraries and code
-// Need to check 'Use telemetry recording' under Peripherals button on Edit Config web page.
+// Need to check 'Use telemetry recording' under Peripherals button on Edit Config web page
 // and have downloaded relevant device libraries.
 // Best used on ESP32S3, not tested on ESP32
 
@@ -11,10 +12,13 @@
 #include "appGlobals.h"
 #include <Wire.h>
 
+#define NUM_BUFF 2 
+
 TaskHandle_t telemetryHandle = NULL;
 bool teleUse = false;
 int teleInterval = 1;
-static char* teleBuf; // telemetry data buffer
+static char* teleBuf[NUM_BUFF]; // csv and srt telemetry data buffers
+size_t highPoint[NUM_BUFF]; // indexes to buffers
 static bool capturing = false;
 static char teleFileName[FILE_NAME_LEN];
 
@@ -31,6 +35,7 @@ static bool checkI2C(byte addr);
 #define BUF_OVERFLOW 100 // set to be max size of formatted telemetry row
 
 // if require I2C, define which pins to use for I2C bus
+// if pins not correctly defined for board, spurious results will occur
 #define I2C_SDA 20
 #define I2C_SCL 21
 
@@ -54,9 +59,10 @@ MPU9250 mpu9250;
 
 static bool setupSensors() {
   // setup required sensors
+  bool res = false;
 #ifdef USE_GY91
   Wire.begin(I2C_SDA, I2C_SCL); // join I2C bus as master 
-  LOG_INF("I2C started at %dHz", Wire.getClock());
+  LOG_INF("I2C started at %dkHz", Wire.getClock() / 1000);
   if (!scanI2C()) return false;
 
   if (bmp280.begin()) {
@@ -85,22 +91,27 @@ static bool setupSensors() {
     LOG_WRN("MPU9250 not available at address 0x%02X", MPU_ADDRESS);
     return false;
   }
+  res = true; 
 #endif
-  return false;
+  return res; 
 }
 
-static size_t getSensorData(size_t highPoint) {
-  // get sensor data and format as csv row in buffer
+static void getSensorData() {
+  // get sensor data and format as csv row & srt entry in buffers
 #ifdef USE_GY91
   bmp280.measure();
   if (bmp280.hasValue()) {
     float bmpPressure = bmp280.getPressure() * 0.01;  // pascals to mb/hPa
     float bmpAltitude = 44330.0 * (1.0 - pow(bmpPressure / STD_PRESSURE, 1.0 / 5.255)); // altitude in meters
-    highPoint += sprintf(teleBuf + highPoint, "%0.1f,%0.1f,%0.1f,", bmp280.getTemperature(), bmpPressure, bmpAltitude);
-  } else highPoint += sprintf(teleBuf + highPoint, "-,-,-,");
-  if (mpu9250.update()) highPoint += sprintf(teleBuf + highPoint, "%0.1f,%0.1f,%0.1f,", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], "%0.1f,%0.1f,%0.1f,", bmp280.getTemperature(), bmpPressure, bmpAltitude);
+    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "  %0.1fC  %0.1fmb  %0.1fm", bmp280.getTemperature(), bmpPressure, bmpAltitude);
+  } else for (int i=0; i< 2; i++) highPoint[i] += sprintf(teleBuf[i] + highPoint[i], "-,-,-,");
+  
+  if (mpu9250.update()) {
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], "%0.1f,%0.1f,%0.1f,", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
+    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "  %0.1f  %0.1f  %0.1f", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
+  }
 #endif
-  return highPoint;
 }
 
 /*************** LEAVE CODE BELOW AS IS ******************/
@@ -109,48 +120,69 @@ static void telemetryTask(void* pvParameters) {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     capturing = true;
+    int srtSeqNo = 1;
+    uint32_t srtTime = 0;
+    char timeStr[10];
     uint32_t sampleInterval = 1000 * (teleInterval < 1 ? 1 : teleInterval);
     // open storage file
     if (STORAGE.exists(TELETEMP)) STORAGE.remove(TELETEMP);
+    if (STORAGE.exists(SRTTEMP)) STORAGE.remove(SRTTEMP);
     File teleFile = STORAGE.open(TELETEMP, FILE_WRITE);
-    // write header row to buffer
-    size_t highPoint = sprintf(teleBuf, "%s", TELEHEADER); 
+    File srtFile = STORAGE.open(SRTTEMP, FILE_WRITE);
+    // write CSV header row to buffer
+    highPoint[0] = sprintf(teleBuf[0], "%s", TELEHEADER); 
+    highPoint[1] = 0;
     
     // loop while camera recording
     while (capturing) {
       uint32_t startTime = millis();
-      // write current time for this row
+      // write header for this subtitle
+      formatElapsedTime(timeStr, srtTime, true);
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%d\n%s --> ", srtSeqNo++, timeStr);
+      srtTime += sampleInterval;
+      formatElapsedTime(timeStr, srtTime, true);
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%s\n", timeStr);
+      // write current time for csv row
       time_t currEpoch = getEpoch();
-      highPoint += strftime(teleBuf + highPoint, 10, "%H:%M:%S,", localtime(&currEpoch));
+      for (int i = 0; i < NUM_BUFF; i++) highPoint[i] += strftime(teleBuf[i] + highPoint[i], 10, "%H:%M:%S,", localtime(&currEpoch));
       // get data from sensors 
-      highPoint = getSensorData(highPoint);
+      getSensorData();
       // add newline to finish row
-      highPoint += sprintf(teleBuf + highPoint, "\n"); 
+      highPoint[0] += sprintf(teleBuf[0] + highPoint[0], "\n"); 
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "\n\n"); 
       
       // if marker overflows buffer, write to storage
-      if (highPoint >= RAMSIZE) {
-        highPoint -= RAMSIZE;
-        teleFile.write((uint8_t*)teleBuf, RAMSIZE);
-        // push overflow to buffer start
-        memcpy(teleBuf, teleBuf+RAMSIZE, highPoint);
+      for (int i = 0; i < NUM_BUFF; i++) {
+        if (highPoint[i] >= RAMSIZE) {
+          highPoint[i] -= RAMSIZE;
+          if (i) srtFile.write((uint8_t*)teleBuf[i], RAMSIZE);
+          else teleFile.write((uint8_t*)teleBuf[i], RAMSIZE);
+          // push overflow to buffer start
+          memcpy(teleBuf[i], teleBuf[i]+RAMSIZE, highPoint[i]);
+        }
       }
       // wait for next collection interval
       while (millis() - sampleInterval < startTime) delay(10);
     }
     
     // capture finished, write remaining buff to storage 
-    if (highPoint) teleFile.write((uint8_t*)teleBuf, highPoint);
+    if (highPoint[0]) teleFile.write((uint8_t*)teleBuf[0], highPoint[0]);
+    if (highPoint[1]) srtFile.write((uint8_t*)teleBuf[1], highPoint[1]);
     teleFile.close();
-    // rename temp file to specific file name
-    STORAGE.rename(TELETEMP, teleFileName); 
-    LOG_INF("Saved telemetry file %s", teleFileName);
+    srtFile.close();
+    // rename temp files to specific file names using avi file name with relevant extension
+    changeExtension(teleFileName, CSV_EXT);
+    STORAGE.rename(TELETEMP, teleFileName);
+    changeExtension(teleFileName, SRT_EXT);
+    STORAGE.rename(SRTTEMP, teleFileName);
+    LOG_INF("Saved telemetry files");
   }
 }
 
 void prepTelemetry() {
   // called by app initialisation
   if (teleUse) {
-    teleBuf = psramFound() ? (char*)ps_malloc(RAMSIZE + BUF_OVERFLOW) : (char*)malloc(RAMSIZE + BUF_OVERFLOW);
+    for (int i=0; i < NUM_BUFF; i++) teleBuf[i] = psramFound() ? (char*)ps_malloc(RAMSIZE + BUF_OVERFLOW) : (char*)malloc(RAMSIZE + BUF_OVERFLOW);
     if (setupSensors()) xTaskCreate(&telemetryTask, "telemetryTask", TELEM_STACK_SIZE, NULL, 3, &telemetryHandle);
     else teleUse = false;
     LOG_INF("Telemetry recording %s available", teleUse ? "is" : "NOT");
@@ -167,8 +199,6 @@ void stopTelemetry(const char* fileName) {
   // called when camera recording stopped
   if (teleUse) {
     strcpy(teleFileName, fileName); 
-    // derive telemetry file name from avi file name with csv extension
-    changeExtension(teleFileName, CSV_EXT);
     capturing = false; // stop task
   }
 }
