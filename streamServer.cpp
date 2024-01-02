@@ -171,11 +171,6 @@ static void sustainTask(void* p) {
       LOG_ERR("Unknown request: %s", sustainReq[i].activity);
     }
     // cleanup as request now complete
-//    if (useHttps) {
-//      // force TLS session to close
-//      httpd_sess_trigger_close(sustainReq[i].req->handle, httpd_req_to_sockfd(sustainReq[i].req));
-//      delay(1000);
-//    }
     free(sustainReq[i].req->aux);
     sustainReq[i].req->~httpd_req_t();
     free(sustainReq[i].req);
