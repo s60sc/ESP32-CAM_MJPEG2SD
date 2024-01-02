@@ -108,7 +108,12 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
   char hdrBuf[HDR_BUF_LEN];
   while (isStreaming[taskNum]) {
     // stream from camera at current frame rate
-    if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
+    if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
+      // failed to take semaphore, allow retry
+      streamBufferSize[taskNum] = 0;
+      delay(MAX_FRAME_WAIT);
+      continue;
+    }
     if (dbgMotion && !taskNum) {
       // motion tracking stream on task 0 only, wait for new move mapping image
       if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
@@ -166,6 +171,11 @@ static void sustainTask(void* p) {
       LOG_ERR("Unknown request: %s", sustainReq[i].activity);
     }
     // cleanup as request now complete
+//    if (useHttps) {
+//      // force TLS session to close
+//      httpd_sess_trigger_close(sustainReq[i].req->handle, httpd_req_to_sockfd(sustainReq[i].req));
+//      delay(1000);
+//    }
     free(sustainReq[i].req->aux);
     sustainReq[i].req->~httpd_req_t();
     free(sustainReq[i].req);
@@ -221,7 +231,6 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
           strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
           // activate relevant task
           xTaskNotifyGive(sustainHandle[i]);
-          delay(100);
           return ESP_OK;
         } else httpd_resp_set_status(req, "500 No free task");
       }
