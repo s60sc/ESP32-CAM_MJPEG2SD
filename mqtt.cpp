@@ -1,3 +1,4 @@
+#define CONFIG_MQTT_PROTOCOL_311
 #include "appGlobals.h"
 #include "mqtt_client.h" 
  
@@ -185,6 +186,7 @@ void startMqttClient(void){
  
   mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
   LOG_INF("Mqtt connect to %s...", mqtt_uri);
+  //LOG_INF("Mqtt connect pass: %s...", mqtt_user_Pass);
   if (mqtt_client != NULL) {
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_CONNECTED, mqtt_connected_handler, NULL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DISCONNECTED, mqtt_disconnected_handler, NULL));
