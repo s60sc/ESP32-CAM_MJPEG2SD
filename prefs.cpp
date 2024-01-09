@@ -326,7 +326,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "mqtt_broker")) strncpy(mqtt_broker, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "mqtt_port")) strncpy(mqtt_port, value, 4);
   else if (!strcmp(variable, "mqtt_user")) strncpy(mqtt_user, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "mqtt_user_Pass")) strncpy(mqtt_user_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "mqtt_user_Pass") && strchr(value, '*') == NULL) strncpy(mqtt_user_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "mqtt_topic_prefix")) strncpy(mqtt_topic_prefix, value, (FILE_NAME_LEN/2)-1);
 #endif
 
