@@ -153,6 +153,7 @@ waitTime~20~4~N~Min wait (ms) between updates to ESP32
 tgramUse~0~2~C~Use Telegram Bot
 tgramToken~~2~T~Telegram Bot token
 tgramChatId~~2~T~Telegram chat identifier
-cfgVer~7~99~T~na
-htmVer~9~99~T~na
+camHub~0~2~C~Show Camera Hub tab
+cfgVer~8~99~T~na
+htmVer~10~99~T~na
 jsVer~4~99~T~na

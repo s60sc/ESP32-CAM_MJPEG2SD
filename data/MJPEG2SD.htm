@@ -59,7 +59,7 @@
       }
 
       .hidden {
-        display: none
+        display: none;
       }
       
       progress {
@@ -406,7 +406,7 @@
         width: var(--bigThumbSize);
         margin-top: calc(-0.5 * var(--bigThumbSize));
       }
-
+      
       div[name="rangeVal"] {
         /* shape & location of marker relative to thumb */
         width: calc(var(--markerSize) * 2);
@@ -832,6 +832,42 @@
       fieldset {
         margin: 0px;
       }
+      
+      
+      /* hub page */
+      
+      #imageContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(20%, 30%));
+        gap: var(--buttonSize);
+        margin-left: var(--buttonDbl); 
+      }
+
+      .hubImg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      .ipContainer {
+        position: relative;
+        cursor: pointer;
+      }
+
+      .ipText {
+        position: absolute;
+        bottom: var(--buttonQuart);
+        left: 50%; /* Center the overlay horizontally */
+        transform: translateX(-50%); /* Adjust for centering */
+        font-size: var(--buttonSize);
+        color: var(--pageText);
+        padding: var(--buttonQuart);
+      }
+
+      #buttonContainer {
+        margin-bottom: calc(var(--buttonSize) * 4);
+        display: flex;
+        align-items: center;
+      }
 
     </style>
   </head>
@@ -842,6 +878,7 @@
         <button class="tablinks camTab active" name="mainPage">Camera</button>
         <button class="tablinks" name="ShowLog">Show Log</button>
         <button class="tablinks" name="EditConfig">Edit Config</button>
+        <button class="tablinks" name="CameraHub" style="display: none;">Camera Hub</button>
         <a href="/web?OTA.htm"><button class="tablinks">OTA Upload</button></a>
       </ul>
       <section id="main">
@@ -1330,7 +1367,6 @@
                       <label for="Auth_Pass">Web password</label>
                       <input id="Auth_Pass" name="Auth_Pass" length=32 placeholder="Authentication password">
                   </div>
-<!--
                   <div class="input-group" id="auth-group">
                     <label for="useHttps">Use HTTPS</label>
                     <div class="switch">
@@ -1338,7 +1374,6 @@
                       <label title="Use HTTPS to access app" class="slider" for="useHttps"></label>
                     </div>
                   </div>
--->
                   <div class="input-group" id="auth-group">
                     <label for="useSecure">Check Certs</label>
                     <div class="switch">
@@ -1586,6 +1621,19 @@
         <p class='config-group' id='Cfg'></p>
       </div>
     </div>
+    
+    <div id="CameraHub" class="tabcontent">
+      <div id="buttonContainer">
+        <!-- Input field for users to enter individual IPs -->
+        <label for="ipInput">Enter IP address:&nbsp;</label>
+        <input type="text" id="ipInput">
+        <button id="addIpButton" onclick="addIP()">Add IP</button>
+        <button id="clearStorageButton" onclick="clearLocalStorage()">Delete All</button>
+        <button id="refreshAllButton" onclick="refreshAllContainers()">Refresh</button>
+      </div>
+      <!-- Container to hold the image elements -->
+      <div id="imageContainer"></div>
+    </div>
         
     <div class="alertMsg">
       <span id="alertText"></span>
@@ -1679,6 +1727,7 @@
           else if (key == "get-still") getStill();
           else if (key == "download" && $("#download").value.includes('.')) doDownload();
           else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
+          else if (key == "camHub") {value == "1" ? dbg("true") : dbg("false"); dbg("camHub "+value);  value == "1"  ? show($('[name="CameraHub"]')) : hide($('[name="CameraHub"]')); }
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
           else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
           else if (key == "agc") setAgc(key, value);
@@ -1930,9 +1979,10 @@
         if (sendStop) sendAll("stopStream", "0");
       }
 
-      function stopAll(caller, sendStop = true) {
+      async function stopAll(caller, sendStop = true) {
         if (!isHidden(viewContainer)) {
           stopRC();
+          if (isSecure) await sleep(1000); // otherwise TLS crash
           window.stop();
         }
         if (isActive(playbackButton)) deactivatePlaybackButton(sendStop);
@@ -2234,6 +2284,112 @@
         $('#motorSpeed').max = maxDutyCycle;
         $('#motorSpeed').min = allowReverse ? 0 - maxDutyCycle : 0;
       }
+      
+      /************** Hub ****************/
+            
+      // create image elements with the saved IPs on page load
+      async function createImageElements(ipAddresses) {
+        const container = document.getElementById('imageContainer');
+        container.innerHTML = ''; // Clear existing content
+
+        // Convert the array of IP addresses into individual IPs
+        for (const ip of ipAddresses) {
+          // Create a container div for each image
+          const ipContainer = document.createElement('div');
+          ipContainer.classList.add('ipContainer');
+          // Create an image element
+          const hubImg = document.createElement('img');
+          hubImg.classList.add('hubImg');
+          // Set the source attribute to request still image
+          hubImg.src = `http://${ip}/control?still=${Date.now()}`;
+          // Set an alt attribute for accessibility
+          hubImg.alt = `No Image`;
+
+          // Create a remove button for each container
+          const removeButton = document.createElement('span');
+          removeButton.classList.add('removeButton');
+          removeButton.classList.add('streamSize');
+          removeButton.innerHTML = '×';
+              
+          removeButton.onclick = function (event) {
+            event.stopPropagation(); // Prevent container click from triggering at the same time
+            // Remove the IP from local storage, remove the IP container, and update images
+            const updatedIPs = removeFromLocalStorage(ip);
+            container.removeChild(ipContainer);
+            createImageElements(updatedIPs);
+          };
+
+          // Create a text element to display the IP address overlay
+          const ipText = document.createElement('div');
+          ipText.classList.add('ipText');
+          ipText.textContent = ip;
+
+          // Append the image, IP text, and remove button to the container
+          ipContainer.appendChild(ipText);
+          ipContainer.appendChild(removeButton);
+          ipContainer.appendChild(hubImg);
+          removeButton.style.position = 'absolute';
+          removeButton.style.top = '0';
+          removeButton.style.right = '0';
+
+          // Add click event listener to each container for fetching the web page for the IP address
+          ipContainer.onclick = function () {
+            window.open(`http://${ip}`, '_blank');
+          };
+
+          // Append the container to the main image container
+          container.appendChild(ipContainer);
+        }
+      }
+
+      function refreshAllContainers() {
+        const containers = document.querySelectorAll('.ipContainer');
+        containers.forEach((container) => {
+          const ip = container.querySelector('.ipText').textContent;
+          const hubImg = container.querySelector('img');
+          hubImg.src = `http://${ip}/control?still=${Date.now()}`;
+        });
+      }
+
+      // Function to update images when the "Add IP" button is clicked
+      function addIP() {
+        const ipInput = document.getElementById('ipInput');
+        const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
+
+        // Add the entered IP to the array
+        const newIP = ipInput.value.trim();
+        if (newIP !== '' && !ipAddresses.includes(newIP)) {
+          ipAddresses.push(newIP);
+          localStorage.setItem('enteredIPs', JSON.stringify(ipAddresses));
+          // Call the function to create image elements with the updated IP addresses
+          createImageElements(ipAddresses);
+          // Clear the input field
+          ipInput.value = '';
+        }
+      }
+
+      // Function to remove an IP from local storage
+      function removeFromLocalStorage(ip) {
+        const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
+        const updatedIPs = ipAddresses.filter(existingIP => existingIP !== ip);
+        // Update local storage with the modified array
+        localStorage.setItem('enteredIPs', JSON.stringify(updatedIPs));
+        return updatedIPs;
+      }
+
+      // Function to clear local storage
+      function clearLocalStorage() {
+        const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
+        localStorage.removeItem('enteredIPs');
+        createImageElements(ipAddresses); // Update images after clearing local storage
+      }
+
+      // Retrieve and populate the input field with the saved IPs on page load
+      window.onload = function () {
+        const savedIPs = localStorage.getItem('enteredIPs');
+        const ipAddresses = savedIPs ? JSON.parse(savedIPs) : [];
+        createImageElements(ipAddresses);
+      };
 
 
       /***************************************************************************/
