@@ -111,7 +111,6 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
     if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
       // failed to take semaphore, allow retry
       streamBufferSize[taskNum] = 0;
-      delay(MAX_FRAME_WAIT);
       continue;
     }
     if (dbgMotion && !taskNum) {

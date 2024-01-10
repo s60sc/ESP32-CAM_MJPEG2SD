@@ -32,6 +32,9 @@ Changes in version 9.2:
 Changes in version 9.3:
 * Subtitles for [Telemetry Recording](#telemetry-recording)
 
+Changes in version 9.4:
+* [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
+
 ## Purpose
 
 The application enables video capture of motion detection or timelapse recording. Examples include security cameras or wildlife monitoring.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
@@ -303,3 +306,16 @@ More details in `motionDetect.cpp`.
 Use 96x96 grayscale or RGB images and train the model with for example the following Transfer learning Neural Network settings:  
 
 <img src="extras/TinyML.png" width="500" height="400">
+
+## Camera Hub
+
+This tab enables the web interfaces of other ESP32-CAM_MJPEG2SD camera devices to be accessed. To show this tab, in **Edit Config** page under **Other**, select `Show Camera Hub tab`.  
+
+In the tab, enter IP address of another camera and press **Add IP** button, a screen showing an image from the camera is displayed with its IP address overlayed. Repeat for each camera to be monitored. Click on an image to open the web page for that camera.  
+
+Press **X** icon on image to remove that IP address. Press **Delete All** button to remove all IP addresses. Press **Refresh** button to update each screen with the latest image from that camera.  
+
+The IP addresses are stored in the browser local storage, not the app itself.
+
+
+

@@ -13,6 +13,7 @@ static char value[FILE_NAME_LEN];
 static char alertCaption[100];
 static bool alertReady = false;
 static bool depthColor = true;
+static bool camHub = false;
 
 /************************ webServer callbacks *************************/
 
@@ -131,6 +132,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
   else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
   else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
+  else if (!strcmp(variable, "camHub")) camHub = (bool)intVal;  
 
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
@@ -409,9 +411,27 @@ static bool downloadAvi(const char* userCmd) {
   return (bool)pos;
 }
 
+static void saveRamLog() {
+  // save ramlog to storage
+  if (ramLog) {
+    File ramFile = STORAGE.open(DATA_DIR "/ramlog" TEXT_EXT, FILE_WRITE);
+    int startPtr, endPtr;
+    startPtr = endPtr = mlogEnd;  
+    // write log in chunks
+    do {
+      int maxChunk = startPtr < endPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr;
+      size_t chunkSize = std::min(CHUNKSIZE, maxChunk);    
+      if (chunkSize > 0) ramFile.write((uint8_t*)messageLog + startPtr, chunkSize);
+      startPtr += chunkSize;
+      if (startPtr >= RAM_LOG_LEN) startPtr = 0;
+    } while (startPtr != endPtr);
+    ramFile.close();
+  }
+}
+
 void appSpecificTelegramTask(void* p) {
   // process Telegram interactions
-  snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap", hostName); 
+  snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap\n\n/log", hostName); 
   sendTgramMessage("Rebooted", "", "");
   char userCmd[FILE_NAME_LEN];
   
@@ -423,6 +443,10 @@ void appSpecificTelegramTask(void* p) {
         delay(1000); // time to get frame
         sprintf(userCmd, "/snap from %s", hostName);
         sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
+      } else if (!strcmp(userCmd, "/log")) {
+        saveRamLog();
+        sprintf(userCmd, "/log from %s", hostName);
+        sendTgramFile(DATA_DIR "/ramlog" TEXT_EXT, "text/plain", userCmd);
       } else {
         // initially assume it is an avi file download request
         if (!downloadAvi(userCmd)) sendTgramMessage("Request not recognised: ", userCmd, "");

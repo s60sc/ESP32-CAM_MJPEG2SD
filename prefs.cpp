@@ -241,6 +241,10 @@ static void updateVer(const char* verType, int inVer) {
      itoa(currVer, currVarStr, 10);
      updateConfigVect(verType, currVarStr);
      updatedVers = true;
+  } else if (currVer < inVer) {
+    if (!strcmp(verType, "htmVer")) LOG_WRN("%s is for a later app version", INDEX_PAGE_PATH);
+    if (!strcmp(verType, "cfgVer")) LOG_WRN("%s is for a later app version", CONFIG_FILE_PATH);
+    if (!strcmp(verType, "jsVer")) LOG_WRN("%s is for a later app version", COMMON_JS_PATH); 
   }
 }
 

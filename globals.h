@@ -116,7 +116,6 @@ time_t getEpoch();
 size_t getFreeStorage();
 bool getLocalNTP();
 float getNTCcelsius(uint16_t resistance, float oldTemp);
-void getOldestDir(char* oldestDir);
 void goToSleep(int wakeupPin, bool deepSleep);
 void initStatus(int cfgGroup, int delayVal);
 void killWebSocket();

@@ -120,7 +120,7 @@ bool startStorage() {
   return res;
 }
 
-void getOldestDir(char* oldestDir) {
+static void getOldestDir(char* oldestDir) {
   // get oldest folder by its date name
   File root = fp.open("/");
   File file = root.openNextFile();
@@ -209,7 +209,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     File root = fp.open(fileName);
     if (strlen(fileName)) {
       if (!root) LOG_ERR("Failed to open directory %s", fileName);
-      if (!root.isDirectory()) LOG_ERR("Not a directory %s", fileName);
+      else if (!root.isDirectory()) LOG_ERR("Not a directory %s", fileName);
       LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
     }
     

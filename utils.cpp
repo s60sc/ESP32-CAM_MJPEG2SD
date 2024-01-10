@@ -17,6 +17,8 @@ bool monitorOpen = true;
 bool dataFilesChecked = false;
 // allow any startup failures to be reported via browser for remote devices
 char startupFailure[SF_LEN] = {0};
+size_t alertBufferSize = 0;
+byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
 
 /************************** Wifi **************************/
 
@@ -779,8 +781,9 @@ void logSetup() {
   // prep logging environment
   Serial.begin(115200);
   Serial.setDebugOutput(DBG_ON);
-  printf("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
+  printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
+  esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
@@ -788,7 +791,11 @@ void logSetup() {
   xTaskCreate(logTask, "logTask", LOG_STACK_SIZE, NULL, 1, &logHandle);
   if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
   LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
+  LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
   wakeupResetReason();
+#if defined(INCLUDE_SMTP) || defined(INCLUDE_TGRAM)
+  if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
+#endif
   debugMemory("logSetup"); 
 }
 

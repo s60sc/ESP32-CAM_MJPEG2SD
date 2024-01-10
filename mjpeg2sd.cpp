@@ -61,9 +61,6 @@ static uint32_t recDuration;
 static uint8_t saveFPS = 99;
 bool doPlayback = false; // controls playback
 
-size_t alertBufferSize = 0;
-byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
-
 // task control
 TaskHandle_t captureHandle = NULL;
 TaskHandle_t playbackHandle = NULL;
@@ -668,7 +665,6 @@ bool prepRecording() {
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
   for (int i = 0; i < numStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
-  if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_JPEG); 
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
   else {

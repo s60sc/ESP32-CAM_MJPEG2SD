@@ -77,7 +77,7 @@ size_t getResponseHeader(WiFiClientSecure& sclient, const char* host, int waitSe
     while (!endOfHeader && millis() - startTime < waitSecs * 1000) {
       if (sclient.available()) { 
         String tline = sclient.readStringUntil('\n');
-        // printf("%s\n", tline.c_str());
+        //printf("Res: %s\n", tline.c_str());
         endOfHeader = tline.length() > 1 ? false : true; // blank line ends header
         if (!httpCode) sscanf(tline.c_str(), HTTP_CODE, &httpCode);  
         // get contentLength from header
@@ -124,7 +124,7 @@ static bool getTgramResponse() {
         if (strcmp(keyValue, "[]")) haveResponse = true;
       }
     } 
-    //printf("%s\n", tgramBuff);
+    //printf("Cnt: %s\n", tgramBuff);
     remoteServerClose(tclient); // end of transaction 
   } // else nothing received, so leave connection open
   return haveResponse;

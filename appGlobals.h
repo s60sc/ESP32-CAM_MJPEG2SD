@@ -59,7 +59,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #ifdef DEV_ONLY 
 //#define SIDE_ALARM // uncomment if used for side alarm
 #endif 
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -67,7 +67,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.3"
+#define APP_VER "9.4"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 2 // stream, playback, download / NVR
@@ -90,6 +90,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define MAX_FRAME_WAIT 1200
 #define RGB888_BYTES 3 // number of bytes per pixel
 #define GRAYSCALE_BYTES 1 // number of bytes per pixel 
+#define MAX_ALERT MAX_JPEG
 
 #ifdef SIDE_ALARM
 #define STORAGE LittleFS
@@ -110,8 +111,8 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 7
-#define HTM_VER 9
+#define CFG_VER 8
+#define HTM_VER 10
 #define JS_VER  4
 
 #define AVI_EXT "avi"
@@ -160,7 +161,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define PLAYBACK_STACK_SIZE (1024 * 2)
 #define SERVO_STACK_SIZE (1024)
 #define SUSTAIN_STACK_SIZE (1024 * 4)
-#define TGRAM_STACK_SIZE (1024 * 5)
+#define TGRAM_STACK_SIZE (1024 * 6)
 #define TELEM_STACK_SIZE (1024 * 4)
 #define UART_STACK_SIZE (1024 * 2)
 
