@@ -793,9 +793,7 @@ void logSetup() {
   LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
   LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
   wakeupResetReason();
-#if defined(INCLUDE_SMTP) || defined(INCLUDE_TGRAM)
   if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
-#endif
   debugMemory("logSetup"); 
 }
 
