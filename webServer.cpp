@@ -419,6 +419,7 @@ static void https_server_user_callback(esp_https_server_user_cb_arg_t *user_cb) 
 void startWebServer() {
   esp_err_t res = ESP_FAIL;
   chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
+#if INCLUDE_CERTS
   size_t prvtkey_len = strlen(prvtkey_pem);
   size_t cacert_len = strlen(cacert_pem);
   if (useHttps && (!cacert_len || !prvtkey_len)) {
@@ -444,6 +445,7 @@ void startWebServer() {
     //config.httpd.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_ssl_start(&httpServer, &config);
   } else {
+#endif
     // HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -456,8 +458,10 @@ void startWebServer() {
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     //config.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_start(&httpServer, &config);
+#if INCLUDE_CERTS
   }
-  
+#endif
+
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
   httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
   httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};

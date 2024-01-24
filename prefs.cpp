@@ -1,7 +1,7 @@
 
 /* 
   Management and storage of application configuration state.
-  Configuration file stored on spiffs or SD, except passwords which are stored in NVS
+  Configuration file stored on flash or SD, except passwords which are stored in NVS
    
   Workflow:
   loadConfig:
@@ -22,7 +22,7 @@
   - R : Range (as slider) R:min:max:step
   - B : Radio Buttons B:lab1:lab2:etc
 
-  s60sc 2022
+  s60sc 2022, 2024
 */
 
 #include "appGlobals.h"
@@ -31,8 +31,6 @@ static fs::FS fp = STORAGE;
 static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
 char* jsonBuff = NULL;
-bool configLoaded = false;
-static bool updatedVers = false;
 static char appId[16];
 static char variable[FILE_NAME_LEN] = {0,};
 static char value[FILE_NAME_LEN] = {0,};
@@ -137,32 +135,22 @@ static void saveConfigVect() {
 }
 
 static bool loadConfigVect() {
+  // force config vector into psram if available
+  if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); 
+  configs.reserve(MAX_CONFIGS);
+  // extract each config line from file
   File file = fp.open(CONFIG_FILE_PATH, FILE_READ);
-  if (!file || !file.size()) {
-    LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
-    if (!file.size()) {
-      file.close();
-      STORAGE.remove(CONFIG_FILE_PATH);
-    }
-    return false;
-  } else {
-    // force vector into psram if available
-    if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); 
-    configs.reserve(MAX_CONFIGS);
-    // extract each config line from file
-    while (true) {
-      String configLineStr = file.readStringUntil('\n');
-      if (!configLineStr.length()) break;
-      loadVectItem(configLineStr.c_str());
-    } 
-    // sort vector by key (element 0 in row)
-    std::sort(configs.begin(), configs.end(), [] (
-      const std::vector<std::string> &a, const std::vector<std::string> &b) {
-      return a[0] < b[0];}
-    );
-    // return malloc to default 
-    if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
-  }
+  while (file.available()) {
+    String configLineStr = file.readStringUntil('\n');
+    if (configLineStr.length()) loadVectItem(configLineStr.c_str());
+  } 
+  // sort vector by key (element 0 in row)
+  std::sort(configs.begin(), configs.end(), [] (
+    const std::vector<std::string> &a, const std::vector<std::string> &b) {
+    return a[0] < b[0];}
+  );
+  // return malloc to default 
+  if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
   file.close();
   return true;
 }
@@ -182,13 +170,13 @@ static bool savePrefs(bool retain = true) {
   prefs.putString("ST_Pass", ST_Pass);
   prefs.putString("AP_Pass", AP_Pass); 
   prefs.putString("Auth_Pass", Auth_Pass); 
-#ifdef INCLUDE_FTP_HFS
+#if INCLUDE_FTP_HFS
   prefs.putString("FS_Pass", FS_Pass);
 #endif
-#ifdef INCLUDE_SMTP
+#if INCLUDE_SMTP
   prefs.putString("SMTP_Pass", SMTP_Pass);
 #endif
-#ifdef INCLUDE_MQTT
+#if INCLUDE_MQTT
   prefs.putString("mqtt_user_Pass", mqtt_user_Pass);
 #endif
   prefs.end();
@@ -212,40 +200,17 @@ static bool loadPrefs() {
   updateConfigVect("ST_Pass", ST_Pass);
   prefs.getString("AP_Pass", AP_Pass, MAX_PWD_LEN);
   prefs.getString("Auth_Pass", Auth_Pass, MAX_PWD_LEN); 
-#ifdef INCLUDE_FTP_HFS
+#if INCLUDE_FTP_HFS
   prefs.getString("FS_Pass", FS_Pass, MAX_PWD_LEN);
 #endif
-#ifdef INCLUDE_SMTP
+#if INCLUDE_SMTP
   prefs.getString("SMTP_Pass", SMTP_Pass, MAX_PWD_LEN);
 #endif
-#ifdef INCLUDE_MQTT
+#if INCLUDE_MQTT
   prefs.getString("mqtt_user_Pass", mqtt_user_Pass, MAX_PWD_LEN);
 #endif
   prefs.end();
   return true;
-}
-
-static void updateVer(const char* verType, int inVer) {
-  // check if data file needs to be updated
-  int currVer = 0;
-  if (!strcmp(verType, "htmVer")) currVer = HTM_VER;
-  else if (!strcmp(verType, "jsVer")) currVer = JS_VER;
-  else if (!strcmp(verType, "cfgVer")) currVer = CFG_VER;
-  if (currVer > inVer) {
-     // lower version, delete file to update
-     LOG_WRN("Deleting file as out of date");
-     if (!strcmp(verType, "htmVer")) deleteFolderOrFile(INDEX_PAGE_PATH);
-     if (!strcmp(verType, "cfgVer")) deleteFolderOrFile(DATA_DIR);
-     if (!strcmp(verType, "jsVer")) deleteFolderOrFile(COMMON_JS_PATH);
-     char currVarStr[4];
-     itoa(currVer, currVarStr, 10);
-     updateConfigVect(verType, currVarStr);
-     updatedVers = true;
-  } else if (currVer < inVer) {
-    if (!strcmp(verType, "htmVer")) LOG_WRN("%s is for a later app version", INDEX_PAGE_PATH);
-    if (!strcmp(verType, "cfgVer")) LOG_WRN("%s is for a later app version", CONFIG_FILE_PATH);
-    if (!strcmp(verType, "jsVer")) LOG_WRN("%s is for a later app version", COMMON_JS_PATH); 
-  }
 }
 
 void updateStatus(const char* variable, const char* _value) {
@@ -254,7 +219,7 @@ void updateStatus(const char* variable, const char* _value) {
   bool res = true;
   char value[FILE_NAME_LEN];
   strncpy(value, _value, sizeof(value));  
-#ifdef INCLUDE_MQTT
+#if INCLUDE_MQTT
   if (mqtt_active) {
     char buff[(FILE_NAME_LEN * 2)];
     snprintf(buff, FILE_NAME_LEN * 2, "%s=%s",variable, value);
@@ -283,18 +248,20 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
   else if (!strcmp(variable, "doGetExtIP")) doGetExtIP = (bool)intVal;  
   else if (!strcmp(variable, "extIP")) strncpy(extIP, value, MAX_IP_LEN-1);
-#ifdef INCLUDE_TGRAM
+#if INCLUDE_TGRAM
   else if (!strcmp(variable, "tgramUse")) {
     tgramUse = (bool)intVal;
     if (tgramUse) {
+#if INCLUDE_SMTP
       smtpUse = false;
+#endif
       updateConfigVect("smtpUse", "0");
     }
   }
   else if (!strcmp(variable, "tgramToken")) strncpy(tgramToken, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "tgramChatId")) strncpy(tgramChatId, value, MAX_IP_LEN-1);
 #endif
-#ifdef INCLUDE_FTP_HFS
+#if INCLUDE_FTP_HFS
   else if (!strcmp(variable, "fsServer")) strncpy(fsServer, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "fsPort")) fsPort = intVal;
   else if (!strcmp(variable, "ftpUser")) strncpy(ftpUser, value, MAX_HOST_LEN-1);
@@ -306,11 +273,13 @@ void updateStatus(const char* variable, const char* _value) {
   else if(!strcmp(variable, "deleteAfter")) deleteAfter = (bool)intVal;
   else if(!strcmp(variable, "useFtps")) useFtps = (bool)intVal;
 #endif
-#ifdef INCLUDE_SMTP
+#if INCLUDE_SMTP
   else if (!strcmp(variable, "smtpUse")) {
     smtpUse = (bool)intVal;
     if (smtpUse) {
+#if INCLUDE_TGRAM
       tgramUse = false;
+#endif
       updateConfigVect("tgramUse", "0");
     }
   }
@@ -321,7 +290,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "smtp_port")) smtp_port = intVal;
   else if (!strcmp(variable, "smtpMaxEmails")) alertMax = intVal;
 #endif
-#ifdef INCLUDE_MQTT
+#if INCLUDE_MQTT
   else if (!strcmp(variable, "mqtt_active")) {
     mqtt_active = (bool)intVal;
     if (mqtt_active) startMqttClient();
@@ -375,10 +344,6 @@ void updateStatus(const char* variable, const char* _value) {
     }
     doRestart("user requested restart after data deletion"); 
   }
-  else if (!strcmp(variable, "htmVer") || !strcmp(variable, "jsVer") || !strcmp(variable, "cfgVer")) {
-    updateVer(variable, intVal);
-    return;
-  }
   else if (!strcmp(variable, "save")) {
     if (intVal) savePrefs();
     saveConfigVect();
@@ -421,13 +386,13 @@ void buildJsonString(uint8_t filter) {
       p += sprintf(p, "\"ST_Pass\":\"%.*s\",", strlen(ST_Pass), FILLSTAR);
       p += sprintf(p, "\"AP_Pass\":\"%.*s\",", strlen(AP_Pass), FILLSTAR);
       p += sprintf(p, "\"Auth_Pass\":\"%.*s\",", strlen(Auth_Pass), FILLSTAR);
-#ifdef INCLUDE_FTP_HFS
+#if INCLUDE_FTP_HFS
       p += sprintf(p, "\"FS_Pass\":\"%.*s\",", strlen(FS_Pass), FILLSTAR);
 #endif
-#ifdef INCLUDE_SMTP
+#if INCLUDE_SMTP
       p += sprintf(p, "\"SMTP_Pass\":\"%.*s\",", strlen(SMTP_Pass), FILLSTAR);
 #endif
-#ifdef INCLUDE_MQTT
+#if INCLUDE_MQTT
       p += sprintf(p, "\"mqtt_user_Pass\":\"%.*s\",", strlen(mqtt_user_Pass), FILLSTAR);
 #endif
     }
@@ -463,18 +428,61 @@ void initStatus(int cfgGroup, int delayVal) {
   }
 }
 
-static void setDefaults() {
-  // set default hostname and AP SSID if config is null
-  retrieveConfigVal("hostName", hostName);
-  if (!strlen(hostName)) {
-    sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
-    updateConfigVect("hostName", hostName);
+static bool checkConfigFile() {
+  // check config file exists
+  File file;
+  if (!STORAGE.exists(CONFIG_FILE_PATH)) {
+    // create from default in appGlobals.h
+    file = fp.open(CONFIG_FILE_PATH, FILE_WRITE);
+    if (file) {
+      // apply initial defaults
+      file.write((uint8_t*)appConfig, strlen(appConfig));
+      sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
+      char cfg[100];
+      sprintf(cfg, "hostName~%s~99~~na\n", hostName);
+      file.write((uint8_t*)cfg, strlen(cfg));
+      sprintf(cfg, "AP_SSID~%s~0~T~AP SSID name\n", hostName);
+      file.write((uint8_t*)cfg, strlen(cfg));
+      sprintf(cfg, "cfgVer~%u~99~T~na\n", CFG_VER);
+      file.write((uint8_t*)cfg, strlen(cfg));
+      file.close();
+      LOG_INF("Created %s from local store", CONFIG_FILE_PATH);
+      return true;
+    } else {
+      LOG_ERR("Failed to create file %s", CONFIG_FILE_PATH);
+      return false;
+    }
   }
-  retrieveConfigVal("AP_SSID", AP_SSID);
-  if (!strlen(AP_SSID)) {
-    strcpy(AP_SSID, hostName);
-    updateConfigVect("AP_SSID", AP_SSID);
+
+  // file exists, check if valid
+  bool goodFile = true;
+  file = fp.open(CONFIG_FILE_PATH, FILE_READ);
+  if (!file || !file.size()) {
+    LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
+    goodFile = false;
+  } else {
+    // check file contents are valid
+    loadConfigVect();
+    if (!retrieveConfigVal("cfgVer", appId)) goodFile = false; // obsolete config file
+    else if (atoi(appId) != CFG_VER) goodFile = false; // outdated config file
+    if (!goodFile) LOG_WRN("Delete old %s", CONFIG_FILE_PATH);
+    else {
+      // cleanup storage if config file for different app
+      retrieveConfigVal("appId", appId);
+      if (strcmp(appId, APP_NAME)) {
+        LOG_WRN("Delete invalid %s, expected %s, got %s", CONFIG_FILE_PATH, APP_NAME, appId);
+        savePrefs(false);
+        goodFile = false;
+      }
+    }
+    configs.clear();
   }
+  file.close();
+  if (!goodFile) {
+    deleteFolderOrFile(DATA_DIR);
+    STORAGE.mkdir(DATA_DIR);
+  }
+  return goodFile;
 }
 
 bool loadConfig() {
@@ -483,41 +491,18 @@ bool loadConfig() {
   if (jsonBuff == NULL) {
     jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   }
-  if (loadConfigVect()) {
-    retrieveConfigVal("appId", appId);
-    if (strcmp(appId, APP_NAME)) {
-      // cleanup storage for different app
-      snprintf(startupFailure, SF_LEN, "Wrong configs.txt file, expected %s, got %s", APP_NAME, appId);
-      deleteFolderOrFile(DATA_DIR);
-      savePrefs(false);
-      return false;
-    }
+  bool res = checkConfigFile();
+  if (!res) res = checkConfigFile(); // to recreate file if deleted on first call
+  if (res) {
+    loadConfigVect();
     loadPrefs(); // overwrites any corresponding entries in config
-    setDefaults();
 
-    std::string htmVer("htmVer");
-    if (getKeyPos(htmVer) < 0) {
-      // add following to configs.txt if not present
-      loadVectItem("htmVer~0~99~T~na");
-      loadVectItem("cfgVer~0~99~T~na");
-      loadVectItem("jsVer~0~99~T~na");
-      // re-order vector by key (element 0 in row)
-      std::sort(configs.begin(), configs.end(), [] (
-        const std::vector<std::string> &a, const std::vector<std::string> &b) {
-        return a[0] < b[0];}
-      );
-      updatedVers = true;
-    }
     // load variables from stored config vector
     reloadConfigs();
-    if (updatedVers) saveConfigVect(); // save new *Ver properties
-    configLoaded = true;
     debugMemory("loadConfig");
     return true;
   }
   // no config file
-  loadPrefs(); 
-  setDefaults();
-  reloadConfigs();
+  snprintf(startupFailure, SF_LEN, "Startup Failure: No file: %s", CONFIG_FILE_PATH);
   return false;
 }

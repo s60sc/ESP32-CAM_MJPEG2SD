@@ -1,6 +1,10 @@
 #define CONFIG_MQTT_PROTOCOL_311
 #include "appGlobals.h"
 #include "mqtt_client.h" 
+
+#if (!INCLUDE_CERTS)
+const char* mqtt_rootCACertificate = "";
+#endif
  
 char mqtt_broker[MAX_HOST_LEN] = "";         //Mqtt server ip to connect.  
 char mqtt_port[5] = "";                      //Mqtt server port to connect.  

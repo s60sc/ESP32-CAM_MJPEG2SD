@@ -55,8 +55,6 @@ bool lampNight; // if true, lamp comes on at night (not used)
 int lampType; // how lamp is used
 bool servoUse; // true to use pan / tilt servo control
 bool voltUse; // true to report on ADC pin eg for for battery
-// microphone cannot be used on IO Extender
-bool micUse; // true to use external I2S microphone 
 bool wakeUse = false; // true to allow app to sleep and wake
 bool stickUse; // true to use joystick
 
@@ -689,12 +687,20 @@ static void prepJoystick() {
 
 /**********************************************/
 
+#if (!INCLUDE_UART)
+bool externalPeripheral(byte pinNum, uint32_t outputData) {
+  // dummy
+  return false;
+}
+#endif
 
 void prepPeripherals() {
   // initial setup of each peripheral on client or extender
   setupADC();
   setupBatt();
+#if INCLUDE_UART
   prepUart();
+#endif
   setupLamp();
   prepPIR();
   prepTemperature();

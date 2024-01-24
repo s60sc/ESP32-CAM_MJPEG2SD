@@ -1,6 +1,6 @@
 // Global MJPEG2SD declarations
 //
-// s60sc 2021, 2022
+// s60sc 2021, 2022, 2024
 
 #pragma once
 #include "globals.h"
@@ -39,11 +39,23 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 #endif
 
+/***************************************************************
+  To reduce code size by removing unwanted features,
+  set relevant defines below to false and delete associated file
+***************************************************************/
+#define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
+#define INCLUDE_SMTP true    // smtp.cpp (email)
+#define INCLUDE_MQTT true    // mqtt.cpp
+#define INCLUDE_TGRAM true   // telegram.cpp
+#define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
+#define INCLUDE_TELEM true   // telemetry.cpp
+#define INCLUDE_MIC true     // mic.cpp (microphone)
+#define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
+
+#define INCLUDE_TINYML false  // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
+#define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
+
 /**************************************************************************/
-
-#define INCLUDE_TINYML false    // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
-
-#define INCLUDE_DS18B20 false   // if true, requires additional libraries: OneWire and DallasTemperature
 
 #define ALLOW_SPACES false  // set true to allow whitespace in configs.txt key values
 
@@ -67,7 +79,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.4"
+#define APP_VER "9.5"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 2 // stream, playback, download / NVR
@@ -101,19 +113,13 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #endif
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
-#define INCLUDE_FTP_HFS
-#define INCLUDE_SMTP
-#define INCLUDE_MQTT
-#define INCLUDE_TGRAM
 #define ISCAM // cam specific code in generics
 
 #define IS_IO_EXTENDER false // must be false except for IO_Extender
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 8
-#define HTM_VER 10
-#define JS_VER  4
+#define CFG_VER 9
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -246,6 +252,7 @@ extern int tlDurationMins; // a new file starts when previous ends
 extern int tlPlaybackFPS;  // rate to playback the timelapse, min 1 
 
 // status & control fields 
+extern const char* appConfig;
 extern bool autoUpload;
 extern bool dbgMotion;
 extern bool doPlayback;

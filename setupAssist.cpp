@@ -6,6 +6,10 @@
 
 #include "appGlobals.h"
 
+#if (!INCLUDE_CERTS)
+const char* git_rootCACertificate = "";
+#endif
+
 static fs::FS fp = STORAGE;
 
 static bool wgetFile(const char* filePath) {
@@ -55,11 +59,9 @@ static bool wgetFile(const char* filePath) {
 
 bool checkDataFiles() {
   // Download any missing data files
-  if (!fp.exists(DATA_DIR)) fp.mkdir(DATA_DIR);
   bool res = false;
   if (strlen(GITHUB_PATH)) {
-    res = wgetFile(CONFIG_FILE_PATH);
-    if (res) res = wgetFile(COMMON_JS_PATH); 
+    res = wgetFile(COMMON_JS_PATH); 
     if (res) res = wgetFile(INDEX_PAGE_PATH); 
     if (res) res = appDataFiles(); 
   } else res = true; // no download needed

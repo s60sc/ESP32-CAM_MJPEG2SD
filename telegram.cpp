@@ -32,6 +32,10 @@
 #define PARSE_MODE ",\"parse_mode\":\"%s\"}"
 #define END_BOUNDARY "\r\n--" BOUNDARY_VAL "--\r\n"
 
+#if (!INCLUDE_CERTS)
+const char* telegram_rootCACertificate = "";
+#endif
+
 // set via web interface
 bool tgramUse = false;
 char tgramToken[MAX_PWD_LEN] = "";

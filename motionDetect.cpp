@@ -250,20 +250,27 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
       // pass image to TinyML for classification
       if (!dbgMotion && mlUse) if (!tinyMLclassify()) motionCnt = 0; // not classified, so cancel motion
 #endif
-      if (motionCnt && (smtpUse || tgramUse)) {
-        keepFrame(fb);
+      if (motionCnt) {
+#if INCLUDE_SMTP
         if (smtpUse) {
           // send email with movement image
+          keepFrame(fb);
           char subjectMsg[50];
           snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s", hostName);
           emailAlert("Motion Alert", subjectMsg);
-        } // else for telegram, wait till filename available
+        } 
+#endif
+#if INCLUDE_TGRAM
+        if (tgramUse) keepFrame(fb); // for telegram, wait till filename available
+#endif
       }
       dTime = millis();
+#if INCLUDE_MQTT
       if (mqtt_active && motionCnt) {
         sprintf(jsonBuff, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}",esp_log_system_timestamp());
         mqttPublish(jsonBuff);
       }
+#endif
     } 
   } else motionCnt = 0;
 
@@ -271,10 +278,12 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     // insufficient change or motion not classified
     LOG_DBG("***** Motion - STOP");
     motionStatus = false; // motion stopped
+#if INCLUDE_MQTT
     if (mqtt_active) {
       sprintf(jsonBuff, "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
     }
+#endif
   } 
   if (motionStatus) LOG_DBG("*** Motion - ongoing %u frames", motionCnt);
 

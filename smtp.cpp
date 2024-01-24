@@ -12,6 +12,10 @@
 
 #include "appGlobals.h"
 
+#if (!INCLUDE_CERTS)
+const char* smtp_rootCACertificate = "";
+#endif
+
 // SMTP connection params, setup via web page
 char smtp_login[MAX_HOST_LEN]; // sender email account 
 char SMTP_Pass[MAX_PWD_LEN]; // 16 digit app password, not account password

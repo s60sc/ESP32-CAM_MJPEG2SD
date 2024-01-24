@@ -136,6 +136,7 @@ void uartClientTask(void *arg) {
   }
 }
 
+#if INCLUDE_UART
 bool externalPeripheral(byte pinNum, uint32_t outputData) {
   // used by client to communicate with external peripheral
   if (pinNum >= EXTPIN) {
@@ -153,6 +154,7 @@ bool externalPeripheral(byte pinNum, uint32_t outputData) {
   }
   return false;
 }
+#endif
 
 void getPeripheralsRequest() {
   // used by IO Extender to receive peripheral request from client

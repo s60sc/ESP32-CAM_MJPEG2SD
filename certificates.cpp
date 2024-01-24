@@ -39,6 +39,8 @@
 
 #include "appGlobals.h"
 
+#if INCLUDE_CERTS
+
 // GitHub public certificate valid till April 2031
 const char* git_rootCACertificate = R"~(
 -----BEGIN CERTIFICATE-----
@@ -262,3 +264,5 @@ jqlsBxH8gnwIlupODKZ/7jU/HhiYaKEbrnNxiOiPeWAw/KJJH5lUxt0piOYIXhj4
 DuDay+U7jeJKpND7EYheZY/U6c1wqwXt1DHuFnCCzK8jdOGT9aUSqZUeWfNn9cc=
 -----END CERTIFICATE-----
 )~";
+
+#endif

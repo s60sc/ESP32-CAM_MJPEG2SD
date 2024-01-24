@@ -14,6 +14,7 @@ The application supports:
 * [MQTT](#mqtt) control.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 * Interface for [Machine Learning](#machine-learning) support.
+* [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 
 The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
@@ -34,6 +35,9 @@ Changes in version 9.3:
 
 Changes in version 9.4:
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
+
+Changes in version 9.5:
+* Reduce code size by deleting files for unwanted features - see `appGlobals.h`
 
 ## Purpose
 

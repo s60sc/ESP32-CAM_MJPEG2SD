@@ -8,10 +8,14 @@
 // - PDM microphone: MP34DT01
 //
 // I2S_NUM_1 does not support PDM microphone
+//
+// microphone cannot be used on IO Extender
 
 // s60sc 2021, 2022
 
 #include "appGlobals.h"
+
+bool micUse; // true to use external I2S microphone 
 
 // INMP441 I2S microphone pinout, connect L/R to GND for left channel
 // MP34DT01 PDM microphone pinout, connect SEL to GND for left channel

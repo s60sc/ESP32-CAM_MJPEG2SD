@@ -223,10 +223,8 @@ static void statusCheck() {
   // regular status checks
   doAppPing();
   if (!timeSynchronized) getLocalNTP();
-#ifndef DEV_ONLY
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
-#endif
-#ifdef INCLUDE_MQTT
+#if INCLUDE_MQTT
   if (mqtt_active) startMqttClient();
 #endif
 }

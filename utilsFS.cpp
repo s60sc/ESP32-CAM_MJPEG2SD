@@ -113,7 +113,7 @@ bool startStorage() {
       listFolder(rootDir);
     }
   } else {
-    snprintf(startupFailure, SF_LEN, "Failed to mount %s", fsType);  
+    snprintf(startupFailure, SF_LEN, "Startup Failure: Failed to mount %s", fsType);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
   debugMemory("startStorage");
@@ -154,7 +154,7 @@ bool checkFreeStorage() {
       char oldestDir[FILE_NAME_LEN];
       getOldestDir(oldestDir);
       LOG_WRN("Deleting oldest folder: %s %s", oldestDir, sdFreeSpaceMode == 2 ? "after uploading" : "");
-#ifdef INCLUDE_FTP_HFS
+#if INCLUDE_FTP_HFS
       if (sdFreeSpaceMode == 2) fsFileOrFolder(oldestDir); // Upload and then delete oldest folder
 #endif
       deleteFolderOrFile(oldestDir);

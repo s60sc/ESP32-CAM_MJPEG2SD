@@ -117,8 +117,12 @@ static void openAvi() {
   aviFile = STORAGE.open(AVITEMP, FILE_WRITE);
   oTime = millis() - oTime;
   LOG_DBG("File opening time: %ums", oTime);
+#if INCLUDE_MIC
   startAudio();
+#endif
+#if INCLUDE_TELEM
   startTelemetry();
+#endif
   // initialisation of counters
   startTime = millis();
   frameCnt = fTimeTot = wTimeTot = dTimeTot = vidSize = 0;
@@ -201,7 +205,9 @@ static void timeLapse(camera_fb_t* fb) {
         STORAGE.rename(TLTEMP, TLname);
         frameCntTL = intervalCnt = 0;
         LOG_DBG("Finished time lapse");
+#if INCLUDE_FTP_HFS
         if (autoUpload) fsFileOrFolder(TLname); // Upload it to remote ftp server if requested
+#endif
       }
     }
   } else frameCntTL = intervalCnt = 0;
@@ -269,15 +275,18 @@ static bool closeAvi() {
   // write remaining frame content to SD
   aviFile.write(iSDbuffer, highPoint); 
   size_t readLen = 0;
+  bool haveWav = false;
+#if INCLUDE_MIC
   // add wav file if exists
   finishAudio(true);
-  bool haveWav = haveWavFile();
+  haveWav = haveWavFile();
   if (haveWav) {
     do {
       readLen = writeWavFile(iSDbuffer, RAMSIZE);
       aviFile.write(iSDbuffer, readLen);
     } while (readLen > 0);
   }
+#endif
   // save avi index
   finalizeAviIndex(frameCnt);
   do {
@@ -303,8 +312,9 @@ static bool closeAvi() {
     STORAGE.rename(AVITEMP, aviFileName);
     LOG_DBG("AVI close time %lu ms", millis() - hTime); 
     cTime = millis() - cTime;
+#if INCLUDE_TELEM
     stopTelemetry(aviFileName);
-    
+#endif
     // AVI stats
     LOG_INF("******** AVI recording stats ********");
     LOG_ALT("Recorded %s", aviFileName);
@@ -324,13 +334,19 @@ static bool closeAvi() {
     LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
     checkMemory();
     LOG_INF("*************************************");
+#if INCLUDE_MQTT
     if (mqtt_active) {
       sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
     }
+#endif
+#if INCLUDE_FTP_HFS
     if (autoUpload) fsFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
+#endif
     checkFreeStorage();
+#if INCLUDE_TGRAM
     if (tgramUse) tgramAlert(aviFileName, "");
+#endif
     return true; 
   } else {
     // delete too small files if exist
@@ -385,10 +401,12 @@ static boolean processFrame() {
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
+#if INCLUDE_MQTT
       if (mqtt_active) {
         sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
         mqttPublish(jsonBuff);
       }
+#endif
       openAvi();
       wasCapturing = true;
     }
@@ -699,13 +717,23 @@ void endTasks() {
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
   deleteTask(DS18B20handle);
+#if INCLUDE_TELEM
   deleteTask(telemetryHandle);
+#endif
   deleteTask(servoHandle);
+#if INCLUDE_SMTP
   deleteTask(emailHandle);
+#endif
+#if INCLUDE_FTP_HFS
   deleteTask(fsHandle);
+#endif
+#if INCLUDE_UART
   deleteTask(uartClientHandle);
+#endif
   deleteTask(stickHandle);
+#if INCLUDE_TGRAM
   deleteTask(telegramHandle);
+#endif
 }
 
 void OTAprereq() {

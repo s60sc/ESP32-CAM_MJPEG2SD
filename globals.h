@@ -205,7 +205,6 @@ extern bool allowAP; // set to true to allow AP to startup if cannot reconnect t
 extern int wifiTimeoutSecs; // how often to check wifi status
 extern uint8_t percentLoaded;
 extern int refreshVal;
-extern bool configLoaded;
 extern bool dataFilesChecked;
 extern char ipExtAddr[];
 extern bool doGetExtIP;

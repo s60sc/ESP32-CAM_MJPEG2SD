@@ -4,6 +4,11 @@
 
 #include "appGlobals.h"
 
+#if (!INCLUDE_CERTS)
+const char* hfs_rootCACertificate = "";
+const char* ftps_rootCACertificate = "";
+#endif
+
 // File server params (FTP or HTTPS), setup via web page
 char fsServer[MAX_HOST_LEN];
 uint16_t fsPort = 21;
