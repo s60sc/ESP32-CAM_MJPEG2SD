@@ -215,7 +215,7 @@ static void prepServos() {
   oldPanVal = oldTiltVal = oldSteerVal = servoCenter + 1;
 
   if (servoUse || servoSteerPin) {
-    xTaskCreate(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, 1, &servoHandle); 
+    xTaskCreate(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, SERVO_PRI, &servoHandle); 
     // initial angle
     if (servoPanPin) setCamPan(servoCenter);
     if (servoTiltPin) setCamTilt(servoCenter);
@@ -283,7 +283,7 @@ void prepTemperature() {
 #if INCLUDE_DS18B20
   if (ds18b20Pin < EXTPIN) {
     if (ds18b20Pin) {
-      xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, 1, &DS18B20handle); 
+      xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle); 
       haveDS18B20 = true;
       LOG_INF("Using DS18B20 sensor");
     } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
@@ -353,7 +353,7 @@ static void battTask(void* parameter) {
 static void setupBatt() {
   if (voltUse && (voltPin < EXTPIN)) {
     if (voltPin) {
-      xTaskCreate(&battTask, "battTask", BATT_STACK_SIZE, NULL, 1, &battHandle);
+      xTaskCreate(&battTask, "battTask", BATT_STACK_SIZE, NULL, BATT_PRI, &battHandle);
       LOG_INF("Monitor batt voltage");
       debugMemory("setupBatt");
     } else LOG_WRN("No voltage pin defined");
@@ -678,7 +678,7 @@ static void prepJoystick() {
         pinMode(stickzPushPin, INPUT_PULLUP);
         attachInterrupt(digitalPinToInterrupt(stickzPushPin), buttonISR, FALLING); 
       }
-      xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, 5, &stickHandle);
+      xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle);
       stickTimer(true);
       LOG_INF("Joystick available");
     } else LOG_WRN("Joystick pins not defined");

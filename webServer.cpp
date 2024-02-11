@@ -402,12 +402,13 @@ static esp_err_t wsHandler(httpd_req_t *req) {
   return ESP_OK;
 }
 
-void killWebSocket() {
+void killSocket(int skt) {
   // user requested
-  if (fdWs >= 0) {
-    httpd_sess_trigger_close(httpServer, fdWs);
+  if (skt == -99) {
+    skt = fdWs;
     fdWs = -1;
   }
+  if (skt >= 0) httpd_sess_trigger_close(httpServer, skt);
 }
 
 /*

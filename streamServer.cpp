@@ -1,9 +1,11 @@
 // streamServer handles streaming, playback, file downloads
 // each sustained activity uses a separate task if available
 // - web streaming, playback, file downloads use task 0
-// - network streaming uses task 1
+// - video streaming uses task 1
+// - audio streaming uses task 2
+// - subtitle streaming uses task 3
 //
-// s60sc 2022, 2023
+// s60sc 2022 - 2024
 //
 
 #include "appGlobals.h"
@@ -14,11 +16,13 @@
 #define JPEG_BOUNDARY "\r\n--" BOUNDARY_VAL "\r\n"
 #define JPEG_TYPE "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n"
 #define HDR_BUF_LEN 64
-
+#define END_WAIT 100
 
 static fs::FS fpv = STORAGE;
 bool forcePlayback = false; // browser playback status
-bool nvrStream = false;
+bool streamNvr = false;
+bool streamSnd = false;
+bool streamSrt = false;
 static bool isStreaming[MAX_STREAMS] = {false};
 size_t streamBufferSize[MAX_STREAMS] = {0};
 byte* streamBuffer[MAX_STREAMS] = {NULL}; // buffer for stream frame
@@ -26,10 +30,13 @@ static char variable[FILE_NAME_LEN];
 static char value[FILE_NAME_LEN];
 uint32_t sustainId = 0;
 uint8_t numStreams = 1;
+uint8_t vidStreams = 1;
+int srtInterval = 1; // subtitle interval in secs
+
 
 TaskHandle_t sustainHandle[MAX_STREAMS]; 
 struct httpd_sustain_req_t {
-  httpd_req_t* req;
+  httpd_req_t* req = NULL;
   uint8_t taskNum; 
   char activity[16];
   bool inUse = false; 
@@ -37,7 +44,7 @@ struct httpd_sustain_req_t {
 httpd_sustain_req_t sustainReq[MAX_STREAMS];
 
 
-static esp_err_t showPlayback(httpd_req_t* req) {
+static void showPlayback(httpd_req_t* req) {
   // output playback file to browser
   esp_err_t res = ESP_OK; 
   stopPlaying();
@@ -81,17 +88,16 @@ static esp_err_t showPlayback(httpd_req_t* req) {
         else {
           // when browser closes playback get send error
           LOG_DBG("Playback aborted due to error: %s", espErrMsg(res));
-          break;
+          doPlayback = false;
         }
       }
     }
-    httpd_resp_sendstr_chunk(req, NULL);
+    if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
     sustainId = currEpoch;
   }
-  return res;
 }
 
-static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
+static void showStream(httpd_req_t* req, uint8_t taskNum) {
   // start live streaming to browser
   esp_err_t res = ESP_OK; 
   size_t jpgLen = 0;
@@ -141,14 +147,74 @@ static esp_err_t showStream(httpd_req_t* req, uint8_t taskNum) {
     if (res != ESP_OK) {
       // get send error when browser closes stream 
       LOG_DBG("Streaming aborted due to error: %s", espErrMsg(res));
-      break;
+      isStreaming[taskNum] = false;
     }     
   }
-  httpd_resp_sendstr_chunk(req, NULL);
+  if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
   uint32_t mjpegTime = millis() - startTime;
   float mjpegTimeF = float(mjpegTime) / 1000; // secs
   LOG_INF("MJPEG: %u frames, total %s in %0.1fs @ %0.1ffps", frameCnt, fmtSize(mjpegLen), mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
-  return res;
+}
+
+static void audioStream(httpd_req_t* req, uint8_t taskNum) {
+  // output WAV audio stream to remote NVR
+#if INCLUDE_MIC
+  esp_err_t res = ESP_OK;
+  httpd_resp_set_type(req, "audio/wav");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  isStreaming[taskNum] = true;
+  uint32_t totalSamples = 0;
+  while (isStreaming[taskNum]) {
+    size_t buffSize = getAudioBuffer(false);
+    if (buffSize) res = httpd_resp_send_chunk(req, (const char*)audioBuffer, buffSize); 
+    if (res != ESP_OK) isStreaming[taskNum] = false; // client connection closed
+    else totalSamples += buffSize / 2; // 16 bit samples
+  }
+  if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
+  getAudioBuffer(true); // reset for next stream
+  LOG_INF("WAV: sent %lu samples", totalSamples);
+#else 
+  httpd_resp_sendstr(req, NULL);
+#endif
+}
+
+static void srtStream(httpd_req_t* req, uint8_t taskNum) {
+  // generate subtitle entries for streaming, consisting of timestamp
+  // plus telemetry data if telemetry enabled
+  esp_err_t res = ESP_OK;
+  isStreaming[taskNum] = true;
+  httpd_resp_set_type(req, "text/plain");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*"); 
+  int srtSeqNo = 0;
+  uint32_t srtTime = 0;
+  const uint32_t sampleInterval = 1000 * (srtInterval < 1 ? 1 : srtInterval);
+  char srtHdr[100];
+  char timeStr[10];
+  while (isStreaming[taskNum]) {
+    srtSeqNo++;
+    uint32_t startTime = millis();
+    formatElapsedTime(timeStr, srtTime, true);
+    size_t srtPtr = sprintf(srtHdr, "%d\n%s --> ", srtSeqNo, timeStr);
+    srtTime += sampleInterval;
+    formatElapsedTime(timeStr, srtTime, true);
+    srtPtr += sprintf(srtHdr + srtPtr, "%s\n", timeStr);
+    time_t currEpoch = getEpoch();
+    srtPtr += strftime(srtHdr + srtPtr, 12, "%H:%M:%S  ", localtime(&currEpoch));
+    httpd_resp_send_chunk(req, (const char*)srtHdr, srtPtr);
+#if INCLUDE_TELEM
+    // add telemetry data 
+    if (teleUse) {
+      storeSensorData(true);
+      if (srtBytes) res = httpd_resp_send_chunk(req, (const char*)srtBuffer, srtBytes);
+      srtBytes = 0;
+    }
+#endif
+    if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, "\n\n");
+    if (res != ESP_OK) isStreaming[taskNum] = false; // client connection closed
+    else while (isStreaming[taskNum] && millis() - sampleInterval < startTime) delay(50);
+  }
+  if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
+  LOG_INF("SRT: sent %d subtitles", srtSeqNo);
 }
 
 void stopSustainTask(int taskId) {
@@ -160,19 +226,22 @@ static void sustainTask(void* p) {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     uint8_t i = *(uint8_t*)p; // identify task number
-    if (!strcmp(sustainReq[i].activity, "download"))
-      fileHandler(sustainReq[i].req, true); // download
-    else if (!strcmp(sustainReq[i].activity, "playback")) showPlayback(sustainReq[i].req);
-    else if (!strcmp(sustainReq[i].activity, "stream")) showStream(sustainReq[i].req, i);
-    else {
-      httpd_resp_set_status(sustainReq[i].req, "400 Unknown request");
-      httpd_resp_sendstr(sustainReq[i].req, NULL);
-      LOG_ERR("Unknown request: %s", sustainReq[i].activity);
-    }
-    // cleanup as request now complete
+    if (i == 0) {
+      if (!strcmp(sustainReq[i].activity, "download")) fileHandler(sustainReq[i].req, true); 
+      else if (!strcmp(sustainReq[i].activity, "playback")) showPlayback(sustainReq[i].req);
+      else if (!strcmp(sustainReq[i].activity, "stream")) showStream(sustainReq[i].req, i);
+    } 
+    else if (i == 1) showStream(sustainReq[i].req, i);
+    else if (i == 2) audioStream(sustainReq[i].req, i);
+    else if (i == 3) srtStream(sustainReq[i].req, i);
+
+    // cleanup as request now complete on return
+    killSocket(httpd_req_to_sockfd(sustainReq[i].req));
+    delay(END_WAIT);
     free(sustainReq[i].req->aux);
     sustainReq[i].req->~httpd_req_t();
     free(sustainReq[i].req);
+    sustainReq[i].req = NULL;
     sustainReq[i].inUse = false; 
   }
   vTaskDelete(NULL);
@@ -180,11 +249,19 @@ static void sustainTask(void* p) {
 
 void startSustainTasks() {
   // start httpd sustain tasks
-  if (nvrStream) numStreams = MAX_STREAMS;
-  for (int i = 0; i < numStreams; i++) {
+  if (streamNvr) numStreams = vidStreams = 2;
+  if (streamSnd) numStreams = 3;
+  if (streamSrt) numStreams = 4;
+  if (numStreams > MAX_STREAMS) {
+    LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
+    numStreams = MAX_STREAMS;
+  }
+  for (int i = 0; i < vidStreams; i++)
     if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(MAX_JPEG); 
+
+  for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
-    xTaskCreate(sustainTask, "sustainTask", SUSTAIN_STACK_SIZE, &sustainReq[i].taskNum, 4, &sustainHandle[i]); 
+    xTaskCreate(sustainTask, "sustainTask", SUSTAIN_STACK_SIZE, &sustainReq[i].taskNum, SUSTAIN_PRI, &sustainHandle[i]); 
   } 
   LOG_INF("Started %d %s sustain tasks", numStreams, useHttps ? "HTTPS" : "HTTP");
   debugMemory("startSustainTasks");
@@ -196,39 +273,65 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
   // obtain details from query string
   if (extractQueryKeyVal(req, variable, value) == ESP_OK) {
     // playback, download, web streaming uses task 0
-    // remote streaming eg NVR uses task 1
-    uint8_t taskNum = !strcmp(variable, "stream") ? atoi(value) : 0;
+    // remote streaming eg video uses task 1, audio task 2, srt task 3
+    uint8_t taskNum = 99;
+    if (!strcmp(variable, "download")) taskNum = 0;
+    else if (!strcmp(variable, "playback")) taskNum = 0;
+    else if (!strcmp(variable, "stream")) taskNum = 0;
+    else if (!strcmp(variable, "video")) taskNum = 1;
+    else if (!strcmp(variable, "audio")) taskNum = 2;
+    else if (!strcmp(variable, "srt")) taskNum = 3;
+
     if (taskNum < numStreams) {
-      if (req->method == HTTP_HEAD) { 
-        if (!sustainReq[taskNum].inUse) {
-          // task available
-          sustainId = currEpoch;
-          res = ESP_OK;
-        } else {
-          // task not free, try stopping it for new stream
-          if (!strcmp(variable, "stream")) {
-            isStreaming[taskNum] = false;
-            if (!taskNum) doPlayback = false; // only for task 0
+      if (taskNum == 0) {
+        if (req->method == HTTP_HEAD) { 
+          // task check request from app web page
+          if (sustainReq[taskNum].inUse) {
+            // task not free, try stopping it for new stream
+            if (!strcmp(variable, "stream")) {
+              isStreaming[taskNum] = false;
+              if (!taskNum) doPlayback = false; // only for task 0
+              delay(END_WAIT + 100);
+            }
+          } 
+          if (sustainReq[taskNum].inUse) {
+            LOG_WRN("Task %d not free", taskNum);
+            httpd_resp_set_status(req, "500 No free task");
           }
-          httpd_resp_set_status(req, "500 No free task");
+          else {
+            sustainId = currEpoch; // task available
+            res = ESP_OK;
+          }
+          httpd_resp_sendstr(req, NULL);
+          return res;
         }
       } else {
-        // action request
-        if (!sustainReq[taskNum].inUse) {
-          // make copy of request data and pass request to task indexed in request
-          uint8_t i = taskNum;
-          sustainReq[i].inUse = true;
-          sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
-          new (sustainReq[i].req) httpd_req_t(*req);
-          sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
-          memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
-          strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
-          // activate relevant task
-          xTaskNotifyGive(sustainHandle[i]);
-          return ESP_OK;
-        } else httpd_resp_set_status(req, "500 No free task");
+        // stop remote streaming if currently active
+        if (sustainReq[taskNum].inUse) {
+          isStreaming[taskNum] = false;
+          delay(END_WAIT + 100);
+        }
       }
-    } else httpd_resp_set_status(req, "400 Invalid task num");
+          
+      // action request if task available
+      if (!sustainReq[taskNum].inUse) {
+        // make copy of request data and pass request to task indexed by request
+        uint8_t i = taskNum;
+        sustainReq[i].inUse = true;
+        sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
+        new (sustainReq[i].req) httpd_req_t(*req);
+        sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
+        memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
+        strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
+        // activate relevant task
+        xTaskNotifyGive(sustainHandle[i]);
+        return ESP_OK;
+      } else httpd_resp_set_status(req, "500 No free task");
+    } else {
+      if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s");
+      else LOG_ERR("Invalid task id: %s", variable);
+      httpd_resp_set_status(req, "400 Invalid url");
+    }
   } else httpd_resp_set_status(req, "400 Bad URL");
   httpd_resp_sendstr(req, NULL);
   return res;

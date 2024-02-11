@@ -11,7 +11,7 @@
 //
 // microphone cannot be used on IO Extender
 
-// s60sc 2021, 2022
+// s60sc 2021, 2022, 2024
 
 #include "appGlobals.h"
 
@@ -47,10 +47,15 @@ static const uint8_t sampleWidth = sizeof(int16_t);
 static const size_t sampleBytes = DMA_BUFF_LEN * sampleWidth;
 static File wavFile;
 static int totalSamples = 0;
+static size_t bytesRead = 0;
+static size_t audBytes = 0;
 TaskHandle_t micHandle = NULL;
 static bool doMicCapture = false;
 static bool captureRunning = false;
-static int16_t* sampleBuffer = NULL;
+static bool doStreamCapture = false;
+static bool captureStream = false;
+static uint8_t* sampleBuffer = NULL;
+uint8_t* audioBuffer = NULL;
 static QueueHandle_t i2s_queue = NULL;
 static i2s_event_t event;
 static i2s_pin_config_t i2s_mic_pins;
@@ -90,13 +95,6 @@ static void startMic() {
   // install & start up the I2S peripheral as microphone when activated
   int queueSize = 4;
   i2s_queue = xQueueCreate(queueSize, sizeof(i2s_event_t));
-#if defined(CAMERA_MODEL_XIAO_ESP32S3)
-  // built in PDM mic
-  micType = PDM_MIC;
-  micSWsPin = 42;
-  micSdPin = 41;
-  micSckPin = -1;
-#endif
   if (micType == PDM_MIC) i2s_mic_config.mode = (i2s_mode_t)((int)(i2s_mic_config.mode) | I2S_MODE_PDM);
   i2s_driver_install(I2S_CHAN, &i2s_mic_config, queueSize, &i2s_queue);
   // set i2s microphone pins
@@ -117,36 +115,43 @@ static void stopMic() {
   LOG_DBG("Stopped I2S port %d", I2S_CHAN);
 }
 
-static void getRecording() {
-  // copy I2S data to SD
-  size_t bytesRead = totalSamples = 0;
-  captureRunning = true;
-  while (doMicCapture) {
-     // wait for i2s buffer to be ready
-     if (xQueueReceive(i2s_queue, &event, pdMS_TO_TICKS(2 * SAMPLE_RATE)) == pdPASS) {
-       if (event.type == I2S_EVENT_RX_DONE) {
-         i2s_read(I2S_CHAN, sampleBuffer, sampleBytes, &bytesRead, portMAX_DELAY);
-         int samplesRead = bytesRead / sampleWidth;
-         // process each sample, convert to amplified 16 bit 
-         for (int i = 0; i < samplesRead; i++) {
-           sampleBuffer[i] = constrain(sampleBuffer[i] * micGain, SHRT_MIN, SHRT_MAX);
-         }
-         wavFile.write((uint8_t*)sampleBuffer, samplesRead * sampleWidth);
-         totalSamples += samplesRead;
-       }
-     }  
-  }
-  captureRunning = false;
+static void getMicData() {
+  // get mic I2S data
+  bytesRead = 0;
+  // wait for i2s buffer to be ready
+  if (xQueueReceive(i2s_queue, &event, pdMS_TO_TICKS(2 * SAMPLE_RATE)) == pdPASS) {
+    if (event.type == I2S_EVENT_RX_DONE) {
+      i2s_read(I2S_CHAN, sampleBuffer, sampleBytes, &bytesRead, portMAX_DELAY);
+      int samplesRead = bytesRead / sampleWidth;
+      // process each sample as amplified 16 bit 
+      int16_t* ampBuffer = (int16_t*)sampleBuffer;
+      for (int i = 0; i < samplesRead; i++) 
+        ampBuffer[i] = constrain(ampBuffer[i] * micGain, SHRT_MIN, SHRT_MAX);
+      if (doStreamCapture) {
+        if (!audBytes) {
+          memcpy(audioBuffer, sampleBuffer, bytesRead);
+          audBytes = bytesRead;
+        }
+      }
+    } 
+  }  
 }
 
 static void micTask(void* parameter) {
   startMic();
-  if (sampleBuffer == NULL) sampleBuffer = (int16_t*)malloc(DMA_BUFF_LEN * sampleWidth);
   while (true) {
     // wait for recording request
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    totalSamples = 0;
+    captureRunning = true;
+    while (captureStream) delay(10); // wait for stream to read mic buffer
     doMicCapture = true;   
-    getRecording();
+    while (doMicCapture) {
+      getMicData();
+      wavFile.write(sampleBuffer, bytesRead);
+      totalSamples += bytesRead / sampleWidth;
+    }
+    captureRunning = false;
   }
   stopMic();
   vTaskDelete(NULL);
@@ -163,20 +168,25 @@ void startAudio() {
   } 
 }
 
+static uint32_t updateWavHeader() {
+  // update wav header
+  uint32_t dataBytes = totalSamples * sampleWidth;
+  uint32_t wavFileSize = dataBytes ? dataBytes + WAV_HEADER_LEN - 8 : 0; // wav file size excluding chunk header
+  memcpy(wavHeader+4, &wavFileSize, 4);
+  memcpy(wavHeader+24, &SAMPLE_RATE, 4); // sample rate
+  uint32_t byteRate = SAMPLE_RATE * sampleWidth; // byte rate (SampleRate * NumChannels * BitsPerSample/8)
+  memcpy(wavHeader+28, &byteRate, 4); 
+  memcpy(wavHeader+WAV_HEADER_LEN-4, &dataBytes, 4); // wav data size
+  return dataBytes;
+}
+
 void finishAudio(bool isValid) {
   if (doMicCapture) {
     // finish a recording and save if valid
     doMicCapture = false; 
     while (captureRunning) delay(100); // wait for getRecording() to complete
     if (isValid) {
-      // update wav header
-      uint32_t dataBytes = totalSamples * sampleWidth;
-      uint32_t wavFileSize = dataBytes + WAV_HEADER_LEN - 8; // wav file size excluding chunk header
-      memcpy(wavHeader+4, &wavFileSize, 4);
-      memcpy(wavHeader+24, &SAMPLE_RATE, 4); // sample rate
-      uint32_t byteRate = SAMPLE_RATE * sampleWidth; // byte rate (SampleRate * NumChannels * BitsPerSample/8)
-      memcpy(wavHeader+28, &byteRate, 4); 
-      memcpy(wavHeader+WAV_HEADER_LEN-4, &dataBytes, 4); // wav data size
+      uint32_t dataBytes = updateWavHeader();
       wavFile.seek(0, SeekSet); // start of file
       wavFile.write(wavHeader, WAV_HEADER_LEN); // overwrite default header
       wavFile.close();  
@@ -186,12 +196,55 @@ void finishAudio(bool isValid) {
   }
 }
 
+size_t getAudioBuffer(bool endStream) {
+  // called from audioStream();
+  size_t haveBytes = 0;
+  static bool startStream = true;
+  captureStream = false;
+  if (micUse) {
+    if (endStream) {
+      doStreamCapture = false;
+      startStream = true;
+      return 0; // reset for end of stream
+    }
+    audBytes = 0;
+    if (startStream) {
+      updateWavHeader();
+      memcpy(audioBuffer, wavHeader, WAV_HEADER_LEN);
+      haveBytes = WAV_HEADER_LEN;
+      doStreamCapture = true;
+      startStream = false;
+    } else {
+      if (!captureRunning) {
+        captureStream = true;
+        getMicData(); 
+      } // otherwise already loaded by micTask()
+      haveBytes = audBytes;
+    }
+  }
+  return haveBytes;
+}
+
 void prepMic() {
   if (micUse) { 
+#if defined(CAMERA_MODEL_XIAO_ESP32S3)
+    // built in PDM mic
+    updateStatus("micSWsPin", "42");
+    updateStatus("micSdPin", "41");
+    updateStatus("micSckPin", "-1");
+#endif
+#if defined(CAMERA_MODEL_ESP32S3_EYE)
+    // built in I2S mic
+    updateStatus("micSWsPin", "42");
+    updateStatus("micSdPin", "2");
+    updateStatus("micSckPin", "41");
+#endif
     if (micSckPin && micSWsPin && micSdPin) {
+      if (sampleBuffer == NULL) sampleBuffer = (uint8_t*)malloc(sampleBytes);
+      if (audioBuffer == NULL) audioBuffer = (uint8_t*)ps_malloc(sampleBytes);
       micType = micSckPin == -1 ? PDM_MIC : I2S_MIC;
       LOG_INF("Sound recording is available using %s mic on I2S%i", micType ? "PDM" : "I2S", I2S_CHAN);
-      xTaskCreate(micTask, "micTask", MIC_STACK_SIZE, NULL, 1, &micHandle);
+      xTaskCreate(micTask, "micTask", MIC_STACK_SIZE, NULL, MIC_PRI, &micHandle);
       debugMemory("prepMic");
     } else {
       micUse = false;

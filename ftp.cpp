@@ -373,7 +373,7 @@ bool fsFileOrFolder(const char* fileFolder) {
   setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
-    xTaskCreate(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, 1, &fsHandle);    
+    xTaskCreate(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle);    
     debugMemory("fsFileOrFolder");
     return true;
   } else LOG_WRN("Unable to upload %s as another upload in progress", storedPathName);

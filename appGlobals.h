@@ -68,21 +68,19 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-#ifdef DEV_ONLY 
-//#define SIDE_ALARM // uncomment if used for side alarm
-#endif 
 #define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
 #define DOT_MAX 50
+#define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.5"
+#define APP_VER "9.6"
 
 #define HTTP_CLIENTS 2 // http, ws
-#define MAX_STREAMS 2 // stream, playback, download / NVR
+#define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
@@ -119,7 +117,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 9
+#define CFG_VER 10
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -171,6 +169,25 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define TELEM_STACK_SIZE (1024 * 4)
 #define UART_STACK_SIZE (1024 * 2)
 
+// task priorities
+#define CAPTURE_PRI 6
+#define SUSTAIN_PRI 5
+#define STICK_PRI 5
+#define PLAY_PRI 4
+#define TELEM_PRI 3
+#define MIC_PRI 2
+#define TGRAM_PRI 1
+#define EMAIL_PRI 1
+#define FTP_PRI 1
+#define LOG_PRI 1
+#define MQTT_PRI 1
+#define LED_PRI 1
+#define SERVO_PRI 1
+#define UART_PRI 1
+#define DS18B20_PRI 1
+#define BATT_PRI 1
+#define IDLEMON_PRI 5
+
 /******************** Libraries *******************/
 
 #include "esp_camera.h"
@@ -193,8 +210,10 @@ struct fnameStruct {
 
 // global app specific functions
 
+size_t getAudioBuffer(bool endStream);
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
+size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
 void currentStackUsage();
@@ -221,11 +240,12 @@ void setLights(bool lightsOn);
 void setSteering(int steerVal);
 void startAudio();
 void startSustainTasks();
-void startTelemetry();
+bool startTelemetry();
 void stickTimer(bool restartTimer);
 void stopPlaying();
 void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
+void storeSensorData(bool fromStream);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
@@ -278,8 +298,11 @@ extern uint8_t xclkMhz;
 extern char camModel[];
 extern bool doKeepFrame;
 extern int alertMax; // too many could cause account suspension (daily emails)
-extern bool nvrStream;
+extern bool streamNvr;
+extern bool streamSnd;
+extern bool streamSrt;
 extern uint8_t numStreams;
+extern uint8_t vidStreams;
 
 // buffers
 extern uint8_t iSDbuffer[];
@@ -291,6 +314,9 @@ extern size_t streamBufferSize[];
 extern byte* streamBuffer[]; // buffer for stream frame
 extern size_t motionJpegLen;
 extern uint8_t* motionJpeg;
+extern uint8_t* audioBuffer;
+extern char srtBuffer[];
+extern size_t srtBytes;
 
 // peripherals
 
@@ -318,7 +344,7 @@ extern int lampPin; // if useLamp is true
 extern int wakePin; // if wakeUse is true
 extern int lightsPin;
 extern bool teleUse;
-extern int teleInterval;
+extern int srtInterval;
 
 // Pan / Tilt Servos 
 extern int servoPanPin; // if useServos is true

@@ -1,10 +1,12 @@
 // mjpeg2sd app specific functions
 //
-// Direct access URLs:
-// - Network streaming: app_ip/sustain?stream=1 
+// Direct access URLs for NVR:
+// - Video streaming: app_ip/sustain?video=1 
+// - Audio streaming: app_ip/sustain?audio=1
+// - Subtitle streaming: app_ip/sustain?srt=1
 // - Stills: app_ip/control?still=1
 //
-// s60sc 2022, 2023
+// s60sc 2022 - 2024
 
 #include "appGlobals.h"
 
@@ -52,7 +54,9 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
   else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
   else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal;  
-  else if (!strcmp(variable, "nvrStream")) nvrStream = (bool)intVal; 
+  else if (!strcmp(variable, "streamNvr")) streamNvr = (bool)intVal; 
+  else if (!strcmp(variable, "streamSnd")) streamSnd = (bool)intVal; 
+  else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
 #if INCLUDE_FTP_HFS
   else if (!strcmp(variable, "upload")) fsFileOrFolder(value); 
@@ -119,8 +123,8 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "wakePin")) wakePin = intVal;
 #if INCLUDE_TELEM
   else if (!strcmp(variable, "teleUse")) teleUse = (bool)intVal;
-  else if (!strcmp(variable, "teleInterval")) teleInterval = intVal;
 #endif
+  else if (!strcmp(variable, "teleInterval")) srtInterval = intVal;
   else if (!strcmp(variable, "RCactive")) RCactive = (bool)intVal;
   else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
   else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
@@ -263,7 +267,7 @@ void appSpecificWsHandler(const char* wsMsg) {
     break;
     case 'K': 
       // kill websocket connection
-      killWebSocket();
+      killSocket();
     break;
     default:
       LOG_WRN("unknown command %c", (char)wsMsg[0]);
@@ -574,7 +578,9 @@ detectChangeThreshold~15~1~N~Pixel difference to indicate change
 mlUse~0~1~C~Use Machine Learning
 mlProbability~0.8~1~N~ML minimum positive probability 0.0 - 1.0
 depthColor~0~1~C~Color depth for motion detection: Gray <> RGB
-nvrStream~0~1~C~Enable NVR on /sustain?stream=1
+streamNvr~0~1~C~Enable NVR Video stream: /sustain?video=1
+streamSnd~0~1~C~Enable NVR Audio stream: /sustain?audio=1
+streamSrt~0~1~C~Enable NVR Subtitle stream: /sustain?srt=1
 smtpUse~0~2~C~Enable email sending
 smtpMaxEmails~10~2~N~Max daily alerts
 sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action

@@ -439,7 +439,7 @@ static bool checkConfigFile() {
       file.write((uint8_t*)appConfig, strlen(appConfig));
       sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
       char cfg[100];
-      sprintf(cfg, "hostName~%s~99~~na\n", hostName);
+      sprintf(cfg, "hostName~%s~%d~T~Device host name\n", hostName, HOSTNAME_GRP);
       file.write((uint8_t*)cfg, strlen(cfg));
       sprintf(cfg, "AP_SSID~%s~0~T~AP SSID name\n", hostName);
       file.write((uint8_t*)cfg, strlen(cfg));

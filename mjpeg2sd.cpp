@@ -31,6 +31,7 @@ uint8_t minSeconds = 5; // default min video length (includes POST_MOTION_TIME)
 bool doRecording = true; // whether to capture to SD or not 
 uint8_t xclkMhz = 20; // camera clock rate MHz
 bool doKeepFrame = false;
+static bool haveSrt = false;
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -121,7 +122,7 @@ static void openAvi() {
   startAudio();
 #endif
 #if INCLUDE_TELEM
-  startTelemetry();
+  haveSrt = startTelemetry();
 #endif
   // initialisation of counters
   startTime = millis();
@@ -156,8 +157,8 @@ static void timeLapse(camera_fb_t* fb) {
         dateFormat(partName, sizeof(partName), true);
         STORAGE.mkdir(partName); // make date folder if not present
         dateFormat(partName, sizeof(partName), false);
-        int tlen = snprintf(TLname, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u_T.%s", 
-          partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, requiredFrames, AVI_EXT);
+        int tlen = snprintf(TLname, FILE_NAME_LEN - 1, "%s_%s_%u_%u_T.%s", 
+          partName, frameData[fsizePtr].frameSizeStr, tlPlaybackFPS, tlDurationMins, AVI_EXT);
         if (tlen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
         if (STORAGE.exists(TLTEMP)) STORAGE.remove(TLTEMP);
         tlFile = STORAGE.open(TLTEMP, FILE_WRITE);
@@ -204,7 +205,7 @@ static void timeLapse(camera_fb_t* fb) {
         tlFile.close(); 
         STORAGE.rename(TLTEMP, TLname);
         frameCntTL = intervalCnt = 0;
-        LOG_DBG("Finished time lapse");
+        LOG_INF("Finished time lapse: %s", TLname);
 #if INCLUDE_FTP_HFS
         if (autoUpload) fsFileOrFolder(TLname); // Upload it to remote ftp server if requested
 #endif
@@ -306,8 +307,9 @@ static bool closeAvi() {
   uint32_t hTime = millis();
   if (vidDurationSecs >= minSeconds) {
     // name file to include actual dateTime, FPS, duration, and frame count
-    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%u_%u%s.%s", 
-      partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, frameCnt, haveWav ? "_S" : "", AVI_EXT);
+    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%u%s%s.%s", 
+      partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, 
+      haveWav ? "_S" : "", haveSrt ? "_M" : "", AVI_EXT); 
     if (alen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
     STORAGE.rename(AVITEMP, aviFileName);
     LOG_DBG("AVI close time %lu ms", millis() - hTime); 
@@ -368,7 +370,7 @@ static boolean processFrame() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL || !fb->len || fb->len > MAX_JPEG) return false;
   timeLapse(fb);
-  for (int i = 0; i < numStreams; i++) {
+  for (int i = 0; i < vidStreams; i++) {
     if (!streamBufferSize[i] && streamBuffer[i] != NULL) {
       memcpy(streamBuffer[i], fb->buf, fb->len);
       streamBufferSize[i] = fb->len;   
@@ -476,9 +478,9 @@ static fnameStruct extractMeta(const char* fname) {
   strcpy(fnameStr, fname);
   // replace all '_' with space for sscanf
   replaceChar(fnameStr, '_', ' ');
-  int items = sscanf(fnameStr, "%*s %*s %*s %hhu %u %hu", &fnameMeta.recFPS, &fnameMeta.recDuration, &fnameMeta.frameCnt);
-  if (items != 3) LOG_ERR("failed to parse %s, items %u", fname, items);
-  return fnameMeta;
+  int items = sscanf(fnameStr, "%*s %*s %*s %hhu %u", &fnameMeta.recFPS, &fnameMeta.recDuration);
+  if (items != 2) LOG_ERR("failed to parse %s, items %u", fname, items);
+  return fnameMeta; 
 }
 
 static void playbackFPS(const char* fname) {
@@ -539,7 +541,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     sTime = millis();
     hTime = millis();  
     remainingBuff = completedPlayback = false;
-    frameCnt = remainingFrame = vidSize =  buffOffset = 0;
+    frameCnt = remainingFrame = vidSize = buffOffset = 0;
     wTimeTot = fTimeTot = hTimeTot = tTimeTot = 1; // avoid divide by 0
   }  
   LOG_DBG("http send time %lu ms", millis() - hTime);
@@ -667,8 +669,8 @@ static void playbackTask(void* parameter) {
 
 static void startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, 5, &captureHandle);
-  xTaskCreate(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, 4, &playbackHandle);
+  xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, CAPTURE_PRI, &captureHandle);
+  xTaskCreate(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, PLAY_PRI, &playbackHandle);
   // set initial camera framesize and FPS from configs
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, (framesize_t)fsizePtr);
@@ -682,7 +684,7 @@ bool prepRecording() {
   playbackSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
-  for (int i = 0; i < numStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
+  for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) LOG_WRN("failed to get camera frame");
   else {

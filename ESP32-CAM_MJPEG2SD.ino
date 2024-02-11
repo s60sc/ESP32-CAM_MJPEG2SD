@@ -64,7 +64,7 @@ static void prepCam() {
         retries--;
       }
     } 
-    if (err != ESP_OK) snprintf(startupFailure, SF_LEN, "Startup Failure: Camera init error 0x%x", err);
+    if (err != ESP_OK) snprintf(startupFailure, SF_LEN, "Startup Failure: Camera init error 0x%x on %s", err, CAM_BOARD);
     else {
       sensor_t * s = esp_camera_sensor_get();
       switch (s->id.PID) {
@@ -120,7 +120,11 @@ void setup() {
   // Load saved user configuration
   loadConfig();
   // initialise camera
-  if (psramFound()) prepCam();
+  if (psramFound()) {
+    LOG_INF("PSRAM size: %s", fmtSize(esp_spiram_get_size()));
+    if (esp_spiram_get_size() > 3 * ONEMEG) prepCam();
+    else snprintf(startupFailure, SF_LEN, "Startup Failure: Insufficient PSRAM for app");
+  }
   else snprintf(startupFailure, SF_LEN, "Startup Failure: Need PSRAM to be enabled");
 
 #ifdef DEV_ONLY

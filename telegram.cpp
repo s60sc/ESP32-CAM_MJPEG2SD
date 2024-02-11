@@ -185,9 +185,9 @@ static void setupTelegramTask() {
 //    StaticTask_t* tcb = (StaticTask_t*)malloc(sizeof(StaticTask_t));
 //    // Allocate the stack in PSRAM 
 //    StackType_t* tstack = (StackType_t*)ps_malloc(TGRAM_STACK_SIZE);
-//    telegramHandle = xTaskCreateStatic(telegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, 1, tstack, tcb);
+//    telegramHandle = xTaskCreateStatic(telegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, tstack, tcb);
 //  } else 
-  xTaskCreate(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, 1, &telegramHandle);
+  xTaskCreate(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle);
   debugMemory("setupTelegramTask");
 }
     

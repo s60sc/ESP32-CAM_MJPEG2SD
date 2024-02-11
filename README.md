@@ -9,7 +9,7 @@ The application supports:
 * [Telemetry Recording](#telemetry-recording) during camera recording.
 * [Remote Control](#remote-control) of camera mounted vehicle.
 * Alert notification using [Telegram](#telegram-bot) or Email
-* Concurrent streaming to web browser and NVR
+* Concurrent streaming to web browser and [remote NVR](#stream-to-nvr)
 * Transfer recordings using FTP or HTTPS, or download from browser
 * [MQTT](#mqtt) control.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
@@ -18,7 +18,7 @@ The application supports:
 
 The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
-***This is a complex app and some users are raising issues when the app reports an error, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Please only raise issues for actual bugs (unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
+***This is a complex app and some users are raising issues when the app reports an error, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
 Changes in version 9.1:
 * Telegram support.
@@ -41,9 +41,13 @@ Changes in version 9.4:
 Changes in version 9.5:
 * Reduce code size by deleting files for unwanted features - see `appGlobals.h`
 
+Changes in version 9.6:
+* Add audio [#360](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/360) and subtitle streaming for [NVR](#stream-to-nvr)
+* Add check for insufficient PSRAM [#363](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/363#issuecomment-1935037553)
+
 ## Purpose
 
-The application enables video capture of motion detection or timelapse recording. Examples include security cameras or wildlife monitoring.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
+The application enables video capture of motion detection or timelapse recording. Examples include security cameras, wildlife monitoring, rocket flight monitoring, FPV vehicle control.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
 
 Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 on a AI Thinker OV2640 board, set to maximum JPEG quality and highest clock rate.
 
@@ -72,7 +76,7 @@ The application was originally based on the Arduino CameraWebServer example but 
 
 The ESP32 Cam module has 4MB of PSRAM (8MB on ESP32S3) which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
-The AVI files are named using a date time format **YYYYMMDD_HHMMSS** with added frame size, recording rate, duration and frame count, eg **20200130_201015_VGA_15_60_900.avi**, and stored in a per day folder **YYYYMMDD**. If audio is included the filename ends with **_S**.  
+The AVI files are named using a date time format **YYYYMMDD_HHMMSS** with added frame size, FPS recording rate, duration in secs, eg **20200130_201015_VGA_15_60.avi**, and stored in a per day folder **YYYYMMDD**. If audio is included the filename ends with **_S**.  If telemetry is available the filename ends with **_M**.  
 The ESP32 time is set from an NTP server or connected browser client.
 
 ## Installation
@@ -86,10 +90,14 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 * ESP32 - `Minimal SPIFFS (...)`
 * ESP32S3 - `8M with spiffs (...)`
 
-**NOTE: If you get compilation errors you need to update your `arduino-esp32` library in the IDE 
+**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.0.14 (but not yet v3.0)
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
 **NOTE: If you get error: `Startup Failure: Check SD card inserted` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
+
+**NOTE: If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.
+Warning added to v9.6.**
+
 
 On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
 
@@ -105,11 +113,11 @@ In addition a recording can be requested manually using the **Start Recording** 
 
 To play back a recording, select the file using **Playback & File Transfers** sidebar button to select the day folder then the required AVI file.
 After selecting the AVI file, press **Start Playback** button to playback the recording. 
-The **Start Stream** button shows a live feed from the camera. To enable a scond stream for an NVR, under **Edit Config** -> **Motion** tab, select `Enable NVR` which will then be available via URL: http://your_ip/sustain?stream=1
+The **Start Stream** button shows a live video only feed from the camera. 
 
 Recordings can then be uploaded to an FTP or HTTPS server or downloaded to the browser for playback on a media application, eg VLC.
 
-A time lapse feature is also available which can run in parallel with motion capture. Time lapse files have the format **20200130_201015_VGA_15_60_900_T.avi**
+A time lapse feature is also available which can run in parallel with motion capture. Time lapse files have the format **20200130_201015_VGA_15_60_T.avi**
 
 
 ## Other Functions and Configuration
@@ -204,11 +212,12 @@ Additional options are provided on the camera index page, where:
 
 ## Audio Recording
 
-An I2S microphone eg INMP441 is supported by both ESP32 and ESP32S3. A PDM microphone eg MP34DT01 is only supported on ESP32S3. The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1). Pins for ESP32S3 XIAO Sense are predefined.
+An I2S microphone eg INMP441 is supported by both ESP32 and ESP32S3. A PDM microphone eg MP34DT01 is only supported on ESP32S3. Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate. 
 
-Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate. 
+The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1). Pin values (predefined for XIAO Sense) and **Use microphone** selector are set under **Peripherals** button on the configuration web page.
 
-The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting **0** cancels the microphone. Pin values are set under **Peripherals** button on the configuration web page.
+The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting **0** cancels the microphone.  
+
 
 ## OV5640
 
@@ -323,5 +332,15 @@ Press **X** icon on image to remove that IP address. Press **Delete All** button
 
 The IP addresses are stored in the browser local storage, not the app itself.
 
+## Stream to NVR
 
+This feature is better used on an ESP32S3 camera board due to performance and memory limitations on ESP32.
 
+Streams separate from the web browser are available for capture by a remote NVR. To enable these streams, under **Edit Config** -> **Motion** tab, select: 
+* `Enable Video stream on /sustain?video=1` for MJPEG stream
+* `Enable Audio stream on /sustain?audio=1` for WAV stream (need to setup [microphone](#audio-recording) beforehand).
+* `Enable Subtitle stream on /sustain?srt=1` for SRT stream (need to setup [telemetry](#telemetry-recording) beforehand, otherwise just a timestamp will be output).
+
+Then save and reboot. 
+
+If multiple streams are enabled they need to be processed by an intermediate tool for synchronisation, eg [go2rtc](https://github.com/AlexxIT/go2rtc) (but which does not handle subtitles [yet?](https://github.com/AlexxIT/go2rtc/issues/932)). See [ESP32-CAM_Audio](https://github.com/spawn451/ESP32-CAM_Audio#usage) for go2rtc configuration examples. If a recording occurs during streaming it will take priority and the streams may stutter.

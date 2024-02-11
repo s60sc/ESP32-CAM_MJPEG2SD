@@ -223,7 +223,11 @@ static void statusCheck() {
   // regular status checks
   doAppPing();
   if (!timeSynchronized) getLocalNTP();
+#ifdef DEV_ONLY
+  dataFilesChecked = true;
+#else
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
+#endif
 #if INCLUDE_MQTT
   if (mqtt_active) startMqttClient();
 #endif
@@ -321,7 +325,7 @@ void getExtIP() {
             updateStatus("save", "0");
             externalAlert("External IP changed", extIP);
           } else LOG_INF("External IP: %s", extIP);
-        } else LOG_ERR("Request failed, error: %s", https.errorToString(httpCode).c_str());    
+        } else LOG_ERR("External IP request failed, error: %s", https.errorToString(httpCode).c_str());    
         if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
         https.end();     
       }
@@ -699,7 +703,7 @@ static void remote_log_init_SD() {
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
   if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
   else {
-    logPrint(" \n\n");
+    logPrint(" \n");
     LOG_INF("Opened SD file for logging");
   }
 #endif
@@ -786,7 +790,7 @@ void logSetup() {
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
   xSemaphoreGive(logMutex);
-  xTaskCreate(logTask, "logTask", LOG_STACK_SIZE, NULL, 1, &logHandle);
+  xTaskCreate(logTask, "logTask", LOG_STACK_SIZE, NULL, LOG_PRI, &logHandle);
   if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
   LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
   LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
@@ -891,7 +895,7 @@ void startIdleMon() {
   LOG_INF("Start core idle time monitoring @ interval %ums", INTERVAL_TIME);
   for (int i = 0; i < portNUM_PROCESSORS; i++) 
     esp_register_freertos_idle_hook_for_cpu(hookCallback, i);
-  xTaskCreatePinnedToCore(idleMonTask, "idlemon", 1024, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(idleMonTask, "idlemon", 1024, NULL, IDLEMON_PRI, NULL, 0);
 }
 
 

@@ -208,7 +208,7 @@ void startMqttClient(void){
       } 
       else LOG_DBG("Mqtt subscribed: %s", cmd_topic );
       // Create a mqtt task
-      BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, 1, &mqttTaskHandle);
+      BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, MQTT_PRI, &mqttTaskHandle);
       LOG_INF("Created mqtt task: %u", xReturned );
       mqttRunning = true;
     }
