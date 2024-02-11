@@ -1650,6 +1650,7 @@
       let firstCall = true;
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
+      const appLogInit = 0;
 
       let view;
       let viewContainer;
@@ -1709,11 +1710,11 @@
           else if (key == "hostName") {
             document.title = value;
             if (fromUser) sendControl(key, value);
-          }
+          } 
           else if (key == "alertMsg") showAlert(value); 
           else if (key == "clearLog") clearLog();
           else if (key == "refreshLog") getLog();
-          else if (key == "logType") { logType = value; getLog(); sendControl(key, value); return; }
+          else if (key == "logType") { logType = value; sendControl(key, value); return; }
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
           else if (key == "motion") getConfig("01");
@@ -1728,7 +1729,7 @@
           else if (key == "get-still") getStill();
           else if (key == "download" && $("#download").value.includes('.')) doDownload();
           else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
-          else if (key == "camHub") {value == "1" ? dbg("true") : dbg("false"); dbg("camHub "+value);  value == "1"  ? show($('[name="CameraHub"]')) : hide($('[name="CameraHub"]')); }
+          else if (key == "camHub") {value == "1" ? show($('[name="CameraHub"]')) : hide($('[name="CameraHub"]')); }
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
           else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
           else if (key == "agc") setAgc(key, value);
@@ -1871,7 +1872,7 @@
       async function doDownload() {
         stopAll("doDownload");
         try {
-          if (await checkTask('/sustain?download=1')) window.location.href = webServer + '/sustain?download=1';
+          if (await checkTask('/sustain?download=0')) window.location.href = webServer + '/sustain?download=0';
         } catch (error) {alert(error);}
       }
 
@@ -1916,8 +1917,8 @@
             playbackButton.classList.add("active");
             playbackButton.innerHTML = "▢&nbsp;Stop Playback";
             playbackButton.classList.add("blinking");
-            if (await checkTask('/sustain?playback=1')) {
-              view.src = webServer + '/sustain?playback=1'; 
+            if (await checkTask('/sustain?playback=0')) {
+              view.src = webServer + '/sustain?playback=0'; 
               checkStream();
               hide($('#RCenable'));
               showView(true);
@@ -2386,11 +2387,15 @@
       }
 
       // Retrieve and populate the input field with the saved IPs on page load
-      window.onload = function () {
-        const savedIPs = localStorage.getItem('enteredIPs');
-        const ipAddresses = savedIPs ? JSON.parse(savedIPs) : [];
-        createImageElements(ipAddresses);
-      };
+      let hubObserver = new IntersectionObserver (entries => {
+          // refresh hub when becomes visible
+          entries.forEach(entry => { if (entry.isIntersecting) {
+            const savedIPs = localStorage.getItem('enteredIPs');
+            const ipAddresses = savedIPs ? JSON.parse(savedIPs) : [];
+            createImageElements(ipAddresses);
+          }});
+        }); 
+        hubObserver.observe(document.getElementById('CameraHub'));
 
 
       /***************************************************************************/

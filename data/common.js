@@ -28,7 +28,7 @@
         const bigThumbSize = parseFloat(root.getPropertyValue('--bigThumbSize')) * baseFontSize;
         const smallThumbSize = parseFloat(root.getPropertyValue('--smallThumbSize')) * baseFontSize;
         let isImmed = false;
-        let logType = 0;
+        let logType = appLogInit;
         
         async function initialise() {
           try {
@@ -99,7 +99,7 @@
           // event.codes:
           //   1006 if server not available, or another web page is already open
           //   1005 if closed from app
-          if (event.code == 1006) $('#wsMode').checked = false;
+          if (event.code == 1006) {}
           else if (event.code != 1005) initWebSocket(); // retry if any other reason
         }
         
