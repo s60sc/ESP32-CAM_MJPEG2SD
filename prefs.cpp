@@ -503,6 +503,6 @@ bool loadConfig() {
     return true;
   }
   // no config file
-  snprintf(startupFailure, SF_LEN, "Startup Failure: No file: %s", CONFIG_FILE_PATH);
+  snprintf(startupFailure, SF_LEN, STARTUP_FAIL "No file: %s", CONFIG_FILE_PATH);
   return false;
 }

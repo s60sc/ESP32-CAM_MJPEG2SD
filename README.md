@@ -45,6 +45,9 @@ Changes in version 9.6:
 * Add audio [#360](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/360) and subtitle streaming for [NVR](#stream-to-nvr)
 * Add check for insufficient PSRAM [#363](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/363#issuecomment-1935037553)
 
+Changes in version 9.6.1:
+* Add brownout warning
+
 ## Purpose
 
 The application enables video capture of motion detection or timelapse recording. Examples include security cameras, wildlife monitoring, rocket flight monitoring, FPV vehicle control.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
@@ -93,7 +96,7 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 **NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.0.14 (but not yet v3.0)
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
-**NOTE: If you get error: `Startup Failure: Check SD card inserted` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
+**NOTE: If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
 
 **NOTE: If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.
 Warning added to v9.6.**

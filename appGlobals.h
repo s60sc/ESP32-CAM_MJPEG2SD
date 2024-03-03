@@ -63,11 +63,11 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define HTTP_PORT 80 // insecure app access
 #define HTTPS_PORT 443 // secure app access
 
-
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
+//#define SIDE_ALARM // leave commented out 
 #define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
@@ -77,7 +77,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.6"
+#define APP_VER "9.6.1"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -104,11 +104,10 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 
 #ifdef SIDE_ALARM
 #define STORAGE LittleFS
-#define GITHUB_PATH ""
 #else
 #define STORAGE SD_MMC
-#define GITHUB_PATH "/s60sc/ESP32-CAM_MJPEG2SD/master"
 #endif
+#define GITHUB_PATH "/s60sc/ESP32-CAM_MJPEG2SD/master"
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
 #define ISCAM // cam specific code in generics
@@ -228,6 +227,7 @@ void keepFrame(camera_fb_t* fb);
 void motorSpeed(int speedVal);
 void openSDfile(const char* streamFile);
 void prepAviIndex(bool isTL = false);
+bool prepCam();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();

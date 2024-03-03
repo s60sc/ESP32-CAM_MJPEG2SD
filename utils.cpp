@@ -19,6 +19,7 @@ bool dataFilesChecked = false;
 char startupFailure[SF_LEN] = {0};
 size_t alertBufferSize = 0;
 byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
+static void initBrownout(void);
 
 /************************** Wifi **************************/
 
@@ -223,11 +224,7 @@ static void statusCheck() {
   // regular status checks
   doAppPing();
   if (!timeSynchronized) getLocalNTP();
-#ifdef DEV_ONLY
-  dataFilesChecked = true;
-#else
   if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
-#endif
 #if INCLUDE_MQTT
   if (mqtt_active) startMqttClient();
 #endif
@@ -755,6 +752,7 @@ void logPrint(const char *format, ...) {
       strncpy(alertMsg, outBuf, MAX_OUT - 1);
       alertMsg[msgLen - 2] = 0;
     }
+    if (ramLog) ramLogStore(msgLen); // store in rtc ram 
     if (monitorOpen) Serial.print(outBuf); 
     else delay(10); // allow time for other tasks
     if (sdLog) {
@@ -765,7 +763,6 @@ void logPrint(const char *format, ...) {
         if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
       } 
     }
-    if (ramLog) ramLogStore(msgLen); // store in ram 
     // output to web socket if open
     if (msgLen > 1) {
       outBuf[msgLen - 1] = 0; // lose final '/n'
@@ -794,6 +791,8 @@ void logSetup() {
   if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
   LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
   LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
+  initBrownout();
+  LOG_INF("Compiled with arduino-esp32 v%d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
   wakeupResetReason();
   if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
   debugMemory("logSetup"); 
@@ -918,11 +917,18 @@ static esp_sleep_wakeup_cause_t printWakeupReason() {
   return wakeup_reason;
 }
 
+RTC_NOINIT_ATTR char brownoutStatus;
+
 static esp_reset_reason_t printResetReason() {
   esp_reset_reason_t bootReason = esp_reset_reason();
   switch (bootReason) {
     case ESP_RST_UNKNOWN: LOG_INF("Reset for unknown reason"); break;
-    case ESP_RST_POWERON: LOG_INF("Power on reset"); break;
+    case ESP_RST_POWERON: {
+      LOG_INF("Power on reset");
+      brownoutStatus = 0;
+      messageLog[0] = 0;
+      break;
+    }
     case ESP_RST_EXT: LOG_INF("Reset from external pin"); break;
     case ESP_RST_SW: LOG_INF("Software reset via esp_restart"); break;
     case ESP_RST_PANIC: LOG_INF("Software reset due to exception/panic"); break;
@@ -930,7 +936,7 @@ static esp_reset_reason_t printResetReason() {
     case ESP_RST_TASK_WDT: LOG_INF("Reset due to task watchdog"); break;
     case ESP_RST_WDT: LOG_INF("Reset due to other watchdogs"); break;
     case ESP_RST_DEEPSLEEP: LOG_INF("Reset after exiting deep sleep mode"); break;
-    case ESP_RST_BROWNOUT: LOG_INF("Brownout reset (software or hardware)"); break;
+    case ESP_RST_BROWNOUT: LOG_INF("Software reset due to brownout"); break;
     case ESP_RST_SDIO: LOG_INF("Reset over SDIO"); break;
     default: LOG_WRN("Unhandled reset reason"); break;
   }
@@ -969,4 +975,42 @@ void goToSleep(int wakeupPin, bool deepSleep) {
 #else
   LOG_WRN("This function not compatible with ESP32-C3");
 #endif
+}
+
+
+// catch software resets due to brownouts
+//https://github.com/espressif/esp-idf/blob/master/components/esp_system/port/brownout.c
+
+#include "esp_private/system_internal.h"
+#include "driver/rtc_cntl.h"
+#include "soc/rtc_periph.h"
+#include "hal/brownout_hal.h"
+
+#define BROWNOUT_DET_LVL 7
+
+IRAM_ATTR static void notifyBrownout(void *arg) {
+  esp_cpu_stall(!xPortGetCoreID());  // Stop the other core.
+  esp_reset_reason_set_hint(ESP_RST_BROWNOUT);
+  brownoutStatus = 'B';
+  esp_restart_noos();
+}
+
+static void initBrownout(void) {
+  // brownout warning only output once to prevent bootloop
+  if (brownoutStatus == 'R') LOG_WRN("%s", "Brownout warning previously notified");
+  else if (brownoutStatus == 'B') {
+    LOG_WRN("%s", "Brownout occurred due to inadequate power supply");
+    brownoutStatus = 'R';
+  } else {
+    brownout_hal_config_t cfg = {
+      .threshold = BROWNOUT_DET_LVL,
+      .enabled = true,
+      .reset_enabled = false,
+      .flash_power_down = true,
+      .rf_power_down = true,
+    };
+    brownout_hal_config(&cfg);
+    rtc_isr_register(notifyBrownout, NULL, RTC_CNTL_BROWN_OUT_INT_ENA_M);
+    brownoutStatus = 0; 
+  }
 }

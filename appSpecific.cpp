@@ -430,7 +430,7 @@ static bool downloadAvi(const char* userCmd) {
 }
 
 static void saveRamLog() {
-  // save ramlog to storage
+  // save ramlog to storage for upload to telegram
   if (ramLog) {
     File ramFile = STORAGE.open(DATA_DIR "/ramlog" TEXT_EXT, FILE_WRITE);
     int startPtr, endPtr;
@@ -466,6 +466,7 @@ void appSpecificTelegramTask(void* p) {
         saveRamLog();
         sprintf(userCmd, "/log from %s", hostName);
         sendTgramFile(DATA_DIR "/ramlog" TEXT_EXT, "text/plain", userCmd);
+        deleteFolderOrFile(DATA_DIR "/ramlog" TEXT_EXT);
       } else {
         // initially assume it is an avi file download request
         if (!downloadAvi(userCmd)) sendTgramMessage("Request not recognised: ", userCmd, "");

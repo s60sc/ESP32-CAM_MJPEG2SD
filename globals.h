@@ -65,9 +65,10 @@
 #define MAX_HOST_LEN 32
 #define MAX_IP_LEN 16
 #define BOUNDARY_VAL "123456789000000000000987654321"
-#define SF_LEN 100
+#define SF_LEN 128
 #define RAM_LOG_LEN (1024 * 7) // size of system message log in bytes stored in slow RTC ram (max 8KB - vars)
 #define MIN_STACK_FREE 512
+#define STARTUP_FAIL "Startup Failure: "
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();

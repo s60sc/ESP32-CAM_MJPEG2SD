@@ -76,7 +76,9 @@ static void listFolder(const char* rootDir) {
     LOG_INF("File: %s, size: %s", file.path(), fmtSize(file.size()));
     file = root.openNextFile();
   }
-  LOG_INF("%s: %s used", fsType, fmtSize(STORAGE.usedBytes()));
+  char totalBytes[20];
+  strcpy(totalBytes, fmtSize(STORAGE.totalBytes()));
+  LOG_INF("%s: %s used of %s", fsType, fmtSize(STORAGE.usedBytes()), totalBytes);
 }
 
 bool startStorage() {
@@ -86,7 +88,7 @@ bool startStorage() {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
     if (res) listFolder(DATA_DIR);
-    else snprintf(startupFailure, SF_LEN, "Startup Failure: Check SD card inserted");
+    else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
     debugMemory("startStorage");
     return res; 
   }
@@ -104,7 +106,7 @@ bool startStorage() {
       strcpy(fsType, "LittleFS");
       res = LittleFS.begin(formatIfMountFailed);
       // create data folder if not present
-      LittleFS.mkdir(DATA_DIR);
+      if (res) LittleFS.mkdir(DATA_DIR);
     }
 #endif
     if (res) {  
@@ -113,7 +115,7 @@ bool startStorage() {
       listFolder(rootDir);
     }
   } else {
-    snprintf(startupFailure, SF_LEN, "Startup Failure: Failed to mount %s", fsType);  
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsType);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
   debugMemory("startStorage");
