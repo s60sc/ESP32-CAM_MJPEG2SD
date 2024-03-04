@@ -106,6 +106,7 @@ void prepAviIndex(bool isTL) {
   memcpy(idxBuf[isTL], idx1Buf, 4); // index header
   idxPtr[isTL] = CHUNK_HDR;  // leave 4 bytes for index size
   moviSize[isTL] = indexLen[isTL] = 0;
+  idxOffset[isTL] = 4; // 4 byte offset
 }
 
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL) {
@@ -145,7 +146,8 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL) {
 #endif
 
   // reset state for next recording
-  moviSize[isTL] = idxOffset[isTL] = idxPtr[isTL] = 0;
+  moviSize[isTL] = idxPtr[isTL] = 0;
+  idxOffset[isTL] = 4; // 4 byte offset
 }
 
 void buildAviIdx(size_t dataSize, bool isVid, bool isTL) {

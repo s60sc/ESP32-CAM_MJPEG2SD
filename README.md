@@ -47,6 +47,7 @@ Changes in version 9.6:
 
 Changes in version 9.6.1:
 * Add brownout warning
+* Applied fix in issue [#381](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/381)
 
 ## Purpose
 
