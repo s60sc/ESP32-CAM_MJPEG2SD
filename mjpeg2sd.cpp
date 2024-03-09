@@ -76,6 +76,22 @@ bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
 
+/***************** added for issue #384 ****************/
+#define enableBuzzer false // set true to enable buzzer operation
+#define buzzerPin 12 // use a free pin
+#define buzzerTimeout 5 // in seconds           
+
+static void buzzerSound(bool buzzerOn) {
+  if (enableBuzzer) {
+    // operate active buzzer when motion detected
+    if (buzzerOn) {
+      // turn buzzer on
+      pinMode(buzzerPin, OUTPUT);
+      digitalWrite(buzzerPin, HIGH); 
+    } else digitalWrite(buzzerPin, LOW); // turn buzzer off
+  }
+}
+
 /**************** timers & ISRs ************************/
 
 static void IRAM_ATTR frameISR() {
@@ -410,6 +426,7 @@ static boolean processFrame() {
         mqttPublish(jsonBuff);
       }
 #endif
+      buzzerSound(true);
       openAvi();
       wasCapturing = true;
     }
@@ -418,6 +435,7 @@ static boolean processFrame() {
       dTimeTot += millis() - dTime;
       saveFrame(fb);
       showProgress();
+      if (frameCnt / FPS >= buzzerTimeout) buzzerSound(false);
       if (frameCnt >= maxFrames) {
         logLine();
         LOG_INF("Auto closed recording after %u frames", maxFrames);
@@ -428,6 +446,7 @@ static boolean processFrame() {
       // movement stopped
       finishRecording = true;
       if (lampAuto) setLamp(0); // switch off lamp
+      buzzerSound(false);
     }
     wasCapturing = isCapturing;
   }
