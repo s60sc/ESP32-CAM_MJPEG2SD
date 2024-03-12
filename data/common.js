@@ -528,14 +528,14 @@
         async function sendControl(key, value) {
           // send only  
           if (value != null) {
-            const response = await fetch(encodeURI("/control?" + key + "=" + value));
+            const response = await fetch(encodeURI("/control?" + key + "=") + encodeURIComponent(value));
             if (!response.ok) alert(response.status + ": " + response.statusText);
           }
         }
         
         async function sendControlResp(key, value) {
           // send and apply response
-          const response = await fetch(encodeURI("/control?" + key + "=" + value));
+          const response = await fetch(encodeURI("/control?" + key + "=") + encodeURIComponent(value));
           if (response.ok) {
             updateData = await response.json();
             updateStatus();
