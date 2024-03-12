@@ -20,24 +20,6 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 
 ***This is a complex app and some users are raising issues when the app reports an error, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
-Changes in version 9.1:
-* Telegram support.
-* All web traffic now uses single port.
-* RTC ram log added to persist over soft resets
-
-Changes in version 9.1.2:
-* New stream terminates older stream except NVR
-
-Changes in version 9.2:
-* Interface for Machine Learning support.
-* HTTPS upload alternative to FTP, see `ftp.cpp` for details. 
-
-Changes in version 9.3:
-* Subtitles for [Telemetry Recording](#telemetry-recording)
-
-Changes in version 9.4:
-* [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
-
 Changes in version 9.5:
 * Reduce code size by deleting files for unwanted features - see `appGlobals.h`
 
@@ -48,6 +30,11 @@ Changes in version 9.6:
 Changes in version 9.6.1:
 * Add brownout warning
 * Applied fix in issue [#381](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/381)
+
+Changes in version 9.6.2:
+* Support for new type of ESP32S3 cam board - issue #379
+* Add active buzzer on motion detect
+* Retry for auto upload option - issue #380
 
 ## Purpose
 

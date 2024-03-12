@@ -256,6 +256,18 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
   return hasExtension;
 }
 
+static void deleteOthers(const char* baseFile) {
+#ifdef ISCAM
+  // delete corresponding csv and srt files if exist
+  char otherDeleteName[FILE_NAME_LEN];
+  strcpy(otherDeleteName, baseFile);
+  changeExtension(otherDeleteName, CSV_EXT);
+  if (STORAGE.remove(otherDeleteName)) LOG_INF("File %s deleted", otherDeleteName);
+  changeExtension(otherDeleteName, SRT_EXT);
+  if (STORAGE.remove(otherDeleteName)) LOG_INF("File %s deleted", otherDeleteName);
+#endif  
+}
+
 void deleteFolderOrFile(const char* deleteThis) {
   // delete supplied file or folder, unless it is a reserved folder
   char fileName[FILE_NAME_LEN];
@@ -285,6 +297,7 @@ void deleteFolderOrFile(const char* deleteThis) {
         size_t fSize = file.size();
         file.close();
         LOG_INF("  FILE : %s Size : %s %sdeleted", filepath, fmtSize(fSize), STORAGE.remove(filepath) ? "" : "not ");
+        deleteOthers(filepath);
       }
       file = df.openNextFile();
     }
@@ -295,15 +308,7 @@ void deleteFolderOrFile(const char* deleteThis) {
     // delete individual file
     df.close();
     LOG_ALT("File %s %sdeleted", deleteThis, STORAGE.remove(deleteThis) ? "" : "not ");  //Remove the file
-#ifdef ISCAM
-    // delete corresponding csv and srt files if exist
-    char otherDeleteName[FILE_NAME_LEN];
-    strcpy(otherDeleteName, deleteThis);
-    changeExtension(otherDeleteName, CSV_EXT);
-    if (STORAGE.remove(otherDeleteName)) LOG_INF("File %s deleted", otherDeleteName);
-    changeExtension(otherDeleteName, SRT_EXT);
-    if (STORAGE.remove(otherDeleteName)) LOG_INF("File %s deleted", otherDeleteName);
-#endif  
+    deleteOthers(deleteThis);
   }
 }
 

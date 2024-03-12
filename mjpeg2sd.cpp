@@ -76,22 +76,6 @@ bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
 
-/***************** added for issue #384 ****************/
-#define enableBuzzer false // set true to enable buzzer operation
-#define buzzerPin 12 // use a free pin
-#define buzzerTimeout 5 // in seconds           
-
-static void buzzerSound(bool buzzerOn) {
-  if (enableBuzzer) {
-    // operate active buzzer when motion detected
-    if (buzzerOn) {
-      // turn buzzer on
-      pinMode(buzzerPin, OUTPUT);
-      digitalWrite(buzzerPin, HIGH); 
-    } else digitalWrite(buzzerPin, LOW); // turn buzzer off
-  }
-}
-
 /**************** timers & ISRs ************************/
 
 static void IRAM_ATTR frameISR() {
@@ -360,7 +344,13 @@ static bool closeAvi() {
     }
 #endif
 #if INCLUDE_FTP_HFS
-    if (autoUpload) fsFileOrFolder(aviFileName); // Upload it to remote ftp server if requested
+    if (autoUpload) {
+      if (deleteAfter) {
+        // issue #380 - in case other files failed to upload, do whole parent folder
+        dateFormat(partName, sizeof(partName), true);
+        fsFileOrFolder(partName); 
+      } else fsFileOrFolder(aviFileName); // Upload this file to remote ftp server 
+    }
 #endif
 #if INCLUDE_TGRAM
     if (tgramUse) tgramAlert(aviFileName, "");
@@ -426,7 +416,7 @@ static boolean processFrame() {
         mqttPublish(jsonBuff);
       }
 #endif
-      buzzerSound(true);
+      buzzerAlert(true); // sound buzzer if enabled
       openAvi();
       wasCapturing = true;
     }
@@ -435,7 +425,7 @@ static boolean processFrame() {
       dTimeTot += millis() - dTime;
       saveFrame(fb);
       showProgress();
-      if (frameCnt / FPS >= buzzerTimeout) buzzerSound(false);
+      if (buzzerUse && frameCnt / FPS >= buzzerDuration) buzzerAlert(false); // switch off after given period 
       if (frameCnt >= maxFrames) {
         logLine();
         LOG_INF("Auto closed recording after %u frames", maxFrames);
@@ -446,7 +436,7 @@ static boolean processFrame() {
       // movement stopped
       finishRecording = true;
       if (lampAuto) setLamp(0); // switch off lamp
-      buzzerSound(false);
+      buzzerAlert(false); // switch off buzzer
     }
     wasCapturing = isCapturing;
   }

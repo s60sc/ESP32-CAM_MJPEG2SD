@@ -143,7 +143,10 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
   else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
   else if (!strcmp(variable, "camHub")) camHub = (bool)intVal;  
-
+  else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
+  else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
+  else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal; 
+    
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
   else if (!strcmp(variable, "framesize")) {
@@ -311,18 +314,20 @@ void buildAppJsonString(bool filter) {
   p += sprintf(p, "\"sustainId\":\"%u\",", sustainId); 
     
   // Extend info
-  uint8_t cardType = SD_MMC.cardType();
+  uint8_t cardType = 99; // not MMC
+  if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) p += sprintf(p, "\"card\":\"%s\",", "NO card");
   else {
     if (!filter) {
       if (cardType == CARD_MMC) p += sprintf(p, "\"card\":\"%s\",", "MMC"); 
       else if (cardType == CARD_SD) p += sprintf(p, "\"card\":\"%s\",", "SDSC");
       else if (cardType == CARD_SDHC) p += sprintf(p, "\"card\":\"%s\",", "SDHC"); 
+      else if (cardType == 99) p += sprintf(p, "\"card\":\"%s\",", "LittlrFS"); 
     }
-    p += sprintf(p, "\"card_size\":\"%s\",", fmtSize(SD_MMC.cardSize()));
-    p += sprintf(p, "\"used_bytes\":\"%s\",", fmtSize(SD_MMC.usedBytes()));
-    p += sprintf(p, "\"free_bytes\":\"%s\",", fmtSize(SD_MMC.totalBytes() - SD_MMC.usedBytes()));
-    p += sprintf(p, "\"total_bytes\":\"%s\",", fmtSize(SD_MMC.totalBytes()));
+    if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) p += sprintf(p, "\"card_size\":\"%s\",", fmtSize(SD_MMC.cardSize()));
+    p += sprintf(p, "\"used_bytes\":\"%s\",", fmtSize(STORAGE.usedBytes()));
+    p += sprintf(p, "\"free_bytes\":\"%s\",", fmtSize(STORAGE.totalBytes() - STORAGE.usedBytes()));
+    p += sprintf(p, "\"total_bytes\":\"%s\",", fmtSize(STORAGE.totalBytes()));
   }
   p += sprintf(p, "\"free_psram\":\"%s\",", fmtSize(ESP.getFreePsram()));     
 #if INCLUDE_FTP_HFS
@@ -643,4 +648,7 @@ tgramUse~0~2~C~Use Telegram Bot
 tgramToken~~2~T~Telegram Bot token
 tgramChatId~~2~T~Telegram chat identifier
 camHub~0~2~C~Show Camera Hub tab
+buzzerUse~0~3~C~Use active buzzer
+buzzerPin~~3~N~Pin used for active buzzer
+buzzerDuration~~3~N~Duration of buzzer sound in secs
 )~";

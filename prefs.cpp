@@ -230,19 +230,20 @@ void updateStatus(const char* variable, const char* _value) {
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strncpy(hostName, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "ST_SSID")) strncpy(ST_SSID, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "ST_Pass") && strchr(value, '*') == NULL) strncpy(ST_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "ST_Pass") && value[0] != '*') strncpy(ST_Pass, value, MAX_PWD_LEN-1);
+
   else if (!strcmp(variable, "ST_ip")) strncpy(ST_ip, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "ST_gw")) strncpy(ST_gw, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "ST_sn")) strncpy(ST_sn, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "ST_ns1")) strncpy(ST_ns1, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "ST_ns1")) strncpy(ST_ns2, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "Auth_Name")) strncpy(Auth_Name, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "Auth_Pass") && strchr(value, '*') == NULL) strncpy(Auth_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "Auth_Pass") && value[0] != '*') strncpy(Auth_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "AP_ip")) strncpy(AP_ip, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "AP_gw")) strncpy(AP_gw, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "AP_sn")) strncpy(AP_sn, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "AP_SSID")) strncpy(AP_SSID, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "AP_Pass") && strchr(value, '*') == NULL) strncpy(AP_Pass, value, MAX_PWD_LEN-1); 
+  else if (!strcmp(variable, "AP_Pass") && value[0] != '*') strncpy(AP_Pass, value, MAX_PWD_LEN-1); 
   else if (!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
   else if (!strcmp(variable, "useHttps")) useHttps = (bool)intVal;
   else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
@@ -265,7 +266,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "fsServer")) strncpy(fsServer, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "fsPort")) fsPort = intVal;
   else if (!strcmp(variable, "ftpUser")) strncpy(ftpUser, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "FS_Pass") && strchr(value, '*') == NULL) strncpy(FS_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "FS_Pass") && value[0] != '*') strncpy(FS_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
   else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
   else if(!strcmp(variable, "fsUse")) fsUse = (bool)intVal;
@@ -286,7 +287,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "smtp_login")) strncpy(smtp_login, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "smtp_server")) strncpy(smtp_server, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "smtp_email")) strncpy(smtp_email, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "SMTP_Pass") && strchr(value, '*') == NULL) strncpy(SMTP_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "SMTP_Pass") && value[0] != '*') strncpy(SMTP_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "smtp_port")) smtp_port = intVal;
   else if (!strcmp(variable, "smtpMaxEmails")) alertMax = intVal;
 #endif
@@ -299,7 +300,7 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "mqtt_broker")) strncpy(mqtt_broker, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "mqtt_port")) strncpy(mqtt_port, value, 4);
   else if (!strcmp(variable, "mqtt_user")) strncpy(mqtt_user, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "mqtt_user_Pass") && strchr(value, '*') == NULL) strncpy(mqtt_user_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "mqtt_user_Pass") && value[0] != '*') strncpy(mqtt_user_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "mqtt_topic_prefix")) strncpy(mqtt_topic_prefix, value, (FILE_NAME_LEN/2)-1);
 #endif
 

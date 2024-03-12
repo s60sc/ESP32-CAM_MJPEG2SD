@@ -66,7 +66,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
-//#define DEV_ONLY // leave commented out
+#define DEV_ONLY // leave commented out
 //#define SIDE_ALARM // leave commented out 
 #define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
@@ -77,7 +77,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.6.1"
+#define APP_VER "9.6.2"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -85,7 +85,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 160 // must be > number of entries in configs.txt
+#define MAX_CONFIGS 165 // must be > number of entries in configs.txt
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #define FB_BUFFERS 12 // 1 being processed, rest being filled
 #else
@@ -116,7 +116,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 10
+#define CFG_VER 11
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -141,7 +141,11 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
 #define SD_MMC_CLK 21 // SCLK
 #define SD_MMC_CMD 19 // MOSI
-#define SD_MMC_D0 22  // MISO
+#define SD_MMC_D0 22  // MISO]
+#elif defined(CAMERA_MODEL_NEW_ESPS3_RE1_0)
+#define SD_MMC_CLK 42
+#define SD_MMC_CMD 39
+#define SD_MMC_D0 4
 #endif
 
 #ifdef CONFIG_IDF_TARGET_ESP32S3 
@@ -213,6 +217,7 @@ size_t getAudioBuffer(bool endStream);
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
+void buzzerAlert(bool buzzerOn);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
 bool checkSDFiles();
 void currentStackUsage();
@@ -336,6 +341,9 @@ extern bool voltUse; // true to report on ADC pin eg for for battery
 // microphone cannot be used on IO Extender
 extern bool micUse; // true to use external I2S microphone 
 extern bool wakeUse;
+extern bool buzzerUse; // true to use active buzzer
+extern int buzzerPin; 
+extern int buzzerDuration; 
 
 // sensors 
 extern int pirPin; // if usePir is true

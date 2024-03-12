@@ -57,6 +57,7 @@ bool servoUse; // true to use pan / tilt servo control
 bool voltUse; // true to report on ADC pin eg for for battery
 bool wakeUse = false; // true to allow app to sleep and wake
 bool stickUse; // true to use joystick
+bool buzzerUse; // true to use buzzer
 
 // Pins used by peripherals
 
@@ -69,7 +70,8 @@ bool stickUse; // true to use joystick
 int pirPin; // if pirUse is true
 int lampPin; // if lampUse is true
 int wakePin; // if wakeUse is true
-
+int buzzerPin; // if buzzerUse is true
+  
 // Camera servos 
 int servoPanPin; // if servoUse is true
 int servoTiltPin;
@@ -95,6 +97,9 @@ int voltDivider; // set battVoltageDivider value to be divisor of input voltage 
                  // eg: 100k / 100k would be divisor value 2
 float voltLow; // voltage level at which to send out email alert
 int voltInterval; // interval in minutes to check battery voltage
+
+// buzzer duration
+int buzzerDuration; // time buzzer sounds in seconds 
 
 // RC pins and control
 bool RCactive = false;
@@ -134,6 +139,17 @@ bool getPIRval() {
   // if use external PIR, will have delayed response
   if (!externalPeripheral(pirPin)) pirVal = digitalRead(pirPin); 
   return pirVal; 
+}
+
+void buzzerAlert(bool buzzerOn) {
+  // control active buzzer operation
+  if (buzzerUse) {
+    if (buzzerOn) {
+      // turn buzzer on
+      pinMode(buzzerPin, OUTPUT);
+      digitalWrite(buzzerPin, HIGH); 
+    } else digitalWrite(buzzerPin, LOW); // turn buzzer off
+  }
 }
 
 // Control a Pan-Tilt-Camera stand using two servos connected to pins specified above
