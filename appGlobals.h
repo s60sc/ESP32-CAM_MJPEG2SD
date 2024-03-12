@@ -66,7 +66,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
-#define DEV_ONLY // leave commented out
+//#define DEV_ONLY // leave commented out
 //#define SIDE_ALARM // leave commented out 
 #define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
