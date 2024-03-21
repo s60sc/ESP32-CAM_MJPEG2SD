@@ -268,7 +268,6 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "ftpUser")) strncpy(ftpUser, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "FS_Pass") && value[0] != '*') strncpy(FS_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
-  else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
   else if(!strcmp(variable, "fsUse")) fsUse = (bool)intVal;
   else if(!strcmp(variable, "autoUpload")) autoUpload = (bool)intVal;
   else if(!strcmp(variable, "deleteAfter")) deleteAfter = (bool)intVal;
