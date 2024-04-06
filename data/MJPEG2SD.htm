@@ -1485,7 +1485,7 @@
     <div id="ShowLog" class="tabcontent">
       <br>
       <div class="grid-cols4">
-        <div class="input-group" style="grid-column: span 2">
+        <div class="input-group" style="grid-column: span 2; grid-row: span 2">
           <fieldset> 
           <legend id="selectLog">Select Log</legend> 
           <div>
@@ -1498,28 +1498,24 @@
           </div>
           </fieldset>
         </div>
-        <div class="input-group" id="dbg-group" style="align-items: center; grid-column: span 2">
+        <div class="input-group" id="dbg-group" style="text-align: left">
           <label for="dbgVerbose" class="header" title="Set verbose logging">Verbose:</label>
+        </div>
+        <div class="input-group" id="dbg-group" style="text-align: right">
           <div class="switch">
             <input id="dbgVerbose" type="checkbox">
             <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
           </div>
         </div>
-        <div style="grid-column: span 4"><br></div>
-        <div class="input-group" style="text-align: left; grid-column: span 2">
-          <label for="ramLog" class="header" title="Enable logging to RTC RAM">Log to RTC RAM:</label>
-          <div class="switch">
-            <input id="ramLog" type="checkbox">
-            <label title="Output log to RTC RAM" class="slider" for="ramLog"></label>
-          </div>   
-        </div>
-        <div class="input-group" style="text-align: left; grid-column: span 2">
-          <label for="sdLog" class="header" title="Enable logging to sd card">Log to SD card:</label>
+        <div class="input-group" id="dbg-group" style="text-align: left">
+          <label for="sdLog" class="header" title="Enable logging to sd card">Log to SD:</label>
+        </div> 
+        <div class="input-group" id="dbg-group" style="text-align: right">
           <div class="switch">
             <input id="sdLog" type="checkbox">
-            <label title="Output log to SD card" class="slider" for="sdLog"></label>
-          </div>  
-        </div> 
+            <label title="Outputs log to SD card" class="slider" for="sdLog"></label>
+          </div> 
+        </div>
         <div style="grid-column: span 4"><br></div>
         <div>
           <svg>
