@@ -208,7 +208,7 @@ static void timeLapse(camera_fb_t* fb) {
         frameCntTL = intervalCnt = 0;
         LOG_INF("Finished time lapse: %s", TLname);
 #if INCLUDE_FTP_HFS
-        if (autoUpload) fsFileOrFolder(TLname); // Upload it to remote ftp server if requested
+        if (autoUpload) fsStartTransfer(TLname); // Transfer it to remote ftp server if requested
 #endif
       }
     }
@@ -346,10 +346,10 @@ static bool closeAvi() {
 #if INCLUDE_FTP_HFS
     if (autoUpload) {
       if (deleteAfter) {
-        // issue #380 - in case other files failed to upload, do whole parent folder
+        // issue #380 - in case other files failed to transfer, do whole parent folder
         dateFormat(partName, sizeof(partName), true);
-        fsFileOrFolder(partName); 
-      } else fsFileOrFolder(aviFileName); // Upload this file to remote ftp server 
+        fsStartTransfer(partName); 
+      } else fsStartTransfer(aviFileName); // transfer this file to remote ftp server 
     }
 #endif
 #if INCLUDE_TGRAM

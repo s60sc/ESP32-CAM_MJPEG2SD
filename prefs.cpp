@@ -32,18 +32,18 @@ static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
 char* jsonBuff = NULL;
 static char appId[16];
-static char variable[FILE_NAME_LEN] = {0,};
-static char value[FILE_NAME_LEN] = {0,};
+static char variable[FILE_NAME_LEN] = {0};
+static char value[IN_FILE_NAME_LEN] = {0};
 time_t currEpoch = 0;
 
 /********************* generic Config functions ****************************/
 
-static bool getNextKeyVal(char* keyName, char* keyVal) {
+static bool getNextKeyVal() {
   // return next key and value from configs on each call in key order
   static int row = 0;
   if (row++ < configs.size()) {
-    strcpy(keyName, configs[row - 1][0].c_str());
-    strcpy(keyVal, configs[row - 1][1].c_str()); 
+    strncpy(variable, configs[row - 1][0].c_str(), sizeof(variable) - 1);
+    strncpy(value, configs[row - 1][1].c_str(), sizeof(value) - 1); 
     return true;
   }
   // end of vector reached, reset
@@ -51,8 +51,16 @@ static bool getNextKeyVal(char* keyName, char* keyVal) {
   return false;
 }
 
+void showConfigVect() {
+  for (const std::vector<std::string>& innerVector : configs) {
+    // Print each element of the inner vector
+    for (const std::string& element : innerVector) printf("%s,", element.c_str());
+    printf("\n"); // Add a newline after each inner vector
+  }
+}
+
 void reloadConfigs() {
-  while (getNextKeyVal(variable, value)) updateStatus(variable, value);
+  while (getNextKeyVal()) updateStatus(variable, value);
 }
 
 static int getKeyPos(std::string thisKey) {
@@ -117,7 +125,7 @@ static void loadVectItem(const std::string keyValGrpLabel) {
 static void saveConfigVect() {
   File file = fp.open(CONFIG_FILE_PATH, FILE_WRITE);
   char configLine[FILE_NAME_LEN + 101];
-  if (!file) LOG_ERR("Failed to save to configs file");
+  if (!file) LOG_WRN("Failed to save to configs file");
   else {
     sort(configs.begin(), configs.end());
     configs.erase(unique(configs.begin(), configs.end()), configs.end()); // remove any dups
@@ -158,7 +166,7 @@ static bool loadConfigVect() {
 static bool savePrefs(bool retain = true) {
   // use preferences for passwords
   if (!prefs.begin(APP_NAME, false)) {  
-    LOG_ERR("Failed to save preferences");
+    LOG_WRN("Failed to save preferences");
     return false;
   }
   if (!retain) { 
@@ -217,12 +225,12 @@ void updateStatus(const char* variable, const char* _value) {
   // called from controlHandler() to update app status from changes made on browser
   // or from loadConfig() to update app status from stored preferences
   bool res = true;
-  char value[FILE_NAME_LEN];
+  char value[IN_FILE_NAME_LEN];
   strncpy(value, _value, sizeof(value));  
 #if INCLUDE_MQTT
   if (mqtt_active) {
-    char buff[(FILE_NAME_LEN * 2)];
-    snprintf(buff, FILE_NAME_LEN * 2, "%s=%s",variable, value);
+    char buff[(IN_FILE_NAME_LEN * 2)];
+    snprintf(buff, IN_FILE_NAME_LEN * 2, "%s=%s", variable, value);
     mqttPublish(buff);
   }
 #endif
@@ -267,7 +275,6 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "fsPort")) fsPort = intVal;
   else if (!strcmp(variable, "ftpUser")) strncpy(ftpUser, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "FS_Pass") && value[0] != '*') strncpy(FS_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
   else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
   else if(!strcmp(variable, "fsUse")) fsUse = (bool)intVal;
   else if(!strcmp(variable, "autoUpload")) autoUpload = (bool)intVal;
@@ -321,13 +328,10 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "logType")) {
     logType = intVal;
     wsLog = (logType == 1) ? true : false;
+    remote_log_init();
   } 
   else if (!strcmp(variable, "sdLog")) {
     sdLog = (bool)intVal; 
-    remote_log_init();
-  } 
-  else if (!strcmp(variable, "ramLog")) {
-    ramLog = (bool)intVal; 
     remote_log_init();
   } 
   else if (!strcmp(variable, "refreshVal")) refreshVal = intVal; 
@@ -340,7 +344,7 @@ void updateStatus(const char* variable, const char* _value) {
       // manually specified file, eg control?deldata=favicon.ico
       char delFile[FILE_NAME_LEN];
       int dlen = snprintf(delFile, FILE_NAME_LEN, "%s/%s", DATA_DIR, value);
-      if (dlen > FILE_NAME_LEN) LOG_ERR("File name %s too long", value);
+      if (dlen > FILE_NAME_LEN) LOG_WRN("File name %s too long", value);
       else deleteFolderOrFile(delFile);
     }
     doRestart("user requested restart after data deletion"); 
@@ -440,6 +444,8 @@ static bool checkConfigFile() {
       file.write((uint8_t*)appConfig, strlen(appConfig));
       sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
       char cfg[100];
+      sprintf(cfg, "appId~%s~99~~na\n", APP_NAME);
+      file.write((uint8_t*)cfg, strlen(cfg));
       sprintf(cfg, "hostName~%s~%d~T~Device host name\n", hostName, HOSTNAME_GRP);
       file.write((uint8_t*)cfg, strlen(cfg));
       sprintf(cfg, "AP_SSID~%s~0~T~AP SSID name\n", hostName);
@@ -450,7 +456,7 @@ static bool checkConfigFile() {
       LOG_INF("Created %s from local store", CONFIG_FILE_PATH);
       return true;
     } else {
-      LOG_ERR("Failed to create file %s", CONFIG_FILE_PATH);
+      LOG_WRN("Failed to create file %s", CONFIG_FILE_PATH);
       return false;
     }
   }
@@ -459,7 +465,7 @@ static bool checkConfigFile() {
   bool goodFile = true;
   file = fp.open(CONFIG_FILE_PATH, FILE_READ);
   if (!file || !file.size()) {
-    LOG_ERR("Failed to load file %s", CONFIG_FILE_PATH);
+    LOG_WRN("Failed to load file %s", CONFIG_FILE_PATH);
     goodFile = false;
   } else {
     // check file contents are valid
@@ -496,6 +502,7 @@ bool loadConfig() {
   if (!res) res = checkConfigFile(); // to recreate file if deleted on first call
   if (res) {
     loadConfigVect();
+    //showConfigVect();
     loadPrefs(); // overwrites any corresponding entries in config
 
     // load variables from stored config vector

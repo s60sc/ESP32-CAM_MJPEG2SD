@@ -329,7 +329,7 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
       } else httpd_resp_set_status(req, "500 No free task");
     } else {
       if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s");
-      else LOG_ERR("Invalid task id: %s", variable);
+      else LOG_WRN("Invalid task id: %s", variable);
       httpd_resp_set_status(req, "400 Invalid url");
     }
   } else httpd_resp_set_status(req, "400 Bad URL");

@@ -70,7 +70,7 @@ static void setupMdnsHost() {
     //MDNS.addService("ws", "udp", 83);
     //MDNS.addService("ftp", "tcp", 21);    
     LOG_INF("mDNS service: http://%s.local", mdnsName);
-  } else LOG_ERR("mDNS host: %s Failed", mdnsName);
+  } else LOG_WRN("mDNS host: %s Failed", mdnsName);
   debugMemory("setupMdnsHost");
 }
 
@@ -154,7 +154,7 @@ static void setWifiSTA() {
   // set station with static ip if provided
   if (strlen(ST_ip) > 1) {
     IPAddress _ip, _gw, _sn, _ns1, _ns2;
-    if (!_ip.fromString(ST_ip)) LOG_ERR("Failed to parse IP: %s", ST_ip);
+    if (!_ip.fromString(ST_ip)) LOG_WRN("Failed to parse IP: %s", ST_ip);
     else {
       _ip.fromString(ST_ip);
       _gw.fromString(ST_gw);
@@ -196,7 +196,7 @@ bool startWifi(bool firstcall) {
   if (wlStat == WL_NO_SSID_AVAIL || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use 
   if (wlStat != WL_CONNECTED) LOG_WRN("SSID %s %s", ST_SSID, wifiStatusStr(wlStat));
 #if CONFIG_IDF_TARGET_ESP32S3
-  //setupMdnsHost(); // not on ESP32 as uses 6k of heap
+  setupMdnsHost(); // not on ESP32 as uses 6k of heap
 #endif
   // show stats of requested SSID
   int numNetworks = WiFi.scanNetworks();
@@ -322,7 +322,7 @@ void getExtIP() {
             updateStatus("save", "0");
             externalAlert("External IP changed", extIP);
           } else LOG_INF("External IP: %s", extIP);
-        } else LOG_ERR("External IP request failed, error: %s", https.errorToString(httpCode).c_str());    
+        } else LOG_WRN("External IP request failed, error: %s", https.errorToString(httpCode).c_str());    
         if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
         https.end();     
       }
@@ -354,7 +354,7 @@ bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint
         // 'Memory allocation failed' indicates lack of heap space
         char errBuf[100] = "Unknown server error";
         sclient.lastError(errBuf, sizeof(errBuf));
-        LOG_ERR("Timed out connecting to server: %s, Err: %s", serverName, errBuf);
+        LOG_WRN("Timed out connecting to server: %s, Err: %s", serverName, errBuf);
       }
     } else LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), serverName);
   }
@@ -496,6 +496,24 @@ bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcP
     pcProgress = percentage;
     return true;
   } else return false;
+}
+
+bool urlEncode(const char* inVal, char* encoded, size_t maxSize) {
+  int encodedLen = 0;
+  char hexTable[] = "0123456789ABCDEF";
+  while (*inVal) {
+    if (isalnum(*inVal) || strchr("$-_.+!*'(),:@~", *inVal)) *encoded++ = *inVal;
+    else {
+      encodedLen += 3; 
+      if (encodedLen >= maxSize) return false;  // Buffer overflow
+      *encoded++ = '%';
+      *encoded++ = hexTable[(*inVal) >> 4];
+      *encoded++ = hexTable[*inVal & 0xf];
+    }
+    inVal++;
+  }
+  *encoded = 0;
+  return true;
 }
 
 void urlDecode(char* inVal) {
@@ -658,7 +676,6 @@ static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
 // RAM memory based logging in RTC slow memory
-RTC_NOINIT_ATTR bool ramLog; // log to RAM
 RTC_NOINIT_ATTR uint16_t mlogEnd; // cannot init here
 RTC_NOINIT_ATTR char messageLog[RAM_LOG_LEN];
 
@@ -698,7 +715,7 @@ static void remote_log_init_SD() {
   // Open remote file
   log_remote_fp = NULL;
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
-  if (log_remote_fp == NULL) {LOG_ERR("Failed to open SD log file %s", LOG_FILE_PATH);}
+  if (log_remote_fp == NULL) {LOG_WRN("Failed to open SD log file %s", LOG_FILE_PATH);}
   else {
     logPrint(" \n");
     LOG_INF("Opened SD file for logging");
@@ -752,7 +769,7 @@ void logPrint(const char *format, ...) {
       strncpy(alertMsg, outBuf, MAX_OUT - 1);
       alertMsg[msgLen - 2] = 0;
     }
-    if (ramLog) ramLogStore(msgLen); // store in rtc ram 
+    ramLogStore(msgLen); // store in rtc ram 
     if (monitorOpen) Serial.print(outBuf); 
     else delay(10); // allow time for other tasks
     if (sdLog) {

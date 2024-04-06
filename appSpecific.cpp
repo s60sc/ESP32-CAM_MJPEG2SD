@@ -59,7 +59,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
 #if INCLUDE_FTP_HFS
-  else if (!strcmp(variable, "upload")) fsFileOrFolder(value); 
+  else if (!strcmp(variable, "upload")) fsStartTransfer(value); 
 #endif
   else if (!strcmp(variable, "delete")) {
     stopPlayback = true;
@@ -235,7 +235,7 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
       uint32_t jpegTime = millis() - startTime;
       LOG_INF("JPEG: %uB in %ums", alertBufferSize, jpegTime);
       alertBufferSize = 0;
-    } else LOG_ERR("Failed to get still");
+    } else LOG_WRN("Failed to get still");
   }
   return ESP_OK;
 }
@@ -276,14 +276,6 @@ void appSpecificWsHandler(const char* wsMsg) {
       LOG_WRN("unknown command %c", (char)wsMsg[0]);
     break;
   }
-}
-
-esp_err_t appSpecificHeaderHandler(httpd_req_t *req) {
-  // check if header field present, if so extract value 
-  esp_err_t res = ESP_OK;
-  // char value[IN_FILE_NAME_LEN];
-  // res = extractHeaderVal()
-  return res;
 }
 
 void buildAppJsonString(bool filter) {
@@ -416,7 +408,7 @@ void tgramAlert(const char* subject, const char* message) {
     strcat(alertCaption, " from ");
     strncat(alertCaption, hostName, sizeof(alertCaption) - strlen(alertCaption) - 1);
     if (alertBufferSize) alertReady = true; // return image
-  } else LOG_ERR("Unable to send motion alert");
+  } else LOG_WRN("Unable to send motion alert");
 }
 
 static bool downloadAvi(const char* userCmd) {
@@ -436,20 +428,18 @@ static bool downloadAvi(const char* userCmd) {
 
 static void saveRamLog() {
   // save ramlog to storage for upload to telegram
-  if (ramLog) {
-    File ramFile = STORAGE.open(DATA_DIR "/ramlog" TEXT_EXT, FILE_WRITE);
-    int startPtr, endPtr;
-    startPtr = endPtr = mlogEnd;  
-    // write log in chunks
-    do {
-      int maxChunk = startPtr < endPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr;
-      size_t chunkSize = std::min(CHUNKSIZE, maxChunk);    
-      if (chunkSize > 0) ramFile.write((uint8_t*)messageLog + startPtr, chunkSize);
-      startPtr += chunkSize;
-      if (startPtr >= RAM_LOG_LEN) startPtr = 0;
-    } while (startPtr != endPtr);
-    ramFile.close();
-  }
+  File ramFile = STORAGE.open(DATA_DIR "/ramlog" TEXT_EXT, FILE_WRITE);
+  int startPtr, endPtr;
+  startPtr = endPtr = mlogEnd;  
+  // write log in chunks
+  do {
+    int maxChunk = startPtr < endPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr;
+    size_t chunkSize = std::min(CHUNKSIZE, maxChunk);    
+    if (chunkSize > 0) ramFile.write((uint8_t*)messageLog + startPtr, chunkSize);
+    startPtr += chunkSize;
+    if (startPtr >= RAM_LOG_LEN) startPtr = 0;
+  } while (startPtr != endPtr);
+  ramFile.close();
 }
 
 void appSpecificTelegramTask(void* p) {
@@ -492,7 +482,6 @@ void appSpecificTelegramTask(void* p) {
 
 /************** default app configuration **************/
 const char* appConfig = R"~(
-appId~ESP-CAM_MJPEG~99~~na
 ST_SSID~~99~~na
 fsPort~21~99~~na
 fsServer~~99~~na
@@ -509,7 +498,6 @@ useSecure~~99~~na
 useFtps~~99~~na
 extIP~~99~~na
 restart~~99~~na
-ramLog~1~99~~na
 sdLog~0~99~~na
 xclkMhz~20~98~~na
 ae_level~-2~98~~na
@@ -562,6 +550,7 @@ AP_gw~~0~T~AP gateway
 allowAP~1~0~C~Allow simultaneous AP 
 doGetExtIP~1~0~C~Enable get external IP
 wifiTimeoutSecs~30~0~N~WiFi connect timeout (secs)
+logType~0~99~N~Output log selection
 ntpServer~pool.ntp.org~0~T~NTP Server address
 alarmHour~1~2~N~Hour of day for daily actions
 useUART0~0~99~C~na

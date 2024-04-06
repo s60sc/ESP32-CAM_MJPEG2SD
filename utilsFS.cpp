@@ -44,7 +44,7 @@ static bool prepSD_MMC() {
   if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
 #if CONFIG_IDF_TARGET_ESP32S3
 #if !defined(SD_MMC_CLK)
-  LOG_ERR("SD card pins not defined");
+  LOG_WRN("SD card pins not defined");
   return false;
 #else
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
@@ -61,7 +61,7 @@ static bool prepSD_MMC() {
     infoSD();
     res = true;
   } else {
-    LOG_ERR("SD card mount failed");
+    LOG_WRN("SD card mount failed");
     res = false;
   }
   return res;
@@ -136,8 +136,8 @@ static void getOldestDir(char* oldestDir) {
   }
 }
 
-void inline getFileDate(File file, char* fileDate) {
-  // get creation date of file as string
+void inline getFileDate(File& file, char* fileDate) {
+  // get last write date of file as string
   time_t writeTime = file.getLastWrite();
   struct tm lt;
   localtime_r(&writeTime, &lt);
@@ -149,7 +149,7 @@ bool checkFreeStorage() {
   bool res = false;
   size_t freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
   if (!sdFreeSpaceMode && freeSize < sdMinCardFreeSpace) 
-    LOG_ERR("Space left %uMB is less than minimum %uMB", freeSize, sdMinCardFreeSpace);
+    LOG_WRN("Space left %uMB is less than minimum %uMB", freeSize, sdMinCardFreeSpace);
   else {
     // delete to make space
     while (freeSize < sdMinCardFreeSpace) {
@@ -157,7 +157,7 @@ bool checkFreeStorage() {
       getOldestDir(oldestDir);
       LOG_WRN("Deleting oldest folder: %s %s", oldestDir, sdFreeSpaceMode == 2 ? "after uploading" : "");
 #if INCLUDE_FTP_HFS
-      if (sdFreeSpaceMode == 2) fsFileOrFolder(oldestDir); // Upload and then delete oldest folder
+      if (sdFreeSpaceMode == 2) fsStartTransfer(oldestDir); // transfer and then delete oldest folder
 #endif
       deleteFolderOrFile(oldestDir);
       freeSize = (size_t)((STORAGE.totalBytes() - STORAGE.usedBytes()) / ONEMEG);
@@ -210,8 +210,8 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // open relevant folder to list contents
     File root = fp.open(fileName);
     if (strlen(fileName)) {
-      if (!root) LOG_ERR("Failed to open directory %s", fileName);
-      else if (!root.isDirectory()) LOG_ERR("Not a directory %s", fileName);
+      if (!root) LOG_WRN("Failed to open directory %s", fileName);
+      else if (!root.isDirectory()) LOG_WRN("Not a directory %s", fileName);
       LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
     }
     
@@ -246,7 +246,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     for (auto fileInfo : fileVec) {
       if (strlen(jsonBuff) + strlen(fileInfo.c_str()) < jsonBuffLen) strcat(jsonBuff, fileInfo.c_str());
       else {
-        LOG_ERR("Too many folders/files to list %u+%u in %u bytes", strlen(jsonBuff), strlen(partJson), jsonBuffLen);
+        LOG_WRN("Too many folders/files to list %u+%u in %u bytes", strlen(jsonBuff), strlen(partJson), jsonBuffLen);
         break;
       }
     }
@@ -274,13 +274,13 @@ void deleteFolderOrFile(const char* deleteThis) {
   setFolderName(deleteThis, fileName);
   File df = fp.open(fileName);
   if (!df) {
-    LOG_ERR("Failed to open %s", fileName);
+    LOG_WRN("Failed to open %s", fileName);
     return;
   }
   if (df.isDirectory() && (strstr(fileName, "System") != NULL 
       || strstr("/", fileName) != NULL)) {
     df.close();   
-    LOG_ERR("Deletion of %s not permitted", fileName);
+    LOG_WRN("Deletion of %s not permitted", fileName);
     delay(1000); // reduce thrashing on same error
     return;
   }  

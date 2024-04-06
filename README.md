@@ -10,7 +10,7 @@ The application supports:
 * [Remote Control](#remote-control) of camera mounted vehicle.
 * Alert notification using [Telegram](#telegram-bot) or Email
 * Concurrent streaming to web browser and [remote NVR](#stream-to-nvr)
-* Transfer recordings using FTP or HTTPS, or download from browser
+* Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
 * [MQTT](#mqtt) control.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 * Interface for [Machine Learning](#machine-learning) support.
@@ -18,23 +18,10 @@ The application supports:
 
 The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
-***This is a complex app and some users are raising issues when the app reports an error, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
+***This is a complex app and some users are raising issues when the app reports an warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
-Changes in version 9.5:
-* Reduce code size by deleting files for unwanted features - see `appGlobals.h`
-
-Changes in version 9.6:
-* Add audio [#360](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/360) and subtitle streaming for [NVR](#stream-to-nvr)
-* Add check for insufficient PSRAM [#363](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/363#issuecomment-1935037553)
-
-Changes in version 9.6.1:
-* Add brownout warning
-* Applied fix in issue [#381](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/381)
-
-Changes in version 9.6.2:
-* Support for new type of ESP32S3 cam board - issue #379
-* Add active buzzer on motion detect
-* Retry for auto upload option - issue #380
+Changes in version 9.7:
+* [WebDAV](#webdav) server to enable access to SD card content from client, eg Windows file explorer
 
 ## Purpose
 
@@ -92,7 +79,7 @@ Warning added to v9.6.**
 
 On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
 
-Subsequent updates to the application, or to the **/data** folder files, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab.
+Subsequent updates to the application, or to the **/data** folder files, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab, or by using a WebDAV client.
 
 Browser functions only tested on Chrome.
 
@@ -137,7 +124,7 @@ View application log via web page, displayed using **Show Log** tab:
     * RTC RAM: Cyclic 7KB log saved in RTC RAM (default)
     * Websocket: log is dynamically output via websocket
     * SD card: Unlimited size log saved to SD card
-  * Use sliders to enable features
+  * Use slider to enable SD logging, but can slow recording rate
   * Use buttons to refresh or clear selected log
 
 
@@ -335,3 +322,10 @@ Streams separate from the web browser are available for capture by a remote NVR.
 Then save and reboot. 
 
 If multiple streams are enabled they need to be processed by an intermediate tool for synchronisation, eg [go2rtc](https://github.com/AlexxIT/go2rtc) (but which does not handle subtitles [yet?](https://github.com/AlexxIT/go2rtc/issues/932)). See [ESP32-CAM_Audio](https://github.com/spawn451/ESP32-CAM_Audio#usage) for go2rtc configuration examples. If a recording occurs during streaming it will take priority and the streams may stutter.
+
+## WebDAV
+
+A simple WebDAV server is included. A WebDAV client such as Windows file explorer can be used to access and manage the SD card content. In a folder's address bar enter `<ip_address>/webdav`, eg `192.168.1.132/webdav`  
+For Android, MacOS, Linux see `webDav.cpp` file.
+
+<img src="extras/webdav.png" width="600" height="300">

@@ -31,7 +31,7 @@ void setup() {
   startWifi();
 
   startWebServer();
-  if (strlen(startupFailure)) LOG_ERR("%s", startupFailure);
+  if (strlen(startupFailure)) LOG_WRN("%s", startupFailure);
   else {
     // start rest of services
     startSustainTasks(); 

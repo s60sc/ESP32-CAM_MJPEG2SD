@@ -5,6 +5,7 @@
 #include "appGlobals.h"
 
 #define MAX_PAYLOAD_LEN 1000 // bigger than biggest websocket msg
+#define MAX_HANDLERS 12
 
 char inFileName[IN_FILE_NAME_LEN];
 static char variable[FILE_NAME_LEN]; 
@@ -33,7 +34,7 @@ esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {
     httpd_resp_sendstr_chunk(req, NULL);
   }
   if (chunksize) {
-    LOG_ERR("Failed to send %s to browser", inFileName);
+    LOG_WRN("Failed to send %s to browser", inFileName);
     httpd_resp_set_status(req, "500 Failed to send file");
     httpd_resp_sendstr(req, NULL);
   } 
@@ -46,18 +47,22 @@ esp_err_t fileHandler(httpd_req_t* req, bool download) {
   if (!strcmp(inFileName, LOG_FILE_PATH)) flush_log(false);
   File df = fp.open(inFileName);
   if (!df) {
-    df.close();
-    LOG_ERR("File does not exist or cannot be opened: %s", inFileName);
-    httpd_resp_set_status(req, "404 File Not Found");
-    httpd_resp_sendstr(req, NULL);
+    LOG_WRN("File does not exist or cannot be opened: %s", inFileName);
+    httpd_resp_send_404(req);
     return ESP_FAIL;
   } 
+  if (!df.size()) {
+    // file is empty
+    df.close();
+    httpd_resp_sendstr(req, NULL);
+    return ESP_OK;
+  }
   return (download) ? downloadFile(df, req) : sendChunks(df, req);
 }
 
 static void displayLog(httpd_req_t *req) {
   // output ram log to browser
-  if (ramLog) {
+  if (logType == 0) {
     int startPtr, endPtr;
     startPtr = endPtr = mlogEnd;  
     httpd_resp_set_type(req, "text/plain"); 
@@ -71,10 +76,7 @@ static void displayLog(httpd_req_t *req) {
       if (startPtr >= RAM_LOG_LEN) startPtr = 0;
     } while (startPtr != endPtr);
     httpd_resp_sendstr_chunk(req, NULL);
-  } else {
-    LOG_WRN("RAM Log not enabled");
-    httpd_resp_sendstr(req, "400 RAM Log not enabled");
-  }
+  } 
 }
 
 static esp_err_t indexHandler(httpd_req_t* req) {
@@ -119,7 +121,7 @@ esp_err_t extractHeaderVal(httpd_req_t *req, const char* variable, char* value) 
   // check if header field present, if so extract value
   esp_err_t res = ESP_FAIL;
   size_t hdrFieldLen = httpd_req_get_hdr_value_len(req, variable);
-  if (!hdrFieldLen) LOG_WRN("Field %s not present", variable);
+  if (!hdrFieldLen) return ESP_ERR_INVALID_ARG; // header not present
   else if (hdrFieldLen >= IN_FILE_NAME_LEN - 1) LOG_WRN("Field %s value too long (%d)", variable, hdrFieldLen);
   else {
     res = httpd_req_get_hdr_value_str(req, variable, value, hdrFieldLen + 1);
@@ -254,7 +256,7 @@ static esp_err_t updateHandler(httpd_req_t *req) {
     if (ret < 0) {  
       if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
       else {
-        LOG_ERR("Update request failed with status %i", ret);
+        LOG_WRN("Update request failed with status %i", ret);
       }
     }
   } while (ret > 0);
@@ -268,76 +270,88 @@ void progress(size_t prg, size_t sz) {
   if (calcProgress(prg, sz, 5, pcProgress)) LOG_INF("OTA uploaded %d%%", pcProgress); 
 }
 
-static esp_err_t uploadHandler(httpd_req_t *req) {
+esp_err_t uploadHandler(httpd_req_t *req) {
   // upload file for storage or firmware update
-  esp_err_t res = appSpecificHeaderHandler(req);
-  if (res == ESP_OK) {
-    size_t fileSize = req->content_len;
-    size_t rxSize = min(fileSize, (size_t)JSON_BUFF_LEN);
-    int bytesRead = -1;
-    LOG_INF("Upload file %s", inFileName);
-    
-    if (strstr(inFileName, ".bin") != NULL) {
-      // partition update - sketch or SPIFFS
-      LOG_INF("Firmware update using file %s", inFileName);
-      OTAprereq();
-      if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
-      // a spiffs binary must have 'spiffs' in the filename
-      int cmd = (strstr(inFileName, "spiffs") != NULL) ? U_SPIFFS : U_FLASH;
-      if (cmd == U_SPIFFS) STORAGE.end(); // close relevant file system
-      if (Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
-        do {
-          bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
-          if (bytesRead < 0) {  
-            if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
-              delay(10);
-              continue;
-            } else {
-              LOG_ERR("Upload request failed with status %i", bytesRead);
-              break;
-            }
-          }
-          Update.write((uint8_t*)jsonBuff, (size_t)bytesRead);
-          Update.onProgress(progress);
-          fileSize -= bytesRead;
-        } while (bytesRead > 0);
-        if (!fileSize) Update.end(true); // true to set the size to the current progress
-      }
-      if (Update.hasError()) LOG_ERR("OTA failed with error: %s", Update.errorString());
-      else LOG_INF("OTA update complete for %s", cmd == U_FLASH ? "Sketch" : "SPIFFS");
-      httpd_resp_set_hdr(req, "Connection", "close");
-      httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-      httpd_resp_sendstr(req, Update.hasError() ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");   
-      doRestart("Restart after OTA");
+  esp_err_t res = ESP_OK;
+  size_t fileSize = req->content_len;
+  size_t rxSize = min(fileSize, (size_t)JSON_BUFF_LEN);
+  int bytesRead = -1;
+  LOG_INF("Upload file %s", inFileName);
   
-    } else {
-      // create / replace data file on storage
-      File uf = fp.open(inFileName, FILE_WRITE);
-      if (!uf) LOG_ERR("Failed to open %s on storage", inFileName);
-      else {
-        // obtain file content
-        do {
-          bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
-          if (bytesRead < 0) {  
-            if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
-              delay(10);
-              continue;
-            } else {
-              LOG_ERR("Upload request failed with status %i", bytesRead);
-              break;
-            }
+  if (strstr(inFileName, ".bin") != NULL) {
+    // partition update - sketch or SPIFFS
+    LOG_INF("Firmware update using file %s", inFileName);
+    OTAprereq();
+    if (fdWs >= 0) httpd_sess_trigger_close(httpServer, fdWs);
+    // a spiffs binary must have 'spiffs' in the filename
+    int cmd = (strstr(inFileName, "spiffs") != NULL) ? U_SPIFFS : U_FLASH;
+    if (cmd == U_SPIFFS) STORAGE.end(); // close relevant file system
+    if (Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+      do {
+        bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
+        if (bytesRead < 0) {  
+          if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
+            delay(10);
+            continue;
+          } else {
+            LOG_WRN("Upload request failed with status %i", bytesRead);
+            break;
           }
-          uf.write((const uint8_t*)jsonBuff, bytesRead);
-        } while (bytesRead > 0);
-        uf.close();
-        res = bytesRead < 0 ? ESP_FAIL : ESP_OK;
-        httpd_resp_sendstr(req, res == ESP_OK ? "Completed upload file" : "Failed to upload file, retry");
-        if (res == ESP_OK) LOG_INF("Uploaded file %s", inFileName);
-        else LOG_ERR("Failed to upload file %s", inFileName);     
-      }
+        }
+        Update.write((uint8_t*)jsonBuff, (size_t)bytesRead);
+        Update.onProgress(progress);
+        fileSize -= bytesRead;
+      } while (bytesRead > 0);
+      if (!fileSize) Update.end(true); // true to set the size to the current progress
+    }
+    if (Update.hasError()) LOG_WRN("OTA failed with error: %s", Update.errorString());
+    else LOG_INF("OTA update complete for %s", cmd == U_FLASH ? "Sketch" : "SPIFFS");
+    httpd_resp_set_hdr(req, "Connection", "close");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_sendstr(req, Update.hasError() ? "OTA update failed, restarting ..." : "OTA update complete, restarting ...");   
+    doRestart("Restart after OTA");
+
+  } else {
+    // create / replace data file on storage
+    File uf = fp.open(inFileName, FILE_WRITE);
+    if (!uf) LOG_WRN("Failed to open %s on storage", inFileName);
+    else {
+      // obtain file content
+      do {
+        bytesRead = httpd_req_recv(req, jsonBuff, rxSize);
+        if (bytesRead < 0) {  
+          if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
+            delay(10);
+            continue;
+          } else {
+            LOG_WRN("Upload request failed with status %i", bytesRead);
+            break;
+          }
+        }
+        uf.write((const uint8_t*)jsonBuff, bytesRead);
+      } while (bytesRead > 0);
+      uf.close();
+      res = bytesRead < 0 ? ESP_FAIL : ESP_OK;
+      httpd_resp_sendstr(req, res == ESP_OK ? "Completed upload file" : "Failed to upload file, retry");
+      if (res == ESP_OK) LOG_INF("Uploaded file %s", inFileName);
+      else LOG_WRN("Failed to upload file %s", inFileName);     
     }
   }
   return res;
+}
+
+void showHttpHeaders(httpd_req_t *req) {
+  // httpd_req_aux struct members hidden so need to access them via offsets
+  // to calculate offset any element not on 4 byte boundary has to be packed
+  LOG_CHK("HTTP: %s %s", HTTP_METHOD_STRING(req->method), req->uri); 
+  size_t maxHdrLen = max(HTTPD_MAX_REQ_HDR_LEN, HTTPD_MAX_URI_LEN);
+  uint32_t req_hdrs_count = *((uint8_t*)req->aux + 4 + maxHdrLen + 1 + 3 + 4 + 4 + 4 + 1 + 3);
+  char* header = (char*)req->aux + 4; // start of scratch buffer containing headers
+  // get each header string in turn
+  while(req_hdrs_count--) {
+    LOG_CHK("  %s", header);
+    header += strlen(header) + 2;
+  }
 }
 
 static esp_err_t sendCrossOriginHeader(httpd_req_t *req) {
@@ -361,7 +375,7 @@ void wsAsyncSend(const char* wsData) {
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
     wsPkt.final = true;
     esp_err_t ret = httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
-    if (ret != ESP_OK) LOG_ERR("websocket send failed with %s", esp_err_to_name(ret));
+    if (ret != ESP_OK) LOG_WRN("websocket send failed with %s", esp_err_to_name(ret));
   } // else ignore
 }
 
@@ -381,7 +395,7 @@ static esp_err_t wsHandler(httpd_req_t *req) {
     }
     fdWs = httpd_req_to_sockfd(req);
     if (fdWs < 0) {
-      LOG_ERR("failed to get socket number");
+      LOG_WRN("failed to get socket number");
       return ESP_FAIL;
     }
     LOG_INF("Websocket connection: %d", fdWs);
@@ -393,7 +407,7 @@ static esp_err_t wsHandler(httpd_req_t *req) {
     wsPkt.payload = wsMsg;
     esp_err_t ret = httpd_ws_recv_frame(req, &wsPkt, MAX_PAYLOAD_LEN);
     if (ret != ESP_OK) {
-      LOG_ERR("websocket receive failed with %s", esp_err_to_name(ret));
+      LOG_WRN("websocket receive failed with %s", esp_err_to_name(ret));
       return ret;
     }
     wsMsg[wsPkt.len] = 0; // terminator
@@ -416,6 +430,16 @@ static void https_server_user_callback(esp_https_server_user_cb_arg_t *user_cb) 
   LOG_CHK("Session created, socket: %d", user_cb->tls->sockfd);
 }
 */
+
+static esp_err_t webDavOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err) {
+  // either handle WebDAV methods or report non existent URI
+#if INCLUDE_WEBDAV
+  if (strncmp(req->uri, WEBDAV, strlen(WEBDAV)) == 0) return handleWebDav(req) ? ESP_OK : ESP_FAIL;
+#endif
+  // For any other URI send 404 and close socket
+  httpd_resp_send_404(req);
+  return ESP_FAIL;
+}
 
 void startWebServer() {
   esp_err_t res = ESP_FAIL;
@@ -441,7 +465,7 @@ void startWebServer() {
     config.httpd.server_port = HTTPS_PORT;
     config.httpd.ctrl_port = HTTPS_PORT;
     config.httpd.lru_purge_enable = true; // close least used socket 
-    config.httpd.max_uri_handlers = 11;
+    config.httpd.max_uri_handlers = MAX_HANDLERS;
     config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     //config.httpd.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_ssl_start(&httpServer, &config);
@@ -455,7 +479,7 @@ void startWebServer() {
     config.server_port = HTTP_PORT;
     config.ctrl_port = HTTP_PORT;
     config.lru_purge_enable = true;   
-    config.max_uri_handlers = 11;
+    config.max_uri_handlers = MAX_HANDLERS;
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     //config.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_start(&httpServer, &config);
@@ -488,6 +512,7 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &optionsUri);
     httpd_register_uri_handler(httpServer, &sustainUri);
     httpd_register_uri_handler(httpServer, &checkUri);
+    httpd_register_err_handler(httpServer, HTTPD_404_NOT_FOUND, webDavOrNotFoundHandler);
 #ifdef CUSTOM_URI
     httpd_register_uri_handler(httpServer, &customUri);
 #endif
@@ -497,6 +522,6 @@ void startWebServer() {
       uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
       LOG_INF("Task httpServer stack space %u", freeStack);
     }
-  } else LOG_ERR("Failed to start web server");
+  } else LOG_WRN("Failed to start web server");
   debugMemory("startWebserver");
 }

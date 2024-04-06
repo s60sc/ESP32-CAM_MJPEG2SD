@@ -46,7 +46,7 @@ static bool sendSmtpCommand(WiFiClientSecure& client, const char* cmd, const cha
 	uint32_t start = millis();
   while (!client.available() && millis() < start + (responseTimeoutSecs * 1000)) delay(1);
   if (!client.available()) {
-    LOG_ERR("SMTP server response timeout");
+    LOG_WRN("SMTP server response timeout");
     return false;
   }
 

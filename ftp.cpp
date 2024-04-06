@@ -144,7 +144,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   uint32_t start = millis();
   while (!rclient.available() && millis() < start + (responseTimeoutSecs * 1000)) delay(1);
   if (!rclient.available()) {
-    LOG_ERR("FTP server response timeout");
+    LOG_WRN("FTP server response timeout");
     return false;
   }
   // read in response code and message
@@ -171,7 +171,7 @@ static bool ftpConnect() {
   // Connect to ftp or ftps
   if (rclient.connect(fsServer, fsPort)) {LOG_DBG("FTP connected at %s:%u", fsServer, fsPort);}
   else {
-    LOG_ERR("Error opening ftp connection to %s:%u", fsServer, fsPort);
+    LOG_WRN("Error opening ftp connection to %s:%u", fsServer, fsPort);
     return false;
   }
   if (!sendFtpCommand("", "", "220")) return false;
@@ -224,7 +224,7 @@ static bool openDataPort() {
   // Connect to data port
   LOG_DBG("Data port: %i", dataPort);
   if (!dclient.connect(fsServer, dataPort)) {
-    LOG_ERR("Data connection failed");   
+    LOG_WRN("Data connection failed");   
     return false;
   }
   return true;
@@ -256,7 +256,7 @@ static bool ftpStoreFile(File &fh) {
       writeLen = dclient.write((const uint8_t*)fsChunk, readLen);
       writeBytes += writeLen;
       if (writeLen == 0) {
-        LOG_ERR("Upload file to ftp failed");
+        LOG_WRN("Upload file to ftp failed");
         return false;
       }
       if (calcProgress(writeBytes, fileSize, 5, percentLoaded)) LOG_INF("Uploaded %u%%", percentLoaded); 
@@ -268,7 +268,7 @@ static bool ftpStoreFile(File &fh) {
   if (res) {
     LOG_ALT("Uploaded %s in %u sec", fmtSize(writeBytes), (millis() - uploadStart) / 1000);
     //sendFtpCommand("SITE CHMOD 644 ", ftpSaveName, "200", "550"); // unix only
-  } else LOG_ERR("File transfer not successful");
+  } else LOG_WRN("File transfer not successful");
   return res;
 }
 
@@ -295,7 +295,7 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
   bool res = fsUse ? remoteServerConnect(hclient, fsServer, fsPort, hfs_rootCACertificate) : ftpConnect();
 
   if (!res) {
-    LOG_ERR("Unable to connect to %s server", fsUse ? "HTTPS" : "FTP");
+    LOG_WRN("Unable to connect to %s server", fsUse ? "HTTPS" : "FTP");
     return false;
   }
   res = false;
@@ -323,7 +323,7 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
         srt.close();
       }
     }
-    if (!res) LOG_ERR("Failed to upload: %s", fsSaveName);
+    if (!res) LOG_WRN("Failed to upload: %s", fsSaveName);
 #endif
   } else {  
     // Upload a whole folder, file by file
@@ -357,7 +357,7 @@ static void fileServerTask(void* parameter) {
   fsChunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
   if (strlen(storedPathName) >= 2) {
     File root = fp.open(storedPathName);
-    if (!root) LOG_ERR("Failed to open: %s", storedPathName);
+    if (!root) LOG_WRN("Failed to open: %s", storedPathName);
     else { 
       bool res = uploadFolderOrFileFs(storedPathName);
       if (res && deleteAfter) deleteFolderOrFile(storedPathName);
@@ -368,15 +368,15 @@ static void fileServerTask(void* parameter) {
   vTaskDelete(NULL);
 }
 
-bool fsFileOrFolder(const char* fileFolder) {
-  // called from other functions to commence upload to file server
+bool fsStartTransfer(const char* fileFolder) {
+  // called from other functions to commence transfer of file or folder to file server
   setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
     xTaskCreate(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle);    
-    debugMemory("fsFileOrFolder");
+    debugMemory("fsStartTransfer");
     return true;
-  } else LOG_WRN("Unable to upload %s as another upload in progress", storedPathName);
+  } else LOG_WRN("Unable to transfer %s as another transfer in progress", storedPathName);
   return false;
 }
 

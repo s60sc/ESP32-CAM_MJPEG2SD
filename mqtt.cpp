@@ -71,7 +71,7 @@ static void mqtt_error_handler(void *handler_args, esp_event_base_t base, int32_
     // log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
     // log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
     // log_error_if_nonzero("captured as transport's socket errno", event->error_handle->esp_transport_sock_errno);
-    LOG_ERR("Last err string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+    LOG_WRN("Last err string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
     mqttConnected = false;
   }
 }
@@ -125,7 +125,7 @@ static void mqttTask(void* parameter) {
       checkForRemoteQuerry();
       if (mqttTaskDelay > 0 ) vTaskDelay(mqttTaskDelay / portTICK_RATE_MS);
     } else { //Disconnected      
-      LOG_ERR("Disconnected wait..");
+      LOG_WRN("Disconnected wait..");
       vTaskDelay(2000 / portTICK_RATE_MS);
     }        
     //xTaskNotifyGive(mqttTaskHandle);    
@@ -197,12 +197,12 @@ void startMqttClient(void){
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DATA, mqtt_data_handler, NULL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_ERROR, mqtt_error_handler, NULL));
     if (ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_start(mqtt_client)) != ESP_OK) {
-      LOG_ERR("Mqtt start failed");
+      LOG_WRN("Mqtt start failed");
     } else {
       LOG_DBG("Mqtt started");        
       int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
       if (id == -1){
-        LOG_ERR("Mqtt failed to subscribe: %s", cmd_topic );
+        LOG_WRN("Mqtt failed to subscribe: %s", cmd_topic );
         stopMqttClient();
         return;
       } 

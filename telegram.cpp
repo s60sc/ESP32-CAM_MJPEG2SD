@@ -121,8 +121,8 @@ static bool getTgramResponse() {
     if (searchJsonResponse("ok:")) {
       if (strcmp(keyValue, "true")) {
         // get error description
-        if (searchJsonResponse("description:")) LOG_ERR("Telegram error: %s", keyValue);
-        else LOG_ERR("Telegram error, but description not retrieved");
+        if (searchJsonResponse("description:")) LOG_WRN("Telegram error: %s", keyValue);
+        else LOG_WRN("Telegram error, but description not retrieved");
       } else if (searchJsonResponse("result:")) {
         // have response if result contains data, else just an ack
         if (strcmp(keyValue, "[]")) haveResponse = true;
@@ -210,8 +210,8 @@ bool prepTelegram() {
           LOG_INF("Connected to Telegram Bot Handle: %s", keyValue);
           setupTelegramTask();
           return true;
-        } else LOG_ERR("getMe response not parsed %s", tgramBuff);
-      } else LOG_ERR("Failed to communicate with Telegram server");
+        } else LOG_WRN("getMe response not parsed %s", tgramBuff);
+      } else LOG_WRN("Failed to communicate with Telegram server");
     } else LOG_WRN("No Telegram Bot token supplied");
   } else LOG_INF("Telegram not being used");
   return false;
@@ -235,7 +235,7 @@ bool getTgramUpdate(char* responseText) {
                 return true; // user request for app to process
               } // No text, ignore
             } else LOG_WRN("Message from unknown chat id: %s", keyValue);
-          } else LOG_ERR("No chat id found");
+          } else LOG_WRN("No chat id found");
         } else LOG_WRN("Old update_id: %d", update_id);
       } // no update_id, ignore
     } 
@@ -286,7 +286,7 @@ bool sendTgramFile(const char* fileName, const char* contentType, const char* ca
       } else snprintf(errMsg, sizeof(errMsg) - 1, "File size too large: %s", fmtSize(df.size()));        
     } else snprintf(errMsg, sizeof(errMsg) - 1, "File does not exist or cannot be opened: %s", fileName);
     if (strlen(errMsg)) {
-      LOG_ERR("%s", errMsg);
+      LOG_WRN("%s", errMsg);
       sendTgramMessage("ERROR: ", errMsg, "");
     }
   } else return false;

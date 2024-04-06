@@ -38,21 +38,22 @@ static bool wgetFile(const char* filePath) {
             fileSize = https.writeToStream(&f);
             if (fileSize <= 0) {
               httpCode = 0;
-              LOG_ERR("Download failed: writeToStream");
+              LOG_WRN("Download failed: writeToStream");
             } else LOG_INF("Downloaded %s, size %s", filePath, fmtSize(fileSize));       
-          } else LOG_ERR("Download failed, error: %s", https.errorToString(httpCode).c_str());    
+          } else LOG_WRN("Download failed, error: %s", https.errorToString(httpCode).c_str());    
           https.end();
           f.close();
           if (httpCode == HTTP_CODE_OK) {
             if (!strcmp(filePath, CONFIG_FILE_PATH)) doRestart("config file downloaded");
             res = true;
           } else {
-            LOG_ERR("HTTP Get failed with code: %u", httpCode);
+            LOG_WRN("HTTP Get failed with code: %u", httpCode);
             fp.remove(filePath);
           }
         }
-      } else remoteServerClose(wclient);
-    } else LOG_ERR("Open failed: %s", filePath);
+      } 
+      remoteServerClose(wclient);
+    } else LOG_WRN("Open failed: %s", filePath);
   } else res = true;
   return res;
 }

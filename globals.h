@@ -56,6 +56,7 @@
 #define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
 #define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT
 #define COMMON_JS_PATH DATA_DIR "/common" JS_EXT 
+#define WEBDAV "/webdav"
 #define GITHUB_HOST "raw.githubusercontent.com"
 
 #define FILLSTAR "****************************************************************"
@@ -72,7 +73,6 @@
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
-esp_err_t appSpecificHeaderHandler(httpd_req_t *req);
 void appSpecificTelegramTask(void* p);
 esp_err_t appSpecificSustainHandler(httpd_req_t* req);
 esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const char* value);
@@ -110,7 +110,7 @@ char* fmtSize (uint64_t sizeVal);
 void forceCrash();
 void formatElapsedTime(char* timeStr, uint32_t timeVal, bool noDays = false);
 void formatHex(const char* inData, size_t inLen);
-bool fsFileOrFolder(const char* fileFolder);
+bool fsStartTransfer(const char* fileFolder);
 const char* getEncType(int ssidIndex);
 void getExtIP();
 time_t getEpoch();
@@ -118,6 +118,7 @@ size_t getFreeStorage();
 bool getLocalNTP();
 float getNTCcelsius(uint16_t resistance, float oldTemp);
 void goToSleep(int wakeupPin, bool deepSleep);
+bool handleWebDav(httpd_req_t* rreq);
 void initStatus(int cfgGroup, int delayVal);
 void killSocket(int skt = -99);
 void listBuff(const uint8_t* b, size_t len); 
@@ -150,6 +151,7 @@ void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
 void showProgress(const char* marker = ".");
+void showHttpHeaders(httpd_req_t *req);
 uint16_t smoothAnalog(int analogPin, int samples = ADC_SAMPLES);
 float smoothSensor(float latestVal, float smoothedVal, float alpha);
 void startOTAtask();
@@ -161,7 +163,9 @@ void stopPing();
 void syncToBrowser(uint32_t browserUTC);
 bool updateConfigVect(const char* variable, const char* value);
 void updateStatus(const char* variable, const char* _value);
+esp_err_t uploadHandler(httpd_req_t *req);
 void urlDecode(char* inVal);
+bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSend(const char* wsData);
@@ -269,7 +273,6 @@ extern char* jsonBuff;
 extern bool dbgVerbose;
 extern bool sdLog;
 extern char alertMsg[];
-extern bool ramLog;
 extern int logType;
 extern char messageLog[];
 extern uint16_t mlogEnd;
@@ -287,6 +290,42 @@ extern UBaseType_t uxHighWaterMarkArr[];
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
 extern int sdFreeSpaceMode; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload to ftp and then delete folder on SD 
 extern bool formatIfMountFailed ; // Auto format the file system if mount failed. Set to false to not auto format.
+
+#define HTTP_METHOD_STRING(method) \
+  (method == HTTP_DELETE) ? "DELETE" : \
+  (method == HTTP_GET) ? "GET" : \
+  (method == HTTP_HEAD) ? "HEAD" : \
+  (method == HTTP_POST) ? "POST" : \
+  (method == HTTP_PUT) ? "PUT" : \
+  (method == HTTP_CONNECT) ? "CONNECT" : \
+  (method == HTTP_OPTIONS) ? "OPTIONS" : \
+  (method == HTTP_TRACE) ? "TRACE" : \
+  (method == HTTP_COPY) ? "COPY" : \
+  (method == HTTP_LOCK) ? "LOCK" : \
+  (method == HTTP_MKCOL) ? "MKCOL" : \
+  (method == HTTP_MOVE) ? "MOVE" : \
+  (method == HTTP_PROPFIND) ? "PROPFIND" : \
+  (method == HTTP_PROPPATCH) ? "PROPPATCH" : \
+  (method == HTTP_SEARCH) ? "SEARCH" : \
+  (method == HTTP_UNLOCK) ? "UNLOCK" : \
+  (method == HTTP_BIND) ? "BIND" : \
+  (method == HTTP_REBIND) ? "REBIND" : \
+  (method == HTTP_UNBIND) ? "UNBIND" : \
+  (method == HTTP_ACL) ? "ACL" : \
+  (method == HTTP_REPORT) ? "REPORT" : \
+  (method == HTTP_MKACTIVITY) ? "MKACTIVITY" : \
+  (method == HTTP_CHECKOUT) ? "CHECKOUT" : \
+  (method == HTTP_MERGE) ? "MERGE" : \
+  (method == HTTP_MSEARCH) ? "MSEARCH" : \
+  (method == HTTP_NOTIFY) ? "NOTIFY" : \
+  (method == HTTP_SUBSCRIBE) ? "SUBSCRIBE" : \
+  (method == HTTP_UNSUBSCRIBE) ? "UNSUBSCRIBE" : \
+  (method == HTTP_PATCH) ? "PATCH" : \
+  (method == HTTP_PURGE) ? "PURGE" : \
+  (method == HTTP_MKCALENDAR) ? "MKCALENDAR" : \
+  (method == HTTP_LINK) ? "LINK" : \
+  (method == HTTP_UNLINK) ? "UNLINK" : \
+  "UNKNOWN"
 
 /*********************** Log formatting ************************/
 

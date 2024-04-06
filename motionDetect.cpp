@@ -162,7 +162,7 @@ static bool tinyMLclassify() {
         LOG_DBG("Predictions - %s in %ums", outcome, millis() - dTime);  
       } 
     }
-  } else LOG_ERR("Failed to run classifier (%d)", res);
+  } else LOG_WRN("Failed to run classifier (%d)", res);
   return out;
 }
 #endif
@@ -184,7 +184,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   stride = colorDepth == RGB888_BYTES ? 1 : RGB888_BYTES;
   if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, (jpg_scale_t)scaling)) {
-    LOG_ERR("motionDetect: jpg2rgb() failed");
+    LOG_WRN("motionDetect: jpg2rgb() failed");
     free(rgb_buf);
     rgb_buf = NULL;
     return motionStatus;
@@ -292,7 +292,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     dTime = millis();
     // build jpeg of changeMap for debug streaming
     if (!fmt2jpg(changeMap, resizeDimLen, RESIZE_DIM, RESIZE_DIM, PIXFORMAT_RGB888, JPEG_QUAL, &jpg_buf, &motionJpegLen))
-      LOG_ERR("motionDetect: fmt2jpg() failed");
+      LOG_WRN("motionDetect: fmt2jpg() failed");
     memcpy(motionJpeg, jpg_buf, motionJpegLen); 
     free(jpg_buf);
     jpg_buf = NULL;

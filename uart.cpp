@@ -159,7 +159,7 @@ bool externalPeripheral(byte pinNum, uint32_t outputData) {
 void getPeripheralsRequest() {
   // used by IO Extender to receive peripheral request from client
   if (uartQueue == NULL) {
-    LOG_ERR("Interface UART not defined");
+    LOG_WRN("Interface UART not defined");
     delay(30000); // allow time for user to rectify
   } else {
     if (readUart()) { 

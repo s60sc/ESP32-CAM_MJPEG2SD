@@ -401,7 +401,7 @@ static void setupLamp() {
 #elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
       // Single WS2812 RGB high intensity led on pin 48
       rmtWS2812 = rmtInit(lampPin, true, RMT_MEM_64);
-      if (rmtWS2812 == NULL) LOG_ERR("Failed to setup WS2812 with pin %u", lampPin);
+      if (rmtWS2812 == NULL) LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
       else {
         rmtSetTick(rmtWS2812, 100);
         LOG_INF("Setup Lamp Led for ESP32S3 Cam board");
@@ -496,7 +496,7 @@ void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
   else if (pinNum == EXT_IO_PING) 
     extIOpinged = true;
   else if (pinNum != lampPin && pinNum != servoPanPin && pinNum != servoTiltPin) 
-    LOG_ERR("Undefined pin number requested: %d ", pinNum);
+    LOG_WRN("Undefined pin number requested: %d ", pinNum);
 }
 
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
@@ -531,7 +531,7 @@ uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
     memcpy(&responseData, &fval, sizeof(fval)); 
   } else if (pinNum == (EXT_IO_PING - EXTPIN)) {
     LOG_INF("Received client ping");
-  } else LOG_ERR("Undefined pin number requested: %d ", pinNum);
+  } else LOG_WRN("Undefined pin number requested: %d ", pinNum);
   return responseData;
 }
 

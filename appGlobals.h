@@ -51,6 +51,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define INCLUDE_TELEM true   // telemetry.cpp
 #define INCLUDE_MIC true     // mic.cpp (microphone)
 #define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
+#define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
 
 #define INCLUDE_TINYML false  // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
@@ -77,7 +78,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.6.2"
+#define APP_VER "9.7"
 
 #define HTTP_CLIENTS 2 // http, ws
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -116,7 +117,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 11
+#define CFG_VER 12
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
