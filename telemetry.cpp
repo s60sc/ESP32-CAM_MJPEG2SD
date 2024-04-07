@@ -105,12 +105,12 @@ static void getSensorData() {
   if (bmp280.hasValue()) {
     float bmpPressure = bmp280.getPressure() * 0.01;  // pascals to mb/hPa
     float bmpAltitude = 44330.0 * (1.0 - pow(bmpPressure / STD_PRESSURE, 1.0 / 5.255)); // altitude in meters
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], "%0.1f,%0.1f,%0.1f,", bmp280.getTemperature(), bmpPressure, bmpAltitude);
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", bmp280.getTemperature(), bmpPressure, bmpAltitude);
     highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "  %0.1fC  %0.1fmb  %0.1fm", bmp280.getTemperature(), bmpPressure, bmpAltitude);
-  } else for (int i=0; i< 2; i++) highPoint[i] += sprintf(teleBuf[i] + highPoint[i], "-,-,-,");
+  } else for (int i=0; i< 2; i++) highPoint[i] += sprintf(teleBuf[i] + highPoint[i], ",-,-,-");
   
   if (mpu9250.update()) {
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], "%0.1f,%0.1f,%0.1f,", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
     highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "  %0.1f  %0.1f  %0.1f", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
   }
 #endif
@@ -155,13 +155,13 @@ static void telemetryTask(void* pvParameters) {
       uint32_t startTime = millis();
       // write header for this subtitle
       formatElapsedTime(timeStr, srtTime, true);
-      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%d\n%s --> ", srtSeqNo++, timeStr);
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%d\n%s,000 --> ", srtSeqNo++, timeStr);
       srtTime += sampleInterval;
       formatElapsedTime(timeStr, srtTime, true);
-      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%s\n", timeStr);
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%s,000\n", timeStr);
       // write current time for csv row and srt entry
       time_t currEpoch = getEpoch();
-      for (int i = 0; i < NUM_BUFF; i++) highPoint[i] += strftime(teleBuf[i] + highPoint[i], 10, "%H:%M:%S,", localtime(&currEpoch));
+      for (int i = 0; i < NUM_BUFF; i++) highPoint[i] += strftime(teleBuf[i] + highPoint[i], 10, "%H:%M:%S", localtime(&currEpoch));
       // get and store data from sensors 
       storeSensorData(false);
       // add newline to finish row
