@@ -650,4 +650,126 @@
             divShowData.appendChild(table);
           } else cfgGroupNow = -1;
         }
-        
+
+
+       /************** Hub ****************/
+            
+      // create image elements with the saved IPs on page load
+      async function createImageElements(ipAddresses) {
+        const container = document.getElementById('imageContainer');
+        container.innerHTML = ''; // Clear existing content
+
+        // Convert the array of IP addresses into individual IPs
+        for (const ip of ipAddresses) {
+          // Create a container div for each image
+          const ipContainer = document.createElement('div');
+          ipContainer.classList.add('ipContainer');
+          // Create an image element
+          const hubImg = document.createElement('img');
+          hubImg.classList.add('hubImg');
+          // Set the source attribute to request image
+          hubImg.src = `http://${ip}`;
+          // Set an alt attribute for accessibility
+          hubImg.alt = `No Image`;
+
+          // Create a remove button for each container
+          const removeButton = document.createElement('span');
+          removeButton.classList.add('removeButton');
+          removeButton.classList.add('iconSize');
+          removeButton.innerHTML = '×';
+              
+          removeButton.onclick = function (event) {
+            event.stopPropagation(); // Prevent container click from triggering at the same time
+            // Remove the IP from local storage, remove the IP container, and update images
+            const updatedIPs = removeFromLocalStorage(ip);
+            container.removeChild(ipContainer);
+            createImageElements(updatedIPs);
+          };
+
+          // Create a text element to display the IP address overlay
+          const ipUrl = document.createElement('span');
+          ipUrl.classList.add('ipUrl');
+          ipUrl.textContent = ip;
+          ipUrl.style.display = 'none';
+          const ipText = document.createElement('span');
+          ipText.classList.add('ipText');
+          let ipStr = ip;
+          const index = ip.indexOf('/');
+          if (index !== -1) ipStr = ip.substring(0, index);
+          ipText.textContent = ipStr;
+
+          // Append the image, IP text, and remove button to the container
+          ipContainer.appendChild(ipUrl);
+          ipContainer.appendChild(ipText);
+          ipContainer.appendChild(removeButton);
+          ipContainer.appendChild(hubImg);
+          removeButton.style.position = 'absolute';
+          removeButton.style.top = '0';
+          removeButton.style.right = '0';
+
+          // Add click event listener to each container for fetching the web page for the IP address
+          ipContainer.onclick = function () {
+            window.open(`http://${ipStr}`, '_blank');
+          };
+
+          // Append the container to the main image container
+          container.appendChild(ipContainer);
+        }
+      }
+
+      function refreshAllContainers() {
+        const containers = document.querySelectorAll('.ipContainer');
+        containers.forEach((container) => {
+          const ip = container.querySelector('.ipUrl').textContent;
+          const hubImg = container.querySelector('img');
+          hubImg.src = `http://${ip}`;
+        });
+      }
+
+      // Function to create remote device image link when the "Add IP" button is clicked
+      function addIP() {
+        const ipInput = document.getElementById('ipInput');
+        const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
+
+        // Add the entered IP to the array
+        let newIP = ipInput.value.trim();
+        if (newIP !== '' && !ipAddresses.includes(newIP)) {
+          // if only ip address, add app specific URI
+          // for any other app, enter full URL
+          if (newIP.indexOf('/') == -1) newIP += appHub;
+          ipAddresses.push(newIP);
+          localStorage.setItem('enteredIPs', JSON.stringify(ipAddresses));
+          // Call the function to create image elements with the updated IP addresses
+          createImageElements(ipAddresses);
+          // Clear the input field
+          ipInput.value = '';
+        }
+      }
+
+      // Function to remove an IP from local storage
+      function removeFromLocalStorage(ip) {
+        const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
+        const updatedIPs = ipAddresses.filter(existingIP => existingIP !== ip);
+        // Update local storage with the modified array
+        localStorage.setItem('enteredIPs', JSON.stringify(updatedIPs));
+        return updatedIPs;
+      }
+
+      // Function to clear local storage
+      function clearLocalStorage() {
+        const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
+        localStorage.removeItem('enteredIPs');
+        createImageElements(ipAddresses); // Update images after clearing local storage
+      }
+
+      // Retrieve and populate the input field with the saved IPs on page load
+      let hubObserver = new IntersectionObserver (entries => {
+        // refresh hub when becomes visible
+        entries.forEach(entry => { if (entry.isIntersecting) {
+          const savedIPs = localStorage.getItem('enteredIPs');
+          const ipAddresses = savedIPs ? JSON.parse(savedIPs) : [];
+          createImageElements(ipAddresses);
+        }});
+      }); 
+      let deviceHubEl = document.getElementById('DeviceHub');
+      if (deviceHubEl) hubObserver.observe(deviceHubEl);
