@@ -81,6 +81,8 @@ On first installation, the application will start in wifi AP mode - connect to S
 
 Subsequent updates to the application, or to the **/data** folder files, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab, or by using a WebDAV client.
 
+An alternative installation process by [@ldijkman](https://github.com/ldijkman) is described [here](https://youtu.be/YLLGBM3i2aQ).
+
 Browser functions only tested on Chrome.
 
 
