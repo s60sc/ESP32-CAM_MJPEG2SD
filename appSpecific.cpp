@@ -15,7 +15,7 @@ static char value[FILE_NAME_LEN];
 static char alertCaption[100];
 static bool alertReady = false;
 static bool depthColor = true;
-static bool camHub = false;
+static bool devHub = false;
 
 /************************ webServer callbacks *************************/
 
@@ -142,7 +142,7 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
   else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
   else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
-  else if (!strcmp(variable, "camHub")) camHub = (bool)intVal;  
+  else if (!strcmp(variable, "devHub")) devHub = (bool)intVal;  
   else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
   else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
   else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal; 
@@ -236,6 +236,20 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
       LOG_INF("JPEG: %uB in %ums", alertBufferSize, jpegTime);
       alertBufferSize = 0;
     } else LOG_WRN("Failed to get still");
+  } else if (!strcmp(variable, "svg")) {
+    // build svg image for use by another app's hub instead of image
+    const char* svgHtml = R"~(
+        <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="lightgray"/>
+          <text x="50%" y="50%" text-anchor="middle" alignment-baseline="middle" font-size="30">
+    )~";
+    
+    httpd_resp_set_type(req, "image/svg+xml");
+    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.svg");
+    httpd_resp_sendstr_chunk(req, svgHtml);
+    httpd_resp_sendstr_chunk(req, "MJPE2SD");
+    httpd_resp_sendstr_chunk(req, "°C</text></svg>");
+    httpd_resp_sendstr_chunk(req, NULL);
   }
   return ESP_OK;
 }
@@ -636,7 +650,7 @@ waitTime~20~4~N~Min wait (ms) between updates to ESP32
 tgramUse~0~2~C~Use Telegram Bot
 tgramToken~~2~T~Telegram Bot token
 tgramChatId~~2~T~Telegram chat identifier
-camHub~0~2~C~Show Camera Hub tab
+devHub~0~2~C~Show Camera Hub tab
 buzzerUse~0~3~C~Use active buzzer
 buzzerPin~~3~N~Pin used for active buzzer
 buzzerDuration~~3~N~Duration of buzzer sound in secs
