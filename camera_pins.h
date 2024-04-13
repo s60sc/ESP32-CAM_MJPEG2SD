@@ -205,6 +205,14 @@
 #define VSYNC_GPIO_NUM    38
 #define HREF_GPIO_NUM     47
 #define PCLK_GPIO_NUM     13
+//Define SD Pins
+#define SD_MMC_CLK 7 
+#define SD_MMC_CMD 9
+#define SD_MMC_D0 8
+//Define Mic Pins
+#define I2S_SD 41
+#define I2S_WS 42
+#define I2S_SCK -1 //PDM Microphone
 
 #elif defined(CAMERA_MODEL_ESP32_CAM_BOARD)
 #define CAM_BOARD "CAMERA_MODEL_ESP32_CAM_BOARD"
@@ -306,6 +314,17 @@
 #define VSYNC_GPIO_NUM 6
 #define HREF_GPIO_NUM 7
 #define PCLK_GPIO_NUM 13
+//Define SD Pins
+#define SD_MMC_CLK 39 
+#define SD_MMC_CMD 38
+#define SD_MMC_D0 40
+//Define I2C Pins
+#define I2C_SDA 20
+#define I2C_SCL 21
+//Define Mic Pins
+#define I2S_SD 2
+#define I2S_WS 42
+#define I2S_SCK 41 //I2S Microphone
 
 #elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
 #define CAM_BOARD "CAMERA_MODEL_TTGO_T_CAMERA_PLUS"
@@ -328,6 +347,10 @@
 #define PCLK_GPIO_NUM    25
 
 #define LED_GPIO_NUM     -1
+//Define SD Pins
+#define SD_MMC_CLK 21 // SCLK
+#define SD_MMC_CMD 19 // MOSI
+#define SD_MMC_D0 22  // MISO]
 
 #elif defined(CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3) || defined(CAMERA_MODEL_DFRobot_Romeo_ESP32S3)
 #define CAM_BOARD "CAMERA_MODEL_DFRobot_ESP32S3"
@@ -370,7 +393,11 @@
 #define HREF_GPIO_NUM 12
 #define PCLK_GPIO_NUM 7
 
-#define LED_GPIO_NUM 34
+#define LED_GPIO_NUM 
+//Define SD Pins
+#define SD_MMC_CLK 42
+#define SD_MMC_CMD 39
+#define SD_MMC_D0 4
 
 #else
 #error "Camera model not selected"
