@@ -395,7 +395,7 @@
 #define HREF_GPIO_NUM 12
 #define PCLK_GPIO_NUM 7
 
-#define LED_GPIO_NUM 
+#define LED_GPIO_NUM 34
 //Define SD Pins
 #define SD_MMC_CLK 42
 #define SD_MMC_CMD 39
