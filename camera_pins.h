@@ -19,6 +19,40 @@
 #define HREF_GPIO_NUM    23
 #define PCLK_GPIO_NUM    22
 
+#elif defined(CAMERA_MODEL_XENOIONEX)
+#define CAM_BOARD "CAMERA_MODEL_XENOIONEX"
+#define PWDN_GPIO_NUM    -1
+#define RESET_GPIO_NUM   -1
+#define XCLK_GPIO_NUM    1
+#define SIOD_GPIO_NUM    47
+#define SIOC_GPIO_NUM    21
+
+#define Y9_GPIO_NUM      7 //D7
+#define Y8_GPIO_NUM      15 //D6
+#define Y7_GPIO_NUM      42 //D5
+#define Y6_GPIO_NUM      16 //D4
+#define Y5_GPIO_NUM      41 //D3
+#define Y4_GPIO_NUM      17 //D2
+#define Y3_GPIO_NUM      40 //D1
+#define Y2_GPIO_NUM      39 //D0
+#define VSYNC_GPIO_NUM   45
+#define HREF_GPIO_NUM    38
+#define PCLK_GPIO_NUM    2
+
+#define SD_MMC_CLK       13
+#define SD_MMC_CMD       12
+#define SD_MMC_D0        14
+
+#define I2C_SDA 8
+#define I2C_SCL 9
+
+#define I2S_SCK 4
+#define I2S_WS 5
+#define I2S_SD 6
+
+#define USE_WS2812
+//#define LED_GPIO_NUM     48
+
 #elif defined(CAMERA_MODEL_ESP_EYE)
 #define CAM_BOARD "CAMERA_MODEL_ESP_EYE"
 #define PWDN_GPIO_NUM    -1
