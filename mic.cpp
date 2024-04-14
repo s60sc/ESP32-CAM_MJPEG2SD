@@ -15,6 +15,7 @@
 
 #include "appGlobals.h"
 
+#if INCLUDE_MIC
 bool micUse; // true to use external I2S microphone 
 
 // INMP441 I2S microphone pinout, connect L/R to GND for left channel
@@ -257,3 +258,4 @@ void prepMic() {
     }
   }
 }
+#endif

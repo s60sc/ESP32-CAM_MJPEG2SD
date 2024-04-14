@@ -10,6 +10,8 @@
 // s60sc 2023
 
 #include "appGlobals.h"
+
+#if INCLUDE_TELEM
 #include <Wire.h>
 
 #define NUM_BUFF 2 
@@ -242,3 +244,4 @@ static bool scanI2C() {
   LOG_INF("I2C devices found: %d", numDevices);
   return (bool)numDevices;
 }
+#endif
