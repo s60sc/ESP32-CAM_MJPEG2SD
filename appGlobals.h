@@ -130,25 +130,6 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define TELETEMP "/current.csv"
 #define SRTTEMP "/current.srt"
 
-// non default pins configured for SD card on given camera board
-#if defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
-#define SD_MMC_CLK 39 
-#define SD_MMC_CMD 38
-#define SD_MMC_D0 40
-#elif defined(CAMERA_MODEL_XIAO_ESP32S3)
-#define SD_MMC_CLK 7 
-#define SD_MMC_CMD 9
-#define SD_MMC_D0 8
-#elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
-#define SD_MMC_CLK 21 // SCLK
-#define SD_MMC_CMD 19 // MOSI
-#define SD_MMC_D0 22  // MISO]
-#elif defined(CAMERA_MODEL_NEW_ESPS3_RE1_0)
-#define SD_MMC_CLK 42
-#define SD_MMC_CMD 39
-#define SD_MMC_D0 4
-#endif
-
 #ifdef CONFIG_IDF_TARGET_ESP32S3 
 #define SERVER_STACK_SIZE (1024 * 8)
 #define DS18B20_STACK_SIZE (1024 * 2)
