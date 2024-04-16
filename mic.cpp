@@ -232,17 +232,16 @@ size_t getAudioBuffer(bool endStream) {
 
 void prepMic() {
   if (micUse) { 
-#if defined(CAMERA_MODEL_XIAO_ESP32S3)
-    // built in PDM mic
-    updateStatus("micSWsPin", "42");
-    updateStatus("micSdPin", "41");
-    updateStatus("micSckPin", "-1");
-#endif
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-    // built in I2S mic
-    updateStatus("micSWsPin", "42");
-    updateStatus("micSdPin", "2");
-    updateStatus("micSckPin", "41");
+#if defined(I2S_SD)
+    char MicSD[3];
+    char MicWS[3];
+    char MicSCK[3];
+    sprintf(MicSD, "%d", I2S_SD);
+    sprintf(MicWS, "%d", I2S_WS);
+    sprintf(MicSCK, "%d", I2S_SCK);
+    updateStatus("micSWsPin", MicWS);
+    updateStatus("micSdPin", MicSD);
+    updateStatus("micSckPin", MicSCK);
 #endif
     if (micSckPin && micSWsPin && micSdPin) {
       if (sampleBuffer == NULL) sampleBuffer = (uint8_t*)malloc(sampleBytes);
