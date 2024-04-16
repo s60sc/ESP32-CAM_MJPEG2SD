@@ -39,10 +39,12 @@ static bool checkI2C(byte addr);
 #define TELEHEADER "Time,Temperature (C),Pressure (mb),Altitude (m),Heading,Pitch,Roll\n"
 #define BUF_OVERFLOW 100 // set to be max size of formatted telemetry row
 
+#ifndef I2C_SDA
 // if require I2C, define which pins to use for I2C bus
 // if pins not correctly defined for board, spurious results will occur
 #define I2C_SDA 20
 #define I2C_SCL 21
+#endif
 
 #ifdef USE_GY91
 #include <BMx280I2C.h>
