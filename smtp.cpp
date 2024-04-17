@@ -12,6 +12,7 @@
 
 #include "appGlobals.h"
 
+#if INCLUDE_SMTP
 #if (!INCLUDE_CERTS)
 const char* smtp_rootCACertificate = "";
 #endif
@@ -175,3 +176,4 @@ void prepSMTP() {
     LOG_INF("Email alerts active");
   } 
 }
+#endif

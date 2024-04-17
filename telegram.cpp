@@ -14,6 +14,7 @@
 
 #include "appGlobals.h"
 
+#if INCLUDE_TGRAM
 #define TELEGRAM_HOST "api.telegram.org"
 #define LONG_POLL 60 // how long in secs to keep connection open without reply                            
 #define MAX_HTTP_MSG 2048 // max size of buffer for HTTP request or response body
@@ -292,3 +293,4 @@ bool sendTgramFile(const char* fileName, const char* contentType, const char* ca
   } else return false;
   return true;
 }
+#endif
