@@ -37,11 +37,12 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
+//#define CAMERA_MODEL_XIAO_ESP32S3 
 #endif
 
 /***************************************************************
   To reduce code size by removing unwanted features,
-  set relevant defines below to false and delete associated file
+  set relevant defines below to false and optionally delete associated file
 ***************************************************************/
 #define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
 #define INCLUDE_SMTP true    // smtp.cpp (email)
@@ -49,7 +50,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define INCLUDE_TGRAM true   // telegram.cpp
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
 #define INCLUDE_TELEM true   // telemetry.cpp
-#define INCLUDE_MIC true     // mic.cpp (microphone)
+#define INCLUDE_AUDIO true   // audio.cpp (microphone and speaker)
 #define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
 #define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
 
@@ -78,20 +79,15 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.7"
+#define APP_VER "9.7.1"
 
-#define HTTP_CLIENTS 2 // http, ws
+#define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 165 // must be > number of entries in configs.txt
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-#define FB_BUFFERS 12 // 1 being processed, rest being filled
-#else
-#define FB_BUFFERS 4 // 1 being processed, rest being filled
-#endif
+#define MAX_CONFIGS 170 // must be > number of entries in configs.txt
 #define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
@@ -117,7 +113,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 12
+#define CFG_VER 13
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -129,6 +125,10 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define TLTEMP "/current.tl"
 #define TELETEMP "/current.csv"
 #define SRTTEMP "/current.srt"
+
+#define DMA_BUFF_LEN 1024 // used for I2S buffer size
+#define DMA_BUFF_CNT 4
+#define MIC_GAIN_CENTER 3 // mid point
 
 #ifdef CONFIG_IDF_TARGET_ESP32S3 
 #define SERVER_STACK_SIZE (1024 * 8)
@@ -144,7 +144,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EMAIL_STACK_SIZE (1024 * 6)
 #define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)
-#define MIC_STACK_SIZE (1024 * 4)
+#define AUDIO_STACK_SIZE (1024 * 4)
 #define MQTT_STACK_SIZE (1024 * 4)
 #define PING_STACK_SIZE (1024 * 5)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
@@ -157,10 +157,11 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 // task priorities
 #define CAPTURE_PRI 6
 #define SUSTAIN_PRI 5
+#define HTTP_PRI 5
 #define STICK_PRI 5
 #define PLAY_PRI 4
 #define TELEM_PRI 3
-#define MIC_PRI 2
+#define AUDIO_PRI 2
 #define TGRAM_PRI 1
 #define EMAIL_PRI 1
 #define FTP_PRI 1
@@ -192,32 +193,41 @@ struct fnameStruct {
   uint16_t frameCnt;
 };
 
+enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
+
 
 // global app specific functions
 
-size_t getAudioBuffer(bool endStream);
+void applyFilters();
+void applyVolume();
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
 void buzzerAlert(bool buzzerOn);
 bool checkMotion(camera_fb_t* fb, bool motionStatus);
+int8_t checkPotVol(int8_t adjVol);
 bool checkSDFiles();
 void currentStackUsage();
+void displayAudioLed(int16_t audioSample);
 void doIOExtPing();
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudio(bool isValid);
 mjpegStruct getNextFrame(bool firstCall = false);
+size_t getAudioBuffer(bool endStream);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
 bool isNight(uint8_t nightSwitch);
 void keepFrame(camera_fb_t* fb);
+void micTaskStatus();
 void motorSpeed(int speedVal);
 void openSDfile(const char* streamFile);
+bool prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
+void remoteMicHandler(uint8_t* wsMsg, size_t wsMsgLen);
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
@@ -348,6 +358,12 @@ extern int voltPin;
 extern int micSckPin; // I2S SCK 
 extern int micSWsPin;  // I2S WS / PDM CLK
 extern int micSdPin;  // I2S SD / PDM DAT
+extern int mampBckIo; 
+extern int mampSwsIo;
+extern int mampSdIo;
+extern volatile bool stopAudio;
+extern volatile audioAction THIS_ACTION;
+extern TaskHandle_t audioHandle;
 
 // configure for specific servo model, eg for SG90
 extern int servoDelay;
@@ -363,8 +379,11 @@ extern float voltLow;
 extern int voltInterval;
 
 // audio
-extern const uint32_t SAMPLE_RATE; // audio sample rate
-extern const uint32_t WAV_HEADER_LEN;
+extern uint32_t SAMPLE_RATE; // audio sample rate
+extern bool micRem;
+extern bool mampUse;
+extern uint8_t PREAMP_GAIN; // microphone preamplification factor
+extern int8_t AMP_VOL; // amplifier volume factor
 
 // RC
 extern bool RCactive;
@@ -391,7 +410,7 @@ extern TaskHandle_t DS18B20handle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t fsHandle;
 extern TaskHandle_t logHandle;
-extern TaskHandle_t micHandle;
+extern TaskHandle_t audioHandle;
 extern TaskHandle_t mqttTaskHandle;
 extern TaskHandle_t playbackHandle;
 extern esp_ping_handle_t pingHandle;

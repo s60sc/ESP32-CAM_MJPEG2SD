@@ -67,16 +67,19 @@
 #define MAX_IP_LEN 16
 #define BOUNDARY_VAL "123456789000000000000987654321"
 #define SF_LEN 128
+#define WAV_HDR_LEN 44
 #define RAM_LOG_LEN (1024 * 7) // size of system message log in bytes stored in slow RTC ram (max 8KB - vars)
 #define MIN_STACK_FREE 512
 #define STARTUP_FAIL "Startup Failure: "
+#define MAX_PAYLOAD_LEN 256 // set bigger than any websocket payload
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
-void appSpecificTelegramTask(void* p);
 esp_err_t appSpecificSustainHandler(httpd_req_t* req);
 esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const char* value);
+void appSpecificWsBinHandler(uint8_t* wsMsg, size_t wsMsgLen);
 void appSpecificWsHandler(const char* wsMsg);
+void appSpecificTelegramTask(void* p);
 void buildAppJsonString(bool filter);
 bool updateAppStatus(const char* variable, const char* value);
 

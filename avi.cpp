@@ -128,7 +128,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL) {
   memcpy(aviHeader+0x44, frameSizeData[frameType].frameHeight, 2);
   memcpy(aviHeader+0xAC, frameSizeData[frameType].frameHeight, 2);
 
-#if INCLUDE_MIC
+#if INCLUDE_AUDIO
   uint8_t withAudio = 2; // increase number of streams for audio
   if (isTL) memcpy(aviHeader+0x100, zeroBuf, 4); // no audio for timelapse
   else {
@@ -193,7 +193,7 @@ void finalizeAviIndex(uint16_t frameCnt, bool isTL) {
 bool haveWavFile(bool isTL) {
   haveSoundFile = false;
   audSize = 0;
-#if INCLUDE_MIC
+#if INCLUDE_AUDIO
   if (isTL) return false;
   // check if wave file exists
   if (!STORAGE.exists(WAVTEMP)) return 0; 
@@ -201,10 +201,10 @@ bool haveWavFile(bool isTL) {
   wavFile = STORAGE.open(WAVTEMP, FILE_READ);
   if (wavFile) {
     // add sound file index
-    audSize = wavFile.size() - WAV_HEADER_LEN;
+    audSize = wavFile.size() - WAV_HDR_LEN;
     buildAviIdx(audSize, false); 
     // add sound file header    
-    wavFile.seek(WAV_HEADER_LEN, SeekSet); // skip over header
+    wavFile.seek(WAV_HDR_LEN, SeekSet); // skip over header
     haveSoundFile = true;
   } 
 #endif

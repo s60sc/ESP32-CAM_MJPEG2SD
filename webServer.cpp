@@ -4,7 +4,6 @@
 
 #include "appGlobals.h"
 
-#define MAX_PAYLOAD_LEN 1000 // bigger than biggest websocket msg
 #define MAX_HANDLERS 12
 
 char inFileName[IN_FILE_NAME_LEN];
@@ -15,7 +14,6 @@ int refreshVal = 5000; // msecs
 
 static httpd_handle_t httpServer = NULL; // web server port 
 static int fdWs = -1; // websocket sockfd
-static httpd_ws_frame_t wsPkt;
 bool useHttps = false;
 bool useSecure = false;
 
@@ -369,8 +367,8 @@ void wsAsyncSend(const char* wsData) {
   // websockets send function, used for async logging and status updates
   if (fdWs >= 0) {
     // send if connection active
-    memset(&wsPkt, 0, sizeof(httpd_ws_frame_t));                                           
-    wsPkt.payload = (uint8_t*)(wsData);
+    httpd_ws_frame_t wsPkt;                                        
+    wsPkt.payload = (uint8_t*)wsData;
     wsPkt.len = strlen(wsData);
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
     wsPkt.final = true;
@@ -383,6 +381,7 @@ static esp_err_t wsHandler(httpd_req_t *req) {
   // receive websocket data and determine response
   // if a new connection is received, the old connection is closed, but the browser
   // page on the newer connection may need to be manually refreshed to take over the log
+  esp_err_t ret = ESP_OK;
   if (req->method == HTTP_GET) {
     // websocket connection request from browser client
     if (fdWs != -1) {
@@ -396,24 +395,24 @@ static esp_err_t wsHandler(httpd_req_t *req) {
     fdWs = httpd_req_to_sockfd(req);
     if (fdWs < 0) {
       LOG_WRN("failed to get socket number");
-      return ESP_FAIL;
-    }
-    LOG_INF("Websocket connection: %d", fdWs);
+      ret = ESP_FAIL;
+    } else LOG_INF("Websocket connection: %d", fdWs);
   } else {
     // data content received
+    httpd_ws_frame_t wsPkt;
     uint8_t wsMsg[MAX_PAYLOAD_LEN];
     memset(&wsPkt, 0, sizeof(httpd_ws_frame_t));
-    wsPkt.type = HTTPD_WS_TYPE_TEXT;
     wsPkt.payload = wsMsg;
-    esp_err_t ret = httpd_ws_recv_frame(req, &wsPkt, MAX_PAYLOAD_LEN);
-    if (ret != ESP_OK) {
-      LOG_WRN("websocket receive failed with %s", esp_err_to_name(ret));
-      return ret;
-    }
-    wsMsg[wsPkt.len] = 0; // terminator
-    if (wsPkt.type == HTTPD_WS_TYPE_TEXT) appSpecificWsHandler((char*)wsMsg);
+    ret = httpd_ws_recv_frame(req, &wsPkt, MAX_PAYLOAD_LEN); 
+    if (ret == ESP_OK) {
+      if (wsPkt.len >= MAX_PAYLOAD_LEN) LOG_ERR("websocket payload too long %d", wsPkt.len);
+      wsMsg[wsPkt.len] = 0; // terminator
+      if (wsPkt.type == HTTPD_WS_TYPE_BINARY && wsPkt.len) appSpecificWsBinHandler(wsMsg, wsPkt.len);
+      else if (wsPkt.type == HTTPD_WS_TYPE_TEXT) appSpecificWsHandler((const char*)wsMsg);
+      else if (wsPkt.type == HTTPD_WS_TYPE_CLOSE) appSpecificWsHandler("X");
+    } else LOG_ERR("websocket receive failed with %s", esp_err_to_name(ret));
   }
-  return ESP_OK;
+  return ret;
 }
 
 void killSocket(int skt) {
@@ -431,8 +430,9 @@ static void https_server_user_callback(esp_https_server_user_cb_arg_t *user_cb) 
 }
 */
 
-static esp_err_t webDavOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err) {
+static esp_err_t customOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err) {
   // either handle WebDAV methods or report non existent URI
+  if (req->method == HTTP_OPTIONS) sendCrossOriginHeader(req);
 #if INCLUDE_WEBDAV
   if (strncmp(req->uri, WEBDAV, strlen(WEBDAV)) == 0) return handleWebDav(req) ? ESP_OK : ESP_FAIL;
 #endif
@@ -467,6 +467,7 @@ void startWebServer() {
     config.httpd.lru_purge_enable = true; // close least used socket 
     config.httpd.max_uri_handlers = MAX_HANDLERS;
     config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
+    config.httpd.task_priority = HTTP_PRI;
     //config.httpd.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_ssl_start(&httpServer, &config);
   } else {
@@ -481,6 +482,7 @@ void startWebServer() {
     config.lru_purge_enable = true;   
     config.max_uri_handlers = MAX_HANDLERS;
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
+    config.task_priority = HTTP_PRI;
     //config.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_start(&httpServer, &config);
 #if INCLUDE_CERTS
@@ -494,12 +496,8 @@ void startWebServer() {
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
   httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
   httpd_uri_t uploadUri = {.uri = "/upload", .method = HTTP_POST, .handler = uploadHandler, .user_ctx = NULL};
-  httpd_uri_t optionsUri = {.uri = "/upload", .method = HTTP_OPTIONS, .handler = sendCrossOriginHeader, .user_ctx = NULL};
   httpd_uri_t sustainUri = {.uri = "/sustain", .method = HTTP_GET, .handler = appSpecificSustainHandler, .user_ctx = NULL};
   httpd_uri_t checkUri = {.uri = "/sustain", .method = HTTP_HEAD, .handler = appSpecificSustainHandler, .user_ctx = NULL};
-#ifdef CUSTOM_URI
-  httpd_uri_t customUri = {.uri = CUSTOM_URI, .method = HTTP_POST, .handler = appSpecificUriHandler, .user_ctx = NULL};
-#endif
 
   if (res == ESP_OK) {
     httpd_register_uri_handler(httpServer, &indexUri);
@@ -509,13 +507,10 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &statusUri);
     httpd_register_uri_handler(httpServer, &wsUri);
     httpd_register_uri_handler(httpServer, &uploadUri);
-    httpd_register_uri_handler(httpServer, &optionsUri);
     httpd_register_uri_handler(httpServer, &sustainUri);
     httpd_register_uri_handler(httpServer, &checkUri);
-    httpd_register_err_handler(httpServer, HTTPD_404_NOT_FOUND, webDavOrNotFoundHandler);
-#ifdef CUSTOM_URI
-    httpd_register_uri_handler(httpServer, &customUri);
-#endif
+    httpd_register_err_handler(httpServer, HTTPD_404_NOT_FOUND, customOrNotFoundHandler);
+
     LOG_INF("Starting web server on port: %u", useHttps ? HTTPS_PORT : HTTP_PORT);
     LOG_INF("Remote server certificates %s checked", useSecure ? "are" : "not");
     if (DEBUG_MEM) {

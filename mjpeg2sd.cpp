@@ -8,6 +8,8 @@
 
 #include "appGlobals.h"
 
+#define FB_CNT 4 // number of frame buffers
+
 // user parameters set from web
 bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool dbgMotion  = false;
@@ -119,7 +121,7 @@ static void openAvi() {
   aviFile = STORAGE.open(AVITEMP, FILE_WRITE);
   oTime = millis() - oTime;
   LOG_DBG("File opening time: %ums", oTime);
-#if INCLUDE_MIC
+#if INCLUDE_AUDIO
   startAudio();
 #endif
 #if INCLUDE_TELEM
@@ -278,7 +280,7 @@ static bool closeAvi() {
   aviFile.write(iSDbuffer, highPoint); 
   size_t readLen = 0;
   bool haveWav = false;
-#if INCLUDE_MIC
+#if INCLUDE_AUDIO
   // add wav file if exists
   finishAudio(true);
   haveWav = haveWavFile();
@@ -455,7 +457,7 @@ static void captureTask(void* parameter) {
   uint32_t ulNotifiedValue;
   while (true) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    if (ulNotifiedValue > FB_BUFFERS) ulNotifiedValue = FB_BUFFERS; // prevent too big queue if FPS excessive
+    if (ulNotifiedValue > FB_CNT) ulNotifiedValue = FB_CNT; // prevent too big queue if FPS excessive
     // may be more than one isr outstanding if the task delayed by SD write or jpeg decode
     while (ulNotifiedValue-- > 0) processFrame();
   }
@@ -727,6 +729,7 @@ bool prepRecording() {
 }
 
 static void deleteTask(TaskHandle_t thisTaskHandle) {
+  // hangs if try deleting null thisTaskHandle
   if (thisTaskHandle != NULL) vTaskDelete(thisTaskHandle);
   thisTaskHandle = NULL;
 }
@@ -769,6 +772,9 @@ void OTAprereq() {
 bool prepCam() {
   // initialise camera depending on model and board
   bool res = false;
+  // buffer sizing depends on psram size (4M or 8M)h
+  // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
+  framesize_t maxFS = esp_spiram_get_size() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
   // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -794,13 +800,9 @@ bool prepCam() {
   config.grab_mode = CAMERA_GRAB_LATEST;
   // init with high specs to pre-allocate larger buffers
   config.fb_location = CAMERA_FB_IN_PSRAM;
-#if CONFIG_IDF_TARGET_ESP32S3
-  config.frame_size = FRAMESIZE_QSXGA; // 8M
-#else
-  config.frame_size = FRAMESIZE_UXGA;  // 4M
-#endif  
+  config.frame_size = maxFS;
   config.jpeg_quality = 10;
-  config.fb_count = FB_BUFFERS;
+  config.fb_count = FB_CNT;
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);

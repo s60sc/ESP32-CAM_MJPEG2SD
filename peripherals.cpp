@@ -8,6 +8,7 @@
 // - lamp led driver (PWM or WS2812)
 // - H-bridge motor controller 
 // - 3 pin joystick 
+// - MY9221 based LED Bar, eg 10 segment Grove LED Bar
 //
 // Peripherals can be hosted directly on the client ESP, or on
 // a separate IO Extender ESP if the client ESP has limited free 
@@ -49,6 +50,7 @@ static bool extIOpinged = true;
 // peripherals used
 bool pirUse; // true to use PIR for motion detection
 bool lampUse; // true to use lamp
+bool ledBarUse; // true to use led bar
 uint8_t lampLevel; // brightness of on board lamp led 
 bool lampAuto; // if true in conjunction with pirUse & lampUse, switch on lamp when PIR activated at night
 bool lampNight; // if true, lamp comes on at night (not used)
@@ -118,6 +120,10 @@ int stickzPushPin; // digital pin connected to switch output
 int stickXpin; // analog pin connected to X output
 int stickYpin; // analog pin connected to Y output
 
+// MY9221 LED Bar pins
+int ledBarClock;
+int ledBarData;
+
 
 void doIOExtPing() {
   // check that IO_Extender is available
@@ -143,7 +149,7 @@ bool getPIRval() {
 
 void buzzerAlert(bool buzzerOn) {
   // control active buzzer operation
-  if (buzzerUse) {
+  if (buzzerUse && !externalPeripheral(buzzerPin, buzzerOn)) {
     if (buzzerOn) {
       // turn buzzer on
       pinMode(buzzerPin, OUTPUT);
@@ -389,6 +395,9 @@ static rmt_data_t ledData[RGB_BITS];
 static void setupLamp() {
   // setup lamp LED according to board type
   // assumes led wired as active high (ESP32 lamp led on pin 4 is active high, signal led on pin 33 is active low)
+#if defined(LED_GPIO_NUM)
+  if (lampPin <= 0) lampPin = LED_GPIO_NUM;
+#endif
   if ((lampPin < EXTPIN) && lampUse) {
     if (lampPin) {
       lampInit = true;
@@ -398,13 +407,14 @@ static void setupLamp() {
       if (rmtWS2812 == NULL) LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
       else {
         rmtSetTick(rmtWS2812, 100);
-        LOG_INF("Setup Lamp Led for ESP32S3 Cam board");
+        LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
       }
 #else
-      // unknown board, assume PWM LED
-      ledcSetup(LAMP_LEDC_CHANNEL, 5000, 4);
+      // assume PWM LED
+      ledcSetup(LAMP_LEDC_CHANNEL, 4000, 8);  // 12 kHz PWM, 8-bit resolution
       ledcAttachPin(lampPin, LAMP_LEDC_CHANNEL); 
-      LOG_INF("Setup Lamp Led");
+      setLamp(0);
+      LOG_INF("Setup PWM Lamp Led on pin %d", lampPin);
 #endif
     } else {
       lampUse = false;
@@ -445,7 +455,7 @@ void setLamp(uint8_t lampVal) {
       }
       rmtWrite(rmtWS2812, ledData, RGB_BITS);
 #else
-      // other board
+      // other boards
       // set lamp brightness using PWM (0 = off, 15 = max)
       ledcWrite(LAMP_LEDC_CHANNEL, lampVal);
 #endif
@@ -476,7 +486,6 @@ void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
   // callback for Client uart task 
   // updates peripheral stored input value when response received
   // map received pin number to peripheral
-  LOG_DBG("Pin %d, data %u", pinNum, responseData);
   if (pinNum == pirPin) 
     memcpy(&pirVal, &responseData, sizeof(pirVal));  // set PIR status
   else if (pinNum == voltPin)
@@ -493,7 +502,6 @@ uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
   // callback for IO Extender to interact with peripherals
   uint32_t responseData = 0;
   int ival;
-  LOG_DBG("Pin %d, data %u", pinNum, receivedData);
   // map received pin number to peripheral
   if (pinNum == servoTiltPin) {
     // send tilt angle to servo
@@ -691,6 +699,97 @@ static void prepJoystick() {
   }
 }
 
+/******************* MY9221 LED Bar ***************************/
+
+/*
+ LED segment bar with MY9221 LED driver, eg Grove LED Bar
+ Wiring:
+    Black  GND
+    Red    3V3
+    White  DCKI Clock pin
+    Yellow D1   Data pin
+    
+ Can be used as a gauge, eg display sound level
+ */
+
+#define MY9221_COUNT 12 // max number of leds addressable by MY9221 LED driver
+#define LEDBAR_COUNT 10 // number of leds in bar display
+#define LED_OFF 0x00
+#define LED_FULL 0xFF
+
+static bool reverse = true; // from which end to light leds, true is green -> red on Grove LED Bar
+static uint8_t ledLevel[LEDBAR_COUNT];
+
+static void ledBarLatch() {
+  // display uploaded register by triggering internal-latch function
+  digitalWrite(ledBarClock, LOW); 
+  delayMicroseconds(250); // minimum 220us
+  // Internal-latch control cycle
+  bool dataVal = false;
+  for (uint8_t i = 0; i < 8; i++, dataVal = !dataVal) {
+    digitalWrite(ledBarData, dataVal ? HIGH : LOW);
+    delayMicroseconds(1); // > min pulse length 230ns 
+  }
+}
+
+static void ledBarSend(uint16_t bits) {
+  // output led value as clocked 16 bits (only 8 LSB set for 8 bit greyscale)
+  bool clockVal = false;
+  for (int i = 15; i >= 0; i--, clockVal = !clockVal) {
+    digitalWrite(ledBarData, (bits >> i) & 1 ? HIGH : LOW);
+    digitalWrite(ledBarClock, clockVal ? HIGH : LOW);
+  }
+}
+
+void ledBarClear() {
+  for (uint8_t i = 0; i < LEDBAR_COUNT; i++) ledLevel[i] = LED_OFF;
+}
+
+void ledBrightness(uint8_t whichLed, float brightness) {
+  // brightness is a float 0.0 <> 1.0, converted to one of 8 brightness levels or off
+  ledLevel[whichLed] |= (1 << (uint8_t)(8 * brightness)) - 1;
+}
+
+void ledBarUpdate() {
+  // update MY9221 208 bit register with required values
+  if (ledBarUse) {
+    ledBarSend(0); // initial 16 bit command, as 8 bit greyscale mode + defaults
+    // 12 * 16 bits LED greyscale PWM values
+    for (uint8_t i = 0; i < LEDBAR_COUNT; i++) // 10 * 16 bits
+      ledBarSend(reverse ? ledLevel[LEDBAR_COUNT - 1 - i] : ledLevel[i]);
+    // fill register for remaining unused channels
+    for (uint8_t i = 0; i < MY9221_COUNT - LEDBAR_COUNT; i++) ledBarSend(LED_OFF);
+    ledBarLatch();
+  }
+}
+       
+void ledBarGauge(float level) {
+  // set how many leds to be switched on and their brightness
+  // as a proportion of level between 0.0 and 1.0
+  // least significant leds are full brightness and most significant led
+  // has a proportional brightness
+  level = abs(level);
+  if (ledBarUse) {
+    ledBarClear();
+    uint8_t fullLedCnt = (uint8_t)(level * LEDBAR_COUNT);
+    for (uint8_t i = 0; i < fullLedCnt; i++) ledLevel[i] = LED_FULL;
+    // set brightness for most significant lit led
+    ledBrightness(fullLedCnt, (LEDBAR_COUNT * level) - fullLedCnt); 
+    ledBarUpdate();
+  }
+}
+
+static void prepLedBar() {
+  // initialise led state and setup pins
+  if (ledBarUse && ledBarClock && ledBarData) {
+    pinMode(ledBarClock, OUTPUT);
+    pinMode(ledBarData, OUTPUT);
+    ledBarClear();
+    ledBarUpdate();
+    LOG_INF("Setup %d Led Bar with pins %d, %d", LEDBAR_COUNT, ledBarClock, ledBarData);
+  } else ledBarUse = false;
+}
+
 /**********************************************/
 
 #if (!INCLUDE_UART)
@@ -713,5 +812,6 @@ void prepPeripherals() {
   prepServos();  
   prepMotors();
   prepJoystick();
+  prepLedBar();
   debugMemory("prepPeripherals");
 }

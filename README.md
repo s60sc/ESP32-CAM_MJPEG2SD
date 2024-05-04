@@ -20,8 +20,8 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 
 ***This is a complex app and some users are raising issues when the app reports an warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
-Changes in version 9.7:
-* [WebDAV](#webdav) server to enable access to SD card content from client, eg Windows file explorer
+Changes in version 9.7.1:
+* Fixes for #411, #421
 
 ## Purpose
 
@@ -203,7 +203,7 @@ The web page has a slider for **Microphone Gain**. The higher the value the high
 
 The OV5640 pinout is compatible with boards designed for the OV2640 but the voltage supply is too high for the internal 1.5V regulator, so the camera overheats unless a heat sink is applied.
 
-For recording purposes the OV5640 should only be used with an ESP32S3 board. Motion detection above `FHD` framesize does not work due to `esp_jpg_decode()` decompression [error](https://github.com/espressif/esp32-camera/issues/496).
+For recording purposes the OV5640 should only be used with an ESP32S3 board. Frame sizes above `FHD` framesize should only be used for still images due to memory limitations.
 
 Recordable frame rates for the OV5460 highest framesizes on an ESP32S3 are:
 

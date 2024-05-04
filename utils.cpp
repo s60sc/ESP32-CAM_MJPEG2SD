@@ -502,7 +502,7 @@ bool urlEncode(const char* inVal, char* encoded, size_t maxSize) {
   int encodedLen = 0;
   char hexTable[] = "0123456789ABCDEF";
   while (*inVal) {
-    if (isalnum(*inVal) || strchr("$-_.+!*'(),:@~", *inVal)) *encoded++ = *inVal;
+    if (isalnum(*inVal) || strchr("$-_.+!*'(),:@~#", *inVal)) *encoded++ = *inVal;
     else {
       encodedLen += 3; 
       if (encodedLen >= maxSize) return false;  // Buffer overflow
@@ -799,7 +799,7 @@ void logSetup() {
   Serial.setDebugOutput(DBG_ON);
   printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
-  esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
+  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
