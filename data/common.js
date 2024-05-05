@@ -528,14 +528,16 @@
         async function sendControl(key, value) {
           // send only  
           if (value != null) {
-            const response = await fetch(encodeURI("/control?" + key + "=") + encodeURIComponent(value));
+            const encodedValue = encodeURIComponent(value).replace(/#/g, '%23');
+            const response = await fetch(encodeURI("/control?" + key + "=") + encodedValue);
             if (!response.ok) alert(response.status + ": " + response.statusText);
           }
         }
         
         async function sendControlResp(key, value) {
           // send and apply response
-          const response = await fetch(encodeURI("/control?" + key + "=") + encodeURIComponent(value));
+          const encodedValue = encodeURIComponent(value).replace(/#/g, '%23');
+          const response = await fetch(encodeURI("/control?" + key + "=") + encodedValue);
           if (response.ok) {
             updateData = await response.json();
             updateStatus();
@@ -773,3 +775,111 @@
       }); 
       let deviceHubEl = document.getElementById('DeviceHub');
       if (deviceHubEl) hubObserver.observe(deviceHubEl);
+      
+      
+      /*********************** Browser Mic *********************/
+      
+      // Windows needs to allow microphone use in Microphone Privacy Settings
+      //
+      // In Microphone Properties / Advanced, check bit depth and sample rate (normally 16 bit 48kHz)
+      //
+      // chrome needs to allow access to mic from insecure (http) site:
+      // Go to : chrome://flags/#unsafely-treat-insecure-origin-as-secure
+      // Enter following URL in box: http://<app_ip_address>
+      
+      let micStream;
+      let isMicStreaming = false;
+      const inSampleRate = 48000;
+      let outSampleRate = 16000;
+      let Resample;
+      
+      function createAudioWorkletScript(sampleRateRatio) {
+        return `
+          class Resample extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this.sampleRateRatio = ${sampleRateRatio};
+              this.port.onmessage = this.handleMessage.bind(this);
+            }
+            
+            handleMessage(event) {
+              if (event.data.type === 'stop') {
+                this.port.close(); // Close the worklet port for future messages
+                return;
+              }
+            }
+
+            resampleAudio(inputChannel) {
+              // resample 16 bit 46kHz to 16kHz
+              const outputLength = Math.round(inputChannel.length / this.sampleRateRatio);
+              const resampledData = new Int16Array(outputLength);
+              let outputIndex = 0;
+              for (let i = 0; i < outputLength; i++) {
+                const inputIndex = Math.round(i * this.sampleRateRatio);
+                // Clamp the input index to avoid potential out-of-bounds access
+                const clampedIndex = Math.min(inputIndex, inputChannel.length - 1);
+                // convert float values -1 : 1 to 16 bit integers
+                resampledData[outputIndex++] = inputChannel[clampedIndex] * 32767;
+              }
+              return resampledData;
+            }
+
+            process(inputs, outputs, parameters) {
+              const inputChannel = inputs[0][0];
+              if (!inputChannel || !inputChannel.length) return true; // empty data
+              
+              const resampledData = this.resampleAudio(inputChannel);
+              this.port.postMessage(resampledData);
+              return true;
+            }
+          }
+          registerProcessor("resample", Resample);
+        `;
+      }
+
+      async function runMic() {
+        // start mic
+        const sampleRateRatio = inSampleRate / outSampleRate;
+        const audioWorkletScript = createAudioWorkletScript(sampleRateRatio);
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+dbg("Mic streaming ON");
+          if (!ws) initWebSocket();
+          const context = new AudioContext();
+          const source = context.createMediaStreamSource(micStream);
+          await context.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
+          Resample = new AudioWorkletNode(context, "resample");;
+          source.connect(Resample).connect(context.destination);
+
+          if (ws) {
+            if (ws.readyState === WebSocket.OPEN) {
+              isMicStreaming = true;
+              Resample.port.onmessage = function(event) {
+                ws ? ws.send(event.data) : closeMic(); // Send the audio chunk 
+              };
+            }
+          }
+        } catch (error) {
+          alert("Chrome needs security exception for " + baseHost);
+        }
+      }
+
+      function closeMic() {
+        // stop streaming
+        isMicStreaming = false;
+        if (ws) ws.send('X');
+        // close down mic
+        if (micStream) {
+          micStream.getTracks().forEach(track => track.stop()); // Close the microphone stream
+          micStream = null;
+        }
+        if (Resample && Resample.port) Resample.port.postMessage({ type: 'stop' }); // Send stop message
+        if (Resample) Resample.disconnect();
+        try { micAction(false); } 
+        catch (error) {}
+dbg("Mic streaming OFF");
+      }
+      
+      function micRemState(value) {
+        value ? runMic() : closeMic();
+      }

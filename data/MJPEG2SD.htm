@@ -891,6 +891,7 @@
             <li><button id="get-still" class="local" style="float:right;">Get Still</button></li>
             <li><div class="sep"></div></li>
             <li><button id="forcePlayback" class="local" style="float:right;" disabled="disabled" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li>
+            <li><button id="micRem" class="local hidden" style="float:right;">Start Mic</button></li>
           </ul>
         </nav>
       </section>
@@ -964,7 +965,7 @@
                     <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90">
                   </div>
                   <div class="input-group" id="lamp-group">
-                    <label for="lamp">Lamp</label>
+                    <label for="lampLevel">Lamp</label>
                      <input title="Control onboard lamp led brightness" type="range" id="lampLevel" min="0" max="15" value="0">
                   </div>
                 </div>
@@ -976,7 +977,7 @@
                 <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="xclk-group">
-                      <label for="set-xclk">Clock MHz</label>
+                      <label for="xclkMhz">Clock MHz</label>
                       <div class="text">
                           <input id="xclkMhz" title="Set camera clock speed in MHz" type="number" minlength="1" maxlength="2" size="2" value="20">
                       </div>
@@ -1197,7 +1198,7 @@
                 <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="sfiles-group" style="display: grid;">
-                    <label for="sfiles">Select folder / file</label>                          
+                    <label for="sfile">Select folder / file</label>                          
                     <select title="Select sd card file or folder" id="sfile" size="12">
                       <option value="/~reset" selected="selected">-- Select --</option>
                       <option value="/">Get Folders</option>
@@ -1667,6 +1668,7 @@
       let recordingIndicator;
       let streamButton;
       let playbackButton;
+      let micRemBtn;
       let rotateAngle = 0;
       let RCmode = false;
       let showRC = false; 
@@ -1696,6 +1698,7 @@
         recordingIndicator = $('#recording-indicator');
         streamButton = $('#forceStream');
         playbackButton = $('#forcePlayback');
+        micRemBtn = $('#micRem');
         $('#steerDirection').min = 0 - maxSteerAngle;
         $('#steerDirection').max = maxSteerAngle;
         $('#steerDirection').classList.add(steerOrientation);
@@ -1746,6 +1749,8 @@
           else if (key == "showRecord") setRecIndicator(value);
           else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
           else if (key == "forceStream") streamAction(key);
+          else if (key == "micRem") micAction(true);
+          else if (key == "mampUse") micShow(Number(value));
           else if (key == "RCactive") RCstatus(Number(value));
           else if (key == "RClights") value = RCbuttons(key, value);
           else if (key == "RCcontrols") showRCcontrols(RCbuttons(key, value));
@@ -1892,6 +1897,19 @@
         sustainId = +appClock + Math.ceil(refreshInterval / 1000);
         showView(false);
       }
+      
+      async function micAction(changeState) {
+        const micActive = !isActive($('#micRem'));
+        if (changeState) {
+          micActive ? activateMicButton() : deactivateMicButton();
+          await sleep(200);
+          micRemState(micActive);
+          sendControl("micRem", micActive ? '1' : '0');
+        } else {
+          deactivateMicButton();
+          sendControl("micRem", '0');
+        }
+      }
      
       function recordAction(key) {
         isActive($('#'+key)) ? deactivateRecordButton() : activateRecordButton();
@@ -1999,6 +2017,23 @@
         if (isActive(playbackButton)) deactivatePlaybackButton(sendStop);
         if (isActive(streamButton)) deactivateStreamButton(sendStop);
         hide(viewContainer);
+      }
+      
+      function activateMicButton() {
+        micRemBtn.classList.add("active");
+        micRemBtn.classList.add('blinking');
+        micRemBtn.innerHTML = "Stop Mic";
+      }
+      
+      function deactivateMicButton() {
+        micRemBtn.classList.remove("active");
+        micRemBtn.classList.remove('blinking');
+        micRemBtn.innerHTML = "Start Mic";
+      }
+      
+      function micShow(doShow) {
+        if (doShow) show($('#micRem'));
+        else hide($('#micRem'));
       }
 
       function showView(isFile) {

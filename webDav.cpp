@@ -23,7 +23,8 @@
 */
 
 #include "appGlobals.h"
- 
+
+#if INCLUDE_WEBDAV
 #define ALLOW "PROPPATCH,PROPFIND,OPTIONS,DELETE,MOVE,COPY,HEAD,POST,PUT,GET"
 #define XML1 "<?xml version=\"1.0\" encoding=\"utf-8\"?><D:multistatus xmlns:D=\"DAV:\">"
 #define XML2 "<D:response xmlns:D=\"DAV:\"><D:href>"
@@ -334,3 +335,4 @@ bool handleWebDav(httpd_req_t* rreq) {
   }
   return true;
 }
+#endif

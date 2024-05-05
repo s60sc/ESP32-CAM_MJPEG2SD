@@ -163,8 +163,8 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-// 4 for flash led or 33 for normal led    
-#define LED_GPIO_NUM      33
+// 4 for flash led or 33 for signal led    
+#define LED_GPIO_NUM      4
 
 #elif defined(CAMERA_MODEL_TTGO_T_JOURNAL)
 #define CAM_BOARD "CAMERA_MODEL_TTGO_T_JOURNAL"
@@ -314,8 +314,12 @@
 #define VSYNC_GPIO_NUM 6
 #define HREF_GPIO_NUM 7
 #define PCLK_GPIO_NUM 13
+#if defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
 //Use WS2810
 #define USE_WS2812
+// 48 for flash led or 2 for signal led    
+#define LED_GPIO_NUM 48
+#endif
 //Define SD Pins
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
@@ -323,10 +327,12 @@
 //Define I2C Pins
 #define I2C_SDA 20
 #define I2C_SCL 21
+#if defined(CAMERA_MODEL_ESP32S3_EYE)
 //Define Mic Pins
 #define I2S_SD 2
 #define I2S_WS 42
 #define I2S_SCK 41 //I2S Microphone
+#endif
 
 #elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
 #define CAM_BOARD "CAMERA_MODEL_TTGO_T_CAMERA_PLUS"

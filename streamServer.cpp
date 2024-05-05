@@ -158,7 +158,7 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
 
 static void audioStream(httpd_req_t* req, uint8_t taskNum) {
   // output WAV audio stream to remote NVR
-#if INCLUDE_MIC
+#if INCLUDE_AUDIO
   esp_err_t res = ESP_OK;
   httpd_resp_set_type(req, "audio/wav");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -255,6 +255,11 @@ void startSustainTasks() {
   if (numStreams > MAX_STREAMS) {
     LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
     numStreams = MAX_STREAMS;
+  }
+  if (MAX_JPEG * (vidStreams + 1) > ESP.getFreePsram()) {
+    LOG_WRN("Insufficient PSRAM for NVR streams");
+    vidStreams = 1;
+    streamNvr = streamSnd = streamSrt = false;
   }
   for (int i = 0; i < vidStreams; i++)
     if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(MAX_JPEG); 

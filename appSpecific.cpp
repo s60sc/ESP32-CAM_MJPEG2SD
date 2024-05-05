@@ -16,6 +16,7 @@ static char alertCaption[100];
 static bool alertReady = false;
 static bool depthColor = true;
 static bool devHub = false;
+volatile audioAction THIS_ACTION = PASS_ACTION;
 
 /************************ webServer callbacks *************************/
 
@@ -48,7 +49,11 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "enableMotion")) {
     // Turn on/off motion detection 
     useMotion = (intVal) ? true : false; 
-    LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
+    if (fsizePtr > 16 && useMotion) {
+      useMotion = false;
+      updateConfigVect("enableMotion", "0");
+      LOG_WRN("Motion detection disabled as frame size %s is too large", frameData[fsizePtr].frameSizeStr);
+    } else LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
   }
   else if (!strcmp(variable, "timeLapseOn")) timeLapseOn = intVal;
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
@@ -101,12 +106,23 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "servoTiltPin")) servoTiltPin = intVal;
   else if (!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
   else if (!strcmp(variable, "voltPin")) voltPin = intVal;
-#if INCLUDE_MIC
+#if INCLUDE_AUDIO
   else if (!strcmp(variable, "micUse")) micUse = (bool)intVal;
   else if (!strcmp(variable, "micGain")) micGain = intVal;
   else if (!strcmp(variable, "micSckPin")) micSckPin = intVal;
   else if (!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
   else if (!strcmp(variable, "micSdPin")) micSdPin = intVal;
+  else if (!strcmp(variable, "micRem")) {
+    micRem = (bool)intVal;
+    stopAudio = !micRem;
+  }
+  else if (!strcmp(variable, "mampUse")) {
+    mampUse = (bool)intVal;
+    micTaskStatus();
+  }
+  else if (!strcmp(variable, "mampBckIo")) mampBckIo = intVal;
+  else if (!strcmp(variable, "mampSwsIo")) mampSwsIo = intVal;
+  else if (!strcmp(variable, "mampSdIo")) mampSdIo = intVal;
 #endif
   else if (!strcmp(variable, "servoDelay")) servoDelay = intVal;
   else if (!strcmp(variable, "servoMinAngle")) servoMinAngle = intVal;
@@ -157,6 +173,11 @@ bool updateAppStatus(const char* variable, const char* value) {
       if (playbackHandle != NULL) {
         setFPSlookup(fsizePtr);
         updateConfigVect("fps", String(FPS).c_str()); 
+      }
+      if (fsizePtr > 16 && useMotion) {
+        useMotion = false;
+        updateConfigVect("enableMotion", "0");
+        LOG_WRN("Motion detection disabled as frame size %s is too large", frameData[fsizePtr].frameSizeStr);
       }
     }
   }
@@ -254,11 +275,17 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
   return ESP_OK;
 }
 
-void appSpecificWsHandler(const char* wsMsg) { 
+void appSpecificWsHandler(const char* wsMsg) {
   // message from web socket
   int wsLen = strlen(wsMsg) - 1;
   int controlVal = atoi(wsMsg + 1); // skip first char
   switch ((char)wsMsg[0]) {
+    case 'X':
+#if INCLUDE_AUDIO
+      // stop remote mic stream
+      stopAudio = true;
+#endif
+    break;
     case 'M': 
       motorSpeed(controlVal);
     break;
@@ -290,6 +317,12 @@ void appSpecificWsHandler(const char* wsMsg) {
       LOG_WRN("unknown command %c", (char)wsMsg[0]);
     break;
   }
+}
+
+void appSpecificWsBinHandler(uint8_t* wsMsg, size_t wsMsgLen) {
+#if INCLUDE_AUDIO
+  remoteMicHandler(wsMsg, wsMsgLen);
+#endif
 }
 
 void buildAppJsonString(bool filter) {
@@ -356,6 +389,20 @@ void externalAlert(const char* subject, const char* message) {
 #endif
 }
 
+void displayAudioLed(int16_t audioSample) {
+}
+
+void setupAudioLed() {
+}
+
+int8_t checkPotVol(int8_t adjVol) {
+  return adjVol; // dummy
+}
+
+void applyFilters() {
+  applyVolume();
+}
+
 bool appDataFiles() {
   // callback from setupAssist.cpp, for any app specific files 
   return true;
@@ -367,7 +414,7 @@ void currentStackUsage() {
   checkStackUse(emailHandle, 2);
   checkStackUse(fsHandle, 3);
   checkStackUse(logHandle, 4);
-  checkStackUse(micHandle, 5);
+  checkStackUse(audioHandle, 5);
   checkStackUse(mqttTaskHandle, 6);
   // 7: pingtask
   checkStackUse(playbackHandle, 8);
@@ -606,9 +653,13 @@ lampPin~4~3~N~Pin used for Lamp
 servoPanPin~~3~N~Pin used for Pan Servo
 servoTiltPin~~3~N~Pin used for Tilt Servo
 ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
-micSckPin~~3~N~Microphone I2S SCK pin
-micSWsPin~~3~N~Microphone I2S WS / PDM CLK pin
-micSdPin~~3~N~Microphone I2S SD / PDM DAT pin
+micSckPin~-1~3~N~Microphone I2S SCK pin
+micSWsPin~-1~3~N~Microphone I2S WS / PDM CLK pin
+micSdPin~-1~3~N~Microphone I2S SD / PDM DAT pin
+mampBckIo~-1~9~N~Amplifier I2S BCLK pin
+mampSwsIo~-1~9~N~Amplifier I2S LRCLK pin
+mampSdIo~-1~9~N~Amplifier I2S DIN pin
+mampUse~0~9~C~Use amp & speaker for remote mic
 servoDelay~0~3~N~Delay between each 1 degree change (ms)
 servoMinAngle~0~3~N~Set min angle for servo model
 servoMaxAngle~180~3~N~Set max angle for servo model

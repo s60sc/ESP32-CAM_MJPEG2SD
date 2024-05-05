@@ -1,5 +1,7 @@
-#define CONFIG_MQTT_PROTOCOL_311
 #include "appGlobals.h"
+
+#if INCLUDE_MQTT
+#define CONFIG_MQTT_PROTOCOL_311
 #include "mqtt_client.h" 
 
 #if (!INCLUDE_CERTS)
@@ -214,3 +216,4 @@ void startMqttClient(void){
     }
   }
 }
+#endif

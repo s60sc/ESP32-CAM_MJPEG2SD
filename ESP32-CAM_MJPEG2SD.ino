@@ -42,8 +42,8 @@ void setup() {
     prepUpload();
 #endif
     prepPeripherals();
-#if INCLUDE_MIC
-    prepMic(); 
+#if INCLUDE_AUDIO
+    prepAudio(); 
 #endif
 #if INCLUDE_TELEM
     prepTelemetry();

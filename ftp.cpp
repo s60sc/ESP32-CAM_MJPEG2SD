@@ -4,6 +4,7 @@
 
 #include "appGlobals.h"
 
+#if INCLUDE_FTP_HFS
 #if (!INCLUDE_CERTS)
 const char* hfs_rootCACertificate = "";
 const char* ftps_rootCACertificate = "";
@@ -383,3 +384,4 @@ bool fsStartTransfer(const char* fileFolder) {
 void prepUpload() {
   LOG_INF("File uploads will use %s server", fsUse ? "HTTPS" : "FTP");
 }
+#endif

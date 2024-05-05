@@ -1,0 +1,5 @@
+delete mic.cpp
+update mjpeg2sd & common
+change licence
+
+Implemented code to stream device microphone via browser to speaker on esp32. This works fine on my VoiceChanger app, but not on this app probably as too much going on. The speaker code and notes is in audio.cpp

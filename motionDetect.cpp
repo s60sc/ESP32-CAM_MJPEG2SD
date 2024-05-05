@@ -184,7 +184,10 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   stride = colorDepth == RGB888_BYTES ? 1 : RGB888_BYTES;
   if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, (jpg_scale_t)scaling)) {
-    LOG_WRN("motionDetect: jpg2rgb() failed");
+    if (fsizePtr > 16) {
+      LOG_WRN("Frame size %s too large for motion detection", frameData[fsizePtr].frameSizeStr);
+      useMotion = false;
+    } else LOG_WRN("jpg2rgb() failure");
     free(rgb_buf);
     rgb_buf = NULL;
     return motionStatus;

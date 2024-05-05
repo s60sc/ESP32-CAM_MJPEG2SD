@@ -10,6 +10,8 @@
 // s60sc 2023
 
 #include "appGlobals.h"
+
+#if INCLUDE_TELEM
 #include <Wire.h>
 
 #define NUM_BUFF 2 
@@ -37,9 +39,9 @@ static bool checkI2C(byte addr);
 #define TELEHEADER "Time,Temperature (C),Pressure (mb),Altitude (m),Heading,Pitch,Roll\n"
 #define BUF_OVERFLOW 100 // set to be max size of formatted telemetry row
 
-#ifndef I2C_SDA
 // if require I2C, define which pins to use for I2C bus
 // if pins not correctly defined for board, spurious results will occur
+#ifndef I2C_SDA
 #define I2C_SDA 20
 #define I2C_SCL 21
 #endif
@@ -244,3 +246,5 @@ static bool scanI2C() {
   LOG_INF("I2C devices found: %d", numDevices);
   return (bool)numDevices;
 }
+
+#endif

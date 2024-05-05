@@ -19,6 +19,8 @@
 // s60sc 2022
 
 #include "appGlobals.h"
+
+#if INCLUDE_UART
 #include "driver/uart.h"
 
 // UART pins
@@ -194,3 +196,4 @@ void prepUart() {
     }
   } 
 }
+#endif

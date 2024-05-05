@@ -17,6 +17,7 @@ static auto previousDir = "/~previous";
 static char fsType[10] = {0};
 
 static void infoSD() {
+#if !(CONFIG_IDF_TARGET_ESP32C3)
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) LOG_WRN("No SD card attached");
   else {
@@ -26,9 +27,12 @@ static void infoSD() {
     else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
     LOG_INF("SD card type %s, Size: %s", typeStr, fmtSize(SD_MMC.cardSize()));
   }
+#endif
 }
 
 static bool prepSD_MMC() {
+  bool res = false;
+#if !(CONFIG_IDF_TARGET_ESP32C3)
   /* open SD card in MMC 1 bit mode
      MMC4  MMC1  ESP32 ESP32S3
       D2          12
@@ -38,7 +42,6 @@ static bool prepSD_MMC() {
       D0   D0     2     40
       D1          4
   */
-  bool res = false;
   if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); // small number to force vector into psram
   fileVec.reserve(1000);
   if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
@@ -64,6 +67,7 @@ static bool prepSD_MMC() {
     LOG_WRN("SD card mount failed");
     res = false;
   }
+#endif
   return res;
 }
 
@@ -84,6 +88,7 @@ static void listFolder(const char* rootDir) {
 bool startStorage() {
   // start required storage device (SD card or flash file system)
   bool res = false;
+#if !(CONFIG_IDF_TARGET_ESP32C3)
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
@@ -92,7 +97,7 @@ bool startStorage() {
     debugMemory("startStorage");
     return res; 
   }
-  
+#endif
   // One of SPIFFS or LittleFS
   if (!strlen(fsType)) {
 #ifdef _SPIFFS_H_
