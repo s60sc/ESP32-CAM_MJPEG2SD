@@ -442,6 +442,11 @@ void doAppPing() {
 #endif
     LOG_INF("Daily rollover");
   }
+
+  if (external_heartbeat_active) {
+    sendExternalHeartbeat();
+  }
+  
   doIOExtPing();
   // check for night time actions
   if (isNight(nightSwitch)) {
@@ -679,6 +684,11 @@ mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
 mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
+external_heartbeat_active~0~2~C~External Heartbeat Server enabled
+external_heartbeat_domain~~2~T~Heartbeat receiver domain or IP (i.e. www.mydomain.com)
+external_heartbeat_uri~~2~T~Heartbeat receiver URI (i.e. /my-esp32cam-hub/index.php)
+external_heartbeat_port~443~2~N~Heartbeat receiver port
+external_heartbeat_token~~2~T~Heartbeat receiver auth token
 usePing~1~0~C~Use ping
 teleUse~0~3~C~Use telemetry recording
 teleInterval~1~3~N~Telemetry collection interval (secs)
