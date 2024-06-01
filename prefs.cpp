@@ -311,6 +311,16 @@ void updateStatus(const char* variable, const char* _value) {
   else if (!strcmp(variable, "mqtt_topic_prefix")) strncpy(mqtt_topic_prefix, value, (FILE_NAME_LEN/2)-1);
 #endif
 
+
+  // External Heartbeat
+  else if (!strcmp(variable, "external_heartbeat_active")) {
+    external_heartbeat_active = (bool)intVal;
+  } 
+  else if (!strcmp(variable, "external_heartbeat_domain")) strncpy(external_heartbeat_domain, value, 255);
+  else if (!strcmp(variable, "external_heartbeat_uri")) strncpy(external_heartbeat_uri, value, 255);
+  else if (!strcmp(variable, "external_heartbeat_port")) strncpy(external_heartbeat_port, value, 4);
+  else if (!strcmp(variable, "external_heartbeat_token")) strncpy(external_heartbeat_token, value, 255);
+    
   // Other settings
   else if (!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
   else if (!strcmp(variable, "timezone")) strncpy(timezone, value, FILE_NAME_LEN-1);
@@ -381,7 +391,11 @@ void buildJsonString(uint8_t filter) {
     p += sprintf(p, "\"free_heap\":\"%s\",", fmtSize(ESP.getFreeHeap()));    
     p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
     p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
+    p += sprintf(p, "\"macAddressEfuse\":\"%012llX\",", ESP.getEfuseMac() ); 
+    p += sprintf(p, "\"macAddressWiFi\":\"%012llX\",", WiFi.macAddress() ); 
     p += sprintf(p, "\"extIP\":\"%s\",", extIP); 
+    p += sprintf(p, "\"httpPort\":\"%u\",", HTTP_PORT); 
+    p += sprintf(p, "\"httpsPort\":\"%u\",", HTTPS_PORT); 
     if (!filter) {
       // populate first part of json string from config vect
       for (const auto& row : configs) 
