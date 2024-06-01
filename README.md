@@ -240,7 +240,7 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;fram
 To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fields:
 * `Heartbeat receiver domain or IP` (i.e. www.mydomain.com)
 * `Heartbeat receiver URI` (i.e. /my-esp32cam-hub/index.php)
-* `Heartbeat receiver port` (443 for ssl, 90 for non-ssl, or your custom port)
+* `Heartbeat receiver port` (443 for ssl, 80 for non-ssl, or your custom port)
 * optionally `Heartbeat receiver auth token`
 * Then set `External Heartbeat Server enabled` 
 
