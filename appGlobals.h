@@ -79,7 +79,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.7.1"
+#define APP_VER "9.7.2"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -113,7 +113,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 13
+#define CFG_VER 14
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -145,6 +145,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)
 #define AUDIO_STACK_SIZE (1024 * 4)
+#define MICREM_STACK_SIZE (1024 * 2)
 #define MQTT_STACK_SIZE (1024 * 4)
 #define PING_STACK_SIZE (1024 * 5)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
@@ -158,6 +159,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define CAPTURE_PRI 6
 #define SUSTAIN_PRI 5
 #define HTTP_PRI 5
+#define MICREM_PRI 5
 #define STICK_PRI 5
 #define PLAY_PRI 4
 #define TELEM_PRI 3

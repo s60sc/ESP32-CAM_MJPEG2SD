@@ -176,4 +176,5 @@ void prepSMTP() {
     LOG_INF("Email alerts active");
   } 
 }
+
 #endif

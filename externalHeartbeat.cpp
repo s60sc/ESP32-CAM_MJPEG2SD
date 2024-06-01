@@ -1,3 +1,6 @@
+
+// Contributed by alojzjakob
+
 #include "appGlobals.h"
 
 // External Heartbeat

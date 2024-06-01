@@ -14,7 +14,6 @@
 /******************** Libraries *******************/
 
 #include "Arduino.h"
-#include <driver/i2s.h>
 #include <ESPmDNS.h> 
 #include "lwip/sockets.h"
 #include <vector>
@@ -72,6 +71,12 @@
 #define MIN_STACK_FREE 512
 #define STARTUP_FAIL "Startup Failure: "
 #define MAX_PAYLOAD_LEN 256 // set bigger than any websocket payload
+
+#if CONFIG_IDF_TARGET_ESP32C3
+#define NUMBER_OF_CORES 1
+#else
+#define NUMBER_OF_CORES 2
+#endif
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
@@ -212,7 +217,7 @@ extern char Auth_Pass[];
 
 extern int responseTimeoutSecs; // how long to wait for remote server in secs
 extern bool allowAP; // set to true to allow AP to startup if cannot reconnect to STA (router)
-extern int wifiTimeoutSecs; // how often to check wifi status
+extern uint16_t wifiTimeoutSecs; // how often to check wifi status
 extern uint8_t percentLoaded;
 extern int refreshVal;
 extern bool dataFilesChecked;
@@ -220,7 +225,7 @@ extern char ipExtAddr[];
 extern bool doGetExtIP;
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
 extern bool wsLog;
-extern uint32_t sustainId;
+extern uint16_t sustainId;
 
 // remote file server
 extern char fsServer[];
@@ -252,10 +257,10 @@ extern char mqtt_topic_prefix[];
 
 // External Heartbeat
 extern bool external_heartbeat_active;
-extern char external_heartbeat_domain[];         //External Heartbeat domain/IP  
-extern char external_heartbeat_uri[];         //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
-extern char external_heartbeat_port[];                      //External Heartbeat server port to connect.  
-extern char external_heartbeat_token[];           //External Heartbeat server auth token.  
+extern char external_heartbeat_domain[]; //External Heartbeat domain/IP  
+extern char external_heartbeat_uri[];    //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
+extern char external_heartbeat_port[];   //External Heartbeat server port to connect.  
+extern char external_heartbeat_token[];  //External Heartbeat server auth token.  
 
 // control sending alerts 
 extern size_t alertBufferSize;

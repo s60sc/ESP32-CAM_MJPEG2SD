@@ -5,9 +5,9 @@
 // I2S and PDM microphones are supported.
 // I2S and (ESP32 only) analog amplifiers are supported.
 //
-// A remote microphone on another device can be used:
+// A remote microphone on a PC or phone can be used:
 // - for VoiceChanger app, this is used instead of local mic
-//   - need to select remote mic before selecting an action
+//   - need to press PC Mic button before selecting an action
 // - for MJPEG2SD app, this is passed thru to speaker, independent of local mic
 //   - need to enable use amp and pins in Config / Peripherals for Start Mic button to be available on web page
 //   - remote mic should only be activated when need to speak
@@ -22,6 +22,8 @@
 #include "appGlobals.h"
 
 #if INCLUDE_AUDIO 
+
+#include <driver/i2s.h>
 
 bool micUse = false; // use local mic
 bool micRem = false; // use remote mic (depends on app)
@@ -371,6 +373,7 @@ void makeRecording() {
       }
       if (stopAudio) break;
     }
+    if (!stopAudio) wsJsonSend("stopRec", "1");
     totalSamples = (audioBytesUsed  - WAV_HDR_LEN) / sampleWidth;
     LOG_INF("%s recording of %d samples", stopAudio ? "Stopped" : "Finished",  totalSamples);  
   } else LOG_WRN("PSRAM needed to record and play");
@@ -384,6 +387,7 @@ void playRecording() {
       ampOutput();
       if (stopAudio) break;
     }
+    if (!stopAudio) wsJsonSend("stopPlay", "1");
     LOG_INF("%s playing of %d samples", stopAudio ? "Stopped" : "Finished", totalSamples);
   } else LOG_WRN("PSRAM needed to record and play");
 }
@@ -397,8 +401,7 @@ static void VCaudioTask() {
       makeRecordingRem(false);
     break;
     case RECORD_ACTION: 
-     // make recording
-      if (micUse && !micRem) makeRecording();
+      if (micUse && !micRem) makeRecording(); // make recording from local mic
     break;
     case PLAY_ACTION: 
       if (mampUse) playRecording(); // play previous recording
@@ -540,7 +543,7 @@ void micTaskStatus() {
   if (mampUse) {
     wsBufferLen = 0;
     if (wsBuffer == NULL) wsBuffer = (uint8_t*)malloc(MAX_PAYLOAD_LEN);
-    xTaskCreate(micRemTask, "micRemTask", 2048, NULL, HTTP_PRI, &micRemHandle);
+    xTaskCreate(micRemTask, "micRemTask", MICREM_STACK_SIZE, NULL, MICREM_PRI, &micRemHandle);
   } else if (micRemHandle != NULL) {
     vTaskDelete(micRemHandle);
     micRemHandle = NULL;

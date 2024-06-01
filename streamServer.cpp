@@ -28,7 +28,7 @@ size_t streamBufferSize[MAX_STREAMS] = {0};
 byte* streamBuffer[MAX_STREAMS] = {NULL}; // buffer for stream frame
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN];
-uint32_t sustainId = 0;
+uint16_t sustainId = 0;
 uint8_t numStreams = 1;
 uint8_t vidStreams = 1;
 int srtInterval = 1; // subtitle interval in secs

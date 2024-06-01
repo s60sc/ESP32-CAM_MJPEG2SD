@@ -391,13 +391,11 @@ static boolean processFrame() {
     doKeepFrame = false;
   }
   // determine if time to monitor, then get motion capture status
-  if (!forceRecord && useMotion) { 
-    if (dbgMotion) checkMotion(fb, false); // check each frame for debug
-    else if (doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
-  }
+  if (!forceRecord && useMotion && doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
+
   if (pirUse) {
     pirVal = getPIRval();
-    if (!pirVal && !isCapturing && !useMotion) checkMotion(fb, isCapturing); // to update light level
+    if (!pirVal && !isCapturing && !useMotion && doMonitor(isCapturing)) checkMotion(fb, isCapturing); // to update light level
   }
   
   // either active PIR, Motion, or force start button will start capture, neither active will stop capture
@@ -774,7 +772,7 @@ bool prepCam() {
   bool res = false;
   // buffer sizing depends on psram size (4M or 8M)h
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
-  framesize_t maxFS = esp_spiram_get_size() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
+  framesize_t maxFS = ESP.getPsramSize() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
   // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;

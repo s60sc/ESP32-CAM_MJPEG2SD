@@ -45,7 +45,7 @@ int detectNumBands = 10;
 int detectStartBand = 3;
 int detectEndBand = 8; // inclusive
 int detectChangeThreshold = 15; // min difference in pixel comparison to indicate a change
-uint8_t colorDepth = RGB888_BYTES; // GRAYSCALE_BYTES or RGB888_BYTES
+uint8_t colorDepth; // set by depthColor config
 static size_t stride;
 bool mlUse = false; // whether to use ML for motion detection, requires INCLUDE_TINYML to be true
 float mlProbability = 0.8; // minimum probability (0.0 - 1.0) for positive classification
@@ -59,7 +59,7 @@ static uint8_t* currBuff = NULL;
 
 /**********************************************************************************/
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t ** out, jpg_scale_t scale);
+static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_t scale);
 
 bool isNight(uint8_t nightSwitch) {
   // check if night time for suspending recording
@@ -173,7 +173,6 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   uint32_t dTime = millis();
   uint32_t lux = 0;
   static uint32_t motionCnt = 0;
-  uint8_t* rgb_buf = NULL;
   uint8_t* jpg_buf = NULL;
 
   // calculate parameters for sample size
@@ -182,14 +181,14 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   uint8_t downsize = pow(2, scaling) * reducer;
   int sampleWidth = frameData[fsizePtr].frameWidth / downsize;
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
-  stride = colorDepth == RGB888_BYTES ? 1 : RGB888_BYTES;
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, &rgb_buf, (jpg_scale_t)scaling)) {
+  stride = (colorDepth == RGB888_BYTES) ? GRAYSCALE_BYTES : RGB888_BYTES; // stride is inverse of colorDepth
+
+  static uint8_t* rgb_buf = (uint8_t*)ps_malloc(sampleWidth * sampleHeight * RGB888_BYTES);
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgb_buf, (jpg_scale_t)scaling)) {
     if (fsizePtr > 16) {
       LOG_WRN("Frame size %s too large for motion detection", frameData[fsizePtr].frameSizeStr);
       useMotion = false;
     } else LOG_WRN("jpg2rgb() failure");
-    free(rgb_buf);
-    rgb_buf = NULL;
     return motionStatus;
   }
   LOG_DBG("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
@@ -197,22 +196,20 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   // allocate buffer space on heap
   size_t resizeDimLen = RESIZE_DIM_SQ * colorDepth; // byte size of bitmap
   if (motionJpeg == NULL) motionJpeg = (uint8_t*)ps_malloc(32 * 1024);
-  if (currBuff == NULL) currBuff = (uint8_t*)ps_malloc(resizeDimLen);
-  static uint8_t* prevBuff = (uint8_t*)ps_malloc(resizeDimLen);
+  if (currBuff == NULL) currBuff = (uint8_t*)ps_malloc(RESIZE_DIM_SQ * RGB888_BYTES);
+  static uint8_t* prevBuff = (uint8_t*)ps_malloc(RESIZE_DIM_SQ * RGB888_BYTES);
   static uint8_t* changeMap = (uint8_t*)ps_malloc(RESIZE_DIM_SQ * RGB888_BYTES);
-
+  
   dTime = millis();
   rescaleImage(rgb_buf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM);
-  free(rgb_buf); 
-  rgb_buf = NULL;
   LOG_DBG("Bitmap rescale to %u bytes in %lums", resizeDimLen, millis() - dTime);
  
   // compare each pixel in current frame with previous frame 
   dTime = millis();
   int changeCount = 0;
   // set horizontal region of interest in image 
-  uint16_t startPixel = resizeDimLen*(detectStartBand-1)/detectNumBands;
-  uint16_t endPixel = resizeDimLen*(detectEndBand)/detectNumBands;
+  uint16_t startPixel = (RESIZE_DIM*(detectStartBand-1)/detectNumBands) * RESIZE_DIM * colorDepth;
+  uint16_t endPixel = (RESIZE_DIM*(detectEndBand)/detectNumBands) * RESIZE_DIM * colorDepth;
   int moveThreshold = ((endPixel-startPixel)/colorDepth) * (11-motionVal)/100; // number of changed pixels that constitute a movement
   for (int i = 0; i < resizeDimLen; i += colorDepth) {
     uint16_t currPix = 0, prevPix = 0;
@@ -295,12 +292,12 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     dTime = millis();
     // build jpeg of changeMap for debug streaming
     if (!fmt2jpg(changeMap, resizeDimLen, RESIZE_DIM, RESIZE_DIM, PIXFORMAT_RGB888, JPEG_QUAL, &jpg_buf, &motionJpegLen))
-      LOG_WRN("motionDetect: fmt2jpg() failed");
+      LOG_WRN("motionDetect: fmt2jpg() failed"); 
     memcpy(motionJpeg, jpg_buf, motionJpegLen); 
-    free(jpg_buf);
+    free(jpg_buf); // releases 128kB in to_jpg.cpp
     jpg_buf = NULL;
     xSemaphoreGive(motionSemaphore);
-    LOG_DBG("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime);
+    LOG_DBG("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime); ////
   }
 
   if (dbgVerbose) checkMemory();  
@@ -327,11 +324,6 @@ static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t 
       // write start
       jpeg->width = w;
       jpeg->height = h;
-      // if output is null, this is BMP
-      if (!jpeg->output) {
-        jpeg->output = (uint8_t*)ps_malloc((w*h*colorDepth)+jpeg->data_offset);
-        if (!jpeg->output) return false;
-      }
     } 
     return true;
   }
@@ -362,20 +354,19 @@ static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t 
   return true;
 }
 
-static uint32_t _jpg_read(void * arg, size_t index, uint8_t *buf, size_t len) {
+static unsigned int _jpg_read(void * arg, size_t index, uint8_t *buf, size_t len) {
   rgb_jpg_decoder * jpeg = (rgb_jpg_decoder *)arg;
   if (buf) memcpy(buf, jpeg->input + index, len);
   return len;
 }
 
-static bool jpg2rgb(const uint8_t *src, size_t src_len, uint8_t **out, jpg_scale_t scale) {
+static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_t scale) {
   rgb_jpg_decoder jpeg;
   jpeg.width = 0;
   jpeg.height = 0;
   jpeg.input = src;
-  jpeg.output = NULL; 
+  jpeg.output = out; 
   jpeg.data_offset = 0;
   esp_err_t res = esp_jpg_decode(src_len, scale, _jpg_read, _rgb_write, (void*)&jpeg);
-  *out = jpeg.output;
   return (res == ESP_OK) ? true : false;
 }
