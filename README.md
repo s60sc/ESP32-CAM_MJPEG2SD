@@ -12,6 +12,7 @@ The application supports:
 * Concurrent streaming to web browser and [remote NVR](#stream-to-nvr)
 * Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
 * [MQTT](#mqtt) control.
+* [External Heartbeat](#external-heartbeat) support.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
@@ -233,6 +234,21 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/status -> {"MOTION":"ON"
 
 You can also publish control commands to the /cmd channel in order to control camera.  
 topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
+
+## External Heartbeat
+
+To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fields:
+* `Heartbeat receiver domain or IP` (i.e. www.mydomain.com)
+* `Heartbeat receiver URI` (i.e. /my-esp32cam-hub/index.php)
+* `Heartbeat receiver port` (443 for ssl, 90 for non-ssl, or your custom port)
+* `Mqtt topic path prefix`
+* optionally `Heartbeat receiver auth token`
+* Then set `External Heartbeat Server enabled` 
+
+Heartbeat will be send every 30 seconds. It will do a POST request to defined domain/URI (i.e. www.mydomain.com/my-esp32cam-hub/index.php) with JSON body, containing useful information you might need for your specific application.
+
+Initial idea and example use case for this feature was to be able to access multiple cameras behind single dynamic IP with different ports port-forwarded through the router. Another limitation was to avoid using DDNS because it was hard/impossible to set up on given router.
+You will be able to easily costruct list of your cameras with data contained in JSON sent to your server/website.
 
 ## Port Forwarding
 
