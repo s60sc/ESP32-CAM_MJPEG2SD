@@ -182,6 +182,8 @@ bool sendTgramMessage(const char* info, const char* item, const char* parseMode)
 bool sendTgramPhoto(uint8_t* photoData, size_t photoSize, const char* caption);
 bool sendTgramFile(const char* fileName, const char* contentType, const char* caption);
 void tgramAlert(const char* subject, const char* message);
+// externalHeartbeat.cpp
+void sendExternalHeartbeat();
 
 /******************** Global utility declarations *******************/
 
@@ -247,6 +249,13 @@ extern char mqtt_port[];
 extern char mqtt_user[];
 extern char mqtt_user_Pass[];
 extern char mqtt_topic_prefix[];  
+
+// External Heartbeat
+extern bool external_heartbeat_active;
+extern char external_heartbeat_domain[];         //External Heartbeat domain/IP  
+extern char external_heartbeat_uri[];         //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
+extern char external_heartbeat_port[];                      //External Heartbeat server port to connect.  
+extern char external_heartbeat_token[];           //External Heartbeat server auth token.  
 
 // control sending alerts 
 extern size_t alertBufferSize;
