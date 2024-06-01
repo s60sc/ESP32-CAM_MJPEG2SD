@@ -241,7 +241,6 @@ To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fie
 * `Heartbeat receiver domain or IP` (i.e. www.mydomain.com)
 * `Heartbeat receiver URI` (i.e. /my-esp32cam-hub/index.php)
 * `Heartbeat receiver port` (443 for ssl, 90 for non-ssl, or your custom port)
-* `Mqtt topic path prefix`
 * optionally `Heartbeat receiver auth token`
 * Then set `External Heartbeat Server enabled` 
 
