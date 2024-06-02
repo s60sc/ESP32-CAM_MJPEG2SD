@@ -52,7 +52,7 @@ char Auth_Pass[MAX_PWD_LEN] = "";
 
 int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
 bool allowAP = true;  // set to true to allow AP to startup if cannot connect to STA (router)
-int wifiTimeoutSecs = 30; // how often to check wifi status
+uint16_t wifiTimeoutSecs = 30; // how often to check wifi status
 static bool APstarted = false;
 esp_ping_handle_t pingHandle = NULL;
 bool usePing = true;
@@ -603,11 +603,14 @@ uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx) {
   uint32_t freeStack = 0;
   if (thisTask != NULL) {
     freeStack = (uint32_t)uxTaskGetStackHighWaterMark(thisTask);
-    if (!minStack[taskIdx]) minStack[taskIdx] = freeStack; // initialise
+    if (!minStack[taskIdx]) {
+      minStack[taskIdx] = freeStack; // initialise
+      LOG_INF("Task %s on core %d, initial stack space %u", pcTaskGetTaskName(thisTask), xPortGetCoreID(), freeStack);
+    }
     if (freeStack < minStack[taskIdx]) {
       minStack[taskIdx] = freeStack;
-      if (freeStack < MIN_STACK_FREE) LOG_WRN("Task %s stack space only: %u", pcTaskGetTaskName(thisTask), freeStack);
-      else LOG_INF("Task %s stack space reduced to %u", pcTaskGetTaskName(thisTask), freeStack);
+      if (freeStack < MIN_STACK_FREE) LOG_WRN("Task %s on core %d, stack space only: %u", pcTaskGetTaskName(thisTask), xPortGetCoreID(), freeStack);
+      else LOG_INF("Task %s on core %d, stack space reduced to %u", pcTaskGetTaskName(thisTask), xPortGetCoreID(), freeStack);
     }
   }
   return freeStack;

@@ -335,4 +335,5 @@ bool handleWebDav(httpd_req_t* rreq) {
   }
   return true;
 }
+
 #endif

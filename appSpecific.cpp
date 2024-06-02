@@ -162,7 +162,14 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
   else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
   else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal; 
-    
+
+  // External Heartbeat
+  else if (!strcmp(variable, "external_heartbeat_active")) external_heartbeat_active = (bool)intVal;
+  else if (!strcmp(variable, "external_heartbeat_domain")) strncpy(external_heartbeat_domain, value, 255);
+  else if (!strcmp(variable, "external_heartbeat_uri")) strncpy(external_heartbeat_uri, value, 255);
+  else if (!strcmp(variable, "external_heartbeat_port")) strncpy(external_heartbeat_port, value, 4);
+  else if (!strcmp(variable, "external_heartbeat_token")) strncpy(external_heartbeat_token, value, 255);
+
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
   else if (!strcmp(variable, "framesize")) {
@@ -410,19 +417,33 @@ bool appDataFiles() {
 
 void currentStackUsage() {
   checkStackUse(captureHandle, 0);
+#if INCLUDE_DS18B20
   checkStackUse(DS18B20handle, 1);
+#endif
+#if INCLUDE_SMTP
   checkStackUse(emailHandle, 2);
+#endif
   checkStackUse(fsHandle, 3);
   checkStackUse(logHandle, 4);
+#if INCLUDE_AUDIO
   checkStackUse(audioHandle, 5);
+#endif
+#if INCLUDE_MQTT
   checkStackUse(mqttTaskHandle, 6);
+#endif
   // 7: pingtask
   checkStackUse(playbackHandle, 8);
   checkStackUse(servoHandle, 9);
   checkStackUse(stickHandle, 10);
+#if INCLUDE_TGRAM
   checkStackUse(telegramHandle, 11);
+#endif
+#if INCLUDE_TELEM
   checkStackUse(telemetryHandle, 12);
+#endif
+#if INCLUDE_UART
   checkStackUse(uartClientHandle, 13);
+#endif
   // 14: http webserver
   for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 15 + i);
 }
@@ -442,6 +463,9 @@ void doAppPing() {
 #endif
     LOG_INF("Daily rollover");
   }
+
+  if (external_heartbeat_active) sendExternalHeartbeat();
+  
   doIOExtPing();
   // check for night time actions
   if (isNight(nightSwitch)) {
@@ -679,6 +703,11 @@ mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
 mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
+external_heartbeat_active~0~2~C~External Heartbeat Server enabled
+external_heartbeat_domain~~2~T~Heartbeat receiver domain or IP (i.e. www.mydomain.com)
+external_heartbeat_uri~~2~T~Heartbeat receiver URI (i.e. /my-esp32cam-hub/index.php)
+external_heartbeat_port~443~2~N~Heartbeat receiver port
+external_heartbeat_token~~2~T~Heartbeat receiver auth token
 usePing~1~0~C~Use ping
 teleUse~0~3~C~Use telemetry recording
 teleInterval~1~3~N~Telemetry collection interval (secs)

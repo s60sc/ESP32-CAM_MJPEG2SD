@@ -12,6 +12,7 @@ The application supports:
 * Concurrent streaming to web browser and [remote NVR](#stream-to-nvr)
 * Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
 * [MQTT](#mqtt) control.
+* [External Heartbeat](#external-heartbeat) support.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
@@ -20,8 +21,9 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 
 ***This is a complex app and some users are raising issues when the app reports an warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
-Changes in version 9.7.1:
-* Fixes for #411, #421
+Changes in version 9.7.2:
+*  [External Heartbeat](#external-heartbeat) support contributed by [@alojzjakob](https://github.com/alojzjakob).
+*  Fix for issue #443
 
 ## Purpose
 
@@ -68,13 +70,12 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 * ESP32 - `Minimal SPIFFS (...)`
 * ESP32S3 - `8M with spiffs (...)`
 
-**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.0.14 (but not yet v3.0)
+**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.x (but not yet v3.x)
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
 **NOTE: If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
 
-**NOTE: If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.
-Warning added to v9.6.**
+**NOTE: If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.**
 
 
 On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
@@ -233,6 +234,20 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/status -> {"MOTION":"ON"
 
 You can also publish control commands to the /cmd channel in order to control camera.  
 topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
+
+## External Heartbeat
+
+Allow access to multiple cameras behind single dynamic IP with different ports port-forwarded through the router. Another limitation was to avoid using DDNS because it was hard/impossible to set up on given router.
+You will be able to easily construct list of your cameras with data contained in JSON sent to your server/website.
+
+To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fields:
+* `Heartbeat receiver domain or IP` (i.e. www.mydomain.com)
+* `Heartbeat receiver URI` (i.e. /my-esp32cam-hub/index.php)
+* `Heartbeat receiver port` (443 for ssl, 80 for non-ssl, or your custom port)
+* optionally `Heartbeat receiver auth token`
+* Then set `External Heartbeat Server enabled` 
+
+Heartbeat will be send every 30 (default) seconds. It will do a POST request to defined domain/URI (i.e. www.mydomain.com/my-esp32cam-hub/index.php) with JSON body, containing useful information you might need for your specific application.
 
 ## Port Forwarding
 
