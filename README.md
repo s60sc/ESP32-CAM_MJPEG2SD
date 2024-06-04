@@ -247,7 +247,7 @@ To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fie
 * optionally `Heartbeat receiver auth token` (if you use EspSee, it will provide auth token for your user account)
 * Then set `External Heartbeat Server enabled` 
 
-Heartbeat will be send every 30 (default) seconds. It will do a POST request to defined domain/URI (i.e. www.mydomain.com/my-esp32cam-hub/index.php) with JSON body, containing useful information you might need for your specific application.
+Heartbeat will be sent every 30 (default) seconds. It will do a POST request to defined domain/URI (i.e. www.mydomain.com/my-esp32cam-hub/index.php) with JSON body, containing useful information you might need for your specific application.
 
 If you are using EspSee, it will do a POST request to defined domain/URI (i.e. https://www.espsee.com/heartbeat/?token=[your_token]) with JSON body, containing useful information about your camera allowing this website to connect it to your user account and provide a way to easily access your camera(s) without the need for DDNS.
 
