@@ -241,8 +241,8 @@ Allow access to multiple cameras behind single dynamic IP with different ports p
 You will be able to easily construct list of your cameras with data contained in JSON sent to your server/website.
 
 To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fields:
-* `Heartbeat receiver domain or IP` (i.e. www.espsee.com)
-* `Heartbeat receiver URI` (i.e. /heartbeat/)
+* `Heartbeat receiver domain or IP` (e.g. www.espsee.com)
+* `Heartbeat receiver URI` (e.g. /heartbeat/)
 * `Heartbeat receiver port` (443 for ssl, 80 for non-ssl, or your custom port)
 * optionally `Heartbeat receiver auth token` (if you use EspSee, it will provide auth token for your user account)
 * Then set `External Heartbeat Server enabled` 
