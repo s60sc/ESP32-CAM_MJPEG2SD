@@ -161,6 +161,7 @@ void applyVolume() {
 static esp_err_t setupMic() {
   // setup microphone based on its type, default I2S
   int i2sMode = I2S_MODE_MASTER | I2S_MODE_RX;
+  i2s_mic_pins.mck_io_num = -1;
   i2s_mic_pins.bck_io_num = micSckPin; 
   i2s_mic_pins.ws_io_num = micSWsPin;
   i2s_mic_pins.data_in_num = micSdPin;
@@ -184,6 +185,7 @@ static esp_err_t setupMic() {
 static esp_err_t setupAmp() {
   // setup amplifier based on its type, default I2S
   int i2sMode = I2S_MODE_MASTER | I2S_MODE_TX;
+  i2s_mic_pins.mck_io_num = -1;
   i2s_amp_pins.bck_io_num = mampBckIo;
   i2s_amp_pins.ws_io_num = mampSwsIo;
   i2s_amp_pins.data_out_num = mampSdIo;

@@ -21,9 +21,8 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 
 ***This is a complex app and some users are raising issues when the app reports an warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
-Changes in version 9.7.2:
-*  [External Heartbeat](#external-heartbeat) support contributed by [@alojzjakob](https://github.com/alojzjakob).
-*  Fix for issue #443
+Changes in version 9.7.3:
+*  Fix for issue [#448](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/448)
 
 ## Purpose
 
@@ -236,6 +235,8 @@ You can also publish control commands to the /cmd channel in order to control ca
 topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
 
 ## External Heartbeat
+
+Contributed by [@alojzjakob](https://github.com/alojzjakob), see also https://github.com/alojzjakob/EspSee
 
 Allow access to multiple cameras behind single dynamic IP with different ports port-forwarded through the router. Another limitation was to avoid using DDNS because it was hard/impossible to set up on given router.
 You will be able to easily construct list of your cameras with data contained in JSON sent to your server/website.

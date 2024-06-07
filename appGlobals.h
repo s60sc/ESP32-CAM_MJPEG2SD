@@ -4,6 +4,7 @@
 
 #pragma once
 #include "globals.h"
+//#pragma GCC diagnostic ignored "-Wvolatile"
 
 /**************************************************************************
  Copy & Paste one of the camera models below into the following #define block
@@ -68,9 +69,9 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
-//#define DEV_ONLY // leave commented out
-//#define SIDE_ALARM // leave commented out 
-#define STATIC_IP_OCTAL "132" // dev only
+#define DEV_ONLY // leave commented out
+//#define SIDE_ALARM // leave commented out n
+#define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -79,7 +80,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.7.2"
+#define APP_VER "9.7.3"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
