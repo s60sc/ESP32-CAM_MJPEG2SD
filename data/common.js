@@ -843,7 +843,6 @@
         const audioWorkletScript = createAudioWorkletScript(sampleRateRatio);
         try {
           micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-dbg("Mic streaming ON");
           if (!ws) initWebSocket();
           const context = new AudioContext();
           const source = context.createMediaStreamSource(micStream);
@@ -877,7 +876,6 @@ dbg("Mic streaming ON");
         if (Resample) Resample.disconnect();
         try { micAction(false); } 
         catch (error) {}
-dbg("Mic streaming OFF");
       }
       
       function micRemState(value) {
