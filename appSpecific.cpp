@@ -640,7 +640,7 @@ wifiTimeoutSecs~30~0~N~WiFi connect timeout (secs)
 logType~0~99~N~Output log selection
 ntpServer~pool.ntp.org~0~T~NTP Server address
 alarmHour~1~2~N~Hour of day for daily actions
-useUART0~0~99~C~na
+useUART0~0~3~C~Use UART0 for IO Extender
 uartTxdPin~~3~N~UART1 TX pin
 uartRxdPin~~3~N~UART1 RX pin
 refreshVal~5~2~N~Web page refresh rate (secs)
