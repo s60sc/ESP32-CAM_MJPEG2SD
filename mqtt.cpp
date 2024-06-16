@@ -34,8 +34,8 @@ static char mqttPublishTopic[FILE_NAME_LEN] = "";
 void mqtt_client_publish(const char* topic, const char* payload){
   if (!mqtt_client || !mqttConnected) return;
   int id = esp_mqtt_client_publish(mqtt_client, topic, payload, strlen(payload), MQTT_QOS, MQTT_RETAIN);
-  LOG_DBG("Mqtt pub, topic:%s, ID:%d, length:%i", topic, id, strlen(payload));
-  LOG_DBG("Mqtt pub, payload:%s", payload);
+  LOG_VRB("Mqtt pub, topic:%s, ID:%d, length:%i", topic, id, strlen(payload));
+  LOG_VRB("Mqtt pub, payload:%s", payload);
 }
 
 void mqttPublish(const char* payload) {
@@ -58,18 +58,18 @@ static void mqtt_disconnected_handler(void *handler_args, esp_event_base_t base,
 
 static void mqtt_data_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
-  LOG_DBG("Mqtt topic=%.*s ", event->topic_len, event->topic);
-  LOG_DBG("Mqtt data=%.*s ", event->data_len, event->data);
+  LOG_VRB("Mqtt topic=%.*s ", event->topic_len, event->topic);
+  LOG_VRB("Mqtt data=%.*s ", event->data_len, event->data);
   if (strlen(remoteQuery) == 0) sprintf(remoteQuery, "%.*s", event->data_len, (char*)event->data);            
   mqttConnected = true;
-  LOG_DBG("Resuming mqtt thread..");
+  LOG_VRB("Resuming mqtt thread..");
   xTaskNotifyGive(mqttTaskHandle);
 }
 
 static void mqtt_error_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-  LOG_DBG("Event base=%s, event_id=%d", base, event_id);
+  LOG_VRB("Event base=%s, event_id=%d", base, event_id);
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
-  LOG_DBG("Mqtt event error %i", event->msg_id);    
+  LOG_VRB("Mqtt event error %i", event->msg_id);    
   if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
     // log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
     // log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
@@ -87,7 +87,7 @@ void checkForRemoteQuerry() {
       if (value != NULL) {
         *value = 0; // split remoteQuery into 2 strings, first is key name
         value++; // second is value
-        LOG_DBG("Mqtt exec q: %s v: %s", query, value);
+        LOG_VRB("Mqtt exec q: %s v: %s", query, value);
         //Extra handling
         if (!strcmp(query, "restart")) { //Reboot
             doRestart("Mqtt remote restart");             
@@ -102,7 +102,7 @@ void checkForRemoteQuerry() {
           updateStatus(query, value);
         }          
       } else { //No params command
-        LOG_DBG("Execute cmd: %s", query);
+        LOG_VRB("Execute cmd: %s", query);
         if (!strcmp(query, "status")) {
           buildJsonString(false);
           mqttPublish(jsonBuff);
@@ -118,11 +118,11 @@ void checkForRemoteQuerry() {
 }
 
 static void mqttTask(void* parameter) { 
-  LOG_DBG("Mqtt task start"); 
+  LOG_VRB("Mqtt task start"); 
   while (mqtt_active) {
-    //LOG_DBG("Waiting for signal..");
+    //LOG_VRB("Waiting for signal..");
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    //LOG_DBG("Wake..");
+    //LOG_VRB("Wake..");
     if (mqttConnected) {
       //Check if server sends a remote command
       checkForRemoteQuerry();
@@ -134,7 +134,7 @@ static void mqttTask(void* parameter) {
     //xTaskNotifyGive(mqttTaskHandle);    
   }
   mqttRunning = false;
-  LOG_DBG("Mqtt Task exiting..");  
+  LOG_VRB("Mqtt Task exiting..");  
   vTaskDelete(NULL);
 }
 
@@ -147,32 +147,32 @@ void stopMqttClient() {
   ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_disconnect(mqtt_client));
   ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_stop(mqtt_client));
   ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_destroy(mqtt_client));    
-  LOG_DBG("Checking task..%u", mqttTaskHandle);
+  LOG_VRB("Checking task..%u", mqttTaskHandle);
   if ( mqttTaskHandle != NULL ) {
-    LOG_DBG("Unlock task..");
+    LOG_VRB("Unlock task..");
     xTaskNotifyGive(mqttTaskHandle); //Unblock task
     vTaskDelay(1500 / portTICK_RATE_MS);
-    LOG_DBG("Deleted task..?");
+    LOG_VRB("Deleted task..?");
   }
-  LOG_DBG("Exiting..");
+  LOG_VRB("Exiting..");
   mqttConnected = false;
   mqtt_client = nullptr;
 }
 
 void startMqttClient(void){  
   if (!mqtt_active) {
-    LOG_DBG("MQTT not active..");
+    LOG_VRB("MQTT not active..");
     return;
   }
   
   if (mqttConnected) {
-    LOG_DBG("MQTT already running.. Exiting");
+    LOG_VRB("MQTT already running.. Exiting");
     return;
   }
     
   if (WiFi.status() != WL_CONNECTED) {
     mqttConnected = false;
-    LOG_DBG("Wifi disconnected.. Retry mqtt on connect");
+    LOG_VRB("Wifi disconnected.. Retry mqtt on connect");
     return;
   }
   
@@ -202,14 +202,14 @@ void startMqttClient(void){
     if (ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_start(mqtt_client)) != ESP_OK) {
       LOG_WRN("Mqtt start failed");
     } else {
-      LOG_DBG("Mqtt started");        
+      LOG_VRB("Mqtt started");        
       int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
       if (id == -1){
         LOG_WRN("Mqtt failed to subscribe: %s", cmd_topic );
         stopMqttClient();
         return;
       } 
-      else LOG_DBG("Mqtt subscribed: %s", cmd_topic );
+      else LOG_VRB("Mqtt subscribed: %s", cmd_topic );
       // Create a mqtt task
       BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, MQTT_PRI, &mqttTaskHandle);
       LOG_INF("Created mqtt task: %u", xReturned );
@@ -217,4 +217,5 @@ void startMqttClient(void){
     }
   }
 }
+
 #endif

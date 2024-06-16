@@ -341,13 +341,13 @@ esp_err_t uploadHandler(httpd_req_t *req) {
 void showHttpHeaders(httpd_req_t *req) {
   // httpd_req_aux struct members hidden so need to access them via offsets
   // to calculate offset any element not on 4 byte boundary has to be packed
-  LOG_CHK("HTTP: %s %s", HTTP_METHOD_STRING(req->method), req->uri); 
+  LOG_DBG("HTTP: %s %s", HTTP_METHOD_STRING(req->method), req->uri); 
   size_t maxHdrLen = max(HTTPD_MAX_REQ_HDR_LEN, HTTPD_MAX_URI_LEN);
   uint32_t req_hdrs_count = *((uint8_t*)req->aux + 4 + maxHdrLen + 1 + 3 + 4 + 4 + 4 + 1 + 3);
   char* header = (char*)req->aux + 4; // start of scratch buffer containing headers
   // get each header string in turn
   while(req_hdrs_count--) {
-    LOG_CHK("  %s", header);
+    LOG_DBG("  %s", header);
     header += strlen(header) + 2;
   }
 }
@@ -426,7 +426,7 @@ void killSocket(int skt) {
 
 /*
 static void https_server_user_callback(esp_https_server_user_cb_arg_t *user_cb) {
-  LOG_CHK("Session created, socket: %d", user_cb->tls->sockfd);
+  LOG_DBG("Session created, socket: %d", user_cb->tls->sockfd);
 }
 */
 

@@ -154,12 +154,12 @@ static bool tinyMLclassify() {
     if (result.classification[0].value > mlProbability) {
       out = true; // sufficient classification match, so keep motion detection
       if (dbgVerbose) {
-        LOG_DBG("Timing: DSP %d ms, inference %d ms, anomaly %d ms",
+        LOG_VRB("Timing: DSP %d ms, inference %d ms, anomaly %d ms",
           result.timing.dsp, result.timing.classification, result.timing.anomaly);
         char outcome[200] = {0};
         for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
           sprintf(outcome + strlen(outcome), "%s: %.2f, ", ei_classifier_inferencing_categories[i], result.classification[i].value);
-        LOG_DBG("Predictions - %s in %ums", outcome, millis() - dTime);  
+        LOG_VRB("Predictions - %s in %ums", outcome, millis() - dTime);  
       } 
     }
   } else LOG_WRN("Failed to run classifier (%d)", res);
@@ -191,7 +191,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     } else LOG_WRN("jpg2rgb() failure");
     return motionStatus;
   }
-  LOG_DBG("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
+  LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
   
   // allocate buffer space on heap
   size_t resizeDimLen = RESIZE_DIM_SQ * colorDepth; // byte size of bitmap
@@ -202,7 +202,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   
   dTime = millis();
   rescaleImage(rgb_buf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM);
-  LOG_DBG("Bitmap rescale to %u bytes in %lums", resizeDimLen, millis() - dTime);
+  LOG_VRB("Bitmap rescale to %u bytes in %lums", resizeDimLen, millis() - dTime);
  
   // compare each pixel in current frame with previous frame 
   dTime = millis();
@@ -236,15 +236,15 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   lightLevel = (lux*100)/(RESIZE_DIM_SQ*255); // light value as a %
   nightTime = isNight(nightSwitch);
   memcpy(prevBuff, currBuff, resizeDimLen); // save image for next comparison 
-  LOG_DBG("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
+  LOG_VRB("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
 
   dTime = millis();
   if (changeCount > moveThreshold) {
-    LOG_DBG("### Change detected");
+    LOG_VRB("### Change detected");
     motionCnt++; // number of consecutive changes
     // need minimum sequence of changes to signal valid movement
     if (!motionStatus && motionCnt >= detectMotionFrames) {
-      LOG_DBG("***** Motion - START");
+      LOG_VRB("***** Motion - START");
       motionStatus = true; // motion started
 #if INCLUDE_TINYML
       // pass image to TinyML for classification
@@ -276,7 +276,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
 
   if (motionStatus && !motionCnt) {
     // insufficient change or motion not classified
-    LOG_DBG("***** Motion - STOP");
+    LOG_VRB("***** Motion - STOP");
     motionStatus = false; // motion stopped
 #if INCLUDE_MQTT
     if (mqtt_active) {
@@ -285,7 +285,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     }
 #endif
   } 
-  if (motionStatus) LOG_DBG("*** Motion - ongoing %u frames", motionCnt);
+  if (motionStatus) LOG_VRB("*** Motion - ongoing %u frames", motionCnt);
 
   if (dbgMotion && !motionJpegLen) {
     // ready to setup next movement map for streaming
@@ -297,11 +297,11 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     free(jpg_buf); // releases 128kB in to_jpg.cpp
     jpg_buf = NULL;
     xSemaphoreGive(motionSemaphore);
-    LOG_DBG("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime); ////
+    LOG_VRB("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime);
   }
 
   if (dbgVerbose) checkMemory();  
-  LOG_DBG("============================");
+  LOG_VRB("============================");
   // motionStatus indicates whether motion previously ongoing or not
   return nightTime ? false : motionStatus;
 }

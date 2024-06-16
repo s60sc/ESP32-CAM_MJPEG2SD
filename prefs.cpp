@@ -72,7 +72,7 @@ static int getKeyPos(std::string thisKey) {
   );
   int keyPos = std::distance(configs.begin(), lower); 
   if (keyPos < configs.size() && thisKey == configs[keyPos][0]) return keyPos;
-//  else LOG_DBG("Key %s not found", thisKey.c_str()); 
+//  else LOG_VRB("Key %s not found", thisKey.c_str()); 
   return -1; // not found
 }
 
@@ -354,7 +354,7 @@ void updateStatus(const char* variable, const char* _value) {
     saveConfigVect();
   } else {
     res = updateAppStatus(variable, value);
-//    if (!res) LOG_DBG("Unrecognised config: %s", variable);
+    if (!res) LOG_VRB("Unrecognised config: %s", variable);
   }
   if (res) updateConfigVect(variable, value);  
 }
@@ -372,7 +372,7 @@ void buildJsonString(uint8_t filter) {
     alertMsg[0] = 0;
     // generic footer
     currEpoch = getEpoch(); 
-    p += sprintf(p, "\"clockUTC\":\"%u\",", (uint32_t)currEpoch); 
+    p += sprintf(p, "\"clockUTC\":\"%lu\",", (uint32_t)currEpoch); 
     char timeBuff[20];
     strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
     p += sprintf(p, "\"clock\":\"%s\",", timeBuff);

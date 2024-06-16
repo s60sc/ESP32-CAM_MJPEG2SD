@@ -2,6 +2,7 @@
 //
 // s60sc 2021, 2022
 
+#include "esp_arduino_version.h"
 #pragma once
 // to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -10,6 +11,11 @@
 //#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 //#pragma GCC diagnostic ignored "-Wignored-qualifiers"
 //#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#if (ESP_ARDUINO_VERSION_MAJOR >= 3)
+#pragma GCC diagnostic ignored "-Wvolatile"
+#else
+#pragma GCC diagnostic ignored "-Wformat"
+#endif
 
 /******************** Libraries *******************/
 
@@ -71,12 +77,9 @@
 #define MIN_STACK_FREE 512
 #define STARTUP_FAIL "Startup Failure: "
 #define MAX_PAYLOAD_LEN 256 // set bigger than any websocket payload
-
-#if CONFIG_IDF_TARGET_ESP32C3
-#define NUMBER_OF_CORES 1
-#else
-#define NUMBER_OF_CORES 2
-#endif
+#define NULL_TEMP -127
+#define OneMHz 1000000
+#define USECS 1000000
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
@@ -144,7 +147,7 @@ void prepTemperature();
 void prepUart();
 void prepUpload();
 void reloadConfigs();
-float readTemperature(bool isCelsius);
+float readTemperature(bool isCelsius, bool onlyDS18 = false);
 float readVoltage();
 void remote_log_init();
 void remoteServerClose(WiFiClientSecure& sclient);
@@ -217,7 +220,7 @@ extern char Auth_Pass[];
 
 extern int responseTimeoutSecs; // how long to wait for remote server in secs
 extern bool allowAP; // set to true to allow AP to startup if cannot reconnect to STA (router)
-extern uint16_t wifiTimeoutSecs; // how often to check wifi status
+extern uint32_t wifiTimeoutSecs; // how often to check wifi status
 extern uint8_t percentLoaded;
 extern int refreshVal;
 extern bool dataFilesChecked;
@@ -350,12 +353,12 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
 #ifdef USE_LOG_COLORS
 #define LOG_COLOR_ERR  "\033[0;31m" // red
 #define LOG_COLOR_WRN  "\033[0;33m" // yellow
-#define LOG_COLOR_DBG  "\033[0;36m" // cyan
+#define LOG_COLOR_VRB  "\033[0;36m" // cyan
 #define LOG_NO_COLOR   "\033[0m"
 #else
 #define LOG_COLOR_ERR
 #define LOG_COLOR_WRN
-#define LOG_COLOR_DBG
+#define LOG_COLOR_VRB
 #define LOG_NO_COLOR
 #endif 
 
@@ -366,8 +369,8 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
 #define LOG_WRN(format, ...) logPrint(WRN_FORMAT(format "~"), ##__VA_ARGS__)
 #define ERR_FORMAT(format) LOG_COLOR_ERR "[%s ERROR @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
 #define LOG_ERR(format, ...) logPrint(ERR_FORMAT(format "~"), ##__VA_ARGS__)
-#define DBG_FORMAT(format) LOG_COLOR_DBG "[%s DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
-#define LOG_DBG(format, ...) if (dbgVerbose) logPrint(DBG_FORMAT(format), ##__VA_ARGS__)
-#define CHK_FORMAT(format) LOG_COLOR_ERR "[###### CHECK @ %s:%u] " format LOG_NO_COLOR "\n", pathToFileName(__FILE__), __LINE__
-#define LOG_CHK(format, ...) do { logPrint(CHK_FORMAT(format), ##__VA_ARGS__); delay(FLUSH_DELAY); } while (0)
+#define VRB_FORMAT(format) LOG_COLOR_VRB "[%s VERBOSE @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
+#define LOG_VRB(format, ...) if (dbgVerbose) logPrint(VRB_FORMAT(format), ##__VA_ARGS__)
+#define DBG_FORMAT(format) LOG_COLOR_ERR "[###### DBG @ %s:%u] " format LOG_NO_COLOR "\n", pathToFileName(__FILE__), __LINE__
+#define LOG_DBG(format, ...) do { logPrint(DBG_FORMAT(format), ##__VA_ARGS__); delay(FLUSH_DELAY); } while (0)
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)

@@ -480,6 +480,9 @@ void doAppPing() {
   } 
 }
 
+void stepperDone() {
+}
+
 /************** telegram app specific **************/
 
 void tgramAlert(const char* subject, const char* message) {
@@ -563,7 +566,6 @@ void appSpecificTelegramTask(void* p) {
 #endif
   vTaskDelete(NULL);
 }
-
 
 /************** default app configuration **************/
 const char* appConfig = R"~(
