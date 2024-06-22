@@ -356,6 +356,7 @@ static bool closeAvi() {
     if (mqtt_active) {
       sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
+      mqttPublishPath("record", "off");
     }
 #endif
 #if INCLUDE_FTP_HFS
@@ -427,6 +428,7 @@ static boolean processFrame() {
       if (mqtt_active) {
         sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
         mqttPublish(jsonBuff);
+        mqttPublishPath("record", "on");
       }
 #endif
       buzzerAlert(true); // sound buzzer if enabled

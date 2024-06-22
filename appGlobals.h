@@ -46,11 +46,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 ***************************************************************/
 #define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
 #define INCLUDE_SMTP true    // smtp.cpp (email)
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#define INCLUDE_MQTT false   // mqtt.cpp (mqtt not yet available for v3.x)
-#else
 #define INCLUDE_MQTT true    // mqtt.cpp
-#endif
 #define INCLUDE_TGRAM true   // telegram.cpp
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
 #define INCLUDE_TELEM true   // telemetry.cpp

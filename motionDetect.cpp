@@ -269,6 +269,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
       if (mqtt_active && motionCnt) {
         sprintf(jsonBuff, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}",esp_log_system_timestamp());
         mqttPublish(jsonBuff);
+        mqttPublishPath("motion", "on");
       }
 #endif
     } 
@@ -282,6 +283,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
     if (mqtt_active) {
       sprintf(jsonBuff, "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
+      mqttPublishPath("motion", "off");
     }
 #endif
   } 
