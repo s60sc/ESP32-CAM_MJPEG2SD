@@ -233,6 +233,13 @@ void updateStatus(const char* variable, const char* _value) {
   bool res = true;
   char value[IN_FILE_NAME_LEN];
   strncpy(value, _value, sizeof(value));  
+#if INCLUDE_MQTT
+  if (mqtt_active) {
+    char buff[(IN_FILE_NAME_LEN * 2)];
+    snprintf(buff, IN_FILE_NAME_LEN * 2, "%s=%s", variable, value);
+    mqttPublish(buff);
+  }
+#endif
 
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strncpy(hostName, value, MAX_HOST_LEN-1);
