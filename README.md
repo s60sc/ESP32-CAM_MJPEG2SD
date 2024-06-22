@@ -24,7 +24,10 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 Changes in version 9.8:
 *  Updated to compile using either `arduino-esp32 core` v2.x or v3.x
 *  Compilation using v2.x is more stable at this time for TLS based features
-*  If compiling with v3.x, PDM microphone and MQTT not yet available
+*  If compiling with v3.x, PDM microphone and MQTT not yet available  
+
+Changes in version 9.8.1:
+*  MQTT now available when compiled with `arduino-esp32 core` v3.x, provided by [@genehand](https://github.com/genehand)
 
 ## Purpose
 
