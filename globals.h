@@ -184,6 +184,7 @@ void wsAsyncSend(const char* wsData);
 void startMqttClient();  
 void stopMqttClient();  
 void mqttPublish(const char* payload);
+void mqttPublishPath(const char* suffix, const char* payload);
 // telegram.cpp
 bool getTgramUpdate(char* response);
 bool sendTgramMessage(const char* info, const char* item, const char* parseMode);

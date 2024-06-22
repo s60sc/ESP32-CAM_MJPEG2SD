@@ -61,6 +61,12 @@ void showConfigVect() {
 
 void reloadConfigs() {
   while (getNextKeyVal()) updateStatus(variable, value);
+#if INCLUDE_MQTT
+  if (mqtt_active) {
+    buildJsonString(1);
+    mqttPublishPath("config", jsonBuff);
+  }
+#endif
 }
 
 static int getKeyPos(std::string thisKey) {
@@ -227,13 +233,6 @@ void updateStatus(const char* variable, const char* _value) {
   bool res = true;
   char value[IN_FILE_NAME_LEN];
   strncpy(value, _value, sizeof(value));  
-#if INCLUDE_MQTT
-  if (mqtt_active) {
-    char buff[(IN_FILE_NAME_LEN * 2)];
-    snprintf(buff, IN_FILE_NAME_LEN * 2, "%s=%s", variable, value);
-    mqttPublish(buff);
-  }
-#endif
 
   int intVal = atoi(value); 
   if (!strcmp(variable, "hostName")) strncpy(hostName, value, MAX_HOST_LEN-1);
@@ -301,8 +300,7 @@ void updateStatus(const char* variable, const char* _value) {
 #if INCLUDE_MQTT
   else if (!strcmp(variable, "mqtt_active")) {
     mqtt_active = (bool)intVal;
-    if (mqtt_active) startMqttClient();
-    else stopMqttClient();
+    if (!mqtt_active) stopMqttClient();
   } 
   else if (!strcmp(variable, "mqtt_broker")) strncpy(mqtt_broker, value, MAX_HOST_LEN-1);
   else if (!strcmp(variable, "mqtt_port")) strncpy(mqtt_port, value, 4);
