@@ -423,7 +423,9 @@ void currentStackUsage() {
 #if INCLUDE_SMTP
   checkStackUse(emailHandle, 2);
 #endif
+#if INCLUDE_FTP_HFS
   checkStackUse(fsHandle, 3);
+#endif
   checkStackUse(logHandle, 4);
 #if INCLUDE_AUDIO
   checkStackUse(audioHandle, 5);
@@ -682,10 +684,10 @@ ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
 micSckPin~-1~3~N~Microphone I2S SCK pin
 micSWsPin~-1~3~N~Microphone I2S WS / PDM CLK pin
 micSdPin~-1~3~N~Microphone I2S SD / PDM DAT pin
-mampBckIo~-1~9~N~Amplifier I2S BCLK pin
-mampSwsIo~-1~9~N~Amplifier I2S LRCLK pin
-mampSdIo~-1~9~N~Amplifier I2S DIN pin
-mampUse~0~9~C~Use amp & speaker for remote mic
+mampBckIo~-1~3~N~Amplifier I2S BCLK pin
+mampSwsIo~-1~3~N~Amplifier I2S LRCLK pin
+mampSdIo~-1~3~N~Amplifier I2S DIN pin
+mampUse~0~3~C~Use amp & speaker for remote mic
 servoDelay~0~3~N~Delay between each 1 degree change (ms)
 servoMinAngle~0~3~N~Set min angle for servo model
 servoMaxAngle~180~3~N~Set max angle for servo model
