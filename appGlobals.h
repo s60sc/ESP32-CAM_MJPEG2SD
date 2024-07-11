@@ -46,11 +46,19 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 ***************************************************************/
 #define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
 #define INCLUDE_SMTP true    // smtp.cpp (email)
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#define INCLUDE_MQTT false   // mqtt.cpp (mqtt not yet available for v3.x)
+#else
 #define INCLUDE_MQTT true    // mqtt.cpp
+#endif
 #define INCLUDE_TGRAM true   // telegram.cpp
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
 #define INCLUDE_TELEM true   // telemetry.cpp
+#if defined(CONFIG_IDF_TARGET_ESP32) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#define INCLUDE_AUDIO false  // audio.cpp (microphone and speaker)
+#else
 #define INCLUDE_AUDIO true   // audio.cpp (microphone and speaker)
+#endif
 #define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
 #define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
 
@@ -69,8 +77,8 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 /** Do not change anything below here unless you know what you are doing **/
 
 //#define DEV_ONLY // leave commented out
-//#define SIDE_ALARM // leave commented out 
-#define STATIC_IP_OCTAL "132" // dev only
+//#define SIDE_ALARM // leave commented out
+#define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -79,7 +87,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.7.2"
+#define APP_VER "9.8.1"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -197,7 +205,6 @@ struct fnameStruct {
 
 enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
 
-
 // global app specific functions
 
 void applyFilters();
@@ -237,10 +244,12 @@ uint8_t setFPSlookup(uint8_t val);
 void setLamp(uint8_t lampVal);
 void setLights(bool lightsOn);
 void setSteering(int steerVal);
+void setStickTimer(bool restartTimer, uint32_t interval = 0);
 void startAudio();
 void startSustainTasks();
 bool startTelemetry();
-void stickTimer(bool restartTimer);
+void stepperDone();
+void stepperRun(int RPM, float reqRevs, bool _clockwise);
 void stopPlaying();
 void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
@@ -386,6 +395,10 @@ extern bool micRem;
 extern bool mampUse;
 extern uint8_t PREAMP_GAIN; // microphone preamplification factor
 extern int8_t AMP_VOL; // amplifier volume factor
+
+// stepper motor
+extern bool stepperUse;
+extern uint8_t stepINpins[];
 
 // RC
 extern bool RCactive;

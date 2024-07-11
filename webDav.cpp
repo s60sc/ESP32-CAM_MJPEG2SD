@@ -77,7 +77,7 @@ static void sendContentProp(const char* prop, const char* value) {
   char propStr[strlen(prop) * 2 + strlen(value) + 15];
   sprintf(propStr, "<D:%s>%s</D:%s>", prop, value, prop);
   httpd_resp_sendstr_chunk(req, propStr);
-  LOG_DBG("propStr %s", propStr);
+  LOG_VRB("propStr %s", propStr);
 }
 
 static void sendPropResponse(File& file, const char* payload) {
@@ -87,7 +87,7 @@ static void sendPropResponse(File& file, const char* payload) {
   char resp[maxLen + 1];
   snprintf(resp, maxLen, "%s%s%s", XML2, file.path(), XML3);
   httpd_resp_sendstr_chunk(req, resp);
-  LOG_DBG("resp xml: %s", resp);
+  LOG_VRB("resp xml: %s", resp);
   
   formatTime(file.getLastWrite());
   sendContentProp("getlastmodified", formattedTime);
@@ -136,7 +136,7 @@ static bool getPayload(char* payload) {
       } else offset += bytesRead;
     } while (bytesRead > 0);
     payload[psize] = 0;  
-    LOG_DBG("payload: %s\n", payload);
+    LOG_VRB("payload: %s\n", payload);
   }
   return bytesRead < 0 ? false : true;
 }

@@ -52,7 +52,7 @@ char Auth_Pass[MAX_PWD_LEN] = "";
 
 int responseTimeoutSecs = 10; // time to wait for FTP or SMTP response
 bool allowAP = true;  // set to true to allow AP to startup if cannot connect to STA (router)
-uint16_t wifiTimeoutSecs = 30; // how often to check wifi status
+uint32_t wifiTimeoutSecs = 30; // how often to check wifi status
 static bool APstarted = false;
 esp_ping_handle_t pingHandle = NULL;
 bool usePing = true;
@@ -84,8 +84,11 @@ static const char* wifiStatusStr(wl_status_t wlStat) {
     case WL_CONNECT_FAILED: return "WL_CONNECT_FAILED";
     case WL_CONNECTION_LOST: return "WL_CONNECTION_LOST";
     case WL_DISCONNECTED: return "unable to connect";
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)    
+    case WL_STOPPED: return "wifi stopped";
+#endif
+    default: return "Invalid WiFi.status";
   }
-  return "Invalid WiFi.status";
 }
 
 const char* getEncType(int ssidIndex) {
@@ -135,6 +138,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
 
 static void setWifiAP() {
   if (!APstarted) {
+    WiFi.softAPdisconnect(true); // kill rogue AP on startup
     // Set access point with static ip if provided
     if (strlen(AP_ip) > 1) {
       LOG_INF("Set AP static IP :%s, %s, %s", AP_ip, AP_gw, AP_sn);  
@@ -176,7 +180,6 @@ bool startWifi(bool firstcall) {
     WiFi.mode(WIFI_AP_STA);
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
     WiFi.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
-    WiFi.softAPdisconnect(true); // kill rogue AP on startup
     WiFi.setHostname(hostName);
     delay(100);
     WiFi.onEvent(onWiFiEvent);
@@ -185,16 +188,15 @@ bool startWifi(bool firstcall) {
   // connect to Wifi station
   uint32_t startAttemptTime = millis();
   // Stop trying on failure timeout, will try to reconnect later by ping
-  wl_status_t wlStat;
-  if (!strlen(ST_SSID)) wlStat = WL_NO_SSID_AVAIL;
-  else {
+  wl_status_t wlStat = WL_NO_SSID_AVAIL;
+  if (strlen(ST_SSID)) {
     while (wlStat = WiFi.status(), wlStat != WL_CONNECTED && millis() - startAttemptTime < 5000)  {
       logPrint(".");
       delay(500);
     }
   }
   if (wlStat == WL_NO_SSID_AVAIL || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use 
-  if (wlStat != WL_CONNECTED) LOG_WRN("SSID %s %s", ST_SSID, wifiStatusStr(wlStat));
+  if (wlStat != WL_CONNECTED) LOG_WRN("SSID %s not connected %s", ST_SSID, wifiStatusStr(wlStat));
 #if CONFIG_IDF_TARGET_ESP32S3
   setupMdnsHost(); // not on ESP32 as uses 6k of heap
 #endif
@@ -209,6 +211,28 @@ bool startWifi(bool firstcall) {
 }
 
 void resetWatchDog() {
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  // Code for version 3.x
+  // use ping task as watchdog in case of freeze
+  static bool watchDogStarted = false;
+  if (watchDogStarted) esp_task_wdt_reset();
+  else {
+    esp_task_wdt_deinit(); 
+    esp_task_wdt_config_t twdt_config = {
+      .timeout_ms = (wifiTimeoutSecs * 1000 * 2),
+      .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+      .trigger_panic = true, // panic abort on watchdog alert (contains wdt_isr)
+    };
+    esp_task_wdt_init(&twdt_config);
+    esp_task_wdt_add(NULL);
+    if (esp_task_wdt_status(NULL) == ESP_OK) {
+      watchDogStarted = true;
+      esp_task_wdt_reset();
+      LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
+    } else LOG_ERR("WatchDog failed to start");
+  }
+#else
+  // Code for version 2.x
   // use ping task as watchdog in case of freeze
   static bool watchDogStarted = false;
   if (watchDogStarted) esp_task_wdt_reset();
@@ -218,6 +242,7 @@ void resetWatchDog() {
     watchDogStarted = true;
     LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
   }
+#endif
 }
 
 static void statusCheck() {
@@ -362,7 +387,11 @@ bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint
 }
 
 void remoteServerClose(WiFiClientSecure& sclient) {
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  if (sclient.available()) sclient.clear();
+#else
   if (sclient.available()) sclient.flush();
+#endif
   if (sclient.connected()) sclient.stop();
 }
 
@@ -429,8 +458,8 @@ void formatElapsedTime(char* timeStr, uint32_t timeVal, bool noDays) {
   secs = secs - (mins * 60); //subtract the converted seconds to minutes in order to display 59 secs max
   mins = mins - (hours * 60); //subtract the converted minutes to hours in order to display 59 minutes max
   hours = hours - (days * 24); //subtract the converted hours to days in order to display 23 hours max
-  if (noDays) sprintf(timeStr, "%02u:%02u:%02u", hours, mins, secs);
-  else sprintf(timeStr, "%u-%02u:%02u:%02u", days, hours, mins, secs);
+  if (noDays) sprintf(timeStr, "%02lu:%02lu:%02lu", hours, mins, secs);
+  else sprintf(timeStr, "%lu-%02lu:%02lu:%02lu", days, hours, mins, secs);
 }
 
 static time_t setAlarm(uint8_t alarmHour) {
@@ -801,7 +830,7 @@ void logSetup() {
   Serial.begin(115200);
   Serial.setDebugOutput(DBG_ON);
   printf("\n\n");
-  if (DEBUG_MEM) printf("init > Free: heap %u\n", ESP.getFreeHeap()); 
+  if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
@@ -813,6 +842,7 @@ void logSetup() {
   LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
   initBrownout();
   LOG_INF("Compiled with arduino-esp32 v%d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
+  ////LOG_INF(" ESP32 Arduino core version: %s", ESP_ARDUINO_VERSION_STR);
   wakeupResetReason();
   if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
   debugMemory("logSetup"); 
@@ -921,6 +951,7 @@ void startIdleMon() {
 /****************** send device to sleep (light or deep) & watchdog ******************/
 
 #include <esp_wifi.h>
+#include <driver/gpio.h>
 
 static esp_sleep_wakeup_cause_t printWakeupReason() {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -1002,7 +1033,13 @@ void goToSleep(int wakeupPin, bool deepSleep) {
 //https://github.com/espressif/esp-idf/blob/master/components/esp_system/port/brownout.c
 
 #include "esp_private/system_internal.h"
-#include "driver/rtc_cntl.h"
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#include "esp_private/rtc_ctrl.h"
+#include "hal/brownout_ll.h"
+#else
+#include "driver/rtc_cntl.h" // v2.x
+#endif
+
 #include "soc/rtc_periph.h"
 #include "hal/brownout_hal.h"
 
@@ -1030,7 +1067,13 @@ static void initBrownout(void) {
       .rf_power_down = true,
     };
     brownout_hal_config(&cfg);
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+    brownout_ll_intr_clear();
+    rtc_isr_register(notifyBrownout, NULL, RTC_CNTL_BROWN_OUT_INT_ENA_M, RTC_INTR_FLAG_IRAM);
+    brownout_ll_intr_enable(true);
+#else
     rtc_isr_register(notifyBrownout, NULL, RTC_CNTL_BROWN_OUT_INT_ENA_M);
+#endif
     brownoutStatus = 0; 
   }
 }

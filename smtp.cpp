@@ -41,7 +41,7 @@ int alertMax = 10; // only applied to emails
 
 static bool sendSmtpCommand(WiFiClientSecure& client, const char* cmd, const char* respCode) {
   // wait from smtp server response, check response code and extract response data
-  LOG_DBG("Cmd: %s", cmd);
+  LOG_VRB("Cmd: %s", cmd);
   if (strlen(cmd)) client.println(cmd);
   
 	uint32_t start = millis();
@@ -59,7 +59,7 @@ static bool sendSmtpCommand(WiFiClientSecure& client, const char* cmd, const cha
   while (client.available()) client.read(); // bin the rest of response
 
   // check response code with expected
-  LOG_DBG("Rx code: %s, resp: %s", respCodeRx, rspBuf);
+  LOG_VRB("Rx code: %s, resp: %s", respCodeRx, rspBuf);
   if (strcmp(respCodeRx, respCode) != 0) {
     // incorrect response code
     LOG_ERR("Command %s got wrong response: %s", cmd, rspBuf);

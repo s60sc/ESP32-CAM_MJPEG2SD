@@ -217,7 +217,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     if (strlen(fileName)) {
       if (!root) LOG_WRN("Failed to open directory %s", fileName);
       else if (!root.isDirectory()) LOG_WRN("Not a directory %s", fileName);
-      LOG_DBG("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
+      LOG_VRB("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
     }
     
     // build relevant option list
@@ -334,7 +334,7 @@ static esp_err_t writeHeader(File& inFile, httpd_req_t* req) {
   // Calculate and set the checksum
   uint32_t checksum = 0;
   for (const auto& ch : tarHeader) checksum += ch;
-  sprintf(tarHeader + 148, "%06o", checksum); // six digit octal number with leading zeroes followed by a NUL and then a space.
+  sprintf(tarHeader + 148, "%06lo", checksum); // six digit octal number with leading zeroes followed by a NUL and then a space.
 
   return httpd_resp_send_chunk(req, tarHeader, BLOCKSIZE);
 }

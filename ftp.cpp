@@ -139,7 +139,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
     rclient.print(cmd);
     rclient.println(param);
   }
-  LOG_DBG("Sent cmd: %s%s", cmd, param);
+  LOG_VRB("Sent cmd: %s%s", cmd, param);
   
   // wait for ftp server response
   uint32_t start = millis();
@@ -156,7 +156,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   while (rclient.available()) rclient.read(); // bin the rest of response
 
   // check response code with expected
-  LOG_DBG("Rx code: %s, resp: %s", respCodeRx, rspBuf);
+  LOG_VRB("Rx code: %s, resp: %s", respCodeRx, rspBuf);
   if (strcmp(respCode, NO_CHECK) == 0) return true; // response code not checked
   if (strcmp(respCodeRx, respCode) != 0) {
     if (strcmp(respCodeRx, respCode2) != 0) {
@@ -170,7 +170,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
 
 static bool ftpConnect() {
   // Connect to ftp or ftps
-  if (rclient.connect(fsServer, fsPort)) {LOG_DBG("FTP connected at %s:%u", fsServer, fsPort);}
+  if (rclient.connect(fsServer, fsPort)) {LOG_VRB("FTP connected at %s:%u", fsServer, fsPort);}
   else {
     LOG_WRN("Error opening ftp connection to %s:%u", fsServer, fsPort);
     return false;
@@ -198,7 +198,7 @@ static void ftpDisconnect() {
 
 static bool ftpCreateFolder(const char* folderName) {
   // create folder if non existent then change to it
-  LOG_DBG("Check for folder %s", folderName);
+  LOG_VRB("Check for folder %s", folderName);
   sendFtpCommand("CWD ", folderName, NO_CHECK); 
   if (strcmp(respCodeRx, "550") == 0) {
     // non existent folder, create it
@@ -223,7 +223,7 @@ static bool openDataPort() {
   int dataPort = (p1 << 8) + p2;
   
   // Connect to data port
-  LOG_DBG("Data port: %i", dataPort);
+  LOG_VRB("Data port: %i", dataPort);
   if (!dclient.connect(fsServer, dataPort)) {
     LOG_WRN("Data connection failed");   
     return false;
@@ -363,7 +363,7 @@ static void fileServerTask(void* parameter) {
       bool res = uploadFolderOrFileFs(storedPathName);
       if (res && deleteAfter) deleteFolderOrFile(storedPathName);
     }
-  } else LOG_DBG("Root or null is not allowed %s", storedPathName);  
+  } else LOG_VRB("Root or null is not allowed %s", storedPathName);  
   uploadInProgress = false;
   free(fsChunk);
   vTaskDelete(NULL);

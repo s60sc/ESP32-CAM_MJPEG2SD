@@ -28,7 +28,7 @@
 #define CONTENT_TYPE "\"; filename=\"%s\"\r\nContent-Type: \"%s\"\r\n\r\n"
 #define MULTI_TYPE "multipart/form-data; boundary=" BOUNDARY_VAL
 #define JSON_TYPE "application/json"
-#define GETUP_JSON "{\"limit\":1,\"timeout\":%d,\"offset\":%d}"
+#define GETUP_JSON "{\"limit\":1,\"timeout\":%d,\"offset\":%ld}"
 #define POST_JSON "{\"chat_id\":%s,\"text\":\"%s\n\n%s%s\n\"}"
 #define PARSE_MODE ",\"parse_mode\":\"%s\"}"
 #define END_BOUNDARY "\r\n--" BOUNDARY_VAL "--\r\n"
@@ -177,20 +177,6 @@ static bool sendTgramBuff(uint8_t* buffData, size_t buffSize) {
   } 
   return false; 
 }
-
-static void setupTelegramTask() {
-  // Interact with Telegram server
-//  StaticTask not available yet in Arduino
-//  if (psramFound()) { 
-//    // TCBs should always be in internal RAM
-//    StaticTask_t* tcb = (StaticTask_t*)malloc(sizeof(StaticTask_t));
-//    // Allocate the stack in PSRAM 
-//    StackType_t* tstack = (StackType_t*)ps_malloc(TGRAM_STACK_SIZE);
-//    telegramHandle = xTaskCreateStatic(telegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, tstack, tcb);
-//  } else 
-  xTaskCreate(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle);
-  debugMemory("setupTelegramTask");
-}
     
 bool prepTelegram() {
   // setup and check access to Telegram if required
@@ -209,7 +195,8 @@ bool prepTelegram() {
         // response loaded into tgramBuff
         if (searchJsonResponse("username:")) {      
           LOG_INF("Connected to Telegram Bot Handle: %s", keyValue);
-          setupTelegramTask();
+          xTaskCreate(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle); 
+          debugMemory("setupTelegramTask");
           return true;
         } else LOG_WRN("getMe response not parsed %s", tgramBuff);
       } else LOG_WRN("Failed to communicate with Telegram server");

@@ -7,7 +7,7 @@
 
 #include "appGlobals.h"
 
-void setup() {  
+void setup() {
   logSetup();
   // prep SD card storage
   if (startStorage()) {

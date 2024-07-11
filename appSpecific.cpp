@@ -480,6 +480,9 @@ void doAppPing() {
   } 
 }
 
+void stepperDone() {
+}
+
 /************** telegram app specific **************/
 
 void tgramAlert(const char* subject, const char* message) {
@@ -564,7 +567,6 @@ void appSpecificTelegramTask(void* p) {
   vTaskDelete(NULL);
 }
 
-
 /************** default app configuration **************/
 const char* appConfig = R"~(
 ST_SSID~~99~~na
@@ -638,7 +640,7 @@ wifiTimeoutSecs~30~0~N~WiFi connect timeout (secs)
 logType~0~99~N~Output log selection
 ntpServer~pool.ntp.org~0~T~NTP Server address
 alarmHour~1~2~N~Hour of day for daily actions
-useUART0~0~99~C~na
+useUART0~0~3~C~Use UART0 for IO Extender
 uartTxdPin~~3~N~UART1 TX pin
 uartRxdPin~~3~N~UART1 RX pin
 refreshVal~5~2~N~Web page refresh rate (secs)
@@ -704,8 +706,8 @@ mqtt_user~~2~T~Mqtt user name
 mqtt_user_Pass~~2~T~Mqtt user password
 mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
 external_heartbeat_active~0~2~C~External Heartbeat Server enabled
-external_heartbeat_domain~~2~T~Heartbeat receiver domain or IP (i.e. www.mydomain.com)
-external_heartbeat_uri~~2~T~Heartbeat receiver URI (i.e. /my-esp32cam-hub/index.php)
+external_heartbeat_domain~~2~T~Heartbeat receiver domain or IP (eg. www.espsee.com)
+external_heartbeat_uri~~2~T~Heartbeat receiver URI (eg. /heartbeat/)
 external_heartbeat_port~443~2~N~Heartbeat receiver port
 external_heartbeat_token~~2~T~Heartbeat receiver auth token
 usePing~1~0~C~Use ping

@@ -3,7 +3,7 @@
 * matches file writes to the SD card sector size.
 * AVI files stored on the SD card can also be selected and streamed to a browser.
 *
-* s60sc 2020, 2022
+* s60sc 2020, 2022, 2024
 */
 
 #include "appGlobals.h"
@@ -48,7 +48,7 @@ static uint32_t cTime; // file closing time
 static uint32_t sTime; // file streaming time
 
 uint8_t frameDataRows = 14; // number of frame sizes
-static uint16_t frameInterval; // units of 0.1ms between frames
+static uint32_t frameInterval; // units of us between frames
 
 // SD card storage
 uint8_t iSDbuffer[(RAMSIZE + CHUNK_HDR) * 2];
@@ -89,22 +89,35 @@ static void IRAM_ATTR frameISR() {
 }
 
 void controlFrameTimer(bool restartTimer) {
-  // frame timer control, timer 3 so dont conflict with cam
+  // frame timer control
   static hw_timer_t* frameTimer = NULL;
   // stop current timer
   if (frameTimer) {
-    timerAlarmDisable(frameTimer);   
+#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+    timerAlarmDisable(frameTimer);
+#endif
     timerDetachInterrupt(frameTimer); 
     timerEnd(frameTimer);
+    frameTimer = NULL;
   }
   if (restartTimer) {
-    // (re)start timer 3 interrupt per required framerate
+    // (re)start timer interrupt for required framerate
+#if ESP_ARDUINO_VERSION > ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+    frameTimer = timerBegin(OneMHz); 
+    if (frameTimer) {
+      frameInterval = OneMHz / FPS; // in units of us 
+      LOG_VRB("Frame timer interval %ums for FPS %u", frameInterval/1000, FPS); 
+      timerAttachInterrupt(frameTimer, &frameISR);
+      timerAlarm(frameTimer, frameInterval, true, 0); // micro seconds
+    } else LOG_ERR("Failed to setup frameTimer");
+#else
     frameTimer = timerBegin(3, 8000, true); // 0.1ms tick
     frameInterval = 10000 / FPS; // in units of 0.1ms 
-    LOG_DBG("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
+    LOG_VRB("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
     timerAlarmWrite(frameTimer, frameInterval, true); 
     timerAlarmEnable(frameTimer);
     timerAttachInterrupt(frameTimer, &frameISR, true);
+#endif
   }
 }
 
@@ -120,7 +133,7 @@ static void openAvi() {
   // open avi file with temporary name 
   aviFile = STORAGE.open(AVITEMP, FILE_WRITE);
   oTime = millis() - oTime;
-  LOG_DBG("File opening time: %ums", oTime);
+  LOG_VRB("File opening time: %ums", oTime);
 #if INCLUDE_AUDIO
   startAudio();
 #endif
@@ -254,7 +267,7 @@ static void saveFrame(camera_fb_t* fb) {
   } 
   wTime = millis() - wTime;
   wTimeTot += wTime;
-  LOG_DBG("SD storage time %u ms", wTime); 
+  LOG_VRB("SD storage time %u ms", wTime); 
   // whats left or small frame
   memcpy(iSDbuffer+highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
@@ -264,8 +277,8 @@ static void saveFrame(camera_fb_t* fb) {
   frameCnt++; 
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
-  LOG_DBG("Frame processing time %u ms", fTime);
-  LOG_DBG("============================");
+  LOG_VRB("Frame processing time %u ms", fTime);
+  LOG_VRB("============================");
 }
 
 static bool closeAvi() {
@@ -273,7 +286,7 @@ static bool closeAvi() {
   uint32_t vidDuration = millis() - startTime;
   uint32_t vidDurationSecs = lround(vidDuration/1000.0);
   logLine();
-  LOG_DBG("Capture time %u, min seconds: %u ", vidDurationSecs, minSeconds);
+  LOG_VRB("Capture time %u, min seconds: %u ", vidDurationSecs, minSeconds);
 
   cTime = millis();
   // write remaining frame content to SD
@@ -306,16 +319,16 @@ static bool closeAvi() {
   aviFile.seek(0, SeekSet); // start of file
   aviFile.write(aviHeader, AVI_HEADER_LEN); 
   aviFile.close();
-  LOG_DBG("Final SD storage time %lu ms", millis() - cTime);
+  LOG_VRB("Final SD storage time %lu ms", millis() - cTime);
   uint32_t hTime = millis();
   if (vidDurationSecs >= minSeconds) {
     // name file to include actual dateTime, FPS, duration, and frame count
-    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%u%s%s.%s", 
+    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%lu%s%s.%s", 
       partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, 
       haveWav ? "_S" : "", haveSrt ? "_M" : "", AVI_EXT); 
     if (alen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
     STORAGE.rename(AVITEMP, aviFileName);
-    LOG_DBG("AVI close time %lu ms", millis() - hTime); 
+    LOG_VRB("AVI close time %lu ms", millis() - hTime); 
     cTime = millis() - cTime;
 #if INCLUDE_TELEM
     stopTelemetry(aviFileName);
@@ -343,6 +356,7 @@ static bool closeAvi() {
     if (mqtt_active) {
       sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
+      mqttPublishPath("record", "off");
     }
 #endif
 #if INCLUDE_FTP_HFS
@@ -414,6 +428,7 @@ static boolean processFrame() {
       if (mqtt_active) {
         sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
         mqttPublish(jsonBuff);
+        mqttPublishPath("record", "on");
       }
 #endif
       buzzerAlert(true); // sound buzzer if enabled
@@ -488,7 +503,7 @@ static fnameStruct extractMeta(const char* fname) {
   strcpy(fnameStr, fname);
   // replace all '_' with space for sscanf
   replaceChar(fnameStr, '_', ' ');
-  int items = sscanf(fnameStr, "%*s %*s %*s %hhu %u", &fnameMeta.recFPS, &fnameMeta.recDuration);
+  int items = sscanf(fnameStr, "%*s %*s %*s %hhu %lu", &fnameMeta.recFPS, &fnameMeta.recDuration);
   if (items != 2) LOG_ERR("failed to parse %s, items %u", fname, items);
   return fnameMeta; 
 }
@@ -511,7 +526,7 @@ static void readSD() {
   readLen = 0;
   if (!stopPlayback) {
     readLen = playbackFile.read(iSDbuffer+RAMSIZE+CHUNK_HDR, RAMSIZE);
-    LOG_DBG("SD read time %lu ms", millis() - rTime);
+    LOG_VRB("SD read time %lu ms", millis() - rTime);
   }
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready     
@@ -554,7 +569,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     frameCnt = remainingFrame = vidSize = buffOffset = 0;
     wTimeTot = fTimeTot = hTimeTot = tTimeTot = 1; // avoid divide by 0
   }  
-  LOG_DBG("http send time %lu ms", millis() - hTime);
+  LOG_VRB("http send time %lu ms", millis() - hTime);
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
   if (!stopPlayback) {
@@ -566,12 +581,12 @@ mjpegStruct getNextFrame(bool firstCall) {
       memcpy(iSDbuffer, iSDbuffer+RAMSIZE, CHUNK_HDR);
       xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
       buffLen = readLen;
-      LOG_DBG("SD wait time %lu ms", millis()-mTime);
+      LOG_VRB("SD wait time %lu ms", millis()-mTime);
       wTimeTot += millis()-mTime;
       mTime = millis();  
       // overlap buffer by CHUNK_HDR to prevent jpeg marker being split between buffers
       memcpy(iSDbuffer+CHUNK_HDR, iSDbuffer+RAMSIZE+CHUNK_HDR, buffLen); // load new cluster from double buffer
-      LOG_DBG("memcpy took %lu ms for %u bytes", millis()-mTime, buffLen);
+      LOG_VRB("memcpy took %lu ms for %u bytes", millis()-mTime, buffLen);
       fTimeTot += millis() - mTime;
       remainingBuff = true;
       if (buffOffset > RAMSIZE) buffOffset = 4; // special case, marker overlaps end of buffer 
@@ -601,7 +616,7 @@ mjpegStruct getNextFrame(bool firstCall) {
         mTime = millis();
         // wait on playbackSemaphore for rate control
         xSemaphoreTake(playbackSemaphore, portMAX_DELAY);
-        LOG_DBG("frame timer wait %lu ms", millis()-mTime);
+        LOG_VRB("frame timer wait %lu ms", millis()-mTime);
         tTimeTot += millis()-mTime;
         frameCnt++;
         showProgress();
@@ -760,7 +775,7 @@ void OTAprereq() {
   // stop timer isrs, and free up heap space, or crashes esp32
   doPlayback = forceRecord = false;
   controlFrameTimer(false);
-  stickTimer(false);
+  setStickTimer(false);
   stopPing();
   endTasks();
   esp_camera_deinit();
@@ -793,7 +808,7 @@ bool prepCam() {
   config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = xclkMhz * 1000000;
+  config.xclk_freq_hz = xclkMhz * OneMHz;
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode = CAMERA_GRAB_LATEST;
   // init with high specs to pre-allocate larger buffers

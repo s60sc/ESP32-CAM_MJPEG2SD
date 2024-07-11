@@ -87,8 +87,8 @@ static void showPlayback(httpd_req_t* req) {
         if (res == ESP_OK) mjpegData = getNextFrame(); 
         else {
           // when browser closes playback get send error
-          LOG_DBG("Playback aborted due to error: %s", espErrMsg(res));
-          doPlayback = false;
+          LOG_VRB("Playback aborted due to error: %s", espErrMsg(res));
+          stopPlaying();
         }
       }
     }
@@ -146,7 +146,7 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
     if (dbgMotion && !taskNum) motionJpegLen = 0;
     if (res != ESP_OK) {
       // get send error when browser closes stream 
-      LOG_DBG("Streaming aborted due to error: %s", espErrMsg(res));
+      LOG_VRB("Streaming aborted due to error: %s", espErrMsg(res));
       isStreaming[taskNum] = false;
     }     
   }

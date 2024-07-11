@@ -19,11 +19,15 @@ The application supports:
 
 The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
-***This is a complex app and some users are raising issues when the app reports an warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
+***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
 
-Changes in version 9.7.2:
-*  [External Heartbeat](#external-heartbeat) support contributed by [@alojzjakob](https://github.com/alojzjakob).
-*  Fix for issue #443
+Changes in version 9.8:
+*  Updated to compile using either `arduino-esp32 core` v2.x or v3.x
+*  Compilation using v2.x is more stable at this time for TLS based features
+*  If compiling with v3.x, PDM microphone and MQTT not yet available  
+
+Changes in version 9.8.1:
+*  MQTT now available when compiled with `arduino-esp32 core` v3.x, provided by [@genehand](https://github.com/genehand)
 
 ## Purpose
 
@@ -70,7 +74,7 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 * ESP32 - `Minimal SPIFFS (...)`
 * ESP32S3 - `8M with spiffs (...)`
 
-**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.x (but not yet v3.x)
+**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.x or v3.x
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 
 **NOTE: If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
@@ -84,7 +88,7 @@ Subsequent updates to the application, or to the **/data** folder files, can be 
 
 An alternative installation process by [@ldijkman](https://github.com/ldijkman) is described [here](https://youtu.be/YLLGBM3i2aQ).
 
-Browser functions only tested on Chrome.
+Browser functions only fully tested on Chrome.
 
 
 ## Main Function
@@ -237,17 +241,24 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;fram
 
 ## External Heartbeat
 
+Contributed by [@alojzjakob](https://github.com/alojzjakob), see also https://github.com/alojzjakob/EspSee
+
 Allow access to multiple cameras behind single dynamic IP with different ports port-forwarded through the router. Another limitation was to avoid using DDNS because it was hard/impossible to set up on given router.
 You will be able to easily construct list of your cameras with data contained in JSON sent to your server/website.
 
 To enable External Heartbeat, under **Edit Config** -> **Others** tab, enter fields:
-* `Heartbeat receiver domain or IP` (i.e. www.mydomain.com)
-* `Heartbeat receiver URI` (i.e. /my-esp32cam-hub/index.php)
+* `Heartbeat receiver domain or IP` (e.g. www.espsee.com)
+* `Heartbeat receiver URI` (e.g. /heartbeat/)
 * `Heartbeat receiver port` (443 for ssl, 80 for non-ssl, or your custom port)
-* optionally `Heartbeat receiver auth token`
+* optionally `Heartbeat receiver auth token` (if you use EspSee, it will provide auth token for your user account)
 * Then set `External Heartbeat Server enabled` 
 
-Heartbeat will be send every 30 (default) seconds. It will do a POST request to defined domain/URI (i.e. www.mydomain.com/my-esp32cam-hub/index.php) with JSON body, containing useful information you might need for your specific application.
+Heartbeat will be sent every 30 (default) seconds. It will do a POST request to defined domain/URI (i.e. www.mydomain.com/my-esp32cam-hub/index.php) with JSON body, containing useful information you might need for your specific application.
+
+If you are using EspSee, it will do a POST request to defined domain/URI (i.e. https://www.espsee.com/heartbeat/?token=[your_token]) with JSON body, containing useful information about your camera allowing this website to connect it to your user account and provide a way to easily access your camera(s) without the need for DDNS.
+
+If you want to have multiple cameras accessible from the same external IP (behind router) you might need to do port forwarding and set ports on EspSee camera entries accordingly.
+
 
 ## Port Forwarding
 
@@ -274,7 +285,7 @@ Note: esp-camera library [conflict](https://forum.arduino.cc/t/conflicitng-decla
 
 ## Telegram Bot
 
-Only enable either Telegram or SMTP email.  
+Only enable one of Telegram or SMTP email.  
 Use [IDBot](https://t.me/myidbot) to obtain your Chat ID.  
 Use [BotFather](https://t.me/botfather) to create a Telegram Bot and obtain the Bot Token.  
 In **Edit Config** page under **Other** tab, paste in `Telegram chat identifier` and `Telegram Bot token` and select `Use Telegram Bot`.  
