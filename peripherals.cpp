@@ -821,11 +821,11 @@ static void prepStepper() {
   }
 }
 
-void stepperRun(int RPM, float reqRevs, bool _clockwise) {
-  // RPM is rotation speed
-  // reqRevs is number of revolutions (can be fraction)
+void stepperRun(float RPM, float revFraction, bool _clockwise) {
+  // RPM is stepper motor rotation speed
+  // revFraction is required movement as a fraction of full rotation
   uint32_t usecsPerRev = 60 * USECS / RPM; // duration of 1 rev
-  stepsToDo = reqRevs * stepsPerRevolution;
+  stepsToDo = revFraction * stepsPerRevolution;
   stepDelay = usecsPerRev / stepsPerRevolution;
   clockwise = _clockwise;
   seqIndex = clockwise ? 0 : stepperPins - 1;
@@ -849,7 +849,9 @@ static void doStep() {
     if (!--stepsToDo) {
       setStickTimer(false, 0);  // stop task timer
       for (int i = 0; i < stepperPins; i++) pinMode(stepINpins[i], INPUT); // stop unnecessary power use
+#if INCLUDE_PGRAM
       stepperDone();
+#endif
     }
     if (clockwise) seqIndex = (seqIndex == stepperPins - 1) ? 0 : seqIndex + 1;
     else seqIndex = (seqIndex == 0) ? stepperPins - 1 : seqIndex - 1;

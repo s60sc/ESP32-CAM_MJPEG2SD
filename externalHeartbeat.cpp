@@ -3,11 +3,13 @@
 
 #include "appGlobals.h"
 
+#if INCLUDE_EXTHB
+
 // External Heartbeat
-char external_heartbeat_domain[256] = "";         //External Heartbeat domain/IP  
-char external_heartbeat_uri[256] = "";         //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
-char external_heartbeat_port[5] = "";                      //External Heartbeat server port to connect.  
-char external_heartbeat_token[256] = "";           //External Heartbeat server username.  
+char external_heartbeat_domain[32] = "";  //External Heartbeat domain/IP  
+char external_heartbeat_uri[64] = "";     //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
+int external_heartbeat_port;              //External Heartbeat server port to connect.  
+char external_heartbeat_token[32] = "";   //External Heartbeat server username.  
 
 bool external_heartbeat_active = false;
 
@@ -20,39 +22,27 @@ void sendExternalHeartbeat() {
   // external_heartbeat_token~~2~T~Heartbeat receiver auth token
   
   // POST to external heartbeat address
+  char uri[104] = "";
+  strcpy(uri, external_heartbeat_uri);
+  strcat(uri, "?token=");
+  strcat(uri, external_heartbeat_token);
   
-  char domain[256] = "";
-  char uri[256] = "";
-  char url[512] = ""; 
-  
-  strcpy( domain, external_heartbeat_domain);
-  strcpy( uri, external_heartbeat_uri);
-  
-  strcpy( url, strcat(domain,uri));
-  strcpy( url, strcat(url,"?token="));
-  strcpy( url, strcat(url,external_heartbeat_token));
-  
-  strcpy( uri, strcat(uri,"?token="));
-  strcpy( uri, strcat(uri,external_heartbeat_token));
-  
-
   WiFiClientSecure hclient;
-  
   
   buildJsonString(false);
 
   //hclient.setInsecure();
-  if (remoteServerConnect(hclient, external_heartbeat_domain, atoi(external_heartbeat_port), "")) {
+  if (remoteServerConnect(hclient, external_heartbeat_domain, external_heartbeat_port, "", EXTERNALHB)) {
     HTTPClient https;
     int httpCode = HTTP_CODE_NOT_FOUND;
-    if (https.begin(hclient, external_heartbeat_domain, atoi(external_heartbeat_port), uri, true)) {
+    if (https.begin(hclient, external_heartbeat_domain, external_heartbeat_port, uri, true)) {
 
       https.addHeader("Content-Type", "application/json");
       
       httpCode = https.POST(jsonBuff);
       //httpCode = https.GET();
       if (httpCode == HTTP_CODE_OK) {
-        LOG_INF("External Heartbeat sent to: %s", url);
+        LOG_INF("External Heartbeat sent to: %s%s", external_heartbeat_domain, uri);
       } else LOG_WRN("External Heartbeat request failed, error: %s", https.errorToString(httpCode).c_str());    
       //if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
       https.end();     
@@ -60,3 +50,5 @@ void sendExternalHeartbeat() {
     remoteServerClose(hclient);
   }
 }
+
+#endif

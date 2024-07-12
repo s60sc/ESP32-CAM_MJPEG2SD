@@ -52,7 +52,7 @@ WiFiClientSecure tclient;
 
 static inline bool connectTelegram() {
   // Connect to Telegram server if not already connected
-  return remoteServerConnect(tclient, TELEGRAM_HOST, HTTPS_PORT, telegram_rootCACertificate);
+  return remoteServerConnect(tclient, TELEGRAM_HOST, HTTPS_PORT, telegram_rootCACertificate, TGRAMCONN);
 }
 
 static bool searchJsonResponse(const char* keyName) {

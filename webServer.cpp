@@ -194,7 +194,7 @@ static esp_err_t controlHandler(httpd_req_t *req) {
     strcpy(value, variable + strlen(variable) + 1); // value points to second part of string
     if (!strcmp(variable, "reset")) {
       httpd_resp_sendstr(req, NULL); // stop browser resending reset
-      doRestart("user requested restart"); 
+      doRestart("User requested restart"); 
       return ESP_OK;
     }
     if (!strcmp(variable, "startOTA")) snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, value); 
@@ -346,7 +346,7 @@ void showHttpHeaders(httpd_req_t *req) {
   uint32_t req_hdrs_count = *((uint8_t*)req->aux + 4 + maxHdrLen + 1 + 3 + 4 + 4 + 4 + 1 + 3);
   char* header = (char*)req->aux + 4; // start of scratch buffer containing headers
   // get each header string in turn
-  while(req_hdrs_count--) {
+  while (req_hdrs_count--) {
     LOG_DBG("  %s", header);
     header += strlen(header) + 2;
   }

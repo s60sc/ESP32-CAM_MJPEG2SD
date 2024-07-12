@@ -157,7 +157,7 @@ static inline bool doMonitor(bool capturing) {
   return !(bool)motionCnt;
 }  
 
-static void timeLapse(camera_fb_t* fb) {
+static void timeLapse(camera_fb_t* fb, bool tlStop = false) {
   // record a time lapse avi
   // Note that if FPS changed during time lapse recording, 
   //  the time lapse counters wont be modified
@@ -165,6 +165,11 @@ static void timeLapse(camera_fb_t* fb) {
   static int intervalMark = tlSecsBetweenFrames * saveFPS;
   static File tlFile;
   static char TLname[FILE_NAME_LEN];
+  if (tlStop) {
+    // force save of file on controlled shutdown
+    intervalCnt = 0;
+    requiredFrames = frameCntTL - 1;
+  }
   if (timeLapseOn) {
     if (timeSynchronized) {
       if (!frameCntTL) {
@@ -739,6 +744,10 @@ bool prepRecording() {
   LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
   debugMemory("prepRecording");
   return true;
+}
+
+void appShutdown() {
+  timeLapse(NULL, true);
 }
 
 static void deleteTask(TaskHandle_t thisTaskHandle) {

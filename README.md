@@ -16,18 +16,16 @@ The application supports:
 * Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
+* [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
 
 The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
 
-***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.***
+***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 9.8:
-*  Updated to compile using either `arduino-esp32 core` v2.x or v3.x
-*  Compilation using v2.x is more stable at this time for TLS based features
-*  If compiling with v3.x, PDM microphone and MQTT not yet available  
-
-Changes in version 9.8.1:
-*  MQTT now available when compiled with `arduino-esp32 core` v3.x, provided by [@genehand](https://github.com/genehand)
+Changes in version 9.9:
+*  PDM microphone now supported with both arduino core v2.x and v3.x
+*  [Photogrammetry](#photogrammetry) feature added
+*  Workarounds for arduino core v3.x issues [#9712](https://github.com/espressif/arduino-esp32/issues/9712) and [#9997](https://github.com/espressif/arduino-esp32/issues/9997)
 
 ## Purpose
 
@@ -55,8 +53,6 @@ UXGA | 12.5 | 5 | 450
 The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs the app about double the speed of the ESP32 mainly due to much faster PSRAM. It can record at the maximum OV2640 frame rates including [audio](#audio-recording) for all frame sizes except UXGA (max 10fps).
 
 ## Design
-
-The application was originally based on the Arduino CameraWebServer example but is now independently coded, including contributions made by [@gemi254](https://github.com/gemi254).
 
 The ESP32 Cam module has 4MB of PSRAM (8MB on ESP32S3) which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
@@ -357,3 +353,13 @@ A simple WebDAV server is included. A WebDAV client such as Windows file explore
 For Android, MacOS, Linux see `webDav.cpp` file.
 
 <img src="extras/webdav.png" width="600" height="300">
+
+## Photogrammetry
+
+ESP can be used to capture a series of photographs of small objects, controlling a stepper motor driven turntable, using either the ESP camera for low resolution images, or a DSLR camera for high resolution images remotely controlled by the ESP. The captured images can be used to generate a 3D model.  
+
+To enable this feature, in **Edit Config** page under **Peripherals**, select `Enable photogrammetry`.  
+This will show an extra config button **PG Config**. Pressing this button will bring up options for controlling the photogrammetry process.  
+
+See `photogram.cpp` for more information.
+

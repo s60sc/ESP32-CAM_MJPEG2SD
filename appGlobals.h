@@ -46,21 +46,15 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 ***************************************************************/
 #define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
 #define INCLUDE_SMTP true    // smtp.cpp (email)
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#define INCLUDE_MQTT false   // mqtt.cpp (mqtt not yet available for v3.x)
-#else
-#define INCLUDE_MQTT true    // mqtt.cpp
-#endif
+#define INCLUDE_MQTT true    // mqtt.cpp 
 #define INCLUDE_TGRAM true   // telegram.cpp
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
 #define INCLUDE_TELEM true   // telemetry.cpp
-#if defined(CONFIG_IDF_TARGET_ESP32) && ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#define INCLUDE_AUDIO false  // audio.cpp (microphone and speaker)
-#else
-#define INCLUDE_AUDIO true   // audio.cpp (microphone and speaker)
-#endif
+#define INCLUDE_AUDIO true   // audio.cpp (microphone)
 #define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
 #define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
+#define INCLUDE_EXTHB true   // externalHeartbeat.cpp (heartbeat to remote server)
+#define INCLUDE_PGRAM true   // photogram.cpp (photogrammetry feature)
 
 #define INCLUDE_TINYML false  // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
@@ -87,7 +81,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.8.1"
+#define APP_VER "9.9"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -95,7 +89,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 180 // must be > number of entries in configs.txt
+#define MAX_CONFIGS 190 // must be > number of entries in configs.txt
 #define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
@@ -121,7 +115,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 14
+#define CFG_VER 15
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -209,6 +203,7 @@ enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACT
 
 void applyFilters();
 void applyVolume();
+void appShutdown();
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
@@ -244,16 +239,18 @@ uint8_t setFPSlookup(uint8_t val);
 void setLamp(uint8_t lampVal);
 void setLights(bool lightsOn);
 void setSteering(int steerVal);
+void setStepperPin(uint8_t pinNum, uint8_t pinPos);
 void setStickTimer(bool restartTimer, uint32_t interval = 0);
 void startAudio();
 void startSustainTasks();
 bool startTelemetry();
 void stepperDone();
-void stepperRun(int RPM, float reqRevs, bool _clockwise);
+void stepperRun(float RPM, float revFraction, bool _clockwise);
 void stopPlaying();
 void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
 void storeSensorData(bool fromStream);
+void takePhotos(bool startPhotos);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
@@ -417,6 +414,26 @@ extern bool stickUse;
 extern int stickzPushPin;
 extern int stickXpin; 
 extern int stickYpin; 
+
+// External Heartbeat
+extern bool external_heartbeat_active;
+extern char external_heartbeat_domain[]; //External Heartbeat domain/IP  
+extern char external_heartbeat_uri[];    //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
+extern int external_heartbeat_port;      //External Heartbeat server port to connect.  
+extern char external_heartbeat_token[];  //External Heartbeat server auth token.  
+
+// photogrammetry
+extern bool PGactive; 
+extern bool clockWise;
+extern uint8_t timeForFocus; // in secs
+extern uint8_t timeForPhoto; // in secs
+extern int pinShutter;
+extern int pinFocus;
+extern uint8_t photosDone;
+extern float gearing;
+extern uint8_t numberOfPhotos;
+extern float tRPM;
+extern bool extCam;
 
 // task handling
 extern TaskHandle_t battHandle;

@@ -19,7 +19,7 @@ static bool wgetFile(const char* filePath) {
     // if file exists but is empty, delete it to allow re-download
     File f = fp.open(filePath, FILE_READ);
     size_t fSize = f.size();
-    f.close();
+    f.close(); 
     if (!fSize) fp.remove(filePath);
   }
   if (!fp.exists(filePath)) {
@@ -28,7 +28,7 @@ static bool wgetFile(const char* filePath) {
     File f = fp.open(filePath, FILE_WRITE);
     if (f) {
       WiFiClientSecure wclient;
-      if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, git_rootCACertificate)) {
+      if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, git_rootCACertificate, SETASSIST)) {
         HTTPClient https;
         if (https.begin(wclient, GITHUB_HOST, HTTPS_PORT, downloadURL, true)) {
           LOG_INF("Downloading %s from %s", filePath, downloadURL);    
@@ -37,14 +37,14 @@ static bool wgetFile(const char* filePath) {
           if (httpCode == HTTP_CODE_OK) {
             fileSize = https.writeToStream(&f);
             if (fileSize <= 0) {
+              LOG_WRN("Download failed: writeToStream - %s", https.errorToString(fileSize).c_str());
               httpCode = 0;
-              LOG_WRN("Download failed: writeToStream");
             } else LOG_INF("Downloaded %s, size %s", filePath, fmtSize(fileSize));       
           } else LOG_WRN("Download failed, error: %s", https.errorToString(httpCode).c_str());    
           https.end();
           f.close();
           if (httpCode == HTTP_CODE_OK) {
-            if (!strcmp(filePath, CONFIG_FILE_PATH)) doRestart("config file downloaded");
+            if (!strcmp(filePath, CONFIG_FILE_PATH)) doRestart("Config file downloaded");
             res = true;
           } else {
             LOG_WRN("HTTP Get failed with code: %d", httpCode);

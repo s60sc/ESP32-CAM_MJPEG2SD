@@ -20,7 +20,7 @@ volatile audioAction THIS_ACTION = PASS_ACTION;
 
 /************************ webServer callbacks *************************/
 
-bool updateAppStatus(const char* variable, const char* value) {
+bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   // update vars from browser input
   esp_err_t res = ESP_OK; 
   sensor_t* s = esp_camera_sensor_get();
@@ -112,17 +112,6 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "micSckPin")) micSckPin = intVal;
   else if (!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
   else if (!strcmp(variable, "micSdPin")) micSdPin = intVal;
-  else if (!strcmp(variable, "micRem")) {
-    micRem = (bool)intVal;
-    stopAudio = !micRem;
-  }
-  else if (!strcmp(variable, "mampUse")) {
-    mampUse = (bool)intVal;
-    micTaskStatus();
-  }
-  else if (!strcmp(variable, "mampBckIo")) mampBckIo = intVal;
-  else if (!strcmp(variable, "mampSwsIo")) mampSwsIo = intVal;
-  else if (!strcmp(variable, "mampSdIo")) mampSdIo = intVal;
 #endif
   else if (!strcmp(variable, "servoDelay")) servoDelay = intVal;
   else if (!strcmp(variable, "servoMinAngle")) servoMinAngle = intVal;
@@ -162,13 +151,35 @@ bool updateAppStatus(const char* variable, const char* value) {
   else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
   else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
   else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal; 
+#if INCLUDE_PGRAM
+  else if (!strcmp(variable, "stepIN1pin")) setStepperPin((uint8_t)intVal, 0);
+  else if (!strcmp(variable, "stepIN2pin")) setStepperPin((uint8_t)intVal, 1);
+  else if (!strcmp(variable, "stepIN3pin")) setStepperPin((uint8_t)intVal, 2);
+  else if (!strcmp(variable, "stepIN4pin")) setStepperPin((uint8_t)intVal, 3);
+  else if (!strcmp(variable, "PGactive")) {
+    PGactive = stepperUse = (bool)intVal;
+    if (PGactive) setLamp(0);
+  }
+  else if (!strcmp(variable, "numberOfPhotos")) numberOfPhotos = intVal;
+  else if (!strcmp(variable, "gearing")) gearing = fltVal;
+  else if (!strcmp(variable, "RPM")) tRPM = intVal;
+  else if (!strcmp(variable, "clockwise")) clockWise = (bool)intVal;
+  else if (!strcmp(variable, "timeForPhoto")) timeForPhoto = intVal;
+  else if (!strcmp(variable, "pinShutter")) pinShutter = intVal;
+  else if (!strcmp(variable, "pinFocus")) pinFocus = intVal;
+  else if (!strcmp(variable, "extCam")) extCam = (bool)intVal;
+  else if (!strcmp(variable, "AtakePhotos")) {if (fromUser) takePhotos(true);}
+  else if (!strcmp(variable, "BabortPhotos")) {if (fromUser) takePhotos(false);}
+#endif
 
+#if INCLUDE_EXTHB
   // External Heartbeat
   else if (!strcmp(variable, "external_heartbeat_active")) external_heartbeat_active = (bool)intVal;
-  else if (!strcmp(variable, "external_heartbeat_domain")) strncpy(external_heartbeat_domain, value, 255);
-  else if (!strcmp(variable, "external_heartbeat_uri")) strncpy(external_heartbeat_uri, value, 255);
-  else if (!strcmp(variable, "external_heartbeat_port")) strncpy(external_heartbeat_port, value, 4);
-  else if (!strcmp(variable, "external_heartbeat_token")) strncpy(external_heartbeat_token, value, 255);
+  else if (!strcmp(variable, "external_heartbeat_domain")) snprintf(external_heartbeat_domain, MAX_HOST_LEN, "%s", value);
+  else if (!strcmp(variable, "external_heartbeat_uri")) snprintf(external_heartbeat_uri, FILE_NAME_LEN, "%s", value);
+  else if (!strcmp(variable, "external_heartbeat_port")) external_heartbeat_port = intVal;
+  else if (!strcmp(variable, "external_heartbeat_token")) snprintf(external_heartbeat_token, MAX_HOST_LEN, "%s", value);
+#endif
 
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
@@ -349,10 +360,13 @@ void buildAppJsonString(bool filter) {
     p += sprintf(p, "\"forcePlayback\":0,");  
   }
   p += sprintf(p, "\"showRecord\":%u,", (uint8_t)((isCapturing && doRecording) || forceRecord));
-  p += sprintf(p, "\"camModel\":\"%s\",", camModel); 
+  p += sprintf(p, "\"camModel\":\"%s\",", camModel);
+#if INCLUDE_PGRAM
+  p += sprintf(p, "\"PGactive\":\"%d\",", PGactive); 
+#endif
   p += sprintf(p, "\"RCactive\":\"%d\",", RCactive); 
   p += sprintf(p, "\"maxSteerAngle\":\"%d\",", maxSteerAngle); 
-  p += sprintf(p, "\"maxDutyCycle\":\"%d\",",  maxDutyCycle);
+  p += sprintf(p, "\"maxDutyCycle\":\"%d\",", maxDutyCycle);
   p += sprintf(p, "\"minDutyCycle\":\"%d\",", minDutyCycle);  
   p += sprintf(p, "\"allowReverse\":\"%d\",", allowReverse);   
   p += sprintf(p, "\"autoControl\":\"%d\",", autoControl);
@@ -454,6 +468,7 @@ void doAppPing() {
     checkMemory();
   }
   if (checkAlarm()) {
+    remoteServerReset();
     getExtIP();
 #if INCLUDE_SMTP
     if (smtpUse) {
@@ -464,8 +479,9 @@ void doAppPing() {
     LOG_INF("Daily rollover");
   }
 
+#if INCLUDE_EXTHB
   if (external_heartbeat_active) sendExternalHeartbeat();
-  
+#endif
   doIOExtPing();
   // check for night time actions
   if (isNight(nightSwitch)) {
@@ -478,9 +494,6 @@ void doAppPing() {
      goToSleep(wakePin, true);
     }
   } 
-}
-
-void stepperDone() {
 }
 
 /************** telegram app specific **************/
@@ -560,7 +573,7 @@ void appSpecificTelegramTask(void* p) {
         alertReady = false;
         sendTgramPhoto(alertBuffer, alertBufferSize, alertCaption);
         alertBufferSize = 0;
-      } else delay(2000); // avoid thrashing
+      } else delay(5000); // avoid thrashing
     }
   }
 #endif
@@ -675,17 +688,13 @@ lampType~0~3~S:Manual:PIR~How lamp activated
 servoUse~0~3~C~Use servos
 micUse~0~3~C~Use microphone
 pirPin~~3~N~Pin used for PIR
-lampPin~4~3~N~Pin used for Lamp
+lampPin~~3~N~Pin used for Lamp
 servoPanPin~~3~N~Pin used for Pan Servo
 servoTiltPin~~3~N~Pin used for Tilt Servo
 ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
-micSckPin~-1~3~N~Microphone I2S SCK pin
-micSWsPin~-1~3~N~Microphone I2S WS / PDM CLK pin
-micSdPin~-1~3~N~Microphone I2S SD / PDM DAT pin
-mampBckIo~-1~9~N~Amplifier I2S BCLK pin
-mampSwsIo~-1~9~N~Amplifier I2S LRCLK pin
-mampSdIo~-1~9~N~Amplifier I2S DIN pin
-mampUse~0~9~C~Use amp & speaker for remote mic
+micSckPin~-1~3~N~pin for mic I2S SCK 
+micSWsPin~-1~3~N~pin for mic I2S WS, PDM CLK
+micSdPin~-1~3~N~pin for mic I2S SD, PDM DAT 
 servoDelay~0~3~N~Delay between each 1 degree change (ms)
 servoMinAngle~0~3~N~Set min angle for servo model
 servoMaxAngle~180~3~N~Set max angle for servo model
@@ -736,4 +745,20 @@ devHub~0~2~C~Show Camera Hub tab
 buzzerUse~0~3~C~Use active buzzer
 buzzerPin~~3~N~Pin used for active buzzer
 buzzerDuration~~3~N~Duration of buzzer sound in secs
+stepIN1pin~-1~5~N~Stepper IN1 pin number
+stepIN2pin~-1~5~N~Stepper IN2 pin number
+stepIN3pin~-1~5~N~Stepper IN3 pin number
+stepIN4pin~-1~5~N~Stepper IN4 pin number
+PGactive~0~3~C~Enable photogrammetry
+numberOfPhotos~20~5~N~Number of photos
+RPM~1~5~N~Turntable revolution speed as RPM
+gearing~5.7~5~N~Turntable / motor gearing ratio
+clockwise~1~5~C~Clockwise turntable if true
+timeForFocus~0~5~N~Time allocated to auto focus (secs)
+timeForPhoto~2~5~N~Time allocated to take photo (secs)
+pinShutter~-1~5~N~Pin connected to camera shutter
+pinFocus~-1~5~N~Pin connected to camera focus
+extCam~0~5~C~Use external camera
+AtakePhotos~Start~5~A~Start photogrammetry
+BabortPhotos~Abort~5~A~Abort photogrammetry
 )~";

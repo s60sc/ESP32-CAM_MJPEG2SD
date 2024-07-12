@@ -293,7 +293,7 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
   // Upload a single file or whole folder using FTP or HTTPS server
   // folder is uploaded file by file
   fsBuff = (char*)fsChunk;
-  bool res = fsUse ? remoteServerConnect(hclient, fsServer, fsPort, hfs_rootCACertificate) : ftpConnect();
+  bool res = fsUse ? remoteServerConnect(hclient, fsServer, fsPort, hfs_rootCACertificate, FSFTP) : ftpConnect();
 
   if (!res) {
     LOG_WRN("Unable to connect to %s server", fsUse ? "HTTPS" : "FTP");

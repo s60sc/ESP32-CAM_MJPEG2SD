@@ -31,7 +31,13 @@
 #include <sstream>
 #include <Update.h>
 #include <WiFi.h>
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#include "HTTPClient.h" // issue #9997
+#else
 #include <HTTPClient.h>
+#endif
+////#include <NetworkClient.h> // v3.x only
+////#include <NetworkClientSecure.h> // v3.x only
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <esp_http_server.h>
@@ -57,6 +63,7 @@
 #define CSS_EXT ".css"
 #define ICO_EXT ".ico"
 #define SVG_EXT ".svg"
+#define JPG_EXT ".jpg"
 #define CONFIG_FILE_PATH DATA_DIR "/configs" TEXT_EXT
 #define LOG_FILE_PATH DATA_DIR "/log" TEXT_EXT
 #define OTA_FILE_PATH DATA_DIR "/OTA" HTML_EXT
@@ -80,6 +87,8 @@
 #define NULL_TEMP -127
 #define OneMHz 1000000
 #define USECS 1000000
+#define MAGIC_NUM 987654321
+#define MAX_FAIL 5
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
@@ -89,7 +98,7 @@ void appSpecificWsBinHandler(uint8_t* wsMsg, size_t wsMsgLen);
 void appSpecificWsHandler(const char* wsMsg);
 void appSpecificTelegramTask(void* p);
 void buildAppJsonString(bool filter);
-bool updateAppStatus(const char* variable, const char* value);
+bool updateAppStatus(const char* variable, const char* value, bool fromUser = true);
 
 // global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp    
 void buildJsonString(uint8_t filter);
@@ -151,7 +160,8 @@ float readTemperature(bool isCelsius, bool onlyDS18 = false);
 float readVoltage();
 void remote_log_init();
 void remoteServerClose(WiFiClientSecure& sclient);
-bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert);
+bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx);
+void remoteServerReset();
 void removeChar(char* s, char c);
 void replaceChar(char* s, char c, char r);
 void reset_log();
@@ -173,7 +183,7 @@ bool startWifi(bool firstcall = true);
 void stopPing();
 void syncToBrowser(uint32_t browserUTC);
 bool updateConfigVect(const char* variable, const char* value);
-void updateStatus(const char* variable, const char* _value);
+void updateStatus(const char* variable, const char* _value, bool fromUser = true);
 esp_err_t uploadHandler(httpd_req_t *req);
 void urlDecode(char* inVal);
 bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
@@ -259,13 +269,6 @@ extern char mqtt_user[];
 extern char mqtt_user_Pass[];
 extern char mqtt_topic_prefix[];  
 
-// External Heartbeat
-extern bool external_heartbeat_active;
-extern char external_heartbeat_domain[]; //External Heartbeat domain/IP  
-extern char external_heartbeat_uri[];    //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
-extern char external_heartbeat_port[];   //External Heartbeat server port to connect.  
-extern char external_heartbeat_token[];  //External Heartbeat server auth token.  
-
 // control sending alerts 
 extern size_t alertBufferSize;
 extern byte* alertBuffer;
@@ -347,6 +350,8 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
   (method == HTTP_LINK) ? "LINK" : \
   (method == HTTP_UNLINK) ? "UNLINK" : \
   "UNKNOWN"
+
+enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, REMFAILCNT};
 
 /*********************** Log formatting ************************/
 

@@ -19,6 +19,7 @@ bool dataFilesChecked = false;
 char startupFailure[SF_LEN] = {0};
 size_t alertBufferSize = 0;
 byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
+RTC_NOINIT_ATTR uint32_t crashLoop;
 static void initBrownout(void);
 
 /************************** Wifi **************************/
@@ -42,7 +43,7 @@ char ST_ns2[MAX_IP_LEN] = ""; // alternative DNS Server, can be blank
 // Access point Config Portal SSID and Pass
 char AP_SSID[MAX_HOST_LEN] = "";
 char AP_Pass[MAX_PWD_LEN] = "";
-char AP_ip[MAX_IP_LEN]  = ""; //Leave blank to use 192.168.4.1
+char AP_ip[MAX_IP_LEN]  = ""; // Leave blank to use 192.168.4.1
 char AP_sn[MAX_IP_LEN]  = "";
 char AP_gw[MAX_IP_LEN]  = "";
 
@@ -112,7 +113,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
     case ARDUINO_EVENT_WIFI_STA_START: LOG_INF("Wifi Station started, connecting to: %s", ST_SSID); break;
     case ARDUINO_EVENT_WIFI_STA_STOP: LOG_INF("Wifi Station stopped %s", ST_SSID); break;
     case ARDUINO_EVENT_WIFI_AP_START: {
-      if (!strcmp(WiFi.softAPSSID().c_str(), AP_SSID) || !strlen(AP_SSID)) {
+      if (strlen(AP_SSID) && !strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
         LOG_INF("Wifi AP SSID: %s started, use '%s://%s' to connect", WiFi.softAPSSID().c_str(), useHttps ? "https" : "http", WiFi.softAPIP().toString().c_str());
         APstarted = true;
       }
@@ -132,6 +133,9 @@ static void onWiFiEvent(WiFiEvent_t event) {
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: LOG_INF("WiFi Station disconnected"); break;
     case ARDUINO_EVENT_WIFI_AP_STACONNECTED: LOG_INF("WiFi AP client connection"); break;
     case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED: LOG_INF("WiFi AP client disconnection"); break;
+    case ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED: break;
+    case ARDUINO_EVENT_WIFI_AP_GOT_IP6: LOG_INF("AP interface V6 IP addr is preferred"); break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP6: LOG_INF("Station interface V6 IP addr is preferred"); break;
     default: LOG_WRN("WiFi Unhandled event %d", event); break;
   }
 }
@@ -170,6 +174,9 @@ static void setWifiSTA() {
       LOG_INF("Wifi Station set static IP");
     } 
   } else LOG_INF("Wifi Station IP from DHCP");
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  WiFi.enableIPv6(true); //// temp fix for arduino issue #9712
+#endif
   WiFi.begin(ST_SSID, ST_Pass);
   debugMemory("setWifiSTA");
 }
@@ -255,6 +262,10 @@ static void statusCheck() {
 #endif
 }
 
+void resetCrashLoop() {
+  crashLoop = 0;
+}
+
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   //uint32_t elapsed_time;
   //esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
@@ -268,6 +279,7 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
     }
   }
   resetWatchDog();
+  if (dataFilesChecked) resetCrashLoop();
   statusCheck();
 }
 
@@ -332,7 +344,7 @@ void getExtIP() {
   // Get external IP address
   if (doGetExtIP) { 
     WiFiClientSecure hclient;
-    if (remoteServerConnect(hclient, EXT_IP_HOST, HTTPS_PORT, "")) {
+    if (remoteServerConnect(hclient, EXT_IP_HOST, HTTPS_PORT, "", GETEXTIP)) {
       HTTPClient https;
       int httpCode = HTTP_CODE_NOT_FOUND;
       if (https.begin(hclient, EXT_IP_HOST, HTTPS_PORT, "/", true)) {
@@ -358,33 +370,7 @@ void getExtIP() {
 
 /************** generic WiFiClientSecure functions ******************/
 
-bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert) {
-  // Connect to server if not already connected or previously disconnected
-  if (sclient.connected()) return true;
-  else {
-    if (ESP.getFreeHeap() > TLS_HEAP) {
-      // not connected, so try for a period of time
-      if (useSecure && strlen(serverCert)) sclient.setCACert(serverCert);
-      else sclient.setInsecure(); // no cert check
-  
-      uint32_t startTime = millis();
-      while (!sclient.connected()) {
-        if (sclient.connect(serverName, serverPort)) break;
-        if (millis() - startTime > responseTimeoutSecs * 1000) break;
-        delay(2000);
-      }
-      if (sclient.connected()) return true;
-      else {
-        // failed to connect in allocated time
-        // 'Memory allocation failed' indicates lack of heap space
-        char errBuf[100] = "Unknown server error";
-        sclient.lastError(errBuf, sizeof(errBuf));
-        LOG_WRN("Timed out connecting to server: %s, Err: %s", serverName, errBuf);
-      }
-    } else LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), serverName);
-  }
-  return false;
-}
+static uint8_t failCounts[REMFAILCNT] = {0};
 
 void remoteServerClose(WiFiClientSecure& sclient) {
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
@@ -393,6 +379,51 @@ void remoteServerClose(WiFiClientSecure& sclient) {
   if (sclient.available()) sclient.flush();
 #endif
   if (sclient.connected()) sclient.stop();
+}
+
+bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx) {
+  // Connect to server if not already connected or previously disconnected
+  if (sclient.connected()) return true;
+  else {
+    if (failCounts[connIdx] >= MAX_FAIL) {
+      if (failCounts[connIdx] == MAX_FAIL) {
+        LOG_WRN("Abandon %s connection attempt", serverName);
+        failCounts[connIdx] = MAX_FAIL + 1;
+      }
+    } else {
+      if (ESP.getFreeHeap() > TLS_HEAP) {
+        // not connected, so try for a period of time
+        if (useSecure && strlen(serverCert)) sclient.setCACert(serverCert);
+        else sclient.setInsecure(); // no cert check
+    
+        uint32_t startTime = millis();
+        while (!sclient.connected()) {
+          if (sclient.connect(serverName, serverPort)) break;
+          if (millis() - startTime > responseTimeoutSecs * 1000) break;
+          delay(2000);
+        }
+        if (sclient.connected()) {
+          failCounts[connIdx] = 0;
+          return true;
+        }
+        else {
+          // failed to connect in allocated time
+          // 'Memory allocation failed' indicates lack of heap space
+          // 'Generic error' can indicate DNS failure
+          char errBuf[100] = "Unknown server error";
+          int errNum = sclient.lastError(errBuf, sizeof(errBuf));
+          LOG_WRN("Timed out connecting to server: %s, Err: %d, %s", serverName, errNum, errBuf);
+        }
+      } else LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), serverName);
+      failCounts[connIdx]++;
+    }
+  }
+  return false;
+}
+
+void remoteServerReset() {
+  // reset fail counts
+  for (uint8_t i = 0; i < REMFAILCNT; i++) failCounts[i] = 0;
 }
 
 /************************** NTP  **************************/
@@ -654,6 +685,10 @@ void debugMemory(const char* caller) {
 
 void doRestart(const char* restartStr) {
   LOG_ALT("Controlled restart: %s", restartStr);
+#ifdef ISCAM
+  appShutdown();
+#endif
+  resetCrashLoop();
   flush_log(true);
   delay(2000);
   ESP.restart();
@@ -702,14 +737,15 @@ bool useLogColors = false;  // true to colorise log messages (eg if using idf.py
 bool wsLog = false;
 
 #define WRITE_CACHE_CYCLE 5
+
 bool sdLog = false; // log to SD
 int logType = 0; // which log contents to display (0 : ram, 1 : sd, 2 : ws)
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
-// RAM memory based logging in RTC slow memory
-RTC_NOINIT_ATTR uint16_t mlogEnd; // cannot init here
+// RAM memory based logging in RTC slow memory (cannot init)
 RTC_NOINIT_ATTR char messageLog[RAM_LOG_LEN];
+RTC_NOINIT_ATTR uint16_t mlogEnd;
 
 static void ramLogClear() {
   mlogEnd = 0;
@@ -832,6 +868,8 @@ void logSetup() {
   printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
+  if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected");
+  crashLoop = MAGIC_NUM;
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
   xSemaphoreGive(logSemaphore);
@@ -1054,9 +1092,9 @@ IRAM_ATTR static void notifyBrownout(void *arg) {
 
 static void initBrownout(void) {
   // brownout warning only output once to prevent bootloop
-  if (brownoutStatus == 'R') LOG_WRN("%s", "Brownout warning previously notified");
+  if (brownoutStatus == 'R') LOG_WRN("Brownout warning previously notified");
   else if (brownoutStatus == 'B') {
-    LOG_WRN("%s", "Brownout occurred due to inadequate power supply");
+    LOG_WRN("Brownout occurred due to inadequate power supply");
     brownoutStatus = 'R';
   } else {
     brownout_hal_config_t cfg = {

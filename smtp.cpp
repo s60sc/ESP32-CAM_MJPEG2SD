@@ -74,7 +74,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
   char content[100];
   
   WiFiClientSecure client;
-  bool res = remoteServerConnect(client, smtp_server, smtp_port, smtp_rootCACertificate); 
+  bool res = remoteServerConnect(client, smtp_server, smtp_port, smtp_rootCACertificate, EMAILCONN); 
   if (!res) return false;
   
   while (true) { // fake non loop to enable breaks
