@@ -331,6 +331,7 @@
         
         async function saveChanges() {
           // save change and reboot
+          await sleep(100);
           sendControl('save', 1);
           await sleep(1000);
           sendControl('reset', 1);
@@ -412,7 +413,11 @@
             else if (e.tagName == 'BUTTON') processStatus(ID, e.id, e.value);
             // navigation and presentation icons
             else if (e.tagName == 'NAV' || e.tagName == 'DIV') processStatus(CLASS, e.classList.value, e.id);
-            else if (e.nodeName == 'INPUT' || e.nodeName == 'SELECT') {/*ignore*/}
+            else if (e.nodeName == 'INPUT') {
+              if (e.type === 'button') processStatus(ID, e.id, e.value);
+              else {/*ignore*/}
+            }
+            else if (e.nodeName == 'SELECT') {/*ignore*/}
           });
           
           // change events
@@ -638,6 +643,9 @@
                           (saveVal == valCntr ? '" checked>' : '">');
                         valCntr++;
                       });
+                    break;
+                    case 'A': // action button
+                      inputHtml = '<input type="button" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
                     break;
                     default:
                       alert("Unhandled config input type " + value);

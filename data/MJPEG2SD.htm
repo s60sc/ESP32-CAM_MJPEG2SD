@@ -167,8 +167,9 @@
         ry: 15%;
       }
       
-      rect:active {
+      .buttonRect:focus {
         fill: var(--buttonActive);
+        outline: none; /* Remove focus outline if not needed */
       }
       
       rect:hover{
@@ -286,6 +287,10 @@
       
       input[type=number]::-webkit-inner-spin-button {
         opacity: 1;
+      }
+      
+      input[type="button"]:focus {
+        background-color: var(--buttonActive);
       }
       
       #appLog {
@@ -1516,25 +1521,25 @@
         <div style="grid-column: span 4"><br></div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local" id="refreshLog">Refresh Log</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local" id="clearLog">Clear Log</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text id="save" class="midText">Save</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text id="reset" class="midText">Reboot ESP</text>
           </svg>
         </div>
@@ -1551,25 +1556,25 @@
       <div class="grid-cols4">
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text id="save" class="midText">Save</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text id="reset" class="midText">Reboot ESP</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text id="deldata" class="midText">Reload /data</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text id="clear" class="midText">Clear NVS</text>
           </svg>
         </div>
@@ -1582,32 +1587,38 @@
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="wifi">Wifi</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="motion">Motion</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="peripherals">Peripherals</text>
           </svg>
         </div>
         <div>
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="other">Other</text>
           </svg>
         </div>
         <div id="RCconfigBtn" class="hidden">
           <svg>
-            <rect/>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="RCconfig">RC Config</text>
+          </svg>
+        </div>
+        <div id="PGconfigBtn" class="hidden">
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="PGconfig">PG Config</text>
           </svg>
         </div>
       </div>
@@ -1718,6 +1729,7 @@
           else if (key == "peripherals") getConfig("0123");
           else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
+          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
           else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
@@ -1744,6 +1756,10 @@
           else if (key == "servoCenter") servoCenter = value;
           else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle); }
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
+          else if (key == "PGactive") {
+          dbg("val1 "+ value + ", val2 "+ Number(value) );
+          Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
+          }
           else if (key == "waitTime") waitTime = value;
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
