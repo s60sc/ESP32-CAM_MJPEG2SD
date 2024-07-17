@@ -22,10 +22,8 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 9.9:
-*  PDM microphone now supported with both arduino core v2.x and v3.x
-*  [Photogrammetry](#photogrammetry) feature added
-*  Workarounds for arduino core v3.x issues [#9712](https://github.com/espressif/arduino-esp32/issues/9712) and [#9997](https://github.com/espressif/arduino-esp32/issues/9997)
+Changes in version 9.9.1:
+*  If compiling with arduino core v3.x use at least v3.0.3 which contains network fixes
 
 ## Purpose
 

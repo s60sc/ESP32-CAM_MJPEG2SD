@@ -165,6 +165,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "RPM")) tRPM = intVal;
   else if (!strcmp(variable, "clockwise")) clockWise = (bool)intVal;
   else if (!strcmp(variable, "timeForPhoto")) timeForPhoto = intVal;
+  else if (!strcmp(variable, "timeForFocus")) timeForFocus = intVal;
   else if (!strcmp(variable, "pinShutter")) pinShutter = intVal;
   else if (!strcmp(variable, "pinFocus")) pinFocus = intVal;
   else if (!strcmp(variable, "extCam")) extCam = (bool)intVal;

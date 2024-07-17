@@ -175,7 +175,7 @@ static void setWifiSTA() {
     } 
   } else LOG_INF("Wifi Station IP from DHCP");
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-  WiFi.enableIPv6(true); //// temp fix for arduino issue #9712
+  WiFi.enableIPv6(USE_IP6); 
 #endif
   WiFi.begin(ST_SSID, ST_Pass);
   debugMemory("setWifiSTA");

@@ -85,7 +85,7 @@ void getPhoto() {
     // save file to SD
     pFile.write((uint8_t*)alertBuffer, alertBufferSize);
     pFile.close();
-    LOG_INF("Photo saved in %s", pName);
+    LOG_INF("Photo %u of % u saved in %s", photosDone + 1, numberOfPhotos, pName);
     alertBufferSize = 0;
   } else LOG_WRN("Failed to get photo");
   setLamp(0);
@@ -93,6 +93,7 @@ void getPhoto() {
 
 static void takePhoto() {
   // control external camera
+  if (timeForFocus * 1000 > timeForPhoto * 1000 - shutterTime) timeForFocus = timeForPhoto - 1;
   uint32_t waitTime = (timeForPhoto - timeForFocus) * 1000 - shutterTime;
   delay(waitTime); // allow time for turntable to stabilise
   if (pinFocus) {
@@ -104,7 +105,7 @@ static void takePhoto() {
   delay(shutterTime);
   digitalWrite(pinShutter, LOW);
   if (pinFocus) digitalWrite(pinFocus, LOW);
-  LOG_INF("Photo taken");
+  LOG_INF("Photo %u of %u taken", photosDone + 1, numberOfPhotos);
 }
 
 static void pgramTask (void *pvParameter) {

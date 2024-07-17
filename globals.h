@@ -31,11 +31,7 @@
 #include <sstream>
 #include <Update.h>
 #include <WiFi.h>
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#include "HTTPClient.h" // issue #9997
-#else
 #include <HTTPClient.h>
-#endif
 ////#include <NetworkClient.h> // v3.x only
 ////#include <NetworkClientSecure.h> // v3.x only
 #include <WiFiClient.h>
