@@ -142,7 +142,6 @@ static void onWiFiEvent(WiFiEvent_t event) {
 
 static void setWifiAP() {
   if (!APstarted) {
-    WiFi.softAPdisconnect(true); // kill rogue AP on startup
     // Set access point with static ip if provided
     if (strlen(AP_ip) > 1) {
       LOG_INF("Set AP static IP :%s, %s, %s", AP_ip, AP_gw, AP_sn);  
@@ -187,6 +186,7 @@ bool startWifi(bool firstcall) {
     WiFi.mode(WIFI_AP_STA);
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
     WiFi.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
+    WiFi.softAPdisconnect(true); // kill rogue AP on startup
     WiFi.setHostname(hostName);
     delay(100);
     WiFi.onEvent(onWiFiEvent);
