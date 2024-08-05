@@ -873,6 +873,10 @@
         display: flex;
         align-items: center;
       }
+      
+      .touchDisabled {
+        touch-action: none;
+      }
 
     </style>
   </head>
@@ -1462,7 +1466,7 @@
                 </svg>
               </div>
             </div>
-            <div id="RCdisplay" class="hidden">
+            <div id="RCdisplay" class="hidden touchDisabled">
               <div class="RCcontrolFmt RClightsFmt" title="Switch RC lights on / off">  
                 <svg class="svgIcon">
                   <rect class="RCoff"/>
@@ -1756,10 +1760,7 @@
           else if (key == "servoCenter") servoCenter = value;
           else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle); }
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
-          else if (key == "PGactive") {
-          dbg("val1 "+ value + ", val2 "+ Number(value) );
-          Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
-          }
+          else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
           else if (key == "waitTime") waitTime = value;
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
