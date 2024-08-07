@@ -26,7 +26,9 @@
 #include "ping/ping_sock.h"
 #include <Preferences.h>
 #include <regex>
+#if !CONFIG_IDF_TARGET_ESP32C3
 #include <SD_MMC.h>
+#endif
 #include <LittleFS.h>
 #include <sstream>
 #include <Update.h>
@@ -347,7 +349,7 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
   (method == HTTP_UNLINK) ? "UNLINK" : \
   "UNKNOWN"
 
-enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, REMFAILCNT};
+enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, BLOCKLIST, REMFAILCNT}; // REMFAILCNT always last
 
 /*********************** Log formatting ************************/
 

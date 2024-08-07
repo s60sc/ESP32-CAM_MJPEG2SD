@@ -82,7 +82,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define USE_IP6 true
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.9.1"
+#define APP_VER "9.9.2"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -116,7 +116,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 15
+#define CFG_VER 16
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -224,7 +224,7 @@ bool haveWavFile(bool isTL = false);
 bool isNight(uint8_t nightSwitch);
 void keepFrame(camera_fb_t* fb);
 void micTaskStatus();
-void motorSpeed(int speedVal);
+void motorSpeed(int speedVal, bool leftMotor = true);
 void openSDfile(const char* streamFile);
 bool prepAudio();
 void prepAviIndex(bool isTL = false);
@@ -252,6 +252,7 @@ void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
 void storeSensorData(bool fromStream);
 void takePhotos(bool startPhotos);
+void trackSteeering(int controlVal, bool steering);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
@@ -402,19 +403,23 @@ extern uint8_t stepINpins[];
 extern bool RCactive;
 extern int motorRevPin;
 extern int motorFwdPin;
+extern int motorRevPinR;
+extern int motorFwdPinR;
+extern bool trackSteer;
 extern int servoSteerPin;
 extern int lightsRCpin;
 extern int pwmFreq;
-extern int maxSteerAngle;  
-extern int maxDutyCycle;  
-extern int minDutyCycle;  
-extern bool allowReverse;   
-extern bool autoControl; 
-extern int waitTime; 
+extern int maxSteerAngle;
+extern int maxTurnSpeed;
+extern int maxDutyCycle;
+extern int minDutyCycle;
+extern bool allowReverse;
+extern bool autoControl;
+extern int waitTime;
 extern bool stickUse;
 extern int stickzPushPin;
-extern int stickXpin; 
-extern int stickYpin; 
+extern int stickXpin;
+extern int stickYpin;
 
 // External Heartbeat
 extern bool external_heartbeat_active;

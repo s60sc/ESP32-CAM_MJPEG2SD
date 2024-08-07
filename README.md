@@ -22,8 +22,6 @@ The ESP32 cannot support all of the features as it will run out of heap space.  
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 9.9.1:
-*  If compiling with arduino core v3.x use at least v3.0.3 which contains network fixes
 
 ## Purpose
 
@@ -60,6 +58,7 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
+If compiling with arduino core v3.x use at least v3.0.3 which contains network fixes.
 Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
 * Freenove ESP32S3 Cam board - `CAMERA_MODEL_ESP32S3_EYE` 
@@ -69,7 +68,7 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 * ESP32S3 - `8M with spiffs (...)`
 
 **NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.x or v3.x
-using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
+using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)** 
 
 **NOTE: If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
 
@@ -303,6 +302,8 @@ Pressing the **RC Config** button will allow pins to be defined for:
 - H-bridge motor control (tested with MX1508)
 - On / off lights
 - Further parameters for vehicle control.
+
+Steering can either be provided by servo control, or by track steering using separately controlled left and right side motors.
 
 The streaming view will now have a red button in the top left. Press this to show / hide overlaid steering and motor controls. Camera view buttons can be used to change to full screen. Tethered vehicles can also be controlled via a HW-504 type joystick. Camera view (and microphone and telemetry if enabled) can be recorded.  
 Motion detection should be disabled beforehand.  

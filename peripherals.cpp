@@ -98,14 +98,18 @@ int buzzerDuration; // time buzzer sounds in seconds
 bool RCactive = false;
 int motorRevPin;
 int motorFwdPin;
+int motorRevPinR;
+int motorFwdPinR;
 int servoSteerPin;
 int lightsRCpin;
 int pwmFreq = 50;
-int maxSteerAngle;  
-int maxDutyCycle;  
-int minDutyCycle;  
-bool allowReverse;   
-bool autoControl; 
+int maxSteerAngle;
+int maxDutyCycle;
+int minDutyCycle;
+int maxTurnSpeed;
+bool trackSteer = false;
+bool allowReverse;
+bool autoControl;
 int waitTime; 
 int stickzPushPin; // digital pin connected to switch output
 int stickXpin; // analog pin connected to X output
@@ -159,6 +163,11 @@ void buzzerAlert(bool buzzerOn) {
 // Control a Pan-Tilt-Camera stand using two servos connected to pins specified above
 // Or control an RC servo
 // Only tested for SG90 style servos
+// Typically, wiring is:
+// - orange: signal
+// - red: 5V
+// - brown: GND
+//
 #define PWM_FREQ 50 // hertz
 #define DUTY_BIT_DEPTH 12 // max for ESP32-C3 is 14
 #if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
@@ -632,22 +641,27 @@ MX1508 DC Motor Driver with PWM Control
 #define CONFIG_MCPWM_SUPPRESS_DEPRECATE_WARN true 
 #include "driver/mcpwm.h" // v2.x
 
+static void prepMotor(mcpwm_unit_t mcUnit, int fwdPin, int revPin) {
+  // setup gpio pins used for motor (forward, optional reverse), and pwm frequency
+  LOG_INF("initialising MCPWM unit %d, using pins %d, %d", mcUnit, fwdPin, revPin);
+  mcpwm_gpio_init(mcUnit, MCPWM0A, fwdPin);
+  if (motorRevPin > 0) mcpwm_gpio_init(mcUnit, MCPWM0B, revPin); 
+  mcpwm_config_t pwm_config;
+  pwm_config.frequency = pwmFreq;  // pwm frequency
+  pwm_config.cmpr_a = 0;    // duty cycle of PWMxA
+  pwm_config.cmpr_b = 0;    // duty cycle of PWMxb
+  pwm_config.counter_mode = MCPWM_UP_COUNTER;
+  pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
+  // Configure PWM0A & PWM0B with above settings
+  mcpwm_init(mcUnit, MCPWM_TIMER_0, &pwm_config); 
+}
+
 void prepMotors() {
 #if !CONFIG_IDF_TARGET_ESP32C3
   if (RCactive) {
     if (motorFwdPin > 0) {
-      // setup gpio pins used for motor (forward, optional reverse), and pwm frequency
-      LOG_INF("initialising MCPWM, using pins %d, %d", motorFwdPin, motorRevPin);
-      mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, motorFwdPin);
-      if (motorRevPin > 0) mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0B, motorRevPin); 
-      mcpwm_config_t pwm_config;
-      pwm_config.frequency = pwmFreq;  // pwm frequency
-      pwm_config.cmpr_a = 0;    // duty cycle of PWMxA
-      pwm_config.cmpr_b = 0;    // duty cycle of PWMxb
-      pwm_config.counter_mode = MCPWM_UP_COUNTER;
-      pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
-      // Configure PWM0A & PWM0B with above settings
-      mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config); 
+      prepMotor(MCPWM_UNIT_0, motorFwdPin, motorRevPin);
+      if (trackSteer) prepMotor(MCPWM_UNIT_1, motorFwdPinR, motorRevPinR);
     } else LOG_WRN("RC motor pins not defined");
   }
 #else
@@ -656,40 +670,51 @@ void prepMotors() {
 #endif
 }
 
-static void motorForward(float duty_cycle) {
+static void motorDirection(float duty_cycle, mcpwm_unit_t mcUnit, bool goFwd) {
 #if !CONFIG_IDF_TARGET_ESP32C3
-  // motor moves in forward direction, with given duty cycle %
-  mcpwm_set_signal_low(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B);
-  mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, duty_cycle);
-  // call this each time, if previously in low/high state
-  mcpwm_set_duty_type(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, MCPWM_DUTY_MODE_0); 
+  mcpwm_set_signal_low(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_B : MCPWM_OPR_A);
+  // motor moves in given direction, with given duty cycle %
+  if (duty_cycle > 0.0) {
+    mcpwm_set_duty(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B, duty_cycle);
+    // call this each time, if previously in low/high state
+    mcpwm_set_duty_type(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B, MCPWM_DUTY_MODE_0); 
+  } else {
+    // stop motor
+    mcpwm_set_signal_low(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B);
+  }
 #endif
 }
 
-static void motorReverse(float duty_cycle) {
-#if !CONFIG_IDF_TARGET_ESP32C3
-  // motor moves in backward direction, with given duty cycle %
-  mcpwm_set_signal_low(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A);
-  mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, duty_cycle);
-  // call this each time, if previously in low/high state
-  mcpwm_set_duty_type(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, MCPWM_DUTY_MODE_0);  
-#endif
-}
-
-static void motorStop() {
-#if !CONFIG_IDF_TARGET_ESP32C3
-  // motor stop
-  mcpwm_set_signal_low(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A);
-  mcpwm_set_signal_low(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B);
-#endif
-}
-
-void motorSpeed(int speedVal) {
+void motorSpeed(int speedVal, bool leftMotor) {
   // speedVal is signed duty cycle, convert to unsigned float
+  if (abs(speedVal) < minDutyCycle) speedVal = 0;
   float speedValFloat = (float)(abs(speedVal));
-  if (speedVal == 0) motorStop();
-  else if (motorFwdPin > 0 && speedVal > 0.0) motorForward(speedValFloat);
-  else if (motorRevPin > 0 && speedVal < 0.0) motorReverse(speedValFloat); 
+  if (leftMotor) {
+    // left motor steering or all motor direction
+    if (motorRevPin && speedVal < 0) motorDirection(speedValFloat, MCPWM_UNIT_0, false); 
+    else if (motorFwdPin) motorDirection(speedValFloat, MCPWM_UNIT_0, true);
+  } else {
+    // right motor steering
+    if (motorRevPinR && speedVal < 0) motorDirection(speedValFloat, MCPWM_UNIT_1, false); 
+    else if (motorFwdPinR) motorDirection(speedValFloat, MCPWM_UNIT_1, true);
+  }
+}
+
+static inline int clampValue(int value, int maxValue) {
+  // clamp value to the allowable range
+  return value > maxValue ? maxValue : (value < -maxValue ? -maxValue : value);
+}
+
+void trackSteeering(int controlVal, bool steering) {
+  // set left and right motor speed values depending on requested speed and request steering angle
+  // steering = true ? controlVal = steer angle : controlVal = speed change
+  static int driveSpeed = 0; // -ve for reverse
+  static int steerAngle = 0; // -ve for left turn
+  steering ? steerAngle = controlVal - servoCenter : driveSpeed = controlVal;
+  int turnSpeed = (clampValue(steerAngle, maxSteerAngle) * maxTurnSpeed / 2) / maxSteerAngle; 
+  if (driveSpeed < 0) turnSpeed = 0 - turnSpeed;
+  motorSpeed(clampValue(driveSpeed + turnSpeed, maxDutyCycle)); // left
+  motorSpeed(clampValue(driveSpeed - turnSpeed, maxDutyCycle), false); //right
 }
 
 /********************************* joystick *************************************/

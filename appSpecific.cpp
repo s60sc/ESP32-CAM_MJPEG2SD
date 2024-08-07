@@ -134,12 +134,18 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
   else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
   else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
+  else if (!strcmp(variable, "motorRevPinR")) motorRevPinR = intVal;
+  else if (!strcmp(variable, "motorFwdPinR")) {
+    motorFwdPinR = intVal;
+    if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
+  }
   else if (!strcmp(variable, "lightsRCpin")) lightsRCpin = intVal;
   else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
   else if (!strcmp(variable, "RClights")) setLights((bool)intVal);
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
   else if (!strcmp(variable, "maxDutyCycle")) maxDutyCycle = intVal;  
   else if (!strcmp(variable, "minDutyCycle")) minDutyCycle = intVal;  
+  else if (!strcmp(variable, "maxTurnSpeed")) maxTurnSpeed = intVal;  
   else if (!strcmp(variable, "allowReverse")) allowReverse = (bool)intVal;   
   else if (!strcmp(variable, "autoControl")) autoControl = (bool)intVal; 
   else if (!strcmp(variable, "waitTime")) waitTime = intVal;    
@@ -306,10 +312,14 @@ void appSpecificWsHandler(const char* wsMsg) {
 #endif
     break;
     case 'M': 
-      motorSpeed(controlVal);
+      // motor speed
+      if (trackSteer) trackSteeering(controlVal, false);
+      else motorSpeed(controlVal); 
     break;
-    case 'D': 
-      setSteering(controlVal);
+    case 'D':
+      // steering
+      if (trackSteer) trackSteeering(controlVal, true);
+      else setSteering(controlVal);
     break;
     case 'C': 
       // control request
@@ -725,8 +735,10 @@ teleUse~0~3~C~Use telemetry recording
 teleInterval~1~3~N~Telemetry collection interval (secs)
 RCactive~0~3~C~Enable remote control
 servoSteerPin~~4~N~Pin used for steering servo
-motorRevPin~~4~N~Pin used for motor reverse
-motorFwdPin~~4~N~Pin used for motor forward
+motorRevPin~~4~N~Pin used for motor reverse / left track steer
+motorFwdPin~~4~N~Pin used for motor forward / left track steer
+motorRevPinR~~4~N~Pin used for right track reverse
+motorFwdPinR~~4~N~Pin used for right track forward
 lightsRCpin~~4~N~Pin used for RC lights output
 stickXpin~~4~N~Pin used for joystick steering
 stickYpin~~4~N~Pin used for joystick motor
@@ -734,6 +746,7 @@ stickzPushPin~~4~N~Pin used for joystick lights
 stickUse~0~4~C~Use joystick
 pwmFreq~50~4~N~RC Motor PWM frequency
 maxSteerAngle~45~4~N~Max steering angle from straightahead
+maxTurnSpeed~50~4~N~Max tracked turn speed differential 
 maxDutyCycle~100~4~N~Max motor duty cycle % (speed)
 minDutyCycle~10~4~N~Min motor duty cycle % (stop)
 allowReverse~1~4~C~Reverse motion required

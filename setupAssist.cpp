@@ -19,7 +19,7 @@ static bool wgetFile(const char* filePath) {
     // if file exists but is empty, delete it to allow re-download
     File f = fp.open(filePath, FILE_READ);
     size_t fSize = f.size();
-    f.close(); 
+    f.close();
     if (!fSize) fp.remove(filePath);
   }
   if (!fp.exists(filePath)) {
