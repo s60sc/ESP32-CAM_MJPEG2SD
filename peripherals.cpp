@@ -637,8 +637,58 @@ MX1508 DC Motor Driver with PWM Control
 - IN4 / OUT4 B2
 */
 
-////#include "driver/mcpwm_prelude.h" // v3.x
-#define CONFIG_MCPWM_SUPPRESS_DEPRECATE_WARN true 
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+
+#include "esp_bdc_motor.h" // v3.x
+
+#define MCPWM_TIMER_HZ 100000 
+static bdc_motor_handle_t motor[2] = {NULL, NULL};
+
+static bool prepBDCmotor(int groupId, int motorId, int pwmAgpio, int pwmBgpio) {
+  bdc_motor_config_t motor_config = {
+      .pwma_gpio_num = (uint32_t)pwmAgpio, // forward pin 
+      .pwmb_gpio_num = (uint32_t)pwmBgpio, // reverse pin
+      .pwm_freq_hz = (uint32_t)pwmFreq,
+  };
+  bdc_motor_mcpwm_config_t mcpwm_config = {
+      .group_id = groupId, // MCPWM peripheral number (0, 1)
+      .resolution_hz = MCPWM_TIMER_HZ,
+  };
+  esp_err_t res = bdc_motor_new_mcpwm_device(&motor_config, &mcpwm_config, &motor[motorId]);
+  
+  if (res == ESP_OK) res = bdc_motor_enable(motor[motorId]);
+  if (res != ESP_OK) LOG_ERR("%s", espErrMsg(res));
+  return res == ESP_OK ? true : false;
+}
+
+static void motorDirection(uint32_t dutyTicks, int motorId, bool goFwd) {
+#if !CONFIG_IDF_TARGET_ESP32C3
+  if (dutyTicks > 0) {
+    // set direction
+    goFwd ? bdc_motor_forward(motor[motorId]) : bdc_motor_reverse(motor[motorId]);
+  }
+  // set speed
+  bdc_motor_set_speed(motor[motorId], dutyTicks);
+#endif
+}
+
+void motorSpeed(int speedVal, bool leftMotor) {
+  // speedVal is signed duty cycle, convert to unsigned uint32_t duty ticks
+  if (abs(speedVal) < minDutyCycle) speedVal = 0;
+  uint32_t dutyTicks = abs(speedVal) * MCPWM_TIMER_HZ / pwmFreq / 100;
+  if (leftMotor) {
+    // left motor steering or all motor direction
+    if (motorRevPin && speedVal < 0) motorDirection(dutyTicks, 0, false); 
+    else if (motorFwdPin) motorDirection(dutyTicks, 0, true);
+  } else {
+    // right motor steering
+    if (motorRevPinR && speedVal < 0) motorDirection(dutyTicks, 1, false); 
+    else if (motorFwdPinR) motorDirection(dutyTicks, 1, true);
+  }
+}
+
+#else
+
 #include "driver/mcpwm.h" // v2.x
 
 static void prepMotor(mcpwm_unit_t mcUnit, int fwdPin, int revPin) {
@@ -654,20 +704,6 @@ static void prepMotor(mcpwm_unit_t mcUnit, int fwdPin, int revPin) {
   pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
   // Configure PWM0A & PWM0B with above settings
   mcpwm_init(mcUnit, MCPWM_TIMER_0, &pwm_config); 
-}
-
-void prepMotors() {
-#if !CONFIG_IDF_TARGET_ESP32C3
-  if (RCactive) {
-    if (motorFwdPin > 0) {
-      prepMotor(MCPWM_UNIT_0, motorFwdPin, motorRevPin);
-      if (trackSteer) prepMotor(MCPWM_UNIT_1, motorFwdPinR, motorRevPinR);
-    } else LOG_WRN("RC motor pins not defined");
-  }
-#else
-  RCactive = false;
-  LOG_WRN("This function not compatible with ESP32-C3");
-#endif
 }
 
 static void motorDirection(float duty_cycle, mcpwm_unit_t mcUnit, bool goFwd) {
@@ -700,6 +736,8 @@ void motorSpeed(int speedVal, bool leftMotor) {
   }
 }
 
+#endif
+
 static inline int clampValue(int value, int maxValue) {
   // clamp value to the allowable range
   return value > maxValue ? maxValue : (value < -maxValue ? -maxValue : value);
@@ -715,6 +753,27 @@ void trackSteeering(int controlVal, bool steering) {
   if (driveSpeed < 0) turnSpeed = 0 - turnSpeed;
   motorSpeed(clampValue(driveSpeed + turnSpeed, maxDutyCycle)); // left
   motorSpeed(clampValue(driveSpeed - turnSpeed, maxDutyCycle), false); //right
+}
+
+void prepMotors() {
+#if !CONFIG_IDF_TARGET_ESP32C3
+  if (RCactive) {
+    if (motorFwdPin > 0) {
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+      // v3.x
+      prepBDCmotor(0, 0, motorFwdPin, motorRevPin);
+      if (trackSteer) prepBDCmotor(0, 1, motorFwdPinR, motorRevPinR);
+#else
+      // v2.x
+      prepMotor(MCPWM_UNIT_0, motorFwdPin, motorRevPin);
+      if (trackSteer) prepMotor(MCPWM_UNIT_1, motorFwdPinR, motorRevPinR);
+#endif
+    } else LOG_WRN("RC motor pins not defined");
+  }
+#else
+  RCactive = false;
+  LOG_WRN("This function not compatible with ESP32-C3");
+#endif
 }
 
 /********************************* joystick *************************************/

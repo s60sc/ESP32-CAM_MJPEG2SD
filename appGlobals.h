@@ -82,7 +82,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define USE_IP6 true
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.9.2"
+#define APP_VER "9.9.3"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
