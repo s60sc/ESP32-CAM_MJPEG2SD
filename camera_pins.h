@@ -429,7 +429,7 @@
 //Define SD Pins
 #define SD_MMC_CLK 42
 #define SD_MMC_CMD 39
-#define SD_MMC_D0 4
+#define SD_MMC_D0 41
 
 #else
 #error "Camera model not selected"
