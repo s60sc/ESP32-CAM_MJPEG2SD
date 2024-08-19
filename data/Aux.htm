@@ -1111,32 +1111,10 @@
           else if (key == "logType") { logType = value; sendControl(key, value); return; }
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
-          else if (key == "motion") getConfig("01");
-          else if (key == "other") getConfig("012");
-          else if (key == "peripherals") getConfig("0123");
           else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
-          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
-          else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
-          else if (key == "framesize") fromUser = setFrameSize(key, value, fromUser);
-          else if (key == "get-still") getStill();
-          else if (key == "download" && $("#download").value.includes('.')) doDownload();
-          else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
-          else if (key == "devHub") {value == "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]')); }
-          else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
-          else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
-          else if (key == "agc") setAgc(key, value);
-          else if (key == "forceRecord") value = recordAction(key);
-          else if (key == "showRecord") setRecIndicator(value);
-          else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
-          else if (key == "forceStream") streamAction(key);
-          else if (key == "micRem") micAction(true);
-          else if (key == "mampUse") micShow(Number(value));
-          else if (key == "RCactive") RCstatus(Number(value));
-          else if (key == "RClights") value = RCbuttons(key, value);
-          else if (key == "RCcontrols") showRCcontrols(RCbuttons(key, value));
           else if (key == "remoteRCip") RCremIP = value;
           else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
           else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
@@ -1144,7 +1122,6 @@
           else if (key == "servoCenter") servoCenter = value;
           else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle, true); }
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
-          else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
           else if (key == "waitTime") waitTime = value;
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
