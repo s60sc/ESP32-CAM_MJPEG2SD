@@ -4,7 +4,7 @@
         /*********** initialisation  ***********/
 
         'use strict'
-             
+
         const isSecure = window.location.protocol == 'https:' ? true : false;
         const defaultPort = window.location.protocol == 'https:' ? 443 : 80;
         const webPort = !window.location.port ? defaultPort : window.location.port;
@@ -13,8 +13,11 @@
         const webServer = webHost + ":" + webPort;
         const wsServer = (isSecure ? "wss" : "ws") + "://" + baseHost + ":" + webPort + "/ws";
 
-        let ws = null;
+        const wsSkt = [null, null];
+        const ws = wsSkt[0];
+        const wsServers = [wsServer, null];
         let hbTimer = null;
+        let refreshTimer = null;
         let updateData = {}; // receives json for status data as key val pairs
         let statusData = {}; // stores all status data as key val pairs
         let cfgGroupNow = -1;
@@ -29,7 +32,7 @@
         const smallThumbSize = parseFloat(root.getPropertyValue('--smallThumbSize')) * baseFontSize;
         let isImmed = false;
         let logType = appLogInit;
-        
+
         async function initialise() {
           try {
             await sleep(500);
@@ -38,44 +41,46 @@
             if (doCustomInit) customInit();
             setListeners();
             doLoadStatus ? loadStatus("") : configStatus(false); 
-            if (doRefreshTimer && hbTimer == null) setTimeout(refreshStatus, refreshInterval);
+            if (doRefreshTimer && refreshTimer == null) refreshStatus();
             if (doInitWebSocket) initWebSocket();
           } catch (error) {
-            showLog("Error: " + error.message);
-            alert("Error: " + error.message);
+            showLog("Initialise -  " + error.message);
+            alert("Initialise - " + error.message);
           } 
         }
-        
+
         /*********** websocket functions ***********/
-              
+
         // define websocket handling
-        function initWebSocket() {
-          if (ws == null) {
-            ws = new WebSocket(wsServer);
-            ws.onopen = onOpen;
-            ws.onclose = onClose;
-            ws.onmessage = onMessage; 
-            ws.onerror = onError;
+        function initWebSocket(index = 0) {
+          if (wsSkt[index] == null) {
+            wsSkt[index] = new WebSocket(wsServers[index]);
+            wsSkt[index].onopen = function(event) {
+              // connect to websocket server
+              showLog("Connect to " + wsServers[index]);
+              if (index == 0) {
+                if (doCustomSync) customSync();
+                if (doHeartbeat) heartbeat();
+              }
+            }
+            wsSkt[index].onmessage = onMessage;
+            wsSkt[index].onerror =  function(error) {
+              showLog("WS Error: " + error);
+            }
+            wsSkt[index].onclose = function(event) {
+              showLog("Disconnected: " + event.code + ' - ' + event.reason);
+              loggingOn = false;
+              if (hbTimer) stopHeartbeat();
+              wsSkt[index] = null;
+              // event.codes:
+              //   1006 if server not available, or another web page is already open
+              //   1005 if closed from app
+              if (event.code == 1006) {}
+              else if (event.code != 1005) setTimeout(initWebSocket(index), refreshInterval); // retry if any other reason
+            }
           }
-          showLog("Connect to: " + wsServer);
         }
-          
-        // periodically check that connection is still up and get status
-        function heartbeat() {
-          if (!ws) return;
-          if (ws.readyState !== 1) return;
-          sendCmd("H");
-          clearTimeout(hbTimer);
-          hbTimer = setTimeout(heartbeat, refreshInterval);  
-        }
-        
-        // connect to websocket server
-        function onOpen(event) {
-          showLog("Connected");
-          if (doCustomSync) customSync();
-          if (doHeartbeat) heartbeat();
-        }
-        
+
         // process received WS message
         function onMessage(messageEvent) {
           if (messageEvent.data.startsWith("{")) {
@@ -87,30 +92,29 @@
             else buildTable(updateData, filter); // format received config json into html table
           } else showLog(messageEvent.data, false);
         }
-        
-        function onError(event) {
-          showLog("WS Error: " + event.code);
+
+        async function closeWS(event, index) {
+          if (wsSkt[index] != null) {
+            wsSkt[index].send('K');
+            await sleep(500);
+            wsSkt[index].close(event, index);
+          }
         }
-        
-        function onClose(event) {
-          showLog("Disconnected: " + event.code + ' - ' + event.reason);
-          loggingOn = false;
-          ws = null;
-          // event.codes:
-          //   1006 if server not available, or another web page is already open
-          //   1005 if closed from app
-          if (event.code == 1006) {}
-          else if (event.code != 1005) initWebSocket(); // retry if any other reason
+
+        // periodically check that connection is still up
+        function heartbeat(index = 0) {
+          hbTimer = setInterval(function() {
+            if (wsSkt[index].readyState === WebSocket.OPEN) wsSkt[index].send("H");
+          }, heartbeatInterval);
         }
-        
-        async function closeWS() {
-          ws.send('K');
-          await sleep(500);
-          if (ws != null) ws.close();
+
+        function stopHeartbeat() {
+          if (hbTimer) clearInterval(hbTimer);
+          hbTimer == null;
         }
-        
+
         /*********** page layout functions ***********/
-      
+
         function openTab(e) {
           // control tab viewing
           $$('.tabcontent').forEach(el => { el.style.display = "none"; });
@@ -125,12 +129,12 @@
 
         function accordian(accId) {
           // accordian buttons to show / hide elements
-          let panel = $('#' + accId);
+          const panel = $('#' + accId);
           if (panel.style.display === "inherit") panel.style.display = "none";
           else panel.style.display = "inherit";
         }
-       
-         function rangeSlider(el, isPos = true, statusVal = null) {
+
+        function rangeSlider(el, isPos = true, statusVal = null) {
           // update range slider marker position and value 
           const rangeVal = el.parentElement.children.rangeVal;
           if (statusVal != null) rangeVal.innerHTML = statusVal;
@@ -165,22 +169,21 @@
             rangeVal.style.top = el.offsetTop + position - markerRange/2 + 'px';
             rangeVal.style.left = el.offsetLeft + markerRange/2 - (rangeVal.offsetWidth - rangeThumbSize)/2 + 'px';
           } else rangeVal.style.left = el.offsetLeft + position - (rangeVal.offsetWidth - rangeThumbSize)/2 + 'px'; // default horizontal
-
         }
-        
-        let rangeObserver = new IntersectionObserver ( function(entries) {
+
+        const rangeObserver = new IntersectionObserver ( function(entries) {
           // recalc each range slider that becomes visible
             entries.forEach(el => { if (el.isIntersecting === true) rangeSlider(el['target']); });
           }, { threshold: [0] }
         );
         $$('input[type=range]').forEach(el => { rangeObserver.observe(el); });
-        
-        let logObserver = new IntersectionObserver (entries => {
+
+        const logObserver = new IntersectionObserver (entries => {
           // refresh log when becomes visible
           entries.forEach(entry => { if (entry.isIntersecting === true) getLog(); });
         }); 
         logObserver.observe($('#appLog'));
-        
+
         function addButtons() {
           // add commmon buttons to relevant sections
           $$('.addButtons').forEach(el => {
@@ -190,8 +193,8 @@
             +'</section><br>'
           });
         }
-        
-         function addRangeData() {
+
+        function addRangeData() {
           // add labelling for rangle sliders
           $$('input[type="range"]').forEach(el => {
             if (el.classList.contains('vertical')) el.style.transform = 'rotate(270deg)'; 
@@ -206,7 +209,7 @@
         } 
 
         /*********** data processing functions ***********/
-        
+
         async function loadStatus(specifier) {
           // request and load current status from app
           const response = await fetch(webServer+'/status'+specifier);
@@ -214,22 +217,22 @@
             updateData = await response.json();
             updateStatus();
             await sleep(1000);
-          } else alert(response.status + ": " + response.statusText);  
+          } else alert("loadStatus - " + response.status + ": " + response.statusText);  
         }
-        
+
         function refreshStatus() {
           // refresh status at required interval
-          clearTimeout(hbTimer);
-          doLoadStatus ? loadStatus("?q") : configStatus(true); 
-          hbTimer = setTimeout(refreshStatus, refreshInterval);
+          refreshTimer = setInterval(function() {
+            doLoadStatus ? loadStatus("?q") : configStatus(true); 
+          }, refreshInterval);
         }
-        
+
         function updateStatus() {
           // replace each existing value with new received value, using key name to match html tag id
           Object.entries(updateData).forEach(([key, value]) => {
-            let elt = $('text#'+key); // svg button
-            let eld = $('div#'+key); // display text
-            let eli = $('#'+key); // input field
+            const elt = $('text#'+key); // svg button
+            const eld = $('div#'+key); // display text
+            const eli = $('#'+key); // input field
             if (elt) elt.textContent = value; 
             else if (eld) {if (eld.classList.contains('displayonly')) eld.innerHTML = value;} // display text 
             else if (eli != null) { // input fields
@@ -238,7 +241,7 @@
               else if (eli.type === 'option') eli.selected = true;
               else eli.value = value; 
             }
-            let elth = $('td#'+key); 
+            const elth = $('td#'+key); 
             if (elth != null) elth.innerHTML = value; // table data
             $$('input[name="' + key + '"]').forEach(el => {if (el.value == value) el.checked = true;}); // radio button group
             statusData[key] = value;
@@ -246,7 +249,7 @@
           });
           $$('input[type=range]').forEach(el => {rangeSlider(el, false, el.getAttribute('value'));});  // initialise range sliders
         }
-        
+
         async function sendUpdates(doAction) {    
           // send bulk updates to app as json 
           statusData['action'] = doAction;
@@ -255,11 +258,11 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(statusData),
           });
-          if (!response.ok) alert(response.status + ": " + response.statusText); 
+          if (!response.ok) alert("sendUpdates - " + response.status + ": " + response.statusText); 
         } 
-        
+
         /*********** utility functions ***********/
-        
+
         function debounce(func, timeout = 500){
           // debounce rapid clicks to prevent unnecessary fetches
           let timer;
@@ -268,13 +271,13 @@
             timer = setTimeout(() => { func.apply(this, args); }, timeout);
           };
         }
-        
+
         const debounceSendControl = debounce((key, value) => sendControl(key, value));
-        
+
         function sleep(ms) {
           return new Promise(resolve => setTimeout(resolve, ms));
         }
-        
+
         async function fetchRetry(url, options, interval, timeout) {
           let response;
           let retries = Math.ceil(timeout / interval);
@@ -290,12 +293,12 @@
           }
           return response;
         }
-              
+
         function hide(el) {
           el.classList.add('hidden')
           el.style.display = "none";
         }
-        
+
         function show(el) {
           el.classList.remove('hidden')
           el.style.display = "";
@@ -310,25 +313,25 @@
           el.classList.remove('disabled');
           el.disabled = false;
         }
-        
+
         function isActive(el) {
           return el.classList.contains('active') ? true : false;
         }
-        
+
         function isHidden(el) {
            return el.classList.contains("hidden") ? true : false;
         }
-        
+
         function isDefined(variable) {
           return (typeof variable === 'undefined' || variable === null ) ? false : true;
         }
-        
+
         async function showAlert(value) {
           $('#alertText').innerHTML = value;
           await sleep(5000);
           $('#alertText').innerHTML = "";
         }
-        
+
         async function saveChanges() {
           // save change and reboot
           await sleep(100);
@@ -336,11 +339,11 @@
           await sleep(1000);
           sendControl('reset', 1);
         }
-        
+
         function dbg(msg) {
           console.log('***** '+msg);
         }
-        
+
         function dbgTrail(msg) {
           // get trail of function calls
           dbg(msg);
@@ -354,7 +357,7 @@
             if (logType != 1) sendControl("resetLog", "1");
           }
         }
-        
+
         async function getLog() {
           // request display of stored log file
           const log = $('#appLog');
@@ -380,30 +383,29 @@
                 } 
               };
               loadNextLine(); 
-            } else showAlert(response.status + ": " + response.statusText); 
+            } else showAlert("getLog - " + response.status + ": " + response.statusText); 
           }
         }
-        
+
         function checkTime(value) {
           // sync browser time with app
-          let now = new Date();
+          const now = new Date();
           let nowUTC = Math.floor(now.getTime() / 1000);
           let timeDiff = Math.abs(nowUTC - value);  
           if (timeDiff > 5) sendControl("clockUTC", nowUTC); // 5 secs 
         }
-        
+
         function setTz(value) {
           $('#timezone').value = value;
           sendControl('timezone', value);
           return false;
         }
-        
+
         /*********** command processing ***********/
-        
+
         function setListeners() {
-        
           // click events
-         document.addEventListener("click", function (event) {
+          document.addEventListener("click", function (event) {
             const e = event.target;
             // svg rect elements, use id of its following text node
             if (e.nodeName == 'rect') processStatus(ID, e.nextElementSibling.id, 1);
@@ -419,7 +421,7 @@
             }
             else if (e.nodeName == 'SELECT') {/*ignore*/}
           });
-          
+
           // change events
           document.addEventListener("change", function (event) {
             const e = event.target;
@@ -435,7 +437,7 @@
             }
             else if (e.tagName == 'SELECT') processStatus(ID, e.id, value);
           });
-          
+
           // input events
           document.addEventListener("input", function (event) {
             const e = event.target;
@@ -448,7 +450,7 @@
               }
             }
           });
-          
+
           // user command entered on Log tab
           document.addEventListener("keydown", function (event) {
             if (event.target.id == 'txtCmd') {
@@ -456,28 +458,27 @@
               if (keyPress == 13) sendWsCmd();
             }
           });
-          
-          // move away from browser tab
-          document.addEventListener('visibilitychange', () => {
-            if (document.hidden) closedTab(false); // app specific
-          });
-          
+
           // recalc range marker positions 
           window.addEventListener('resize', function (event) {
             $$('input[type=range]').forEach(el => { rangeSlider(el); });
           });
-          
-          // close web socket on closing browser tab
-          window.addEventListener('beforeunload', function (event) {
-            if (ws) closeWS();
-            closedTab(true); // app specific 
-          });   
-          
+
+          // Close connections on page visibility change
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') {
+              // User has switched tabs or minimized the window
+              if (wsSkt[0]) closeWS(event, 0);
+              if (wsSkt[1]) closeWS(event, 0);
+              closedTab(true); // app specific
+            }
+          });
+
         }
-        
+
         function sendWsCmd() {
           // send user command to websocket server
-          let txt = $('#txtCmd');
+          const txt = $('#txtCmd');
           let line = txt.value;
           if (line != "" && ws !== undefined) {
             sendCmd(line);
@@ -485,26 +486,27 @@
             txt.focus();
           } else showLog("No command or no connection");
         }
-        
+
         function sendCmd(reqStr) {
           ws.send(reqStr);
           showLog("Cmd: " + reqStr);
         }
-        
+
         function showLog(reqStr, fromUser = true) {
           if (loggingOn) {
-            let date = new Date();
+            const date = new Date();
             // add timestamp to received text if generated by browser
             let logText = fromUser ? "[" + date.toLocaleTimeString() + " Web] " : "";
             logText += reqStr;
             // append to log display 
-            let log = $('#appLog');
+            const log = $('#appLog');
             log.innerHTML += colorise(logText) + '<br>';
             // auto scroll new entry unless scroll bar is not at bottom
             const bottom = 2 * baseFontSize;// 2 lines
             const pos = Math.abs(log.scrollHeight - log.clientHeight - log.scrollTop);
             if (pos < bottom) log.scrollTop = log.scrollHeight;
           }
+          console.log("Info: " + reqStr);
         }
 
         function colorise(line) {
@@ -519,7 +521,7 @@
             return "<b><font color=" + color + ">" + line + "</font></b>";
           } else return line;
         }
-        
+
         function sendWsUpdates(doAction) {    
           // get each required update element and obtain id/name and value into array to send as json 
           let jarray = {};
@@ -529,16 +531,16 @@
           });
           sendCmd('U' + JSON.stringify(jarray));
         }
-        
+
         async function sendControl(key, value) {
           // send only  
           if (value != null) {
             const encodedValue = encodeURIComponent(value).replace(/#/g, '%23');
             const response = await fetch(encodeURI("/control?" + key + "=") + encodedValue);
-            if (!response.ok) alert(response.status + ": " + response.statusText);
+            if (!response.ok) alert("sendControl - " + response.status + ": " + response.statusText);
           }
         }
-        
+
         async function sendControlResp(key, value) {
           // send and apply response
           const encodedValue = encodeURIComponent(value).replace(/#/g, '%23');
@@ -546,11 +548,11 @@
           if (response.ok) {
             updateData = await response.json();
             updateStatus();
-          } else alert(response.status + ": " + response.statusText);  
+          } else alert("sendControlResp - " + response.status + ": " + response.statusText);  
         }
-        
+
         /*********** config functions ***********/
-        
+
         async function getConfig(cfgGroup) {
           // request config json for selected group
           const response = await fetch('/status?123456789' + cfgGroup);
@@ -558,12 +560,12 @@
             const configData = await response.json();
             // format received json into html table
             buildTable(configData, cfgGroup);
-          } else alert(response.status + ": " + response.statusText); 
+          } else alert("getConfig - " + response.status + ": " + response.statusText); 
         }
-        
+
         function buildTable(configData, cfgGroup) {
           // dynamically build table of editable settings
-          let divShowData = isDefined($('.config-group#Main'+cfgGroup)) ? $('.config-group#Main'+cfgGroup) : $('.config-group#Cfg');
+          const divShowData = isDefined($('.config-group#Main'+cfgGroup)) ? $('.config-group#Main'+cfgGroup) : $('.config-group#Cfg');
           const retain = divShowData.id == 'Main'+cfgGroup ? true : false; // retain main page
           divShowData.innerHTML = "";
           if (cfgGroupNow != cfgGroup || retain) { // setup different config grouop
@@ -663,7 +665,7 @@
 
 
        /************** Hub ****************/
-            
+
       // create image elements with the saved IPs on page load
       async function createImageElements(ipAddresses) {
         const container = document.getElementById('imageContainer');
@@ -687,7 +689,6 @@
           removeButton.classList.add('removeButton');
           removeButton.classList.add('iconSize');
           removeButton.innerHTML = '×';
-              
           removeButton.onclick = function (event) {
             event.stopPropagation(); // Prevent container click from triggering at the same time
             // Remove the IP from local storage, remove the IP container, and update images
@@ -773,7 +774,7 @@
       }
 
       // Retrieve and populate the input field with the saved IPs on page load
-      let hubObserver = new IntersectionObserver (entries => {
+      const hubObserver = new IntersectionObserver (entries => {
         // refresh hub when becomes visible
         entries.forEach(entry => { if (entry.isIntersecting) {
           const savedIPs = localStorage.getItem('enteredIPs');
@@ -781,12 +782,12 @@
           createImageElements(ipAddresses);
         }});
       }); 
-      let deviceHubEl = document.getElementById('DeviceHub');
+      const deviceHubEl = document.getElementById('DeviceHub');
       if (deviceHubEl) hubObserver.observe(deviceHubEl);
-      
-      
+
+
       /*********************** Browser Mic *********************/
-      
+
       // Windows needs to allow microphone use in Microphone Privacy Settings
       //
       // In Microphone Properties / Advanced, check bit depth and sample rate (normally 16 bit 48kHz)
@@ -794,13 +795,13 @@
       // chrome needs to allow access to mic from insecure (http) site:
       // Go to : chrome://flags/#unsafely-treat-insecure-origin-as-secure
       // Enter following URL in box: http://<app_ip_address>
-      
+
       let micStream;
       let isMicStreaming = false;
       const inSampleRate = 48000;
       let outSampleRate = 16000;
       let Resample;
-      
+
       function createAudioWorkletScript(sampleRateRatio) {
         return `
           class Resample extends AudioWorkletProcessor {
@@ -885,7 +886,7 @@
         try { micAction(false); } 
         catch (error) {}
       }
-      
+
       function micRemState(value) {
         value ? runMic() : closeMic();
       }

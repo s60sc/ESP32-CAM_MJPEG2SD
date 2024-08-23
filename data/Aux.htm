@@ -1,7 +1,7 @@
 
 <!DOCTYPE html>
 <!-- 
-  s60sc 2022, 2023
+  s60sc 2022 - 2024
   with ideas from @marekful
 -->
 <html>
@@ -1075,6 +1075,7 @@
       'use strict'
       
       let refreshInterval = 5000;
+      let heartbeatInterval = 5000;
       let cameraModel = "AUX";
       let firstCall = true;
       let appClock = Math.ceil(Date.now() / 1000);
@@ -1111,11 +1112,9 @@
           else if (key == "logType") { logType = value; sendControl(key, value); return; }
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
-          else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
-          else if (key == "remoteRCip") RCremIP = value;
           else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
           else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
           else if (key == "minDutyCycle") minDutyCycle = value;
@@ -1123,6 +1122,7 @@
           else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle, true); }
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
           else if (key == "waitTime") waitTime = value;
+          else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
         } 
@@ -1193,22 +1193,16 @@
       
       function configStatus(refresh) {} 
       
-      function closedTab(isClosed) {
-        if (isClosed) stopAll("closedTab");
-      }
+      function closedTab(isClosed) {}
       
       /************** RC ****************/
       
       function updateMaxSteerAngle(val) {
-        if (maxSteerAngle != val) {
-          maxSteerAngle = val;
-        }
+        if (maxSteerAngle != val) maxSteerAngle = val;
       }
       
       function updateMaxDutyCycle(val, force = false) {
-        if (maxDutyCycle != val || force) {
-          maxDutyCycle = val;
-        }
+        if (maxDutyCycle != val || force) maxDutyCycle = val;
       }
 
       /***************************************************************************/
