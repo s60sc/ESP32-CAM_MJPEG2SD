@@ -43,7 +43,7 @@ char tgramToken[MAX_PWD_LEN] = "";
 char tgramChatId[MAX_IP_LEN] = "";
 
 char tgramHdr[FILE_NAME_LEN];
-static char keyValue[50] = ""; // holds value for searched key in JSON response
+static char keyValue[60] = ""; // holds value for searched key in JSON response
 static char* tgramBuff = NULL; // holds sent then received data
 static int32_t lastUpdate = 0;
 
@@ -64,7 +64,7 @@ static bool searchJsonResponse(const char* keyName) {
   int valSize = endItem - startItem;
   if (valSize > sizeof(keyValue) - 1) {
     LOG_WRN("Telegram JSON value too long %d", valSize); 
-    valSize = sizeof(keyValue);
+    valSize = sizeof(keyValue - 1);
   }
   strncpy(keyValue, startItem, valSize);
   keyValue[valSize] = 0;

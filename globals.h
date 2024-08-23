@@ -154,6 +154,7 @@ void prepTemperature();
 void prepUart();
 void prepUpload();
 void reloadConfigs();
+float readInternalTemp();
 float readTemperature(bool isCelsius, bool onlyDS18 = false);
 float readVoltage();
 void remote_log_init();
@@ -187,7 +188,7 @@ void urlDecode(char* inVal);
 bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_sleep_wakeup_cause_t wakeupResetReason();
-void wsAsyncSend(const char* wsData);
+bool wsAsyncSend(const char* wsData);
 // mqtt.cpp
 void startMqttClient();  
 void stopMqttClient();  
@@ -249,6 +250,7 @@ extern bool autoUpload;
 extern bool deleteAfter;
 extern bool fsUse;
 extern char inFileName[];
+extern bool heartBeatDone;
 
 //  SMTP server
 extern char smtp_login[];

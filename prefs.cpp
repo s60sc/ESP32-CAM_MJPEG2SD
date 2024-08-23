@@ -504,9 +504,6 @@ static bool checkConfigFile() {
 bool loadConfig() {
   // called on startup
   LOG_INF("Load config");
-  if (jsonBuff == NULL) {
-    jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
-  }
   bool res = checkConfigFile();
   if (!res) res = checkConfigFile(); // to recreate file if deleted on first call
   if (res) {

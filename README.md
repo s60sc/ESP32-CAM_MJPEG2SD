@@ -13,17 +13,18 @@ The application supports:
 * Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
 * [MQTT](#mqtt) control.
 * [External Heartbeat](#external-heartbeat) support.
-* Support for peripherals: SG90 servos, MX1508 H-bridge, HW-504 joystick, BMP280, MPU9250, WS2812 Led
+* Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
 
-The ESP32 cannot support all of the features as it will run out of heap space.  For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense.
+The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, but avoid no-name boards marked `ESPS3 RE:1.0`
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 9.9.3:
-*  Now supports latest MCPWM library if compiled with arduino core v3.x
+Changes in version 9.9.4:
+*  Support for FireBeetle 2 Board ESP32-S3
+*  Option to use auxiliary board for RC control - see [Remote Control](#remote-control) 
 
 ## Purpose
 
@@ -52,7 +53,7 @@ The ESP32S3 (using Freenove ESP32S3 Cam board hosting ESP32S3 N8R8 module) runs 
 
 ## Design
 
-The ESP32 Cam module has 4MB of PSRAM (8MB on ESP32S3) which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
+The ESP32 Cam module has 4MB of PSRAM (8MB on most ESP32S3) which is used to buffer the camera frames and the construction of the AVI file to minimise the number of SD file writes, and optimise the writes by aligning them with the SD card sector size. For playback the AVI is read from SD into a multiple sector sized buffer, and sent to the browser as timed individual frames. The SD card is used in **MMC 1 line** mode, as this is practically as fast as **MMC 4 line** mode and frees up pin 4 (connected to onboard Lamp), and pin 12 which can be used for eg a PIR.  
 
 The AVI files are named using a date time format **YYYYMMDD_HHMMSS** with added frame size, FPS recording rate, duration in secs, eg **20200130_201015_VGA_15_60.avi**, and stored in a per day folder **YYYYMMDD**. If audio is included the filename ends with **_S**.  If telemetry is available the filename ends with **_M**.  
 The ESP32 time is set from an NTP server or connected browser client.
@@ -61,13 +62,14 @@ The ESP32 time is set from an NTP server or connected browser client.
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
 If compiling with arduino core v3.x use at least v3.0.3 which contains network fixes.
+To free up some heap space, in `appGlobals.h` set `INCLUDE_*` defines for any unused feature to `false`.
 Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
-* Freenove ESP32S3 Cam board - `CAMERA_MODEL_ESP32S3_EYE` 
+* Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM` 
 
 Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and the following Partition scheme:
 * ESP32 - `Minimal SPIFFS (...)`
-* ESP32S3 - `8M with spiffs (...)`
+* ESP32S3 - `8M with spiffs (...)` or `16MB(3MB APP...)`
 
 **NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.x or v3.x
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)** 
@@ -310,6 +312,8 @@ Steering can either be provided by servo control, or by track steering using sep
 The streaming view will now have a red button in the top left. Press this to show / hide overlaid steering and motor controls. Camera view buttons can be used to change to full screen. Tethered vehicles can also be controlled via a HW-504 type joystick. Camera view (and microphone and telemetry if enabled) can be recorded.  
 Motion detection should be disabled beforehand.  
 
+To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting the RC vehicle hardware controlled by commands sent from the web page hosted by the camera board. See header in `appSpecific.cpp` for more info.
+
 #### Only use this feature if you are familiar with coding and electronics, and can fix issues yourself
 
 ## Machine Learning
@@ -321,6 +325,8 @@ Only feasible on ESP32S3 due to memory use and built in AI Acceleration support.
 
 The interface is designed to work with user models packaged as Arduino libraries by the [Edge Impulse](https://edgeimpulse.com/) AI platform.
 More details in `motionDetect.cpp`.  
+The library generated by Edge Impulse is not currently compatible with Arduino v3.x.  
+
 Use 96x96 grayscale or RGB images and train the model with for example the following Transfer learning Neural Network settings:  
 
 <img src="extras/TinyML.png" width="500" height="400">
@@ -350,8 +356,8 @@ If multiple streams are enabled they need to be processed by an intermediate too
 
 ## WebDAV
 
-A simple WebDAV server is included. A WebDAV client such as Windows file explorer can be used to access and manage the SD card content. In a folder's address bar enter `<ip_address>/webdav`, eg `192.168.1.132/webdav`  
-For Android, MacOS, Linux see `webDav.cpp` file.
+A simple WebDAV server is included. A WebDAV client such as Windows 10 File Explorer can be used to access and manage the SD card content. In a folder's address bar enter `<ip_address>/webdav`, eg `192.168.1.132/webdav`  
+For Windows 11, Android, MacOS, Linux see `webDav.cpp` file.
 
 <img src="extras/webdav.png" width="600" height="300">
 

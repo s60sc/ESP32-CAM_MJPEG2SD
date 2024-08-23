@@ -9,10 +9,11 @@
 
 void setup() {
   logSetup();
-  // prep SD card storage
+  // prep storage
   if (startStorage()) {
     // Load saved user configuration
     if (loadConfig()) {
+#ifndef AUXILIARY
       // initialise camera
       if (psramFound()) {
         LOG_INF("PSRAM size: %s", fmtSize(ESP.getPsramSize()));
@@ -20,6 +21,9 @@ void setup() {
         else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient PSRAM for app");
       }
       else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need PSRAM to be enabled");
+#else
+      LOG_INF("AUXILIARY mode without camera");
+#endif
     }
   }
   
@@ -34,14 +38,18 @@ void setup() {
   if (strlen(startupFailure)) LOG_WRN("%s", startupFailure);
   else {
     // start rest of services
+#ifndef AUXILIARY
     startSustainTasks(); 
+#endif
 #if INCLUDE_SMTP
     prepSMTP(); 
 #endif
 #if INCLUDE_FTP_HFS
     prepUpload();
 #endif
-    prepPeripherals();
+#if INCLUDE_PERIPH
+   prepPeripherals();
+#endif
 #if INCLUDE_AUDIO
     prepAudio(); 
 #endif
@@ -51,7 +59,12 @@ void setup() {
 #if INCLUDE_TGRAM
     prepTelegram();
 #endif
+#if INCLUDE_MCPWM 
+    prepMotors();
+#endif
+#ifndef AUXILIARY
     prepRecording(); 
+#endif
     checkMemory();
   } 
 }

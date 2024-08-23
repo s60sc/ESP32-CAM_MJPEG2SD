@@ -8,6 +8,16 @@
 //
 // s60sc 2022 - 2024
 
+/*
+ To use auxiliary ESP to provide RC vehicle control to free up pins on the camera board. 
+ The auxiliary board (not ESP32-C3) does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the RC vehicle hardware
+ Instal app on camera board in usual way
+ Instal app on auxiliary board after uncommenting #define AUXILIARY in camera selection block in appGlobals.h
+ The web page on the auxiliary board is a cut down version of the camera app web page allowing the RC parameters to be configured
+ On the camera board webpage under RC Config, in field: Send RC commands to Auxiliary IP, enter IP address of auxiliary board, save and reboot
+ RC commands on cam board web page will now be sent to the auxiliary board.
+*/
+
 #include "appGlobals.h"
 
 static char variable[FILE_NAME_LEN]; 
@@ -77,8 +87,9 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     dbgMotion = (intVal && useMotion) ? true : false;
     doRecording = !dbgMotion;
   }
-  
+  else if (!strcmp(variable, "devHub")) devHub = (bool)intVal;   
   // peripherals
+#if INCLUDE_PERIPH
   else if (!strcmp(variable, "useIOextender")) useIOextender = (bool)intVal;
   else if (!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
   else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
@@ -104,15 +115,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "lampPin")) lampPin = intVal;
   else if (!strcmp(variable, "servoPanPin")) servoPanPin = intVal;
   else if (!strcmp(variable, "servoTiltPin")) servoTiltPin = intVal;
-  else if (!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
   else if (!strcmp(variable, "voltPin")) voltPin = intVal;
-#if INCLUDE_AUDIO
-  else if (!strcmp(variable, "micUse")) micUse = (bool)intVal;
-  else if (!strcmp(variable, "micGain")) micGain = intVal;
-  else if (!strcmp(variable, "micSckPin")) micSckPin = intVal;
-  else if (!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
-  else if (!strcmp(variable, "micSdPin")) micSdPin = intVal;
-#endif
   else if (!strcmp(variable, "servoDelay")) servoDelay = intVal;
   else if (!strcmp(variable, "servoMinAngle")) servoMinAngle = intVal;
   else if (!strcmp(variable, "servoMaxAngle")) servoMaxAngle = intVal;
@@ -124,12 +127,25 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "voltInterval")) voltInterval = intVal;
   else if (!strcmp(variable, "camPan")) setCamPan(intVal);
   else if (!strcmp(variable, "camTilt")) setCamTilt(intVal);
-  else if (!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
-  else if (!strcmp(variable, "wakePin")) wakePin = intVal;
+  else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
+  else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
+  else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal;
+  else if (!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
+#endif
+#if INCLUDE_AUDIO
+  else if (!strcmp(variable, "micUse")) micUse = (bool)intVal;
+  else if (!strcmp(variable, "micGain")) micGain = intVal;
+  else if (!strcmp(variable, "micSckPin")) micSckPin = intVal;
+  else if (!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
+  else if (!strcmp(variable, "micSdPin")) micSdPin = intVal;
+#endif
 #if INCLUDE_TELEM
   else if (!strcmp(variable, "teleUse")) teleUse = (bool)intVal;
 #endif
   else if (!strcmp(variable, "teleInterval")) srtInterval = intVal;
+  else if (!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
+  else if (!strcmp(variable, "wakePin")) wakePin = intVal;
+#if INCLUDE_MCPWM
   else if (!strcmp(variable, "RCactive")) RCactive = (bool)intVal;
   else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
   else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
@@ -139,9 +155,9 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     motorFwdPinR = intVal;
     if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
   }
-  else if (!strcmp(variable, "lightsRCpin")) lightsRCpin = intVal;
+  else if (!strcmp(variable, "remoteRCip")) strncpy(remoteRCip, value, MAX_IP_LEN-1);
+  else if (!strcmp(variable, "heartbeatRC")) heartbeatRC = intVal;
   else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
-  else if (!strcmp(variable, "RClights")) setLights((bool)intVal);
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
   else if (!strcmp(variable, "maxDutyCycle")) maxDutyCycle = intVal;  
   else if (!strcmp(variable, "minDutyCycle")) minDutyCycle = intVal;  
@@ -149,15 +165,15 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "allowReverse")) allowReverse = (bool)intVal;   
   else if (!strcmp(variable, "autoControl")) autoControl = (bool)intVal; 
   else if (!strcmp(variable, "waitTime")) waitTime = intVal;    
+#endif
+#if INCLUDE_PERIPH 
+  else if (!strcmp(variable, "lightsRCpin")) lightsRCpin = intVal;
   else if (!strcmp(variable, "stickUse")) stickUse = (bool)intVal; 
   else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
   else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
   else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
-  else if (!strcmp(variable, "devHub")) devHub = (bool)intVal;  
-  else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
-  else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
-  else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal; 
-#if INCLUDE_PGRAM
+#endif
+#if (INCLUDE_PGRAM && INCLUDE_PERIPH)
   else if (!strcmp(variable, "stepIN1pin")) setStepperPin((uint8_t)intVal, 0);
   else if (!strcmp(variable, "stepIN2pin")) setStepperPin((uint8_t)intVal, 1);
   else if (!strcmp(variable, "stepIN3pin")) setStepperPin((uint8_t)intVal, 2);
@@ -311,6 +327,7 @@ void appSpecificWsHandler(const char* wsMsg) {
       stopAudio = true;
 #endif
     break;
+#if INCLUDE_MCPWM
     case 'M': 
       // motor speed
       if (trackSteer) trackSteeering(controlVal, false);
@@ -321,12 +338,18 @@ void appSpecificWsHandler(const char* wsMsg) {
       if (trackSteer) trackSteeering(controlVal, true);
       else setSteering(controlVal);
     break;
+    case 'L':
+      // lights
+      setLightsRC((bool)controlVal);
+    break;
+#endif
     case 'C': 
       // control request
       if (extractKeyVal(wsMsg + 1)) updateStatus(variable, value);
     break;
     case 'H': 
-      // keepalive heartbeat, return status
+      // keepalive heartbeat
+      heartBeatDone = true;
     break;
     case 'S': 
       // status request
@@ -372,9 +395,16 @@ void buildAppJsonString(bool filter) {
   }
   p += sprintf(p, "\"showRecord\":%u,", (uint8_t)((isCapturing && doRecording) || forceRecord));
   p += sprintf(p, "\"camModel\":\"%s\",", camModel);
-#if INCLUDE_PGRAM
+#if (INCLUDE_PGRAM && INCLUDE_PERIPH)
   p += sprintf(p, "\"PGactive\":\"%d\",", PGactive); 
 #endif
+#if INCLUDE_MCPWM
+  p += sprintf(p, "\"maxSteerAngle\":\"%d\",", maxSteerAngle); 
+  p += sprintf(p, "\"maxDutyCycle\":\"%d\",", maxDutyCycle);
+  p += sprintf(p, "\"minDutyCycle\":\"%d\",", minDutyCycle);  
+  p += sprintf(p, "\"allowReverse\":\"%d\",", allowReverse);   
+  p += sprintf(p, "\"autoControl\":\"%d\",", autoControl);
+  p += sprintf(p, "\"waitTime\":\"%d\",", waitTime); 
   p += sprintf(p, "\"RCactive\":\"%d\",", RCactive); 
   p += sprintf(p, "\"maxSteerAngle\":\"%d\",", maxSteerAngle); 
   p += sprintf(p, "\"maxDutyCycle\":\"%d\",", maxDutyCycle);
@@ -382,8 +412,9 @@ void buildAppJsonString(bool filter) {
   p += sprintf(p, "\"allowReverse\":\"%d\",", allowReverse);   
   p += sprintf(p, "\"autoControl\":\"%d\",", autoControl);
   p += sprintf(p, "\"waitTime\":\"%d\",", waitTime); 
-  p += sprintf(p, "\"sustainId\":\"%u\",", sustainId); 
-    
+  p += sprintf(p, "\"heartbeatRC\":\"%d\",", heartbeatRC); 
+#endif
+  p += sprintf(p, "\"sustainId\":\"%u\",", sustainId);     
   // Extend info
   uint8_t cardType = 99; // not MMC
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) cardType = SD_MMC.cardType();
@@ -434,6 +465,16 @@ int8_t checkPotVol(int8_t adjVol) {
 void applyFilters() {
   applyVolume();
 }
+
+#if !INCLUDE_PERIPH
+float readVoltage() {
+  return -1.0;
+}
+float readTemperature(bool isCelsius, bool onlyDS18) {
+  return readInternalTemp();
+}
+bool pirVal = false;
+#endif
 
 bool appDataFiles() {
   // callback from setupAssist.cpp, for any app specific files 
@@ -493,7 +534,9 @@ void doAppPing() {
 #if INCLUDE_EXTHB
   if (external_heartbeat_active) sendExternalHeartbeat();
 #endif
+#if INCLUDE_PERIPH
   doIOExtPing();
+#endif
   // check for night time actions
   if (isNight(nightSwitch)) {
     if (wakeUse && wakePin) {
@@ -501,7 +544,9 @@ void doAppPing() {
      // uses internal pulldown resistor as voltage divider
      // but may need to add external pull down between pin
      // and GND to alter required light level for wakeup
+#ifndef AUXILIARY
      digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
+#endif
      goToSleep(wakePin, true);
     }
   } 
@@ -735,11 +780,13 @@ teleUse~0~3~C~Use telemetry recording
 teleInterval~1~3~N~Telemetry collection interval (secs)
 RCactive~0~3~C~Enable remote control
 servoSteerPin~~4~N~Pin used for steering servo
-motorRevPin~~4~N~Pin used for motor reverse / left track steer
-motorFwdPin~~4~N~Pin used for motor forward / left track steer
+motorRevPin~~4~N~Pin used for motor reverse / left track 
+motorFwdPin~~4~N~Pin used for motor forward / left track 
 motorRevPinR~~4~N~Pin used for right track reverse
 motorFwdPinR~~4~N~Pin used for right track forward
 lightsRCpin~~4~N~Pin used for RC lights output
+heartbeatRC~5~4~N~RC connection heartbeat time (secs)
+remoteRCip~~4~T~Send RC commands to separate IP
 stickXpin~~4~N~Pin used for joystick steering
 stickYpin~~4~N~Pin used for joystick motor
 stickzPushPin~~4~N~Pin used for joystick lights
@@ -751,7 +798,7 @@ maxDutyCycle~100~4~N~Max motor duty cycle % (speed)
 minDutyCycle~10~4~N~Min motor duty cycle % (stop)
 allowReverse~1~4~C~Reverse motion required
 autoControl~1~4~C~Stop motor or center steering if control inactive
-waitTime~20~4~N~Min wait (ms) between updates to ESP32
+waitTime~20~4~N~Min wait (ms) between RC updates to app
 tgramUse~0~2~C~Use Telegram Bot
 tgramToken~~2~T~Telegram Bot token
 tgramChatId~~2~T~Telegram chat identifier

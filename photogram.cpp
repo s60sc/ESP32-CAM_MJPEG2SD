@@ -57,7 +57,7 @@ static void prepPgram() {
   } else {
      // use built in cam
      lampAuto = true;
-     useMotion = tgramUse = doRecording = doPlayback = timeLapseOn = false;   
+     useMotion = doRecording = doPlayback = timeLapseOn = false;   
      setLamp(0);
      // create folder
      time_t currEpoch = getEpoch();

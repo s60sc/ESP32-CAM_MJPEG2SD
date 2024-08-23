@@ -190,10 +190,14 @@ static void timeLapse(camera_fb_t* fb, bool tlStop = false) {
       }
       // switch on light before capture frame if nightTime and useLamp selected
       // requires lampActivated = PIR
+#if INCLUDE_PERIPH
       if (nightTime && intervalCnt == intervalMark - (saveFPS / 2)) setLamp(lampLevel);
+#endif
       if (intervalCnt > intervalMark) {
         // save this frame to time lapse avi
+#if INCLUDE_PERIPH
         if (!lampNight) setLamp(0);
+#endif
         uint8_t hdrBuff[CHUNK_HDR];
         memcpy(hdrBuff, dcBuf, 4); 
         // align end of jpeg on 4 byte boundary for AVI
@@ -411,12 +415,13 @@ static boolean processFrame() {
   }
   // determine if time to monitor, then get motion capture status
   if (!forceRecord && useMotion && doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
-
+#if INCLUDE_PERIPH
   if (pirUse) {
     pirVal = getPIRval();
     if (!pirVal && !isCapturing && !useMotion && doMonitor(isCapturing)) checkMotion(fb, isCapturing); // to update light level
   }
-  
+#endif
+
   // either active PIR, Motion, or force start button will start capture, neither active will stop capture
   isCapturing = forceRecord | captureMotion | pirVal;
   if (forceRecord || wasRecording || doRecording) {
@@ -425,7 +430,9 @@ static boolean processFrame() {
     
     if (isCapturing && !wasCapturing) {
       // movement has occurred, start recording, and switch on lamp if night time
+#if INCLUDE_PERIPH
       if (lampAuto && nightTime) setLamp(lampLevel); // switch on lamp
+#endif
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
@@ -436,7 +443,9 @@ static boolean processFrame() {
         mqttPublishPath("record", "on");
       }
 #endif
+#if INCLUDE_PERIPH
       buzzerAlert(true); // sound buzzer if enabled
+#endif
       openAvi();
       wasCapturing = true;
     }
@@ -445,7 +454,9 @@ static boolean processFrame() {
       dTimeTot += millis() - dTime;
       saveFrame(fb);
       showProgress();
+#if INCLUDE_PERIPH
       if (buzzerUse && frameCnt / FPS >= buzzerDuration) buzzerAlert(false); // switch off after given period 
+#endif
       if (frameCnt >= maxFrames) {
         logLine();
         LOG_INF("Auto closed recording after %u frames", maxFrames);
@@ -455,8 +466,10 @@ static boolean processFrame() {
     if (!isCapturing && wasCapturing) {
       // movement stopped
       finishRecording = true;
+#if INCLUDE_PERIPH
       if (lampAuto) setLamp(0); // switch off lamp
       buzzerAlert(false); // switch off buzzer
+#endif
     }
     wasCapturing = isCapturing;
   }
@@ -716,7 +729,10 @@ bool prepRecording() {
   motionSemaphore = xSemaphoreCreateBinary();
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   camera_fb_t* fb = esp_camera_fb_get();
-  if (fb == NULL) LOG_WRN("failed to get camera frame");
+  if (fb == NULL) {
+    LOG_WRN("Failed to get camera frame");
+    return false;
+  }
   else {
     esp_camera_fb_return(fb);
     fb = NULL;
@@ -726,19 +742,27 @@ bool prepRecording() {
 #if INCLUDE_TINYML
   LOG_INF("%sUsing TinyML", mlUse ? "" : "Not ");
 #endif
-  LOG_INF("To record new AVI, do one of:");
-  LOG_INF("- press Start Recording on web page");
-  if (pirUse) {
-    String extStr = (pirPin >= EXTPIN) ? "IO extender" : "";
-    LOG_INF("- attach PIR to %s pin %u", extStr, pirPin);
-    LOG_INF("- raise %s pin %u to 3.3V", extStr, pirPin);
-  }
-  if (useMotion) LOG_INF("- move in front of camera");
+
   if ((fs::LittleFSFS*)&STORAGE == &LittleFS) {
-    if (doRecording) {
-      doRecording = false; 
-      LOG_WRN("Recording to SD disabled");
+    // prevent recording
+    sdFreeSpaceMode = 0;
+    sdMinCardFreeSpace = 0;
+    doRecording = false;
+    sdLog = false;
+    useMotion = false;
+    doRecording = false; 
+    LOG_WRN("Recording disabled as no SD card");
+  } else {
+    LOG_INF("To record new AVI, do one of:");
+    LOG_INF("- press Start Recording on web page");
+#if INCLUDE_PERIPH
+    if (pirUse) {
+      String extStr = (pirPin >= EXTPIN) ? "IO extender" : "";
+      LOG_INF("- attach PIR to %s pin %u", extStr, pirPin);
+      LOG_INF("- raise %s pin %u to 3.3V", extStr, pirPin);
     }
+#endif
+    if (useMotion) LOG_INF("- move in front of camera");
   }
   logLine();
   LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
@@ -760,11 +784,14 @@ void endTasks() {
   for (int i = 0; i < numStreams; i++) deleteTask(sustainHandle[i]);
   deleteTask(captureHandle);
   deleteTask(playbackHandle);
-  deleteTask(DS18B20handle);
 #if INCLUDE_TELEM
   deleteTask(telemetryHandle);
 #endif
+#if INCLUDE_PERIPH
+  deleteTask(DS18B20handle);
   deleteTask(servoHandle);
+  deleteTask(stickHandle);
+#endif
 #if INCLUDE_SMTP
   deleteTask(emailHandle);
 #endif
@@ -774,7 +801,6 @@ void endTasks() {
 #if INCLUDE_UART
   deleteTask(uartClientHandle);
 #endif
-  deleteTask(stickHandle);
 #if INCLUDE_TGRAM
   deleteTask(telegramHandle);
 #endif
@@ -784,15 +810,47 @@ void OTAprereq() {
   // stop timer isrs, and free up heap space, or crashes esp32
   doPlayback = forceRecord = false;
   controlFrameTimer(false);
+#if INCLUDE_PERIPH
   setStickTimer(false);
+#endif
   stopPing();
   endTasks();
   esp_camera_deinit();
   delay(100);
 }
 
+#ifdef CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
+// This board has a configurable power supply
+// Need to instal following library
+#include "DFRobot_AXP313A.h" // https://github.com/cdjq/DFRobot_AXP313A
+DFRobot_AXP313A axp;
+
+static bool camPower() {
+  int pwrRetry = 5;
+  while (pwrRetry) { 
+    if (axp.begin() == 0) {
+      axp.enableCameraPower(axp.eOV2640);
+      return true;
+    } else {
+      delay(1000); 
+      pwrRetry--;
+    }
+  } 
+  LOG_ERR("Failed to power up camera");
+  return false;
+}
+
+#else
+
+static bool camPower() {
+  // dummy
+  return true;
+}
+#endif
+
 bool prepCam() {
   // initialise camera depending on model and board
+  if (!camPower()) return false;
   bool res = false;
   // buffer sizing depends on psram size (4M or 8M)h
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
@@ -847,50 +905,53 @@ bool prepCam() {
   } 
   if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%x on %s", err, CAM_BOARD);
   else {
-    sensor_t * s = esp_camera_sensor_get();
-    switch (s->id.PID) {
-      case (OV2640_PID):
-        strcpy(camModel, "OV2640");
-      break;
-      case (OV3660_PID):
-        strcpy(camModel, "OV3660");
-      break;
-      case (OV5640_PID):
-        strcpy(camModel, "OV5640");
-      break;
-      default:
-        strcpy(camModel, "Other");
-      break;
+    sensor_t* s = esp_camera_sensor_get();
+    if (s == NULL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to access camera on %s", CAM_BOARD);
+    else {
+      switch (s->id.PID) {
+        case (OV2640_PID):
+          strcpy(camModel, "OV2640");
+        break;
+        case (OV3660_PID):
+          strcpy(camModel, "OV3660");
+        break;
+        case (OV5640_PID):
+          strcpy(camModel, "OV5640");
+        break;
+        default:
+          strcpy(camModel, "Other");
+        break;
+      }
+      LOG_INF("Camera init OK for model %s on board %s", camModel, CAM_BOARD);
+  
+      // set frame size to configured value
+      char fsizePtr[4];
+      if (retrieveConfigVal("framesize", fsizePtr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtr)));
+      else s->set_framesize(s, FRAMESIZE_SVGA);
+  
+      // model specific corrections
+      if (s->id.PID == OV3660_PID) {
+        // initial sensors are flipped vertically and colors are a bit saturated
+        s->set_vflip(s, 1);//flip it back
+        s->set_brightness(s, 1);//up the brightness just a bit
+        s->set_saturation(s, -2);//lower the saturation
+      }
+  
+  #if defined(CAMERA_MODEL_M5STACK_WIDE)
+      s->set_vflip(s, 1);
+      s->set_hmirror(s, 1);
+  #endif
+  
+  #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
+      s->set_vflip(s, 1);
+      s->set_hmirror(s, 1);
+  #endif
+  
+  #if defined(CAMERA_MODEL_ESP32S3_EYE)
+      s->set_vflip(s, 1);
+  #endif
+      res = true;
     }
-    LOG_INF("Camera init OK for model %s on board %s", camModel, CAM_BOARD);
-
-    // set frame size to configured value
-    char fsizePtr[4];
-    if (retrieveConfigVal("framesize", fsizePtr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtr)));
-    else s->set_framesize(s, FRAMESIZE_SVGA);
-
-    // model specific corrections
-    if (s->id.PID == OV3660_PID) {
-      // initial sensors are flipped vertically and colors are a bit saturated
-      s->set_vflip(s, 1);//flip it back
-      s->set_brightness(s, 1);//up the brightness just a bit
-      s->set_saturation(s, -2);//lower the saturation
-    }
-
-#if defined(CAMERA_MODEL_M5STACK_WIDE)
-    s->set_vflip(s, 1);
-    s->set_hmirror(s, 1);
-#endif
-
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-    s->set_vflip(s, 1);
-    s->set_hmirror(s, 1);
-#endif
-
-#if defined(CAMERA_MODEL_ESP32S3_EYE)
-    s->set_vflip(s, 1);
-#endif
-    res = true;
   }
   debugMemory("prepCam");
   return res;

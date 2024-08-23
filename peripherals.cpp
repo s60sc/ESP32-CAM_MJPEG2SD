@@ -4,8 +4,7 @@
 // - servos, eg camera pan / tilt / steer
 // - DS18B20 temperature sensor
 // - battery voltage measurement
-// - lamp LED driver (PWM or WS2812)
-// - H-bridge motor controller (MCPWM)
+// - lamp LED driver (PWM or WS2812 / SK6812)
 // - 3 pin joystick 
 // - MY9221 based LED Bar, eg 10 segment Grove LED Bar
 // - 4 pin 28BYJ-48 Stepper Motor with ULN2003 Motor Driver
@@ -27,6 +26,8 @@
 //
 
 #include "appGlobals.h"
+
+#if INCLUDE_PERIPH
 #include "driver/ledc.h"
 
 // IO Extender use
@@ -47,7 +48,6 @@ bool lampNight; // if true, lamp comes on at night (not used)
 int lampType; // how lamp is used
 bool servoUse; // true to use pan / tilt servo control
 bool voltUse; // true to report on ADC pin eg for for battery
-bool wakeUse = false; // true to allow app to sleep and wake
 bool stickUse; // true to use joystick
 bool buzzerUse; // true to use buzzer
 bool stepperUse; // true to use stepper motor
@@ -62,7 +62,6 @@ bool stepperUse; // true to use stepper motor
 // sensors 
 int pirPin; // if pirUse is true
 int lampPin; // if lampUse is true
-int wakePin; // if wakeUse is true
 int buzzerPin; // if buzzerUse is true
 
 // Camera servos 
@@ -102,6 +101,8 @@ int motorRevPinR;
 int motorFwdPinR;
 int servoSteerPin;
 int lightsRCpin;
+int heartbeatRC;
+char remoteRCip[MAX_IP_LEN];
 int pwmFreq = 50;
 int maxSteerAngle;
 int maxDutyCycle;
@@ -284,19 +285,6 @@ static void prepServos() {
 #include <OneWire.h> 
 #include <DallasTemperature.h>
 #endif
-#if CONFIG_IDF_TARGET_ESP32
-extern "C" {
-// Use internal on chip temperature sensor (if present)
-uint8_t temprature_sens_read(); // sic
-}
-#elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#include "driver/temperature_sensor.h"
-static temperature_sensor_handle_t temp_sensor = NULL;
-  #else
-#include "driver/temp_sensor.h"
-  #endif
-#endif
 
 // configuration
 static float dsTemp = NULL_TEMP;
@@ -340,19 +328,6 @@ void prepTemperature() {
     } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
   }
 #endif
-#if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
-  // setup internal sensor
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-  temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
-  temperature_sensor_install(&temp_sensor_config, &temp_sensor);
-  temperature_sensor_enable(temp_sensor);
-  #else
-  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
-  temp_sensor.dac_offset = TSENS_DAC_L2;  // TSENS_DAC_L2 is default. L4(-40℃ ~ 20℃), L2(-10℃ ~ 80℃) L1(20℃ ~ 100℃) L0(50℃ ~ 125℃)
-  temp_sensor_set_config(temp_sensor);
-  temp_sensor_start();
-  #endif
-#endif
 }
 
 float readTemperature(bool isCelsius, bool onlyDS18) {
@@ -362,18 +337,7 @@ float readTemperature(bool isCelsius, bool onlyDS18) {
   if (haveDS18B20) externalPeripheral(ds18b20Pin);
 #endif
   if (onlyDS18) return dsTemp;
-  if (!haveDS18B20) {
-#if CONFIG_IDF_TARGET_ESP32
-    // convert on chip raw temperature in F to Celsius degrees
-    dsTemp = (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present
-#elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-    temperature_sensor_get_celsius(temp_sensor, &dsTemp); 
-  #else
-    temp_sensor_read_celsius(&dsTemp); 
-  #endif
-#endif
-  }
+  if (!haveDS18B20) dsTemp = readInternalTemp();
   return (dsTemp > NULL_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
 }
 
@@ -426,46 +390,52 @@ static void setupBatt() {
 
 /********************* LED Lamp Driver **********************/
 
-#define RGB_BITS 24  // WS2812 has 24 bit color in RGB order
+#define RGB_BITS 24  // WS2812 / SK6812 has 24 bit color in RGB order
 #if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
 #define LAMP_LEDC_CHANNEL 2 // Use channel not required by camera
 #endif
 static bool lampInit = false;
 static bool PWMled = true;
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#if defined(USE_WS2812)
+  #if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
 static rmt_obj_t* rmtWS2812;
-#endif
+  #endif
 static rmt_data_t ledData[RGB_BITS];
+#endif
 
 static void setupLamp() {
   // setup lamp LED according to board type
   // assumes led wired as active high (ESP32 lamp led on pin 4 is active high, signal led on pin 33 is active low)
 #if defined(LED_GPIO_NUM)
-  if (lampPin <= 0) lampPin = LED_GPIO_NUM;
+  if (lampPin <= 0) {
+    lampPin = LED_GPIO_NUM;
+    char lampPinStr[3];
+    sprintf(lampPinStr, "%d", lampPin);
+    updateStatus("lampPin", lampPinStr);
+  }
 #endif
-  bool haveWS2812 = false;
-#if defined(USE_WS2812)
-  haveWS2812 = true;
-#endif
+
   if ((lampPin < EXTPIN) && lampUse) {
     if (lampPin) {
       lampInit = true;
-      if (haveWS2812 && lampPin) {
+      if (lampPin) {
+#if defined(USE_WS2812)
         // WS2812 RGB high intensity led
         PWMled = false;
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
         if (rmtInit(lampPin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) 
           LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
         else LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
-#else
+  #else
         rmtWS2812 = rmtInit(lampPin, true, RMT_MEM_64);
         if (rmtWS2812 == NULL) LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
         else {
           rmtSetTick(rmtWS2812, 100);
           LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
         }
-#endif
+  #endif
       } else {
+#endif
         // assume PWM LED
         PWMled = true;
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
@@ -482,6 +452,7 @@ static void setupLamp() {
       LOG_WRN("No Lamp Led pin defined");
     }
   } 
+  if (lightsRCpin > 1) pinMode(lightsRCpin, OUTPUT);
 }
 
 static void lampWrite(uint8_t pin, uint32_t value, uint32_t valueMax = 15) {
@@ -502,6 +473,7 @@ void setLamp(uint8_t lampVal) {
 #else
         lampWrite(LAMP_LEDC_CHANNEL, lampVal);
 #endif
+#if defined(USE_WS2812)
       } else {
         // assume WS2812 LED - set white color and apply lampVal (0 = off, 15 = max)
         uint8_t RGB[3]; // each color is 8 bits
@@ -526,10 +498,11 @@ void setLamp(uint8_t lampVal) {
             }
           }
         }
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
         rmtWrite(lampPin, ledData, RGB_BITS, RMT_WAIT_FOR_EVER);
-#else
+  #else
         rmtWrite(rmtWS2812, ledData, RGB_BITS);
+  #endif
 #endif
       }
     }
@@ -547,8 +520,8 @@ void twinkleLed(uint8_t ledPin, uint16_t interval, uint8_t blinks) {
   }
 }
 
-void setLights(bool lightsOn) {
-  // External on / off light
+void setLightsRC(bool lightsOn) {
+  // on / off RC light 
   if (lightsRCpin > 0) digitalWrite(lightsRCpin, lightsOn);
 }
 
@@ -615,165 +588,6 @@ static void prepPIR() {
       LOG_WRN("No PIR pin defined");
     }
   }
-}
-
-
-/*
-MCPWM peripheral has 2 units, each unit can support:
-- 3 pairs of PWM outputs (6 pins)
-- 3 fault input pins to detect faults like overcurrent, overvoltage, etc.
-- 3 sync input pins to synchronize output signals
-- 3 input pins to gather feedback from controlled motors, using e.g. hall sensors
-
-MX1508 DC Motor Driver with PWM Control
-- 4 PWM gpio inputs, 2 per motor (forward & reverse)
-- Two H-channel drive circuits for 2 DC motors 
-- 1.5A (peak 2A)
-- 2-10V DC input, 1.8-7V Dc output
-- Outputs are OUT1 - OUT4 corresponding to IN1 to IN4
-- IN1 / OUT1 A1
-- IN2 / OUT2 B1
-- IN3 / OUT3 A2
-- IN4 / OUT4 B2
-*/
-
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-
-#include "esp_bdc_motor.h" // v3.x
-
-#define MCPWM_TIMER_HZ 100000 
-static bdc_motor_handle_t motor[2] = {NULL, NULL};
-
-static bool prepBDCmotor(int groupId, int motorId, int pwmAgpio, int pwmBgpio) {
-  bdc_motor_config_t motor_config = {
-      .pwma_gpio_num = (uint32_t)pwmAgpio, // forward pin 
-      .pwmb_gpio_num = (uint32_t)pwmBgpio, // reverse pin
-      .pwm_freq_hz = (uint32_t)pwmFreq,
-  };
-  bdc_motor_mcpwm_config_t mcpwm_config = {
-      .group_id = groupId, // MCPWM peripheral number (0, 1)
-      .resolution_hz = MCPWM_TIMER_HZ,
-  };
-  esp_err_t res = bdc_motor_new_mcpwm_device(&motor_config, &mcpwm_config, &motor[motorId]);
-  
-  if (res == ESP_OK) res = bdc_motor_enable(motor[motorId]);
-  if (res != ESP_OK) LOG_ERR("%s", espErrMsg(res));
-  return res == ESP_OK ? true : false;
-}
-
-static void motorDirection(uint32_t dutyTicks, int motorId, bool goFwd) {
-#if !CONFIG_IDF_TARGET_ESP32C3
-  if (dutyTicks > 0) {
-    // set direction
-    goFwd ? bdc_motor_forward(motor[motorId]) : bdc_motor_reverse(motor[motorId]);
-  }
-  // set speed
-  bdc_motor_set_speed(motor[motorId], dutyTicks);
-#endif
-}
-
-void motorSpeed(int speedVal, bool leftMotor) {
-  // speedVal is signed duty cycle, convert to unsigned uint32_t duty ticks
-  if (abs(speedVal) < minDutyCycle) speedVal = 0;
-  uint32_t dutyTicks = abs(speedVal) * MCPWM_TIMER_HZ / pwmFreq / 100;
-  if (leftMotor) {
-    // left motor steering or all motor direction
-    if (motorRevPin && speedVal < 0) motorDirection(dutyTicks, 0, false); 
-    else if (motorFwdPin) motorDirection(dutyTicks, 0, true);
-  } else {
-    // right motor steering
-    if (motorRevPinR && speedVal < 0) motorDirection(dutyTicks, 1, false); 
-    else if (motorFwdPinR) motorDirection(dutyTicks, 1, true);
-  }
-}
-
-#else
-
-#include "driver/mcpwm.h" // v2.x
-
-static void prepMotor(mcpwm_unit_t mcUnit, int fwdPin, int revPin) {
-  // setup gpio pins used for motor (forward, optional reverse), and pwm frequency
-  LOG_INF("initialising MCPWM unit %d, using pins %d, %d", mcUnit, fwdPin, revPin);
-  mcpwm_gpio_init(mcUnit, MCPWM0A, fwdPin);
-  if (motorRevPin > 0) mcpwm_gpio_init(mcUnit, MCPWM0B, revPin); 
-  mcpwm_config_t pwm_config;
-  pwm_config.frequency = pwmFreq;  // pwm frequency
-  pwm_config.cmpr_a = 0;    // duty cycle of PWMxA
-  pwm_config.cmpr_b = 0;    // duty cycle of PWMxb
-  pwm_config.counter_mode = MCPWM_UP_COUNTER;
-  pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
-  // Configure PWM0A & PWM0B with above settings
-  mcpwm_init(mcUnit, MCPWM_TIMER_0, &pwm_config); 
-}
-
-static void motorDirection(float duty_cycle, mcpwm_unit_t mcUnit, bool goFwd) {
-#if !CONFIG_IDF_TARGET_ESP32C3
-  mcpwm_set_signal_low(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_B : MCPWM_OPR_A);
-  // motor moves in given direction, with given duty cycle %
-  if (duty_cycle > 0.0) {
-    mcpwm_set_duty(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B, duty_cycle);
-    // call this each time, if previously in low/high state
-    mcpwm_set_duty_type(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B, MCPWM_DUTY_MODE_0); 
-  } else {
-    // stop motor
-    mcpwm_set_signal_low(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B);
-  }
-#endif
-}
-
-void motorSpeed(int speedVal, bool leftMotor) {
-  // speedVal is signed duty cycle, convert to unsigned float
-  if (abs(speedVal) < minDutyCycle) speedVal = 0;
-  float speedValFloat = (float)(abs(speedVal));
-  if (leftMotor) {
-    // left motor steering or all motor direction
-    if (motorRevPin && speedVal < 0) motorDirection(speedValFloat, MCPWM_UNIT_0, false); 
-    else if (motorFwdPin) motorDirection(speedValFloat, MCPWM_UNIT_0, true);
-  } else {
-    // right motor steering
-    if (motorRevPinR && speedVal < 0) motorDirection(speedValFloat, MCPWM_UNIT_1, false); 
-    else if (motorFwdPinR) motorDirection(speedValFloat, MCPWM_UNIT_1, true);
-  }
-}
-
-#endif
-
-static inline int clampValue(int value, int maxValue) {
-  // clamp value to the allowable range
-  return value > maxValue ? maxValue : (value < -maxValue ? -maxValue : value);
-}
-
-void trackSteeering(int controlVal, bool steering) {
-  // set left and right motor speed values depending on requested speed and request steering angle
-  // steering = true ? controlVal = steer angle : controlVal = speed change
-  static int driveSpeed = 0; // -ve for reverse
-  static int steerAngle = 0; // -ve for left turn
-  steering ? steerAngle = controlVal - servoCenter : driveSpeed = controlVal;
-  int turnSpeed = (clampValue(steerAngle, maxSteerAngle) * maxTurnSpeed / 2) / maxSteerAngle; 
-  if (driveSpeed < 0) turnSpeed = 0 - turnSpeed;
-  motorSpeed(clampValue(driveSpeed + turnSpeed, maxDutyCycle)); // left
-  motorSpeed(clampValue(driveSpeed - turnSpeed, maxDutyCycle), false); //right
-}
-
-void prepMotors() {
-#if !CONFIG_IDF_TARGET_ESP32C3
-  if (RCactive) {
-    if (motorFwdPin > 0) {
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-      // v3.x
-      prepBDCmotor(0, 0, motorFwdPin, motorRevPin);
-      if (trackSteer) prepBDCmotor(0, 1, motorFwdPinR, motorRevPinR);
-#else
-      // v2.x
-      prepMotor(MCPWM_UNIT_0, motorFwdPin, motorRevPin);
-      if (trackSteer) prepMotor(MCPWM_UNIT_1, motorFwdPinR, motorRevPinR);
-#endif
-    } else LOG_WRN("RC motor pins not defined");
-  }
-#else
-  RCactive = false;
-  LOG_WRN("This function not compatible with ESP32-C3");
-#endif
 }
 
 /********************************* joystick *************************************/
@@ -847,9 +661,10 @@ static void stickTask (void *pvParameter) {
       int motorCycle = (yPos > CENTER_ADC + yOffset) ? map(yPos, CENTER_ADC + yOffset, MAX_ADC, 0, 0 - maxDutyCycle)
         : map(yPos, 0, CENTER_ADC + yOffset, maxDutyCycle, 0); 
       if (abs(motorCycle) < minDutyCycle) motorCycle = 0; // deadzone
+#if INCLUDE_MCPWM
       motorSpeed(motorCycle);
-      
-      if (lightsChanged != lightsStatus) setLights(lightsChanged);
+#endif
+      if (lightsChanged != lightsStatus) setLightsRC(lightsChanged);
       lightsStatus = lightsChanged;
       LOG_VRB("Xpos %d, Ypos %d, button %d", xPos, yPos, lightsStatus);
     }
@@ -933,7 +748,7 @@ static void doStep() {
     if (!--stepsToDo) {
       setStickTimer(false, 0);  // stop task timer
       for (int i = 0; i < stepperPins; i++) pinMode(stepINpins[i], INPUT); // stop unnecessary power use
-#if INCLUDE_PGRAM
+#if (INCLUDE_PGRAM && INCLUDE_PERIPH)
       stepperDone();
 #endif
     }
@@ -1053,9 +868,10 @@ void prepPeripherals() {
   prepPIR();
   prepTemperature();
   prepServos();  
-  prepMotors();
   prepJoystick();
   prepStepper();
   prepLedBar();
   debugMemory("prepPeripherals");
 }
+
+#endif

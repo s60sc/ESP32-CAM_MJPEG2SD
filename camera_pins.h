@@ -166,7 +166,7 @@
 
 #define LED_GPIO_NUM 14
 
-#elif defined(CAMERA_MODEL_AI_THINKER)
+#elif defined(CAMERA_MODEL_AI_THINKER) || defined(SIDE_ALARM)
 #define CAM_BOARD "CAMERA_MODEL_AI_THINKER"
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
@@ -228,14 +228,16 @@
 #define VSYNC_GPIO_NUM    38
 #define HREF_GPIO_NUM     47
 #define PCLK_GPIO_NUM     13
-//Define SD Pins
+
+#define LED_GPIO_NUM 21
+//  Define SD Pins
 #define SD_MMC_CLK 7 
 #define SD_MMC_CMD 9
 #define SD_MMC_D0 8
-//Define Mic Pins
-#define I2S_SD 41
+// Define Mic Pins
+#define I2S_SD 41 // PDM Microphone
 #define I2S_WS 42
-#define I2S_SCK -1 //PDM Microphone
+#define I2S_SCK -1 
 
 #elif defined(CAMERA_MODEL_ESP32_CAM_BOARD)
 #define CAM_BOARD "CAMERA_MODEL_ESP32_CAM_BOARD"
@@ -288,7 +290,8 @@
 #define PCLK_GPIO_NUM     11
 
 #elif defined(CAMERA_MODEL_ESP32S2_CAM_BOARD)
-#define CAM_BOARD "CAMERA_MODEL_ESP32S2_CAM_BOARD"
+// ESP32S2 Not supported
+#define CAM_BOARD "CAMERA_MODEL_ESP32S2_CAM_BOARD unsupported"
 // The 18 pin header on the board has Y5 and Y3 swapped
 #define USE_BOARD_HEADER 0
 #define PWDN_GPIO_NUM     1
@@ -339,23 +342,25 @@
 #define PCLK_GPIO_NUM 13
 
 #if defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
-//Use WS2810
-#define USE_WS2812
-// 48 for flash led or 2 for signal led    
-#define LED_GPIO_NUM 48
+#define USE_WS2812 // Use WS2812 rgb led
 #endif
-//Define SD Pins
+#ifdef USE_WS2812 
+#define LED_GPIO_NUM 48 // WS2812 rgb led
+#else
+#define LED_GPIO_NUM 2 // blue signal led    
+#endif
+// Define SD Pins
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
-//Define I2C Pins
+// Define I2C Pins
 #define I2C_SDA 20
 #define I2C_SCL 21
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
-//Define Mic Pins
-#define I2S_SD 2
+// Define Mic Pins
+#define I2S_SD 2  // I2S Microphone
 #define I2S_WS 42
-#define I2S_SCK 41 //I2S Microphone
+#define I2S_SCK 41
 #endif
 
 #elif defined(CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3) || defined(CAMERA_MODEL_DFRobot_Romeo_ESP32S3)
@@ -378,6 +383,11 @@
 #define HREF_GPIO_NUM     42
 #define PCLK_GPIO_NUM     5
 
+#define LED_GPIO_NUM     21
+#if defined(CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3)
+#define NO_SD  // no SD card present
+#endif
+
 #elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)
 #define CAM_BOARD "CAMERA_MODEL_TTGO_T_CAMERA_PLUS"
 #define PWDN_GPIO_NUM    -1
@@ -399,13 +409,13 @@
 #define PCLK_GPIO_NUM    25
 
 #define LED_GPIO_NUM     -1
-//Define SD Pins
+// Define SD Pins
 #define SD_MMC_CLK 21 // SCLK
 #define SD_MMC_CMD 19 // MOSI
-#define SD_MMC_D0 22  // MISO]
+#define SD_MMC_D0 22  // MISO
 
 #elif defined(CAMERA_MODEL_NEW_ESPS3_RE1_0)
-// aliexpress board with label RE:1.0
+// aliexpress board with label RE:1.0, uses slow 8MB QSPI PSRAM, only 4MB addressable
 #define CAM_BOARD "CAMERA_MODEL_NEW_ESPS3_RE1_0"
 #define PWDN_GPIO_NUM -1
 #define RESET_GPIO_NUM -1
@@ -425,11 +435,42 @@
 #define HREF_GPIO_NUM 12
 #define PCLK_GPIO_NUM 7
 
-#define LED_GPIO_NUM 34
-//Define SD Pins
+#define USE_WS2812 // Use SK6812 rgb led   
+#ifdef USE_WS2812
+#define LED_GPIO_NUM 33 // SK6812 rgb led
+#else
+#define LED_GPIO_NUM 34 // green signal led 
+#endif
+// Define SD Pins
 #define SD_MMC_CLK 42
 #define SD_MMC_CMD 39
 #define SD_MMC_D0 41
+// Define Mic Pins
+#define I2S_SD 35 // I2S Microphone
+#define I2S_WS 37
+#define I2S_SCK 36 
+
+#elif defined(AUXILIARY)
+#define CAM_BOARD "AUXILIARY"
+#define PWDN_GPIO_NUM -1
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM -1
+#define SIOD_GPIO_NUM -1
+#define SIOC_GPIO_NUM -1
+
+#define Y9_GPIO_NUM -1
+#define Y8_GPIO_NUM -1
+#define Y7_GPIO_NUM -1
+#define Y6_GPIO_NUM -1
+#define Y5_GPIO_NUM -1
+#define Y4_GPIO_NUM -1
+#define Y3_GPIO_NUM -1
+#define Y2_GPIO_NUM -1
+#define VSYNC_GPIO_NUM -1
+#define HREF_GPIO_NUM -1
+#define PCLK_GPIO_NUM -1
+
+#define NO_SD
 
 #else
 #error "Camera model not selected"

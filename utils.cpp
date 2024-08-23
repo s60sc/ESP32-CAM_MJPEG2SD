@@ -21,6 +21,8 @@ size_t alertBufferSize = 0;
 byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
 RTC_NOINIT_ATTR uint32_t crashLoop;
 static void initBrownout(void);
+int wakePin; // if wakeUse is true
+bool wakeUse = false; // true to allow app to sleep and wake
 
 /************************** Wifi **************************/
 
@@ -715,6 +717,51 @@ float smoothSensor(float latestVal, float smoothedVal, float alpha) {
   return (latestVal * alpha) + smoothedVal * (1.0 - alpha);
 }
 
+// onboard chip temperature sensor
+#if CONFIG_IDF_TARGET_ESP32
+extern "C" {
+// Use internal on chip temperature sensor (if present)
+uint8_t temprature_sens_read(); // sic
+}
+#elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#include "driver/temperature_sensor.h"
+static temperature_sensor_handle_t temp_sensor = NULL;
+  #else
+#include "driver/temp_sensor.h"
+  #endif
+#endif
+
+static void prepInternalTemp() {
+#if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
+  // setup internal sensor
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+  temperature_sensor_install(&temp_sensor_config, &temp_sensor);
+  temperature_sensor_enable(temp_sensor);
+  #else
+  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
+  temp_sensor.dac_offset = TSENS_DAC_L2;  // TSENS_DAC_L2 is default. L4(-40℃ ~ 20℃), L2(-10℃ ~ 80℃) L1(20℃ ~ 100℃) L0(50℃ ~ 125℃)
+  temp_sensor_set_config(temp_sensor);
+  temp_sensor_start();
+  #endif
+#endif
+}
+
+float readInternalTemp() {
+  float intTemp = NULL_TEMP;
+#if CONFIG_IDF_TARGET_ESP32
+  // convert on chip raw temperature in F to Celsius degrees
+  intTemp = (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present
+#elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
+  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+    temperature_sensor_get_celsius(temp_sensor, &intTemp); 
+  #else
+    temp_sensor_read_celsius(&intTemp); 
+  #endif
+#endif
+  return intTemp;
+}
 /*********************** Remote loggging ***********************/
 /*
  * Log mode selection in user interface: 
@@ -879,10 +926,12 @@ void logSetup() {
   LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
   LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
   initBrownout();
+  prepInternalTemp();
   LOG_INF("Compiled with arduino-esp32 v%d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
   ////LOG_INF(" ESP32 Arduino core version: %s", ESP_ARDUINO_VERSION_STR);
   wakeupResetReason();
   if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
+  if (jsonBuff == NULL) jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
   debugMemory("logSetup"); 
 }
 
@@ -1087,7 +1136,7 @@ IRAM_ATTR static void notifyBrownout(void *arg) {
   esp_cpu_stall(!xPortGetCoreID());  // Stop the other core.
   esp_reset_reason_set_hint(ESP_RST_BROWNOUT);
   brownoutStatus = 'B';
-  esp_restart_noos();
+  esp_restart_noos(); // dirty reboot
 }
 
 static void initBrownout(void) {

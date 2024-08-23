@@ -6,55 +6,56 @@
 #include "globals.h"
 
 /**************************************************************************
- Copy & Paste one of the camera models below into the following #define block
+ Uncomment one only of the ESP32 or ESP32S3 camera models in the block below
  Selecting wrong model may crash your device due to pin conflict
 ***************************************************************************/
-/*
- * ESP32 models
-CAMERA_MODEL_AI_THINKER 
-CAMERA_MODEL_WROVER_KIT 
-CAMERA_MODEL_ESP_EYE 
-CAMERA_MODEL_M5STACK_PSRAM 
-CAMERA_MODEL_M5STACK_V2_PSRAM 
-CAMERA_MODEL_M5STACK_WIDE 
-CAMERA_MODEL_M5STACK_ESP32CAM
-CAMERA_MODEL_M5STACK_UNITCAM
-CAMERA_MODEL_TTGO_T_JOURNAL 
-CAMERA_MODEL_ESP32_CAM_BOARD
-CAMERA_MODEL_TTGO_T_CAMERA_PLUS
-
-* ESP32S3 models
-CAMERA_MODEL_XIAO_ESP32S3 
-CAMERA_MODEL_FREENOVE_ESP32S3_CAM
-CAMERA_MODEL_ESP32S3_EYE 
-CAMERA_MODEL_ESP32S3_CAM_LCD
-*/
 
 // User's ESP32 cam board
 #if defined(CONFIG_IDF_TARGET_ESP32)
-#define CAMERA_MODEL_AI_THINKER 
+//#define CAMERA_MODEL_AI_THINKER 
+//#define CAMERA_MODEL_WROVER_KIT 
+//#define CAMERA_MODEL_ESP_EYE 
+//#define CAMERA_MODEL_M5STACK_PSRAM 
+//#define CAMERA_MODEL_M5STACK_V2_PSRAM 
+//#define CAMERA_MODEL_M5STACK_WIDE 
+//#define CAMERA_MODEL_M5STACK_ESP32CAM
+//#define CAMERA_MODEL_M5STACK_UNITCAM
+//#define CAMERA_MODEL_TTGO_T_JOURNAL 
+//#define CAMERA_MODEL_ESP32_CAM_BOARD
+//#define CAMERA_MODEL_TTGO_T_CAMERA_PLUS
+#define AUXILIARY
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3 
+//#define CAMERA_MODEL_NEW_ESPS3_RE1_0
+//#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
+//#define CAMERA_MODEL_ESP32S3_EYE 
+//#define CAMERA_MODEL_ESP32S3_CAM_LCD
+//#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
+//#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
+//#define AUXILIARY
 #endif
 
 /***************************************************************
-  To reduce code size by removing unwanted features,
+  To reduce code size and heap use by removing unwanted features,
   set relevant defines below to false and optionally delete associated file
 ***************************************************************/
+#define INCLUDE_TGRAM true   // telegram.cpp
 #define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
+#define INCLUDE_AUDIO true   // audio.cpp (microphone)
+#define INCLUDE_PERIPH true  // peripherals.cpp
 #define INCLUDE_SMTP true    // smtp.cpp (email)
 #define INCLUDE_MQTT true    // mqtt.cpp 
-#define INCLUDE_TGRAM true   // telegram.cpp
+
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
-#define INCLUDE_TELEM true   // telemetry.cpp
-#define INCLUDE_AUDIO true   // audio.cpp (microphone)
 #define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
+#define INCLUDE_TELEM true   // telemetry.cpp
 #define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
 #define INCLUDE_EXTHB true   // externalHeartbeat.cpp (heartbeat to remote server)
-#define INCLUDE_PGRAM true   // photogram.cpp (photogrammetry feature)
+#define INCLUDE_PGRAM true   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
+#define INCLUDE_MCPWM true   // mcpwm.cpp (motor control)
 
 #define INCLUDE_TINYML false  // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
@@ -67,11 +68,15 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define HTTP_PORT 80 // insecure app access
 #define HTTPS_PORT 443 // secure app access
 
+#define USE_IP6 true // if true use IPv6 when available, else use IPv4
+
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
+#include "esp_camera.h"
+#include "camera_pins.h"
+
 //#define DEV_ONLY // leave commented out
-//#define SIDE_ALARM // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
@@ -79,14 +84,20 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
-#define USE_IP6 true
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.9.3"
+#define APP_VER "9.9.4"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
+#if defined(AUXILIARY)
+#define INDEX_PAGE_PATH DATA_DIR "/Aux" HTML_EXT
+#elif defined(SIDE_ALARM)
+#define INDEX_PAGE_PATH DATA_DIR "/SideAl" HTML_EXT
+#define NO_SD
+#else
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
+#endif
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
@@ -102,7 +113,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define GRAYSCALE_BYTES 1 // number of bytes per pixel 
 #define MAX_ALERT MAX_JPEG
 
-#ifdef SIDE_ALARM
+#ifdef NO_SD
 #define STORAGE LittleFS
 #else
 #define STORAGE SD_MMC
@@ -116,7 +127,7 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 16
+#define CFG_VER 17
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -179,11 +190,6 @@ CAMERA_MODEL_ESP32S3_CAM_LCD
 #define BATT_PRI 1
 #define IDLEMON_PRI 5
 
-/******************** Libraries *******************/
-
-#include "esp_camera.h"
-#include "camera_pins.h"
-
 /******************** Function declarations *******************/
 
 struct mjpegStruct {
@@ -232,13 +238,14 @@ bool prepCam();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
+void prepMotors();
 void remoteMicHandler(uint8_t* wsMsg, size_t wsMsgLen);
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
 uint8_t setFPSlookup(uint8_t val);
 void setLamp(uint8_t lampVal);
-void setLights(bool lightsOn);
+void setLightsRC(bool lightsOn);
 void setSteering(int steerVal);
 void setStepperPin(uint8_t pinNum, uint8_t pinPos);
 void setStickTimer(bool restartTimer, uint32_t interval = 0);
@@ -408,6 +415,7 @@ extern int motorFwdPinR;
 extern bool trackSteer;
 extern int servoSteerPin;
 extern int lightsRCpin;
+extern char remoteRCip[];
 extern int pwmFreq;
 extern int maxSteerAngle;
 extern int maxTurnSpeed;
@@ -416,6 +424,7 @@ extern int minDutyCycle;
 extern bool allowReverse;
 extern bool autoControl;
 extern int waitTime;
+extern int heartbeatRC;
 extern bool stickUse;
 extern int stickzPushPin;
 extern int stickXpin;

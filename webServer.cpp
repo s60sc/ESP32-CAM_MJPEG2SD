@@ -16,6 +16,7 @@ static httpd_handle_t httpServer = NULL; // web server port
 static int fdWs = -1; // websocket sockfd
 bool useHttps = false;
 bool useSecure = false;
+bool heartBeatDone = false;
 
 static fs::FS fp = STORAGE;
 static byte* chunk;
@@ -363,7 +364,7 @@ static esp_err_t sendCrossOriginHeader(httpd_req_t *req) {
   return ESP_OK;
 }
 
-void wsAsyncSend(const char* wsData) {
+bool wsAsyncSend(const char* wsData) {
   // websockets send function, used for async logging and status updates
   if (fdWs >= 0) {
     // send if connection active
@@ -374,7 +375,9 @@ void wsAsyncSend(const char* wsData) {
     wsPkt.final = true;
     esp_err_t ret = httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
     if (ret != ESP_OK) LOG_WRN("websocket send failed with %s", esp_err_to_name(ret));
-  } // else ignore
+    return ret == ESP_OK ? true : false;
+  } 
+  return false;
 }
 
 static esp_err_t wsHandler(httpd_req_t *req) {

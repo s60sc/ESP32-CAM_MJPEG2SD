@@ -26,6 +26,7 @@
 #if INCLUDE_TINYML
 // include Edge Impulse arduino library for additional motion detect filtering
 // Dont use EON Compiler option
+// Select target device: Espressif ESP-EYE
 //#include <edge impulse user library.h>
 #endif
 

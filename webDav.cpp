@@ -1,9 +1,15 @@
 
 /*  
   Using the WebDAV server:
-    Windows:
+    Windows 10:
     - Windows file explorer, in address bar enter: <ip_address>/webdav
     - Map Network Drive, connect to: \\<ip_address>\webdav
+    Windows 11:
+    - Map Network Drive:
+      - connect to: \\<ip_address>\webdav
+      - Click on the link “Connect to a web site that you can use to store your documents and pictures.”
+      - Click “Next” and then “Choose a custom network location.”
+      - Re-enter \\<ip_address>\webdav
 
     Android:
     - Solid Explorer, enter <ip_address> for Remote host name, webdav for Path
@@ -309,7 +315,6 @@ bool handleWebDav(httpd_req_t* rreq) {
   if (pathName[strlen(pathName) - 1] == '/') pathName[strlen(pathName) - 1] = 0; // remove final / if present
   if (!strlen(pathName)) strcpy(pathName, "/"); // if pathname empty, use single /
   urlDecode(pathName);
-  
   // common response header
   httpd_resp_set_hdr(req, "DAV", "1");
   httpd_resp_set_hdr(req, "Allow", ALLOW);
