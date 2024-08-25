@@ -315,10 +315,10 @@ static esp_err_t bdc_motor_del(bdc_motor_handle_t motor)
 
 /************************* custom code s60sc *************************/
 
+#define CHECK_WS_CONN true // true if motors controlled via web socket
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
 
 #define MCPWM_TIMER_HZ 100000 
-#define CHECK_WS_CONN true // true if motors controlled via web socket
 static bdc_motor_handle_t RCmotor[6] = {NULL, NULL, NULL, NULL, NULL, NULL}; // max 6 motors
 
 static bool prepBDCmotor(int groupId, int motorId, int pwmAgpio, int pwmBgpio) {
