@@ -765,6 +765,9 @@
         } 
       }
       
+      fieldset {
+        margin: 0px;
+      }
       #buttonContainer {
         margin-bottom: calc(var(--buttonSize) * 4);
         display: flex;
@@ -944,7 +947,58 @@
               <div id="foot-spacer"></div>
             </div>
           </div>
+          <section id="footer"> 
+            <div class="info-group center">
+                <label for="fw_version">Version</label>
+                <div id="fw_version" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="llevel">Ambient&nbsp;Light</label>
+                <div id="llevel" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="night">Night&nbsp;Time</label>
+                <div id="night" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="atemp">Camera&nbsp;Temp</label>
+                <div id="atemp" class="info displayonly">&nbsp;</div>
+            </div> 
+            <div class="info-group center">
+                <label for="battv">Battery&nbsp;Voltage</label>
+                <div id="battv" class="info displayonly">&nbsp;</div>
+            </div> 
+            <div class="info-group center">
+                <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
+                <div id="clock" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="up_time">Up&nbsp;time</label>
+                <div id="up_time" class="info displayonly">&nbsp;</div>
+            </div>                                                 
+            <div class="info-group center">
+                <label for="wifi_rssi">Signal&nbsp;Strength</label>
+                <div id="wifi_rssi" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="free_heap">Free&nbsp;heap</label>
+                <div id="free_heap" class="info displayonly">&nbsp;</div>
+            </div>  
+            <div class="info-group center">
+                <label for="free_psram">Free&nbsp;PSRAM</label>
+                <div id="free_psram" class="info displayonly">&nbsp;</div>
+            </div>
+            <div class="info-group center">
+                <label for="free_bytes">Free&nbsp;SD</label>
+                <div id="free_bytes" class="info displayonly">&nbsp;</div>
+            </div> 
+            <div class="info-group center">
+                <label for="total_bytes">Total&nbsp;SD</label>
+                <div id="total_bytes" class="info displayonly">&nbsp;</div>
+            </div>  
+          </section> 
         </div>
+                                                
       </div> 
     </div>      
     
@@ -1061,6 +1115,18 @@
             <text class="local midText" id="RCconfig">RC Config</text>
           </svg>
         </div>
+        <div id="SVconfigBtn">
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="SVconfig">Servo Config</text>
+          </svg>
+        </div>
+        <div id="PGconfigBtn">
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="PGconfig">PG Config</text>
+          </svg>
+        </div>
       </div>
       <div>
         <p class='config-group' id='Cfg'></p>
@@ -1081,6 +1147,7 @@
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
       const appLogInit = 0;
+      let wsInd = 0;
 
       // following set from app
       let maxSteerAngle = 45;   // max steering angle in degrees from straightahead
@@ -1113,6 +1180,8 @@
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
+          else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
+          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
           else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
@@ -1123,6 +1192,8 @@
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
           else if (key == "waitTime") waitTime = value;
           else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
+          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend(wsInd, "G1"); }
+          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend(wsInd, "G0"); }
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
         } 
@@ -1183,7 +1254,6 @@
       }
 
 
-
       /************* user selection functions ************/
       
       function sendAll(key, val) {
@@ -1204,6 +1274,11 @@
       function updateMaxDutyCycle(val, force = false) {
         if (maxDutyCycle != val || force) maxDutyCycle = val;
       }
+      
+      function wsAuxSend(index, msg) {
+        if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[wsInd].send(msg);
+        else alert("Lost connection to " + wsServers[wsInd]);
+      }
 
       /***************************************************************************/
       
@@ -1213,7 +1288,7 @@
       let doLoadStatus = true;
       const doRefreshTimer = false;
       const doCustomSync = false;
-      const doHeartbeat = false;
+      const doHeartbeat = true;
 
       const scriptFiles = ['/web?common.js', 'C:/MyStuff/Arduino/CommonMaster/Latest/common.js']; 
       for (let i = 0; i < scriptFiles.length; i++) {

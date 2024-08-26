@@ -1619,6 +1619,12 @@
             <text class="local midText" id="RCconfig">RC Config</text>
           </svg>
         </div>
+        <div id="SVconfigBtn" class="hidden">
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="SVconfig">Servo Config</text>
+          </svg>
+        </div>
         <div id="PGconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
@@ -1672,7 +1678,6 @@
       let rotateAngle = 0;
       let RCmode = false;
       let showRC = false; 
-      let RCremIP = "";
       let wsInd = 0;
 
       // slider orientation is one of:
@@ -1738,6 +1743,7 @@
           else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
           else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
+          else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
           else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
@@ -1756,9 +1762,9 @@
           else if (key == "micRem") micAction(true);
           else if (key == "mampUse") micShow(Number(value));
           else if (key == "RCactive") RCstatus(Number(value));
-          else if (key == "RClights") { value = RCbuttons(key, value); RCwsSend(wsInd, "L" + value); }
+          else if (key == "RClights") { value = RCbuttons(key, value); wsAuxSend(wsInd, "L" + value); }
           else if (key == "RCcontrols") showRCcontrols(RCbuttons(key, value));
-          else if (key == "remoteRCip") RCremIP = value;
+          else if (key == "AuxIP") wsAux(value);
           else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
           else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
           else if (key == "minDutyCycle") minDutyCycle = value;
@@ -1766,7 +1772,12 @@
           else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle, true); }
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
           else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
+          else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
           else if (key == "waitTime") waitTime = value;
+          else if (key == "camTilt") { wsAuxSend(wsInd, "T" + value); }
+          else if (key == "camPan") { wsAuxSend(wsInd, "P" + value); }
+          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend(wsInd, "G1"); }
+          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend(wsInd, "G0"); }
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
         } 
@@ -2236,28 +2247,13 @@
       async function showRCcontrols(showControls) {
         if (showControls) {
           // start rc control
-          setRCws();
           show($('#RCdisplay')) 
           RCmode = true;
           loggingOn = false;
-          while (wsSkt[wsInd].readyState != WebSocket.OPEN) await sleep(50); // allow websocket to start
+          while (wsSkt[wsInd] && wsSkt[wsInd].readyState != WebSocket.OPEN) await sleep(50); // allow websocket to start
+          if (!wsSkt[wsInd]) stopRC();
           doLoadStatus = false;
         } else stopRC();
-      }
-
-      function setRCws() {
-        // set websocket used by RC controls
-        if (RCremIP.length == 0) wsInd = 0; // use existing local IP web socket
-        else {
-          // setup remote IP web socket
-          wsInd = 1;
-          if (wsSkt[wsInd] == null) {
-            wsServers[wsInd] = (isSecure ? "wss" : "ws") + "://" + RCremIP + ":" + webPort + "/ws";
-            initWebSocket(wsInd);
-          }
-          stopHeartbeat();
-          heartbeat(wsInd);
-        }
       }
 
       function stopRC() {
@@ -2273,10 +2269,9 @@
             wsSkt[wsInd].send("D" + servoCenter);  
             wsSkt[wsInd].send("M0");
             wsSkt[wsInd].send("L0");
-          } catch(error) { alert("RC lost connection"); }
+          } catch(error) { alert("No connection to " + wsServers[wsInd]); }
           RCmode = false; 
         }
-        stopHeartbeat();
         if (logType == 1) loggingOn = true;
       }
 
@@ -2320,11 +2315,11 @@
           if (doSend) {
             if (key == "steerDirection") {
               val += 1 * servoCenter;
-              RCwsSend(wsInd, "D" + val);
+              wsAuxSend(wsInd, "D" + val);
             }
             else if (key == "motorSpeed") {
               if (Math.abs(val) < minDutyCycle) val = 0;
-              RCwsSend(wsInd, "M" + val);
+              wsAuxSend(wsInd, "M" + val);
             }
           }
         }
@@ -2362,10 +2357,22 @@
         }
       }
 
-      function RCwsSend(index, msg) {
+      function wsAuxSend(index, msg) {
         if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[wsInd].send(msg);
-        else stopAll("RCwsSend");
+        else stopRC();
       }
+
+      function wsAux(AuxIP) {
+        // setup websocket used for auxiliary board if required
+        if (AuxIP.length > 0) {
+          wsInd = 1;
+          if (wsSkt[wsInd] == null) {
+            wsServers[wsInd] = (isSecure ? "wss" : "ws") + "://" + AuxIP + ":" + webPort + "/ws";
+            initWebSocket(wsInd);
+          }
+        }
+      }
+
 
       /***************************************************************************/
 
@@ -2375,7 +2382,7 @@
       let doLoadStatus = true;
       const doRefreshTimer = true;
       const doCustomSync = false;
-      const doHeartbeat = false;
+      const doHeartbeat = true;
 
       const scriptFiles = ['/web?common.js', 'C:/MyStuff/Arduino/CommonMaster/Latest/common.js']; 
       for (let i = 0; i < scriptFiles.length; i++) {

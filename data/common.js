@@ -58,19 +58,17 @@
             wsSkt[index].onopen = function(event) {
               // connect to websocket server
               showLog("Connect to " + wsServers[index]);
-              if (index == 0) {
-                if (doCustomSync) customSync();
-                if (doHeartbeat) heartbeat();
-              }
+              if (index == 0 && doCustomSync) customSync();
+              if (doHeartbeat && !hbTimer) heartbeat();
             }
             wsSkt[index].onmessage = onMessage;
             wsSkt[index].onerror =  function(error) {
               showLog("WS Error: " + error);
             }
-            wsSkt[index].onclose = function(event) {
-              showLog("Disconnected: " + event.code + ' - ' + event.reason);
+            wsSkt[index].onclose = async function(event) {
+              await sleep(500);
+              showLog("Disconnected " + wsServers[index] + " : " + event.code + ' - ' + event.reason);
               loggingOn = false;
-              if (hbTimer) stopHeartbeat();
               wsSkt[index] = null;
               // event.codes:
               //   1006 if server not available, or another web page is already open
@@ -93,24 +91,13 @@
           } else showLog(messageEvent.data, false);
         }
 
-        async function closeWS(event, index) {
-          if (wsSkt[index] != null) {
-            wsSkt[index].send('K');
-            await sleep(500);
-            wsSkt[index].close(event, index);
-          }
-        }
-
         // periodically check that connection is still up
-        function heartbeat(index = 0) {
+        function heartbeat() {
           hbTimer = setInterval(function() {
-            if (wsSkt[index].readyState === WebSocket.OPEN) wsSkt[index].send("H");
+          wsSkt.forEach((element, index) => {
+            if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[index].send("H");
+          });
           }, heartbeatInterval);
-        }
-
-        function stopHeartbeat() {
-          if (hbTimer) clearInterval(hbTimer);
-          hbTimer == null;
         }
 
         /*********** page layout functions ***********/
@@ -468,9 +455,18 @@
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') {
               // User has switched tabs or minimized the window
-              if (wsSkt[0]) closeWS(event, 0);
-              if (wsSkt[1]) closeWS(event, 0);
+              wsServers.forEach((element, index) => {
+                if (wsSkt[index]) {
+                  wsSkt[index].send('K');
+                  wsSkt[index].close;
+                }
+              });
               closedTab(true); // app specific
+            } else {
+              // page visible, reopen websocket(s)
+              wsServers.forEach((element, index) => {
+                if (wsServers[index] && !wsSkt[index]) initWebSocket(index);
+              });
             }
           });
 
