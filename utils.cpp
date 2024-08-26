@@ -86,10 +86,8 @@ static const char* wifiStatusStr(wl_status_t wlStat) {
     case WL_CONNECTED: return "WL_CONNECTED";
     case WL_CONNECT_FAILED: return "WL_CONNECT_FAILED";
     case WL_CONNECTION_LOST: return "WL_CONNECTION_LOST";
-    case WL_DISCONNECTED: return "unable to connect";
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)    
+    case WL_DISCONNECTED: return "unable to connect";  
     case WL_STOPPED: return "wifi stopped";
-#endif
     default: return "Invalid WiFi.status";
   }
 }
@@ -175,9 +173,7 @@ static void setWifiSTA() {
       LOG_INF("Wifi Station set static IP");
     } 
   } else LOG_INF("Wifi Station IP from DHCP");
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
   WiFi.enableIPv6(USE_IP6); 
-#endif
   WiFi.begin(ST_SSID, ST_Pass);
   debugMemory("setWifiSTA");
 }
@@ -220,8 +216,6 @@ bool startWifi(bool firstcall) {
 }
 
 void resetWatchDog() {
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-  // Code for version 3.x
   // use ping task as watchdog in case of freeze
   static bool watchDogStarted = false;
   if (watchDogStarted) esp_task_wdt_reset();
@@ -240,18 +234,6 @@ void resetWatchDog() {
       LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
     } else LOG_ERR("WatchDog failed to start");
   }
-#else
-  // Code for version 2.x
-  // use ping task as watchdog in case of freeze
-  static bool watchDogStarted = false;
-  if (watchDogStarted) esp_task_wdt_reset();
-  else {
-    esp_task_wdt_init(wifiTimeoutSecs * 2, true); // panic abort on watchdog alert (contains wdt_isr)
-    esp_task_wdt_add(NULL);
-    watchDogStarted = true;
-    LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
-  }
-#endif
 }
 
 static void statusCheck() {
@@ -345,7 +327,7 @@ bool doGetExtIP = true;
 void getExtIP() {
   // Get external IP address
   if (doGetExtIP) { 
-    WiFiClientSecure hclient;
+    NetworkClientSecure hclient;
     if (remoteServerConnect(hclient, EXT_IP_HOST, HTTPS_PORT, "", GETEXTIP)) {
       HTTPClient https;
       int httpCode = HTTP_CODE_NOT_FOUND;
@@ -370,26 +352,22 @@ void getExtIP() {
   }
 }
 
-/************** generic WiFiClientSecure functions ******************/
+/************** generic NetworkClientSecure functions ******************/
 
 static uint8_t failCounts[REMFAILCNT] = {0};
 
-void remoteServerClose(WiFiClientSecure& sclient) {
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+void remoteServerClose(NetworkClientSecure& sclient) {
   if (sclient.available()) sclient.clear();
-#else
-  if (sclient.available()) sclient.flush();
-#endif
   if (sclient.connected()) sclient.stop();
 }
 
-bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx) {
+bool remoteServerConnect(NetworkClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx) {
   // Connect to server if not already connected or previously disconnected
   if (sclient.connected()) return true;
   else {
     if (failCounts[connIdx] >= MAX_FAIL) {
       if (failCounts[connIdx] == MAX_FAIL) {
-        LOG_WRN("Abandon %s connection attempt", serverName);
+        LOG_WRN("Abandon %s connection attempt until next rollover", serverName);
         failCounts[connIdx] = MAX_FAIL + 1;
       }
     } else {
@@ -724,27 +702,16 @@ extern "C" {
 uint8_t temprature_sens_read(); // sic
 }
 #elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
 #include "driver/temperature_sensor.h"
 static temperature_sensor_handle_t temp_sensor = NULL;
-  #else
-#include "driver/temp_sensor.h"
-  #endif
 #endif
 
 static void prepInternalTemp() {
 #if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
   // setup internal sensor
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
   temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
   temperature_sensor_install(&temp_sensor_config, &temp_sensor);
   temperature_sensor_enable(temp_sensor);
-  #else
-  temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
-  temp_sensor.dac_offset = TSENS_DAC_L2;  // TSENS_DAC_L2 is default. L4(-40℃ ~ 20℃), L2(-10℃ ~ 80℃) L1(20℃ ~ 100℃) L0(50℃ ~ 125℃)
-  temp_sensor_set_config(temp_sensor);
-  temp_sensor_start();
-  #endif
 #endif
 }
 
@@ -754,11 +721,7 @@ float readInternalTemp() {
   // convert on chip raw temperature in F to Celsius degrees
   intTemp = (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present
 #elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
     temperature_sensor_get_celsius(temp_sensor, &intTemp); 
-  #else
-    temp_sensor_read_celsius(&intTemp); 
-  #endif
 #endif
   return intTemp;
 }
@@ -927,8 +890,7 @@ void logSetup() {
   LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
   initBrownout();
   prepInternalTemp();
-  LOG_INF("Compiled with arduino-esp32 v%d.%d.%d", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
-  ////LOG_INF(" ESP32 Arduino core version: %s", ESP_ARDUINO_VERSION_STR);
+  LOG_INF("Compiled with arduino-esp32 v%s", ESP_ARDUINO_VERSION_STR);
   wakeupResetReason();
   if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
   if (jsonBuff == NULL) jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
@@ -1120,12 +1082,8 @@ void goToSleep(int wakeupPin, bool deepSleep) {
 //https://github.com/espressif/esp-idf/blob/master/components/esp_system/port/brownout.c
 
 #include "esp_private/system_internal.h"
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
 #include "esp_private/rtc_ctrl.h"
 #include "hal/brownout_ll.h"
-#else
-#include "driver/rtc_cntl.h" // v2.x
-#endif
 
 #include "soc/rtc_periph.h"
 #include "hal/brownout_hal.h"
@@ -1154,13 +1112,9 @@ static void initBrownout(void) {
       .rf_power_down = true,
     };
     brownout_hal_config(&cfg);
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
     brownout_ll_intr_clear();
     rtc_isr_register(notifyBrownout, NULL, RTC_CNTL_BROWN_OUT_INT_ENA_M, RTC_INTR_FLAG_IRAM);
     brownout_ll_intr_enable(true);
-#else
-    rtc_isr_register(notifyBrownout, NULL, RTC_CNTL_BROWN_OUT_INT_ENA_M);
-#endif
     brownoutStatus = 0; 
   }
 }

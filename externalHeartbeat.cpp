@@ -27,7 +27,7 @@ void sendExternalHeartbeat() {
   strcat(uri, "?token=");
   strcat(uri, external_heartbeat_token);
   
-  WiFiClientSecure hclient;
+  NetworkClientSecure hclient;
   
   buildJsonString(false);
 

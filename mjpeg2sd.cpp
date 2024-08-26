@@ -16,7 +16,7 @@ bool dbgMotion  = false;
 bool forceRecord = false; // Recording enabled by rec button
 
 // motion detection parameters
-int moveStartChecks = 5; // checks per second for start motion
+int moveStartChecks = 5; // checks per second for start motion 
 int moveStopSecs = 2; // secs between each check for stop, also determines post motion time
 int maxFrames = 20000; // maximum number of frames in video before auto close 
 
@@ -93,16 +93,12 @@ void controlFrameTimer(bool restartTimer) {
   static hw_timer_t* frameTimer = NULL;
   // stop current timer
   if (frameTimer) {
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-    timerAlarmDisable(frameTimer);
-#endif
     timerDetachInterrupt(frameTimer); 
     timerEnd(frameTimer);
     frameTimer = NULL;
   }
   if (restartTimer) {
     // (re)start timer interrupt for required framerate
-#if ESP_ARDUINO_VERSION > ESP_ARDUINO_VERSION_VAL(3, 0, 0)
     frameTimer = timerBegin(OneMHz); 
     if (frameTimer) {
       frameInterval = OneMHz / FPS; // in units of us 
@@ -110,14 +106,6 @@ void controlFrameTimer(bool restartTimer) {
       timerAttachInterrupt(frameTimer, &frameISR);
       timerAlarm(frameTimer, frameInterval, true, 0); // micro seconds
     } else LOG_ERR("Failed to setup frameTimer");
-#else
-    frameTimer = timerBegin(3, 8000, true); // 0.1ms tick
-    frameInterval = 10000 / FPS; // in units of 0.1ms 
-    LOG_VRB("Frame timer interval %ums for FPS %u", frameInterval/10, FPS); 
-    timerAlarmWrite(frameTimer, frameInterval, true); 
-    timerAlarmEnable(frameTimer);
-    timerAttachInterrupt(frameTimer, &frameISR, true);
-#endif
   }
 }
 
@@ -797,9 +785,6 @@ void endTasks() {
 #endif
 #if INCLUDE_FTP_HFS
   deleteTask(fsHandle);
-#endif
-#if INCLUDE_UART
-  deleteTask(uartClientHandle);
 #endif
 #if INCLUDE_TGRAM
   deleteTask(telegramHandle);

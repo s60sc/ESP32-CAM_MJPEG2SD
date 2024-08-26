@@ -27,7 +27,7 @@ static bool wgetFile(const char* filePath) {
     snprintf(downloadURL, 150, "%s%s", GITHUB_PATH, filePath);
     File f = fp.open(filePath, FILE_WRITE);
     if (f) {
-      WiFiClientSecure wclient;
+      NetworkClientSecure wclient;
       if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, git_rootCACertificate, SETASSIST)) {
         HTTPClient https;
         if (https.begin(wclient, GITHUB_HOST, HTTPS_PORT, downloadURL, true)) {

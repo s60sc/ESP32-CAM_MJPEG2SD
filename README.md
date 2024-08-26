@@ -1,3 +1,4 @@
+
 # ESP32-CAM_MJPEG2SD
 
 Application for ESP32 / ESP32S3 with OV2640 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
@@ -17,14 +18,16 @@ The application supports:
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
+* Use of [Auxiliary Board](#auxiliary-board) for additional pins.
 
 The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, but avoid no-name boards marked `ESPS3 RE:1.0`
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 9.9.4:
-*  Support for FireBeetle 2 Board ESP32-S3
-*  Option to use auxiliary board for RC control - see [Remote Control](#remote-control) 
+Changes in version 10.0:
+*  Must be compiled with v3.x of arduino-esp32 core 
+*  Removed integration with IO Extender app
+*  Option to use auxiliary board for additional pins - see [Auxiliary Board](#auxiliary-board)
 
 ## Purpose
 
@@ -61,9 +64,9 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
-If compiling with arduino core v3.x use at least v3.0.3 which contains network fixes.
-To free up some heap space, in `appGlobals.h` set `INCLUDE_*` defines for any unused feature to `false`.
-Select the required ESP-CAM board using `CAMERA_MODEL_` in `appGlobals.h` unless using the one of the defaults:
+If compiling with at least arduino-esp32 core v3.0.3 which contains network fixes.
+To free up some heap space, in `appGlobals.h` set `#define INCLUDE_*` for any unused feature to `false`.
+Select the required ESP-CAM board by uncommenting ONE only of the `#define CAMERA_MODEL_*` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
 * Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM` 
 
@@ -71,7 +74,7 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 * ESP32 - `Minimal SPIFFS (...)`
 * ESP32S3 - `8M with spiffs (...)` or `16MB(3MB APP...)`
 
-**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v2.x or v3.x
+**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v3.x
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)** 
 
 **NOTE: If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
@@ -151,14 +154,17 @@ See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 * Monitor voltage of battery supply on ADC pin.
 * Wakeup on LDR after deep sleep at night.
 
+The **Peripherals** also enables further config tabs to be displayed:
+* **RC Config**: to configure hardware for remote control vehcles.
+* **Servo Config**: to configure servos for camera control and RC steering
+* **PG Config**: to configure hardware for photogrammetry.
+
 Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
 * pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
 * pin 4: Also used for onboard lamp. Lamp can be disabled by removing its current limiting resistor. 
 * pin 12: Only use as output pin.
 * pin 13: Is weakly pulled high.
 * pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3, and the red LED current limiting resistor, then running a wire between the VCC pin and the red LED resistor solder tab.
-
-Can also use the [ESP32-IO_Extender](https://github.com/s60sc/ESP32-IO_Extender) repository.  
 
 The ESP32S3 Freenove board can support all of the above peripherals with its spare pins.  
 The ESP32S3 XIAO Sense board has fewer free pins but more than the ESP32.
@@ -219,6 +225,21 @@ FHD | 6
 P_FHD | 6
 
 The OV3660 has not been tested.
+
+## Auxiliary Board
+
+To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting hardware such as motors and servos. Instead of the commands from the app web page being set to the camera board, they are redirected to the 
+auxiliary board:
+* RC speed, steering and lights real time control.
+* Camera pan and tilt.
+* Photogrammetry operation.
+
+ Instal app on camera board in usual way. Under **Peripherals** tab, enter IP address of the auxiliary board in field: `Send RC / Servo / PG commands to auxiliary IP` then save and reboot. Relevant commands from cam board web page will now be sent to the auxiliary board. 
+ 
+ Instal app on auxiliary board after uncommenting ONLY `#define AUXILIARY` in camera selection block in `appGlobals.h`. The auxiliary board does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the RC vehicle hardware. Note that MCPWM is not supported by ESP32-C3. 
+ The web page on the auxiliary board is a cut down version of the camera app web page.  
+ 
+ The configuration details under **RC Config**, **Servo Config** and **PG Config** tabs must be entered on the auxiliary board web page, not the cam web page.
 
 ## MQTT
 
@@ -312,7 +333,7 @@ Steering can either be provided by servo control, or by track steering using sep
 The streaming view will now have a red button in the top left. Press this to show / hide overlaid steering and motor controls. Camera view buttons can be used to change to full screen. Tethered vehicles can also be controlled via a HW-504 type joystick. Camera view (and microphone and telemetry if enabled) can be recorded.  
 Motion detection should be disabled beforehand.  
 
-To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting the RC vehicle hardware controlled by commands sent from the web page hosted by the camera board. See header in `appSpecific.cpp` for more info.
+This feature can make use of an [Auxiliary Board](#auxiliary-board).  
 
 #### Only use this feature if you are familiar with coding and electronics, and can fix issues yourself
 
@@ -324,8 +345,7 @@ Only feasible on ESP32S3 due to memory use and built in AI Acceleration support.
 #### Only use this feature if you are familiar with Machine Learning
 
 The interface is designed to work with user models packaged as Arduino libraries by the [Edge Impulse](https://edgeimpulse.com/) AI platform.
-More details in `motionDetect.cpp`.  
-The library generated by Edge Impulse is not currently compatible with Arduino v3.x.  
+More details in `appGlobals.h`.   
 
 Use 96x96 grayscale or RGB images and train the model with for example the following Transfer learning Neural Network settings:  
 
@@ -367,6 +387,8 @@ ESP can be used to capture a series of photographs of small objects, controlling
 
 To enable this feature, in **Edit Config** page under **Peripherals**, select `Enable photogrammetry`.  
 This will show an extra config button **PG Config**. Pressing this button will bring up options for controlling the photogrammetry process.  
+
+This feature can make use of an [Auxiliary Board](#auxiliary-board).  
 
 See `photogram.cpp` for more information.
 

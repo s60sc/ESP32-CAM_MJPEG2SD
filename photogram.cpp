@@ -54,6 +54,7 @@ static void prepPgram() {
   if (extCam) {
     pinMode(pinShutter, OUTPUT); 
     if (pinFocus) pinMode(pinFocus, OUTPUT); 
+#ifdef AUXILIARY
   } else {
      // use built in cam
      lampAuto = true;
@@ -64,10 +65,18 @@ static void prepPgram() {
      strftime(pFolder, sizeof(pFolder), "/%Y%m%d_%H%M%S", localtime(&currEpoch));
      STORAGE.mkdir(pFolder);
      LOG_INF("Created photogrammetry folder %s", pFolder);
+#endif
   }
 }
 
-void getPhoto() {
+#ifdef AUXILIARY
+static void getPhoto() {
+  LOG_WRN("Internal camera not available on auxiliary board");
+  photosDone = numberOfPhotos;
+  stepperDone();
+}
+#else 
+static void getPhoto() {
   // use built in esp cam
   setLamp(lampLevel); // turn on lamp led as flash if required
   if (timeForPhoto * 1000 > MAX_FRAME_WAIT) delay((timeForPhoto * 1000) - MAX_FRAME_WAIT); // allow time for turntable to stabilise
@@ -90,6 +99,7 @@ void getPhoto() {
   } else LOG_WRN("Failed to get photo");
   setLamp(0);
 }
+#endif
 
 static void takePhoto() {
   // control external camera
@@ -131,14 +141,6 @@ static void pgramTask (void *pvParameter) {
   vTaskDelete(NULL);
 } 
 
-static void abortPhotos() {
-  if (pgramHandle != NULL) {
-    vTaskDelete(pgramHandle);
-    pgramHandle = NULL;
-    LOG_INF("User aborted taking photos");
-  }
-}
-
 void takePhotos(bool startPhotos) { 
   // start task
   if (startPhotos) {
@@ -148,7 +150,11 @@ void takePhotos(bool startPhotos) {
       if (pgramHandle == NULL) xTaskCreate(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle);
       else LOG_WRN("pgramTask still running");
     }
-  } else abortPhotos(); // end task
+  } else {
+    LOG_INF("User aborted taking photos");
+    photosDone = numberOfPhotos;
+    stepperDone();
+  }
 }
 
 void stepperDone() {

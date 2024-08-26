@@ -67,7 +67,7 @@ Content-Type: "application/octet-stream"
 #define JSON_DATA "{\"pathname\":\"%s%s/%s\",\"passcode\":\"%s\"}"
 #define FORM_OFFSET 256 // offset in fsBuff to prepare form data
 
-WiFiClientSecure hclient;
+NetworkClientSecure hclient;
 char* fsBuff;
 
 static void postHeader(const char* tmethod, const char* contentType, bool isFile, 
@@ -130,8 +130,8 @@ static fs::FS fp = STORAGE;
 #define NO_CHECK "999"
 
 // WiFi Clients
-WiFiClient rclient;
-WiFiClient dclient;
+NetworkClient rclient;
+NetworkClient dclient;
 
 static bool sendFtpCommand(const char* cmd, const char* param, const char* respCode, const char* respCode2 = NO_CHECK) {
   // build and send ftp command

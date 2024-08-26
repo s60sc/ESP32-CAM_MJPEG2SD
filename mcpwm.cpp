@@ -27,8 +27,6 @@ MX1508 DC Motor Driver with PWM Control
 
 #if INCLUDE_MCPWM
 
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-
 // Includes code from github.com/espressif/idf-extra-components/blob/master/bdc_motor
 //  modified to compile with c++:
 // - github.com/espressif/idf-extra-components/blob/master/bdc_motor/include/bdc_motor.h
@@ -311,13 +309,9 @@ static esp_err_t bdc_motor_del(bdc_motor_handle_t motor)
     return motor->del(motor);
 }
 
-#endif
-
 /************************* custom code s60sc *************************/
 
 #define CHECK_WS_CONN true // true if motors controlled via web socket
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-
 #define MCPWM_TIMER_HZ 100000 
 static bdc_motor_handle_t RCmotor[6] = {NULL, NULL, NULL, NULL, NULL, NULL}; // max 6 motors
 
@@ -362,55 +356,6 @@ void motorSpeed(int speedVal, bool leftMotor) {
   }
 }
 
-#else
-
-#include "driver/mcpwm.h" // v2.x
-
-static void prepMotor(mcpwm_unit_t mcUnit, int fwdPin, int revPin) {
-  // setup gpio pins used for motor (forward, optional reverse), and pwm frequency
-  LOG_INF("initialising MCPWM unit %d, using pins %d, %d", mcUnit, fwdPin, revPin);
-  mcpwm_gpio_init(mcUnit, MCPWM0A, fwdPin);
-  if (motorRevPin > 0) mcpwm_gpio_init(mcUnit, MCPWM0B, revPin); 
-  mcpwm_config_t pwm_config;
-  pwm_config.frequency = pwmFreq;  // pwm frequency
-  pwm_config.cmpr_a = 0;    // duty cycle of PWMxA
-  pwm_config.cmpr_b = 0;    // duty cycle of PWMxb
-  pwm_config.counter_mode = MCPWM_UP_COUNTER;
-  pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
-  // Configure PWM0A & PWM0B with above settings
-  mcpwm_init(mcUnit, MCPWM_TIMER_0, &pwm_config); 
-}
-
-static void motorDirection(float duty_cycle, mcpwm_unit_t mcUnit, bool goFwd) {
-  mcpwm_set_signal_low(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_B : MCPWM_OPR_A);
-  // motor moves in given direction, with given duty cycle %
-  if (duty_cycle > 0.0) {
-    mcpwm_set_duty(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B, duty_cycle);
-    // call this each time, if previously in low/high state
-    mcpwm_set_duty_type(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B, MCPWM_DUTY_MODE_0); 
-  } else {
-    // stop motor
-    mcpwm_set_signal_low(mcUnit, MCPWM_TIMER_0, goFwd ? MCPWM_OPR_A : MCPWM_OPR_B);
-  }
-}
-
-void motorSpeed(int speedVal, bool leftMotor) {
-  // speedVal is signed duty cycle, convert to unsigned float
-  if (abs(speedVal) < minDutyCycle) speedVal = 0;
-  float speedValFloat = (float)(abs(speedVal));
-  if (leftMotor) {
-    // left motor steering or all motor direction
-    if (motorRevPin > 0 && speedVal < 0) motorDirection(speedValFloat, MCPWM_UNIT_0, false); 
-    else if (motorFwdPin > 0) motorDirection(speedValFloat, MCPWM_UNIT_0, true);
-  } else {
-    // right motor steering
-    if (motorRevPinR > 0 && speedVal < 0) motorDirection(speedValFloat, MCPWM_UNIT_1, false); 
-    else if (motorFwdPinR > 0) motorDirection(speedValFloat, MCPWM_UNIT_1, true);
-  }
-}
-
-#endif
-
 static inline int clampValue(int value, int maxValue) {
   // clamp value to the allowable range
   return value > maxValue ? maxValue : (value < -maxValue ? -maxValue : value);
@@ -448,20 +393,10 @@ static void RCconnTask (void *pvParameter) {
  
 
 void prepMotors() {
-#ifdef AUXILIARY
-  RCactive = true;
-#endif
   if (RCactive) {
     if (motorFwdPin > 0) {
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-      // v3.x
       prepBDCmotor(0, 0, motorFwdPin, motorRevPin);
       if (trackSteer) prepBDCmotor(0, 1, motorFwdPinR, motorRevPinR);
-#else
-      // v2.x
-      prepMotor(MCPWM_UNIT_0, motorFwdPin, motorRevPin);
-      if (trackSteer) prepMotor(MCPWM_UNIT_1, motorFwdPinR, motorRevPinR);
-#endif 
       if (CHECK_WS_CONN && RCconnHandle == NULL) xTaskCreate(&RCconnTask, "RCconnTask", 1024, NULL, 1, &RCconnHandle);
     } else LOG_WRN("RC motor pins not defined");
   }

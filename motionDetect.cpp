@@ -22,12 +22,8 @@
 
 #include "appGlobals.h"
 
-// To activate machine learning interface, in appGlobals.h set INCLUDE_TINYML true 
 #if INCLUDE_TINYML
-// include Edge Impulse arduino library for additional motion detect filtering
-// Dont use EON Compiler option
-// Select target device: Espressif ESP-EYE
-//#include <edge impulse user library.h>
+#include TINY_ML_LIB
 #endif
 
 using namespace std;
@@ -155,14 +151,14 @@ static bool tinyMLclassify() {
     if (result.classification[0].value > mlProbability) {
       out = true; // sufficient classification match, so keep motion detection
       if (dbgVerbose) {
-        LOG_VRB("Timing: DSP %d ms, inference %d ms, anomaly %d ms",
-          result.timing.dsp, result.timing.classification, result.timing.anomaly);
+        LOG_VRB("Prob: %0.2f, Timing: DSP %d ms, inference %d ms, anomaly %d ms", 
+        result.classification[0].value, result.timing.dsp, result.timing.classification, result.timing.anomaly);
         char outcome[200] = {0};
         for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
           sprintf(outcome + strlen(outcome), "%s: %.2f, ", ei_classifier_inferencing_categories[i], result.classification[i].value);
-        LOG_VRB("Predictions - %s in %ums", outcome, millis() - dTime);  
+        LOG_VRB("Predictions - %s in %ums", outcome, millis() - dTime);
       } 
-    }
+    } 
   } else LOG_WRN("Failed to run classifier (%d)", res);
   return out;
 }

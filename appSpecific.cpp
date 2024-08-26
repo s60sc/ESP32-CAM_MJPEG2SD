@@ -8,16 +8,6 @@
 //
 // s60sc 2022 - 2024
 
-/*
- To use auxiliary ESP to provide RC vehicle control to free up pins on the camera board. 
- The auxiliary board (not ESP32-C3) does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the RC vehicle hardware
- Instal app on camera board in usual way
- Instal app on auxiliary board after uncommenting #define AUXILIARY in camera selection block in appGlobals.h
- The web page on the auxiliary board is a cut down version of the camera app web page allowing the RC parameters to be configured
- On the camera board webpage under RC Config, in field: Send RC commands to Auxiliary IP, enter IP address of auxiliary board, save and reboot
- RC commands on cam board web page will now be sent to the auxiliary board.
-*/
-
 #include "appGlobals.h"
 
 static char variable[FILE_NAME_LEN]; 
@@ -90,9 +80,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "devHub")) devHub = (bool)intVal;   
   // peripherals
 #if INCLUDE_PERIPH
-  else if (!strcmp(variable, "useIOextender")) useIOextender = (bool)intVal;
-  else if (!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
-  else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
   else if (!strcmp(variable, "pirUse")) pirUse = (bool)intVal;
   else if (!strcmp(variable, "lampLevel")) {
     lampLevel = intVal;
@@ -109,7 +96,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     if (!lampType) setLamp(lampLevel); // manual
     else setLamp(0); 
   }
-  else if (!strcmp(variable, "servoUse")) servoUse = (bool)intVal;
+  else if (!strcmp(variable, "SVactive")) SVactive = (bool)intVal;
   else if (!strcmp(variable, "voltUse")) voltUse = (bool)intVal;
   else if (!strcmp(variable, "pirPin")) pirPin = intVal;
   else if (!strcmp(variable, "lampPin")) lampPin = intVal;
@@ -125,8 +112,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "voltDivider")) voltDivider = intVal;
   else if (!strcmp(variable, "voltLow")) voltLow = fltVal;
   else if (!strcmp(variable, "voltInterval")) voltInterval = intVal;
-  else if (!strcmp(variable, "camPan")) setCamPan(intVal);
-  else if (!strcmp(variable, "camTilt")) setCamTilt(intVal);
   else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
   else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
   else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal;
@@ -155,7 +140,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     motorFwdPinR = intVal;
     if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
   }
-  else if (!strcmp(variable, "remoteRCip")) strncpy(remoteRCip, value, MAX_IP_LEN-1);
+  else if (!strcmp(variable, "AuxIP")) strncpy(AuxIP, value, MAX_IP_LEN-1);
   else if (!strcmp(variable, "heartbeatRC")) heartbeatRC = intVal;
   else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
@@ -191,8 +176,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "pinShutter")) pinShutter = intVal;
   else if (!strcmp(variable, "pinFocus")) pinFocus = intVal;
   else if (!strcmp(variable, "extCam")) extCam = (bool)intVal;
-  else if (!strcmp(variable, "AtakePhotos")) {if (fromUser) takePhotos(true);}
-  else if (!strcmp(variable, "BabortPhotos")) {if (fromUser) takePhotos(false);}
 #endif
 
 #if INCLUDE_EXTHB
@@ -343,6 +326,22 @@ void appSpecificWsHandler(const char* wsMsg) {
       setLightsRC((bool)controlVal);
     break;
 #endif
+#if INCLUDE_PERIPH
+    case 'P':
+      // camera pan servo
+      setCamPan(controlVal);
+    break;
+    case 'T':
+      // camera tilt servo
+      setCamTilt(controlVal);
+    break;
+#endif
+#if INCLUDE_PGRAM
+    case 'G':
+      // photogrammetry control
+      takePhotos(bool(controlVal));
+    break;
+#endif
     case 'C': 
       // control request
       if (extractKeyVal(wsMsg + 1)) updateStatus(variable, value);
@@ -366,7 +365,7 @@ void appSpecificWsHandler(const char* wsMsg) {
       killSocket();
     break;
     default:
-      LOG_WRN("unknown command %c", (char)wsMsg[0]);
+      LOG_WRN("unknown command %s", wsMsg);
     break;
   }
 }
@@ -395,6 +394,9 @@ void buildAppJsonString(bool filter) {
   }
   p += sprintf(p, "\"showRecord\":%u,", (uint8_t)((isCapturing && doRecording) || forceRecord));
   p += sprintf(p, "\"camModel\":\"%s\",", camModel);
+#if INCLUDE_PERIPH
+  p += sprintf(p, "\"SVactive\":\"%d\",", SVactive); 
+#endif
 #if (INCLUDE_PGRAM && INCLUDE_PERIPH)
   p += sprintf(p, "\"PGactive\":\"%d\",", PGactive); 
 #endif
@@ -466,6 +468,19 @@ void applyFilters() {
   applyVolume();
 }
 
+void setupAux() {  
+#if INCLUDE_PERIPH
+  SVactive = true;
+#if INCLUDE_PGRAM
+  PGactive = stepperUse = true;
+  setLamp(0);
+#endif
+#if INCLUDE_MCPWM
+  RCactive = true;
+#endif
+#endif
+   
+}
 #if !INCLUDE_PERIPH
 float readVoltage() {
   return -1.0;
@@ -507,9 +522,6 @@ void currentStackUsage() {
 #if INCLUDE_TELEM
   checkStackUse(telemetryHandle, 12);
 #endif
-#if INCLUDE_UART
-  checkStackUse(uartClientHandle, 13);
-#endif
   // 14: http webserver
   for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 15 + i);
 }
@@ -533,9 +545,6 @@ void doAppPing() {
 
 #if INCLUDE_EXTHB
   if (external_heartbeat_active) sendExternalHeartbeat();
-#endif
-#if INCLUDE_PERIPH
-  doIOExtPing();
 #endif
   // check for night time actions
   if (isNight(nightSwitch)) {
@@ -709,9 +718,6 @@ wifiTimeoutSecs~30~0~N~WiFi connect timeout (secs)
 logType~0~99~N~Output log selection
 ntpServer~pool.ntp.org~0~T~NTP Server address
 alarmHour~1~2~N~Hour of day for daily actions
-useUART0~0~3~C~Use UART0 for IO Extender
-uartTxdPin~~3~N~UART1 TX pin
-uartRxdPin~~3~N~UART1 RX pin
 refreshVal~5~2~N~Web page refresh rate (secs)
 responseTimeoutSecs~10~2~N~Server response timeout (secs)
 tlSecsBetweenFrames~600~1~N~Timelapse interval (secs)
@@ -737,26 +743,25 @@ smtpMaxEmails~10~2~N~Max daily alerts
 sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
 sdFreeSpaceMode~1~2~S:No Check:Delete oldest:Ftp then delete~Action mode on SD min free
 formatIfMountFailed~0~2~C~Format file system on failure
-useIOextender~0~3~C~Use another ESP as IO Extender
 pirUse~0~3~C~Use PIR for detection
 lampUse~0~3~C~Use lamp
 lampType~0~3~S:Manual:PIR~How lamp activated
-servoUse~0~3~C~Use servos
+SVactive~0~3~C~Enable servo use
 micUse~0~3~C~Use microphone
 pirPin~~3~N~Pin used for PIR
 lampPin~~3~N~Pin used for Lamp
-servoPanPin~~3~N~Pin used for Pan Servo
-servoTiltPin~~3~N~Pin used for Tilt Servo
+servoPanPin~~6~N~Pin used for Pan Servo
+servoTiltPin~~6~N~Pin used for Tilt Servo
 ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
 micSckPin~-1~3~N~pin for mic I2S SCK 
 micSWsPin~-1~3~N~pin for mic I2S WS, PDM CLK
 micSdPin~-1~3~N~pin for mic I2S SD, PDM DAT 
-servoDelay~0~3~N~Delay between each 1 degree change (ms)
-servoMinAngle~0~3~N~Set min angle for servo model
-servoMaxAngle~180~3~N~Set max angle for servo model
-servoMinPulseWidth~544~3~N~Set min pulse width for servo model (usecs)
-servoMaxPulseWidth~2400~3~N~Set max pulse width for servo model (usecs)
-servoCenter~90~3~N~Angle at which servo centered
+servoDelay~0~6~N~Delay between each 1 degree change (ms)
+servoMinAngle~0~6~N~Set min angle for servo model
+servoMaxAngle~180~6~N~Set max angle for servo model
+servoMinPulseWidth~544~6~N~Set min pulse width for servo model (usecs)
+servoMaxPulseWidth~2400~6~N~Set max pulse width for servo model (usecs)
+servoCenter~90~6~N~Angle at which servo centered
 voltDivider~2~3~N~Voltage divider resistor ratio
 voltLow~3~3~N~Warning level for low voltage
 voltInterval~5~3~N~Voltage check interval (mins)
@@ -786,7 +791,7 @@ motorRevPinR~~4~N~Pin used for right track reverse
 motorFwdPinR~~4~N~Pin used for right track forward
 lightsRCpin~~4~N~Pin used for RC lights output
 heartbeatRC~5~4~N~RC connection heartbeat time (secs)
-remoteRCip~~4~T~Send RC commands to separate IP
+AuxIP~~3~T~Send RC / Servo / PG commands to auxiliary IP
 stickXpin~~4~N~Pin used for joystick steering
 stickYpin~~4~N~Pin used for joystick motor
 stickzPushPin~~4~N~Pin used for joystick lights

@@ -385,7 +385,12 @@
 
 #define LED_GPIO_NUM     21
 #if defined(CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3)
+#define SD_MMC_CLK -1
+#define SD_MMC_CMD -1
+#define SD_MMC_D0 -1
+#if SD_MMC_CLK == -1
 #define NO_SD  // no SD card present
+#endif
 #endif
 
 #elif defined(CAMERA_MODEL_TTGO_T_CAMERA_PLUS)

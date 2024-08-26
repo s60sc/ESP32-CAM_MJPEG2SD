@@ -11,11 +11,7 @@
 //#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 //#pragma GCC diagnostic ignored "-Wignored-qualifiers"
 //#pragma GCC diagnostic ignored "-Wclass-memaccess"
-#if (ESP_ARDUINO_VERSION_MAJOR >= 3)
 #pragma GCC diagnostic ignored "-Wvolatile"
-#else
-#pragma GCC diagnostic ignored "-Wformat"
-#endif
 
 /******************** Libraries *******************/
 
@@ -34,10 +30,8 @@
 #include <Update.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-////#include <NetworkClient.h> // v3.x only
-////#include <NetworkClientSecure.h> // v3.x only
-#include <WiFiClient.h>
-#include <WiFiClientSecure.h>
+#include <NetworkClient.h> 
+#include <NetworkClientSecure.h> 
 #include <esp_http_server.h>
 #include <esp_https_server.h>
 
@@ -151,15 +145,14 @@ void prepPeripherals();
 void prepSMTP();
 bool prepTelegram();
 void prepTemperature();
-void prepUart();
 void prepUpload();
 void reloadConfigs();
 float readInternalTemp();
 float readTemperature(bool isCelsius, bool onlyDS18 = false);
 float readVoltage();
 void remote_log_init();
-void remoteServerClose(WiFiClientSecure& sclient);
-bool remoteServerConnect(WiFiClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx);
+void remoteServerClose(NetworkClientSecure& sclient);
+bool remoteServerConnect(NetworkClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx);
 void remoteServerReset();
 void removeChar(char* s, char c);
 void replaceChar(char* s, char c, char r);

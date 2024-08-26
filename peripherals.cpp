@@ -30,14 +30,6 @@
 #if INCLUDE_PERIPH
 #include "driver/ledc.h"
 
-// IO Extender use
-bool useIOextender = false; // true to use IO Extender, otherwise false
-bool useUART0 = true; // true to use UART0, false for UART1
-int uartTxdPin;
-int uartRxdPin;
-#define EXT_IO_PING 199 // dummy pin number for ping heartbeat
-static bool extIOpinged = true;
-
 // peripherals used
 bool pirUse; // true to use PIR for motion detection
 bool lampUse; // true to use lamp
@@ -46,18 +38,13 @@ uint8_t lampLevel; // brightness of on board lamp led
 bool lampAuto; // if true in conjunction with pirUse & lampUse, switch on lamp when PIR activated at night
 bool lampNight; // if true, lamp comes on at night (not used)
 int lampType; // how lamp is used
-bool servoUse; // true to use pan / tilt servo control
 bool voltUse; // true to report on ADC pin eg for for battery
 bool stickUse; // true to use joystick
 bool buzzerUse; // true to use buzzer
 bool stepperUse; // true to use stepper motor
+bool SVactive; // true to use servos
 
 // Pins used by peripherals
-
-// To use IO Extender, use config web page to set pin numbers on client to be those used on IO Extender
-// and add EXTPIN, eg: on config web page, set ds18b20Pin to 110 (100 + 10) to use pin 10 on IO Extender
-// and set ds18b20Pin to 10 on IO Extender
-// If IO Extender not being used, ensure pins on ESP-Cam not defined for multiple use
 
 // sensors 
 int pirPin; // if pirUse is true
@@ -65,7 +52,7 @@ int lampPin; // if lampUse is true
 int buzzerPin; // if buzzerUse is true
 
 // Camera servos 
-int servoPanPin; // if servoUse is true
+int servoPanPin;
 int servoTiltPin;
 
 // ambient / module temperature reading 
@@ -102,7 +89,7 @@ int motorFwdPinR;
 int servoSteerPin;
 int lightsRCpin;
 int heartbeatRC;
-char remoteRCip[MAX_IP_LEN];
+char AuxIP[MAX_IP_LEN];
 int pwmFreq = 50;
 int maxSteerAngle;
 int maxDutyCycle;
@@ -128,16 +115,6 @@ static void doStep();
 void setStickTimer(bool restartTimer, uint32_t interval);
 void setLamp(uint8_t lampVal);
 
-void doIOExtPing() {
-  // check that IO_Extender is available
-  if (useIOextender && !IS_IO_EXTENDER) {
-    // client sends ping
-    if (!extIOpinged) LOG_WRN("IO_Extender failed to ping");
-    extIOpinged = false;
-    externalPeripheral(EXT_IO_PING);
-    // extIOpinged set by setPeripheralResponse() from io extender
-  }
-}
 
 // individual pin sensor / controller functions
 
@@ -145,14 +122,13 @@ bool pirVal = false;
 
 bool getPIRval() {
   // get PIR or radar sensor status 
-  // if use external PIR, will have delayed response
-  if (!externalPeripheral(pirPin)) pirVal = digitalRead(pirPin); 
+  pirVal = digitalRead(pirPin); 
   return pirVal; 
 }
 
 void buzzerAlert(bool buzzerOn) {
   // control active buzzer operation
-  if (buzzerUse && !externalPeripheral(buzzerPin, buzzerOn)) {
+  if (buzzerUse) {
     if (buzzerOn) {
       // turn buzzer on
       pinMode(buzzerPin, OUTPUT);
@@ -171,11 +147,7 @@ void buzzerAlert(bool buzzerOn) {
 //
 #define PWM_FREQ 50 // hertz
 #define DUTY_BIT_DEPTH 12 // max for ESP32-C3 is 14
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#define SERVO_PAN_CHANNEL LEDC_CHANNEL_3
-#define SERVO_TILT_CHANNEL LEDC_CHANNEL_4
-#define SERVO_STEER_CHANNEL LEDC_CHANNEL_5
-#endif
+
 TaskHandle_t servoHandle = NULL;
 static int newTiltVal, newPanVal, newSteerVal;
 static int oldPanVal, oldTiltVal, oldSteerVal; 
@@ -201,30 +173,22 @@ static void servoTask(void* pvParameters) {
   // update servo position from user input
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
     if (newSteerVal != oldSteerVal) oldSteerVal = changeAngle(servoSteerPin, newSteerVal, oldSteerVal, false);
     if (newPanVal != oldPanVal) oldPanVal = changeAngle(servoPanPin, newPanVal, oldPanVal);
     if (newTiltVal != oldTiltVal) oldTiltVal = changeAngle(servoTiltPin, newTiltVal, oldTiltVal);
-#else
-    if (newSteerVal != oldSteerVal) oldSteerVal = changeAngle(SERVO_STEER_CHANNEL, newSteerVal, oldSteerVal, false);
-    if (newPanVal != oldPanVal) oldPanVal = changeAngle(SERVO_PAN_CHANNEL, newPanVal, oldPanVal);
-    if (newTiltVal != oldTiltVal) oldTiltVal = changeAngle(SERVO_TILT_CHANNEL, newTiltVal, oldTiltVal);
-#endif
   }
 }
 
 void setCamPan(int panVal) {
   // change camera pan angle
   newPanVal = panVal;
-  if (servoUse && !externalPeripheral(servoPanPin, panVal)) 
-    if (servoHandle != NULL) xTaskNotifyGive(servoHandle);
+  if (SVactive && servoHandle != NULL) xTaskNotifyGive(servoHandle);
 }
 
 void setCamTilt(int tiltVal) {
   // change camera tilt angle
   newTiltVal = tiltVal;
-  if (servoUse && !externalPeripheral(servoTiltPin, tiltVal))
-    if (servoHandle != NULL) xTaskNotifyGive(servoHandle);
+  if (SVactive && servoHandle != NULL) xTaskNotifyGive(servoHandle);
 }
 
 void setSteering(int steerVal) {
@@ -234,34 +198,16 @@ void setSteering(int steerVal) {
 }
 
 static void prepServos() {
-  if ((servoPanPin < EXTPIN) && servoUse) {
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+  if (SVactive) {
     if (servoPanPin) ledcAttach(servoPanPin, PWM_FREQ, DUTY_BIT_DEPTH); 
     else LOG_WRN("No servo pan pin defined");
     if (servoTiltPin) ledcAttach(servoTiltPin, PWM_FREQ, DUTY_BIT_DEPTH);
     else LOG_WRN("No servo tilt pin defined");
-    if (!servoPanPin && !servoTiltPin) servoUse = false;
   }
-  if (servoSteerPin) ledcAttach(servoSteerPin, PWM_FREQ, DUTY_BIT_DEPTH);
-#else
-    if (servoPanPin) {
-      ledcSetup(SERVO_PAN_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
-      ledcAttachPin(servoPanPin, SERVO_PAN_CHANNEL);
-    } else LOG_WRN("No servo pan pin defined");
-    if (servoTiltPin) {
-      ledcSetup(SERVO_TILT_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
-      ledcAttachPin(servoTiltPin, SERVO_TILT_CHANNEL);
-    } else LOG_WRN("No servo tilt pin defined");
-    if (!servoPanPin && !servoTiltPin) servoUse = false;
-  }
-  if (servoSteerPin) {
-    ledcSetup(SERVO_STEER_CHANNEL, PWM_FREQ, DUTY_BIT_DEPTH); 
-    ledcAttachPin(servoSteerPin, SERVO_STEER_CHANNEL);
-  }
-#endif
+  if (RCactive && servoSteerPin) ledcAttach(servoSteerPin, PWM_FREQ, DUTY_BIT_DEPTH);
   oldPanVal = oldTiltVal = oldSteerVal = servoCenter + 1;
 
-  if (servoUse || servoSteerPin) {
+  if (SVactive || (RCactive && servoSteerPin)) {
     xTaskCreate(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, SERVO_PRI, &servoHandle); 
     // initial angle
     if (servoPanPin) setCamPan(servoCenter);
@@ -320,22 +266,16 @@ static void DS18B20task(void* pvParameters) {
 
 void prepTemperature() {
 #if INCLUDE_DS18B20
-  if (ds18b20Pin < EXTPIN) {
-    if (ds18b20Pin) {
-      xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle); 
-      haveDS18B20 = true;
-      LOG_INF("Using DS18B20 sensor");
-    } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
-  }
+  if (ds18b20Pin) {
+    xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle); 
+    haveDS18B20 = true;
+    LOG_INF("Using DS18B20 sensor");
+  } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
 #endif
 }
 
 float readTemperature(bool isCelsius, bool onlyDS18) {
   // return latest read temperature value in celsius (true) or fahrenheit (false), unless error
-#if INCLUDE_DS18B20
-  // use external DS18B20 sensor if available, else use local value
-  if (haveDS18B20) externalPeripheral(ds18b20Pin);
-#endif
   if (onlyDS18) return dsTemp;
   if (!haveDS18B20) dsTemp = readInternalTemp();
   return (dsTemp > NULL_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
@@ -355,8 +295,6 @@ float getNTCcelsius (uint16_t resistance, float oldTemp) {
 static float currentVoltage = -1.0; // no monitoring
 TaskHandle_t battHandle = NULL;
 float readVoltage()  {
-  // use external voltage sensor if available, else use local value
-  externalPeripheral(voltPin);
   return currentVoltage;
 }
 
@@ -379,8 +317,8 @@ static void battTask(void* parameter) {
 }
 
 static void setupBatt() {
-  if (voltUse && (voltPin < EXTPIN)) {
-    if (voltPin) {
+  if (voltUse) {
+  	if (voltPin) {
       xTaskCreate(&battTask, "battTask", BATT_STACK_SIZE, NULL, BATT_PRI, &battHandle);
       LOG_INF("Monitor batt voltage");
       debugMemory("setupBatt");
@@ -391,15 +329,9 @@ static void setupBatt() {
 /********************* LED Lamp Driver **********************/
 
 #define RGB_BITS 24  // WS2812 / SK6812 has 24 bit color in RGB order
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-#define LAMP_LEDC_CHANNEL 2 // Use channel not required by camera
-#endif
 static bool lampInit = false;
 static bool PWMled = true;
 #if defined(USE_WS2812)
-  #if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-static rmt_obj_t* rmtWS2812;
-  #endif
 static rmt_data_t ledData[RGB_BITS];
 #endif
 
@@ -415,43 +347,27 @@ static void setupLamp() {
   }
 #endif
 
-  if ((lampPin < EXTPIN) && lampUse) {
+  if (lampPin && lampUse) {
+    lampInit = true;
     if (lampPin) {
-      lampInit = true;
-      if (lampPin) {
 #if defined(USE_WS2812)
-        // WS2812 RGB high intensity led
-        PWMled = false;
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-        if (rmtInit(lampPin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) 
-          LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
-        else LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
-  #else
-        rmtWS2812 = rmtInit(lampPin, true, RMT_MEM_64);
-        if (rmtWS2812 == NULL) LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
-        else {
-          rmtSetTick(rmtWS2812, 100);
-          LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
-        }
-  #endif
-      } else {
-#endif
-        // assume PWM LED
-        PWMled = true;
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-        ledcAttach(lampPin, 5000, DUTY_BIT_DEPTH); // freq, resolution
-#else
-        ledcSetup(LAMP_LEDC_CHANNEL, 5000, DUTY_BIT_DEPTH); 
-        ledcAttachPin(lampPin, LAMP_LEDC_CHANNEL); 
-#endif
-        setLamp(0);
-        LOG_INF("Setup PWM Lamp Led on pin %d", lampPin);
-      }
+      // WS2812 RGB high intensity led
+      PWMled = false;
+      if (rmtInit(lampPin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) 
+        LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
+      else LOG_WRN("Failed to setup WS2812 with pin %u", lampPin);
     } else {
-      lampUse = false;
-      LOG_WRN("No Lamp Led pin defined");
+#endif
+      // assume PWM LED
+      PWMled = true;
+      ledcAttach(lampPin, 5000, DUTY_BIT_DEPTH); // freq, resolution
+      setLamp(0);
+      LOG_INF("Setup PWM Lamp Led on pin %d", lampPin);
     }
-  } 
+  } else {
+    if (lampUse) LOG_WRN("No Lamp Led pin defined");
+    lampUse = false;
+  }
   if (lightsRCpin > 1) pinMode(lightsRCpin, OUTPUT);
 }
 
@@ -463,48 +379,38 @@ static void lampWrite(uint8_t pin, uint32_t value, uint32_t valueMax = 15) {
 void setLamp(uint8_t lampVal) {
   // control lamp status
   if (!lampUse) lampVal = 0;
-  if (!externalPeripheral(lampPin, lampVal)) {
-    if (!lampInit) setupLamp();
-    if (lampInit) {
-      if (PWMled) {
-        // set lamp brightness using PWM (0 = off, 15 = max)
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-        lampWrite(lampPin, lampVal);
-#else
-        lampWrite(LAMP_LEDC_CHANNEL, lampVal);
-#endif
+  if (!lampInit) setupLamp();
+  if (lampInit) {
+    if (PWMled) {
+      // set lamp brightness using PWM (0 = off, 15 = max)
+      lampWrite(lampPin, lampVal);
 #if defined(USE_WS2812)
-      } else {
-        // assume WS2812 LED - set white color and apply lampVal (0 = off, 15 = max)
-        uint8_t RGB[3]; // each color is 8 bits
-        lampVal = lampVal == 15 ? 255 : lampVal * 16;
-        for (uint8_t i = 0; i < 3; i++) {
-          RGB[i] = lampVal;
-          // apply WS2812 bit encoding pulse timing per bit
-          for (uint8_t j = 0; j < 8; j++) { 
-            int bit = (i * 8) + j;
-            if ((RGB[i] << j) & 0x80) { // get left most bit first
-              // bit = 1
-              ledData[bit].level0 = 1;
-              ledData[bit].duration0 = 8;
-              ledData[bit].level1 = 0;
-              ledData[bit].duration1 = 4;
-            } else {
-              // bit = 0
-              ledData[bit].level0 = 1;
-              ledData[bit].duration0 = 4;
-              ledData[bit].level1 = 0;
-              ledData[bit].duration1 = 8;
-            }
+    } else {
+      // assume WS2812 LED - set white color and apply lampVal (0 = off, 15 = max)
+      uint8_t RGB[3]; // each color is 8 bits
+      lampVal = lampVal == 15 ? 255 : lampVal * 16;
+      for (uint8_t i = 0; i < 3; i++) {
+        RGB[i] = lampVal;
+        // apply WS2812 bit encoding pulse timing per bit
+        for (uint8_t j = 0; j < 8; j++) { 
+          int bit = (i * 8) + j;
+          if ((RGB[i] << j) & 0x80) { // get left most bit first
+            // bit = 1
+            ledData[bit].level0 = 1;
+            ledData[bit].duration0 = 8;
+            ledData[bit].level1 = 0;
+            ledData[bit].duration1 = 4;
+          } else {
+            // bit = 0
+            ledData[bit].level0 = 1;
+            ledData[bit].duration0 = 4;
+            ledData[bit].level1 = 0;
+            ledData[bit].duration1 = 8;
           }
         }
-  #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-        rmtWrite(lampPin, ledData, RGB_BITS, RMT_WAIT_FOR_EVER);
-  #else
-        rmtWrite(rmtWS2812, ledData, RGB_BITS);
-  #endif
-#endif
       }
+      rmtWrite(lampPin, ledData, RGB_BITS, RMT_WAIT_FOR_EVER);
+#endif
     }
   }
 }
@@ -525,63 +431,8 @@ void setLightsRC(bool lightsOn) {
   if (lightsRCpin > 0) digitalWrite(lightsRCpin, lightsOn);
 }
 
-/********************* interact with UART **********************/
-
-void setPeripheralResponse(const byte pinNum, const uint32_t responseData) {
-  // callback for Client uart task 
-  // updates peripheral stored input value when response received
-  // map received pin number to peripheral
-  LOG_VRB("Pin %d, data %u", pinNum, responseData);
-  if (pinNum == pirPin) 
-    memcpy(&pirVal, &responseData, sizeof(pirVal));  // set PIR status
-  else if (pinNum == voltPin)
-    memcpy(&currentVoltage, &responseData, sizeof(currentVoltage));  // set current batt voltage
-  else if (pinNum == ds18b20Pin)
-    memcpy(&dsTemp, &responseData, sizeof(dsTemp));  // set current temperature
-  else if (pinNum == EXT_IO_PING) 
-    extIOpinged = true;
-  else if (pinNum != lampPin && pinNum != servoPanPin && pinNum != servoTiltPin) 
-    LOG_WRN("Undefined pin number requested: %d ", pinNum);
-}
-
-uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData) {
-  // callback for IO Extender to interact with peripherals
-  uint32_t responseData = 0;
-  int ival;
-  LOG_VRB("Pin %d, data %u", pinNum, receivedData);
-  // map received pin number to peripheral
-  if (pinNum == servoTiltPin) {
-    // send tilt angle to servo
-    memcpy(&ival, &receivedData, sizeof(ival)); 
-    setCamTilt(ival);
-  } else if (pinNum == servoPanPin) {
-    // send pan angle to servo
-    memcpy(&ival, &receivedData, sizeof(ival)); 
-    setCamPan(ival);
-  } else if (pinNum == pirPin) {
-    // get PIR status
-    bool bval = getPIRval();
-    memcpy(&responseData, &bval, sizeof(bval)); 
-  } else if (pinNum == lampPin) {
-    // set Lamp status
-    memcpy(&ival, &receivedData, sizeof(ival)); 
-    setLamp(ival);
-  } else if (pinNum == ds18b20Pin) {
-    // get current temperature
-    float fval = dsTemp;
-    memcpy(&responseData, &fval, sizeof(fval)); 
-  } else if (pinNum == voltPin) {
-    // get current batt voltage
-    float fval = currentVoltage;
-    memcpy(&responseData, &fval, sizeof(fval)); 
-  } else if (pinNum == (EXT_IO_PING - EXTPIN)) {
-    LOG_INF("Received client ping");
-  } else LOG_WRN("Undefined pin number requested: %d ", pinNum);
-  return responseData;
-}
-
 static void prepPIR() {
-  if ((pirPin < EXTPIN) && pirUse) {
+  if (pirUse) {
     if (pirPin) pinMode(pirPin, INPUT_PULLDOWN); // pulled high for active
     else {
       pirUse = false;
@@ -622,26 +473,15 @@ void setStickTimer(bool restartTimer, uint32_t interval) {
   static hw_timer_t* stickTimer = NULL;
   // stop timer if running
   if (stickTimer) {
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-    timerAlarmDisable(stickTimer);  
-#endif
     timerDetachInterrupt(stickTimer); 
     timerEnd(stickTimer);
     stickTimer = NULL;
   }
   if (restartTimer) {
     // (re)start timer interrupt per required interval
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
     stickTimer = timerBegin(OneMHz); // 1 MHz
     timerAttachInterrupt(stickTimer, &stickISR);
     timerAlarm(stickTimer, interval, true, 0); // in usecs
-#else
-    stickTimer = timerBegin(2, 8000, true); // 0.1ms tick
-    int stickInterval = waitTime * 10; // in units of 0.1ms 
-    timerAlarmWrite(stickTimer, stickInterval, true); 
-    timerAlarmEnable(stickTimer);
-    timerAttachInterrupt(stickTimer, &stickISR, true);
-#endif
   }
 }
 
@@ -850,20 +690,10 @@ static void prepLedBar() {
 
 /**********************************************/
 
-#if (!INCLUDE_UART)
-bool externalPeripheral(byte pinNum, uint32_t outputData) {
-  // dummy
-  return false;
-}
-#endif
-
 void prepPeripherals() {
   // initial setup of each peripheral on client or extender
   setupADC();
   setupBatt();
-#if INCLUDE_UART
-  prepUart();
-#endif
   setupLamp();
   prepPIR();
   prepTemperature();

@@ -1,12 +1,12 @@
  /*
- WiFiClientSecure encrypts connections to remote servers (eg github, smtp)
+ NetworkClientSecure encrypts connections to remote servers (eg github, smtp)
  To optionally validate identity of remote server (prevent man-in-middle threats), 
  its public certificate needs to be checked by the app.
  Use openssl tool to obtain public certificate of remote server, eg:
    openssl s_client -showcerts -verify 5 -connect raw.githubusercontent.com:443
    openssl s_client -showcerts -verify 5 -connect smtp.gmail.com:465
  Copy and paste last listed certificate (usually root CA certificate) into relevant constant below.
- To disable certificate checking (WiFiClientSecure) leave relevant constant empty, and / or
+ To disable certificate checking (NetworkClientSecure) leave relevant constant empty, and / or
  on web page under Access Settings / Authentication settings set Use Secure to off
 
  FTP connection is plaintext as FTPS not implemented.

@@ -48,7 +48,7 @@ static char* tgramBuff = NULL; // holds sent then received data
 static int32_t lastUpdate = 0;
 
 TaskHandle_t telegramHandle = NULL;
-WiFiClientSecure tclient;
+NetworkClientSecure tclient;
 
 static inline bool connectTelegram() {
   // Connect to Telegram server if not already connected
@@ -71,7 +71,7 @@ static bool searchJsonResponse(const char* keyName) {
   return true;
 }
 
-size_t getResponseHeader(WiFiClientSecure& sclient, const char* host, int waitSecs) {
+size_t getResponseHeader(NetworkClientSecure& sclient, const char* host, int waitSecs) {
   // get response header from remote server if available
   if (!waitSecs) waitSecs = responseTimeoutSecs;
   bool endOfHeader = false;

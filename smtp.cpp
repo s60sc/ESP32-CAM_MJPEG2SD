@@ -39,7 +39,7 @@ bool smtpUse = false; // whether or not to send email alerts
 int emailCount = 0;
 int alertMax = 10; // only applied to emails
 
-static bool sendSmtpCommand(WiFiClientSecure& client, const char* cmd, const char* respCode) {
+static bool sendSmtpCommand(NetworkClientSecure& client, const char* cmd, const char* respCode) {
   // wait from smtp server response, check response code and extract response data
   LOG_VRB("Cmd: %s", cmd);
   if (strlen(cmd)) client.println(cmd);
@@ -73,7 +73,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
   // send email to defined smtp server
   char content[100];
   
-  WiFiClientSecure client;
+  NetworkClientSecure client;
   bool res = remoteServerConnect(client, smtp_server, smtp_port, smtp_rootCACertificate, EMAILCONN); 
   if (!res) return false;
   

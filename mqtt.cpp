@@ -198,7 +198,6 @@ void startMqttClient(void){
   snprintf(lwt_topic, FILE_NAME_LEN, "%s%s/lwt", mqtt_topic_prefix, hostName);
   snprintf(cmd_topic, FILE_NAME_LEN, "%s%s/cmd", mqtt_topic_prefix, hostName);
  
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
   esp_mqtt_client_config_t mqtt_cfg = {
     .broker = {
       .address = { .uri = mqtt_uri },
@@ -217,16 +216,6 @@ void startMqttClient(void){
       },
     },
   };
-#else
-  esp_mqtt_client_config_t mqtt_cfg{.event_handle = NULL, .host = "", .uri = mqtt_uri, .disable_auto_reconnect = false};
-  mqtt_cfg.username = mqtt_user;
-  mqtt_cfg.password = mqtt_user_Pass;
-  mqtt_cfg.client_id = hostName;
-  mqtt_cfg.lwt_qos = MQTT_LWT_QOS;
-  mqtt_cfg.lwt_msg = "offline";
-  mqtt_cfg.lwt_retain = MQTT_LWT_RETAIN;  
-  mqtt_cfg.lwt_topic = lwt_topic;
-#endif
 
   mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
   LOG_INF("Mqtt connect to %s...", mqtt_uri);

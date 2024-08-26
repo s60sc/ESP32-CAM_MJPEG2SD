@@ -50,15 +50,23 @@
 #define INCLUDE_MQTT true    // mqtt.cpp 
 
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
-#define INCLUDE_UART true    // uart.cpp (use another esp32 as IO extender)
 #define INCLUDE_TELEM true   // telemetry.cpp
 #define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
 #define INCLUDE_EXTHB true   // externalHeartbeat.cpp (heartbeat to remote server)
 #define INCLUDE_PGRAM true   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
 #define INCLUDE_MCPWM true   // mcpwm.cpp (motor control)
 
-#define INCLUDE_TINYML false  // if true, requires relevant Edge Impulse TinyML Arduino library to be installed
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
+
+// To include Edge Impulse arduino library for additional motion detect filtering
+// Use Edge Impulse Studio to create model:
+// - Select target device: Espressif ESP-EYE
+// - Select Arduino library deployment
+// - Unzip created library into Arduino libraries folder
+// To compile app with library:
+#define INCLUDE_TINYML false  // set to true 
+#define TINY_ML_LIB "your_impulse_edge_library.h" // replace with your lib
+// To activate ML, under web page Motion tab, select Use Machine Learning option
 
 /**************************************************************************/
 
@@ -68,7 +76,7 @@
 #define HTTP_PORT 80 // insecure app access
 #define HTTPS_PORT 443 // secure app access
 
-#define USE_IP6 true // if true use IPv6 when available, else use IPv4
+#define USE_IP6 false // if true use IPv6 when available, else use IPv4
 
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
@@ -86,7 +94,7 @@
 //#define REPORT_IDLE // core processor idle time monitoring
  
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "9.9.4"
+#define APP_VER "10.0"
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
@@ -127,7 +135,7 @@
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 17
+#define CFG_VER 18
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -147,12 +155,11 @@
 #ifdef CONFIG_IDF_TARGET_ESP32S3 
 #define SERVER_STACK_SIZE (1024 * 8)
 #define DS18B20_STACK_SIZE (1024 * 2)
-#define STICK_STACK_SIZE (1024 * 4)
 #else
 #define SERVER_STACK_SIZE (1024 * 4)
 #define DS18B20_STACK_SIZE (1024)
-#define STICK_STACK_SIZE (1024 * 2)
 #endif
+#define STICK_STACK_SIZE (1024 * 4)
 #define BATT_STACK_SIZE (1024 * 2)
 #define CAPTURE_STACK_SIZE (1024 * 4)
 #define EMAIL_STACK_SIZE (1024 * 6)
@@ -167,7 +174,6 @@
 #define SUSTAIN_STACK_SIZE (1024 * 4)
 #define TGRAM_STACK_SIZE (1024 * 6)
 #define TELEM_STACK_SIZE (1024 * 4)
-#define UART_STACK_SIZE (1024 * 2)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -185,7 +191,6 @@
 #define MQTT_PRI 1
 #define LED_PRI 1
 #define SERVO_PRI 1
-#define UART_PRI 1
 #define DS18B20_PRI 1
 #define BATT_PRI 1
 #define IDLEMON_PRI 5
@@ -220,7 +225,6 @@ int8_t checkPotVol(int8_t adjVol);
 bool checkSDFiles();
 void currentStackUsage();
 void displayAudioLed(int16_t audioSample);
-void doIOExtPing();
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudio(bool isValid);
 mjpegStruct getNextFrame(bool firstCall = false);
@@ -249,6 +253,7 @@ void setLightsRC(bool lightsOn);
 void setSteering(int steerVal);
 void setStepperPin(uint8_t pinNum, uint8_t pinPos);
 void setStickTimer(bool restartTimer, uint32_t interval = 0);
+void setupAux();
 void startAudio();
 void startSustainTasks();
 bool startTelemetry();
@@ -323,7 +328,6 @@ extern uint8_t iSDbuffer[];
 extern uint8_t aviHeader[];
 extern const uint8_t dcBuf[]; // 00dc
 extern const uint8_t wbBuf[]; // 01wb
-extern byte* uartData;
 extern size_t streamBufferSize[];
 extern byte* streamBuffer[]; // buffer for stream frame
 extern size_t motionJpegLen;
@@ -332,20 +336,12 @@ extern uint8_t* audioBuffer;
 extern char srtBuffer[];
 extern size_t srtBytes;
 
-// peripherals
-
-// IO Extender use
-extern bool useIOextender; // true to use IO Extender, otherwise false
-extern bool useUART0;
-extern int uartTxdPin;
-extern int uartRxdPin;
 // peripherals used
 extern bool pirUse; // true to use PIR or radar sensor (RCWL-0516) for motion detection
 extern bool lampUse; // true to use lamp
 extern bool lampAuto; // if true in conjunction with usePir & useLamp, switch on lamp when PIR activated
 extern bool lampNight;
 extern int lampType;
-extern bool servoUse; // true to use pan / tilt servo control
 extern bool voltUse; // true to report on ADC pin eg for for battery
 // microphone cannot be used on IO Extender
 extern bool micUse; // true to use external I2S microphone 
@@ -389,6 +385,7 @@ extern int servoMaxAngle;
 extern int servoMinPulseWidth; // usecs
 extern int servoMaxPulseWidth;
 extern int servoCenter;
+extern bool SVactive;
 
 // battery monitor
 extern int voltDivider;
@@ -415,7 +412,7 @@ extern int motorFwdPinR;
 extern bool trackSteer;
 extern int servoSteerPin;
 extern int lightsRCpin;
-extern char remoteRCip[];
+extern char AuxIP[];
 extern int pwmFreq;
 extern int maxSteerAngle;
 extern int maxTurnSpeed;
@@ -466,7 +463,6 @@ extern TaskHandle_t stickHandle;
 extern TaskHandle_t sustainHandle[];
 extern TaskHandle_t telegramHandle;
 extern TaskHandle_t telemetryHandle;
-extern TaskHandle_t uartClientHandle;
 extern SemaphoreHandle_t frameSemaphore[];
 extern SemaphoreHandle_t motionSemaphore;
 
