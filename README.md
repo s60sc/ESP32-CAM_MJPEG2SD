@@ -158,6 +158,7 @@ The **Peripherals** also enables further config tabs to be displayed:
 * **RC Config**: to configure hardware for remote control vehcles.
 * **Servo Config**: to configure servos for camera control and RC steering
 * **PG Config**: to configure hardware for photogrammetry.
+After an option is selected, need to press `Save` then `Reboot ESP` to startup peripherals.
 
 Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
 * pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
@@ -228,7 +229,7 @@ The OV3660 has not been tested.
 
 ## Auxiliary Board
 
-To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting hardware such as motors and servos. Instead of the commands from the app web page being set to the camera board, they are redirected to the 
+To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting hardware such as BDC motors, steppers and servos. Instead of the commands from the app web page being set to the camera board, they are redirected to the 
 auxiliary board:
 * RC speed, steering and lights real time control.
 * Camera pan and tilt.
@@ -236,8 +237,8 @@ auxiliary board:
 
  Instal app on camera board in usual way. Under **Peripherals** tab, enter IP address of the auxiliary board in field: `Send RC / Servo / PG commands to auxiliary IP` then save and reboot. Relevant commands from cam board web page will now be sent to the auxiliary board. 
  
- Instal app on auxiliary board after uncommenting ONLY `#define AUXILIARY` in camera selection block in `appGlobals.h`. The auxiliary board does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the RC vehicle hardware. Note that MCPWM is not supported by ESP32-C3. 
- The web page on the auxiliary board is a cut down version of the camera app web page.  
+ Instal app on auxiliary board after uncommenting ONLY `#define AUXILIARY` in camera selection block in `appGlobals.h`. The auxiliary board does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the relevant hardware. Note that MCPWM for BDC motors is not supported by ESP32-C3. 
+ The Auxil web page on the auxiliary board is a cut down version of the camera app web page.  
  
  The configuration details under **RC Config**, **Servo Config** and **PG Config** tabs must be entered on the auxiliary board web page, not the cam web page.
 
@@ -320,7 +321,7 @@ The Telegram Bot will now receive motion alerts from the app showing a frame fro
 Provides for remote control of device on which camera is mounted, e.g RC vehicle for FPV etc.  
 Best used with ESP32-S3 for frame rate and control responsiveness.
 
-To enable, in **Edit Config** page under **Peripherals**, select `Enable remote control`.  
+To enable, in **Edit Config** page under **Peripherals**, select `Enable remote control`, then save and reboot
 This will show an extra config button **RC Config**.  
 Pressing the **RC Config** button will allow pins to be defined for:
 - SG90 type steering servo
@@ -385,7 +386,7 @@ For Windows 11, Android, MacOS, Linux see `webDav.cpp` file.
 
 ESP can be used to capture a series of photographs of small objects, controlling a stepper motor driven turntable, using either the ESP camera for low resolution images, or a DSLR camera for high resolution images remotely controlled by the ESP. The captured images can be used to generate a 3D model.  
 
-To enable this feature, in **Edit Config** page under **Peripherals**, select `Enable photogrammetry`.  
+To enable this feature, in **Edit Config** page under **Peripherals**, select `Enable photogrammetry`, then save and reboot.  
 This will show an extra config button **PG Config**. Pressing this button will bring up options for controlling the photogrammetry process.  
 
 This feature can make use of an [Auxiliary Board](#auxiliary-board).  

@@ -99,7 +99,7 @@
 #define HTTP_CLIENTS 2 // http(s), ws(s)
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
 #if defined(AUXILIARY)
-#define INDEX_PAGE_PATH DATA_DIR "/Aux" HTML_EXT
+#define INDEX_PAGE_PATH DATA_DIR "/Auxil" HTML_EXT
 #elif defined(SIDE_ALARM)
 #define INDEX_PAGE_PATH DATA_DIR "/SideAl" HTML_EXT
 #define NO_SD

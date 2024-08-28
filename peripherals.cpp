@@ -552,7 +552,7 @@ static void prepStepper() {
   if (stepperUse) {
     if (stepINpins[0] > 0 && stepINpins[1] > 0) {
       if (stickHandle == NULL) xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle);   
-      LOG_INF("Stepper motor available");
+      LOG_INF("Stepper motor on pins: %d, %d, %d, %d", stepINpins[0], stepINpins[1], stepINpins[2], stepINpins[3]);
     } else {
       stepperUse = false;
       LOG_WRN("Stepper pins not defined");
