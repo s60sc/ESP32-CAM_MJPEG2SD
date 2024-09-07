@@ -118,12 +118,9 @@ void setLamp(uint8_t lampVal);
 
 // individual pin sensor / controller functions
 
-bool pirVal = false;
-
 bool getPIRval() {
   // get PIR or radar sensor status 
-  pirVal = digitalRead(pirPin); 
-  return pirVal; 
+  return digitalRead(pirPin); 
 }
 
 void buzzerAlert(bool buzzerOn) {
@@ -182,19 +179,19 @@ static void servoTask(void* pvParameters) {
 void setCamPan(int panVal) {
   // change camera pan angle
   newPanVal = panVal;
-  if (SVactive && servoHandle != NULL) xTaskNotifyGive(servoHandle);
+  if (servoPanPin && servoHandle != NULL) xTaskNotifyGive(servoHandle);
 }
 
 void setCamTilt(int tiltVal) {
   // change camera tilt angle
   newTiltVal = tiltVal;
-  if (SVactive && servoHandle != NULL) xTaskNotifyGive(servoHandle);
+  if (servoTiltPin && servoHandle != NULL) xTaskNotifyGive(servoHandle);
 }
 
 void setSteering(int steerVal) {
   // change steering angle
   newSteerVal = steerVal;
-  if (servoHandle != NULL) xTaskNotifyGive(servoHandle);
+  if (servoSteerPin && servoHandle != NULL) xTaskNotifyGive(servoHandle);
 }
 
 static void prepServos() {

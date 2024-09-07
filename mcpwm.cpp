@@ -311,22 +311,22 @@ static esp_err_t bdc_motor_del(bdc_motor_handle_t motor)
 
 /************************* custom code s60sc *************************/
 
-#define CHECK_WS_CONN true // true if motors controlled via web socket
 #define MCPWM_TIMER_HZ 100000 
-static bdc_motor_handle_t RCmotor[6] = {NULL, NULL, NULL, NULL, NULL, NULL}; // max 6 motors
+static bdc_motor_handle_t BDCmotor[6] = {NULL, NULL, NULL, NULL, NULL, NULL}; // max 6 motors
+bool useBDC = false;
 
 static bool prepBDCmotor(int groupId, int motorId, int pwmAgpio, int pwmBgpio) {
-  bdc_motor_config_t RCmotorConfig = {
+  bdc_motor_config_t BDCmotorConfig = {
       .pwma_gpio_num = (uint32_t)pwmAgpio, // forward pin 
       .pwmb_gpio_num = (uint32_t)pwmBgpio, // reverse pin
       .pwm_freq_hz = (uint32_t)pwmFreq,
   };
-  bdc_motor_mcpwm_config_t RCmcpwmConfig = {
+  bdc_motor_mcpwm_config_t BDCmcpwmConfig = {
       .group_id = groupId, // MCPWM peripheral number (0, 1)
       .resolution_hz = MCPWM_TIMER_HZ,
   };
-  esp_err_t res = bdc_motor_new_mcpwm_device(&RCmotorConfig, &RCmcpwmConfig, &RCmotor[motorId]);
-  if (res == ESP_OK) res = bdc_motor_enable(RCmotor[motorId]);
+  esp_err_t res = bdc_motor_new_mcpwm_device(&BDCmotorConfig, &BDCmcpwmConfig, &BDCmotor[motorId]);
+  if (res == ESP_OK) res = bdc_motor_enable(BDCmotor[motorId]);
   if (res == ESP_OK) LOG_INF("Initialising MCPWM unit %d, motor %d, using pins %d, %d", groupId, motorId, pwmAgpio, pwmBgpio);
   else LOG_ERR("%s", espErrMsg(res));
   return res == ESP_OK ? true : false;
@@ -335,10 +335,10 @@ static bool prepBDCmotor(int groupId, int motorId, int pwmAgpio, int pwmBgpio) {
 static void motorDirection(uint32_t dutyTicks, int motorId, bool goFwd) {
   if (dutyTicks > 0) {
     // set direction
-    goFwd ? bdc_motor_forward(RCmotor[motorId]) : bdc_motor_reverse(RCmotor[motorId]);
+    goFwd ? bdc_motor_forward(BDCmotor[motorId]) : bdc_motor_reverse(BDCmotor[motorId]);
   }
   // set speed
-  bdc_motor_set_speed(RCmotor[motorId], dutyTicks);
+  bdc_motor_set_speed(BDCmotor[motorId], dutyTicks);
 }
 
 void motorSpeed(int speedVal, bool leftMotor) {
@@ -373,32 +373,12 @@ void trackSteeering(int controlVal, bool steering) {
   motorSpeed(clampValue(driveSpeed - turnSpeed, maxDutyCycle), false); //right
 }
 
-static void stopRC() {
-  // stop RC if connection lost
-  setLightsRC(false);
-  if (motorFwdPin > 0) motorSpeed(0, true);
-  if (motorFwdPinR > 0) motorSpeed(0, false); 
-}
-
-static TaskHandle_t RCconnHandle = NULL;
-
-static void RCconnTask (void *pvParameter) {
-  // check that RC ws connection available
-  while (true) {
-    delay((heartbeatRC + 1) * 1000); // 1 sec more than browser heartbeat rate
-    if (heartBeatDone) heartBeatDone = false;
-    else stopRC(); // stop RC as no heartbeat received
-  }
-}
- 
-
 void prepMotors() {
-  if (RCactive) {
+  if (useBDC) {
     if (motorFwdPin > 0) {
       prepBDCmotor(0, 0, motorFwdPin, motorRevPin);
       if (trackSteer) prepBDCmotor(0, 1, motorFwdPinR, motorRevPinR);
-      if (CHECK_WS_CONN && RCconnHandle == NULL) xTaskCreate(&RCconnTask, "RCconnTask", 1024, NULL, 1, &RCconnHandle);
-    } else LOG_WRN("RC motor pins not defined");
+    } else LOG_WRN("BDC motor pins not defined");
   }
 }
 

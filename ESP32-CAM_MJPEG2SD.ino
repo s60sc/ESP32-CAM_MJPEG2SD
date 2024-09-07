@@ -23,10 +23,8 @@ void setup() {
         LOG_INF("PSRAM size: %s", fmtSize(ESP.getPsramSize()));
         if (ESP.getPsramSize() > 3 * ONEMEG) prepCam();
         else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient PSRAM for app");
-      }
-      else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need PSRAM to be enabled");
+      } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need PSRAM to be enabled");
 #else
-      setupAux();
       LOG_INF("AUXILIARY mode without camera");
 #endif
     }
@@ -52,6 +50,9 @@ void setup() {
 #if INCLUDE_FTP_HFS
     prepUpload();
 #endif
+#if INCLUDE_UART
+  prepUart();
+#endif
 #if INCLUDE_PERIPH
    prepPeripherals();
 #endif
@@ -70,6 +71,7 @@ void setup() {
 #ifndef AUXILIARY
     prepRecording(); 
 #endif
+    startHeartbeat();
     checkMemory();
   } 
 }

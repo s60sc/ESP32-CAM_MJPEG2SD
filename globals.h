@@ -349,15 +349,18 @@ enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, B
 /*********************** Log formatting ************************/
 
 //#define USE_LOG_COLORS  // uncomment to colorise log messages (eg if using idf.py, but not arduino)
-#ifdef USE_LOG_COLORS
+#ifdef USE_LOG_COLORS 
+// ANSI color codes
 #define LOG_COLOR_ERR  "\033[0;31m" // red
 #define LOG_COLOR_WRN  "\033[0;33m" // yellow
 #define LOG_COLOR_VRB  "\033[0;36m" // cyan
-#define LOG_NO_COLOR   "\033[0m"
+#define LOG_COLOR_DBG  "\033[0;34m" // blue
+#define LOG_NO_COLOR   
 #else
 #define LOG_COLOR_ERR
 #define LOG_COLOR_WRN
 #define LOG_COLOR_VRB
+#define LOG_COLOR_DBG
 #define LOG_NO_COLOR
 #endif 
 
@@ -370,6 +373,6 @@ enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, B
 #define LOG_ERR(format, ...) logPrint(ERR_FORMAT(format "~"), ##__VA_ARGS__)
 #define VRB_FORMAT(format) LOG_COLOR_VRB "[%s VERBOSE @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
 #define LOG_VRB(format, ...) if (dbgVerbose) logPrint(VRB_FORMAT(format), ##__VA_ARGS__)
-#define DBG_FORMAT(format) LOG_COLOR_ERR "[###### DBG @ %s:%u] " format LOG_NO_COLOR "\n", pathToFileName(__FILE__), __LINE__
+#define DBG_FORMAT(format) LOG_COLOR_DBG "[%s ### DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
 #define LOG_DBG(format, ...) do { logPrint(DBG_FORMAT(format), ##__VA_ARGS__); delay(FLUSH_DELAY); } while (0)
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)

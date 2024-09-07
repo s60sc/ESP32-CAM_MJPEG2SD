@@ -77,6 +77,7 @@ static volatile bool isPlaying = false; // controls playback on app
 bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
+static bool pirVal = false;
 
 /**************** timers & ISRs ************************/
 

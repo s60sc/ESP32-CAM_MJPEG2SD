@@ -143,17 +143,19 @@ static void pgramTask (void *pvParameter) {
 
 void takePhotos(bool startPhotos) { 
   // start task
-  if (startPhotos) {
-    mRPM = tRPM * gearing;
-    if (mRPM > MAX_RPM) LOG_WRN("Requested stepper RPM %0.1f is too high", mRPM);
-    else {
-      if (pgramHandle == NULL) xTaskCreate(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle);
-      else LOG_WRN("pgramTask still running");
+  if (stepperUse) {
+    if (startPhotos) {
+      mRPM = tRPM * gearing;
+      if (mRPM > MAX_RPM) LOG_WRN("Requested stepper RPM %0.1f is too high", mRPM);
+      else {
+        if (pgramHandle == NULL) xTaskCreate(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle);
+        else LOG_WRN("pgramTask still running");
+      }
+    } else {
+      LOG_INF("User aborted taking photos");
+      photosDone = numberOfPhotos;
+      stepperDone();
     }
-  } else {
-    LOG_INF("User aborted taking photos");
-    photosDone = numberOfPhotos;
-    stepperDone();
   }
 }
 

@@ -24,10 +24,9 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 10.0:
-*  Must be compiled with v3.x of arduino-esp32 core 
-*  Removed integration with IO Extender app
-*  Option to use auxiliary board for additional pins - see [Auxiliary Board](#auxiliary-board)
+Changes in version 10.1:
+*  Must be compiled with at least arduino-esp32 core v3.0.3
+*  Reintroduced UART option for [Auxiliary Board](#auxiliary-board)
 
 ## Purpose
 
@@ -229,18 +228,24 @@ The OV3660 has not been tested.
 
 ## Auxiliary Board
 
-To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting hardware such as BDC motors, steppers and servos. Instead of the commands from the app web page being set to the camera board, they are redirected to the 
-auxiliary board:
+To free up pins on the camera board, this app can be installed on both a camera board and an auxiliary board with the latter hosting hardware such as BDC motors, steppers and servos. 
+The communication with the auxiliary board can be either of:
+* Instead of the commands from the app web page being set to the camera board, they are redirected to the 
+auxiliary board
+* The cam board forwarding commands from the app web page to the auxiliary board over a UART connection.
+
+The auxiliary board can be used to drive the hardware for:
 * RC speed, steering and lights real time control.
 * Camera pan and tilt.
 * Photogrammetry operation.
 
- Instal app on camera board in usual way. Under **Peripherals** tab, enter IP address of the auxiliary board in field: `Send RC / Servo / PG commands to auxiliary IP` then save and reboot. Relevant commands from cam board web page will now be sent to the auxiliary board. 
+ Instal app on camera board in usual way. Under **Peripherals** tab, either:
+ * Enter IP address of the auxiliary board in field: `Send RC / Servo / PG commands to auxiliary IP` then save and reboot. Relevant commands from cam board web page will now be sent to the auxiliary board. 
+ * Enter UART pin numbers and select `Use UART for Auxiliary connection`, then save and reboot. Relevant commands from cam board web page will be sent to the cam board then forwarded to the auxiliary board. 
  
- Instal app on auxiliary board after uncommenting ONLY `#define AUXILIARY` in camera selection block in `appGlobals.h`. The auxiliary board does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the relevant hardware. Note that MCPWM for BDC motors is not supported by ESP32-C3. 
- The Auxil web page on the auxiliary board is a cut down version of the camera app web page.  
+ Instal app on auxiliary board after uncommenting ONLY `#define AUXILIARY` in camera selection block in `appGlobals.h`. The auxiliary board does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the relevant hardware. Note that MCPWM for BDC motors is not supported by ESP32-C3.  
  
- The configuration details under **RC Config**, **Servo Config** and **PG Config** tabs must be entered on the auxiliary board web page, not the cam web page.
+ The Auxil web page on the auxiliary board is a cut down version of the camera app web page. The configuration details under **RC Config**, **Servo Config** and **PG Config** tabs must be entered on the auxiliary board web page, not the cam web page. If using UART, enter relevant pin numbers on both web pages and wire RX to TX between boards plus a common ground.
 
 ## MQTT
 

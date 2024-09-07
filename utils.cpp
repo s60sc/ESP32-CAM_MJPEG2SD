@@ -367,7 +367,7 @@ bool remoteServerConnect(NetworkClientSecure& sclient, const char* serverName, u
   else {
     if (failCounts[connIdx] >= MAX_FAIL) {
       if (failCounts[connIdx] == MAX_FAIL) {
-        LOG_WRN("Abandon %s connection attempt until next rollover", serverName);
+        LOG_ERR("Abandon %s connection attempt until next rollover", serverName);
         failCounts[connIdx] = MAX_FAIL + 1;
       }
     } else {
@@ -878,7 +878,7 @@ void logSetup() {
   printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
-  if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected");
+  if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log");
   crashLoop = MAGIC_NUM;
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter

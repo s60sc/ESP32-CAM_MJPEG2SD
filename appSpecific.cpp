@@ -16,7 +16,10 @@ static char alertCaption[100];
 static bool alertReady = false;
 static bool depthColor = true;
 static bool devHub = false;
+bool useUart = false; 
 volatile audioAction THIS_ACTION = PASS_ACTION;
+static TaskHandle_t heartBeatHandle = NULL;
+static void stopRC();
 
 /************************ webServer callbacks *************************/
 
@@ -27,6 +30,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   int intVal = atoi(value);
   float fltVal = atof(value);
   if (!strcmp(variable, "custom")) return res;
+#ifndef AUXILIARY
   else if (!strcmp(variable, "stopStream")) stopSustainTask(intVal);
   else if (!strcmp(variable, "stopPlaying")) stopPlaying();
   else if (!strcmp(variable, "minf")) minSeconds = intVal; 
@@ -63,6 +67,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "streamSnd")) streamSnd = (bool)intVal; 
   else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
+#endif
 #if INCLUDE_FTP_HFS
   else if (!strcmp(variable, "upload")) fsStartTransfer(value); 
 #endif
@@ -131,7 +136,14 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
   else if (!strcmp(variable, "wakePin")) wakePin = intVal;
 #if INCLUDE_MCPWM
-  else if (!strcmp(variable, "RCactive")) RCactive = (bool)intVal;
+  else if (!strcmp(variable, "RCactive")) {
+    RCactive = useBDC = (bool)intVal;
+    bool aux = false;
+#ifdef AUXILIARY
+    aux = true;
+#endif
+    if (useUart && !aux) useBDC = false;
+  }
   else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
   else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
   else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
@@ -140,7 +152,9 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     motorFwdPinR = intVal;
     if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
   }
+#ifndef AUXILIARY
   else if (!strcmp(variable, "AuxIP")) strncpy(AuxIP, value, MAX_IP_LEN-1);
+#endif
   else if (!strcmp(variable, "heartbeatRC")) heartbeatRC = intVal;
   else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
@@ -187,6 +201,13 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "external_heartbeat_token")) snprintf(external_heartbeat_token, MAX_HOST_LEN, "%s", value);
 #endif
 
+  else if (!strcmp(variable, "useUart")) useUart = (bool)intVal;
+#if INCLUDE_UART
+  else if (!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
+  else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
+#endif
+
+#ifndef AUXILIARY
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
   else if (!strcmp(variable, "framesize")) {
@@ -237,6 +258,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     else if (!strcmp(variable, "ae_level")) res = s->set_ae_level(s, intVal);
     else res = ESP_FAIL;
   }
+#endif
   return res == ESP_OK ? true : false;
 }
 
@@ -299,17 +321,9 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
   return ESP_OK;
 }
 
-void appSpecificWsHandler(const char* wsMsg) {
-  // message from web socket
-  int wsLen = strlen(wsMsg) - 1;
-  int controlVal = atoi(wsMsg + 1); // skip first char
-  switch ((char)wsMsg[0]) {
-    case 'X':
-#if INCLUDE_AUDIO
-      // stop remote mic stream
-      stopAudio = true;
-#endif
-    break;
+static bool setPeripheral(char cmd, int controlVal, bool fromUart) {
+  bool res = true;
+  switch (cmd) {
 #if INCLUDE_MCPWM
     case 'M': 
       // motor speed
@@ -342,31 +356,70 @@ void appSpecificWsHandler(const char* wsMsg) {
       takePhotos(bool(controlVal));
     break;
 #endif
-    case 'C': 
-      // control request
-      if (extractKeyVal(wsMsg + 1)) updateStatus(variable, value);
-    break;
-    case 'H': 
-      // keepalive heartbeat
-      heartBeatDone = true;
-    break;
-    case 'S': 
-      // status request
-      buildJsonString(wsLen); // required config number 
-      logPrint("%s\n", jsonBuff);
-    break;   
-    case 'U': 
-      // update or control request
-      memcpy(jsonBuff, wsMsg + 1, wsLen); // remove 'U'
-      parseJson(wsLen);
-    break;
     case 'K': 
-      // kill websocket connection
-      killSocket();
+      // cam browser conn closed
+#ifdef AUXILIARY
+      if (fromUart) 
+#endif
+        stopRC();
     break;
     default:
-      LOG_WRN("unknown command %s", wsMsg);
+      res = false;
     break;
+  }
+  return res;
+}
+
+void appSpecificWsHandler(const char* wsMsg) {
+  // message from web socket
+  int wsLen = strlen(wsMsg) - 1;
+  char cmd = (char)wsMsg[0];
+  int controlVal = atoi(wsMsg + 1); // skip first char
+  bool aux = false;
+#ifdef AUXILIARY
+  aux = true;
+#endif
+  if (useUart && !aux) {
+#if INCLUDE_UART 
+    // send command over uart to auxiliary
+    if (!writeUart(cmd, (uint32_t)controlVal)) LOG_WRN("Failed to send data to Auxiliary over UART");
+#endif
+  } else {
+    if (!setPeripheral(cmd, controlVal, false)) {
+      switch (cmd) {
+        case 'X':
+    #if INCLUDE_AUDIO
+          // stop remote mic stream
+          stopAudio = true;
+    #endif
+        break;
+        case 'C': 
+          // control request
+          if (extractKeyVal(wsMsg + 1)) updateStatus(variable, value);
+        break;
+        case 'S': 
+          // status request
+          buildJsonString(wsLen); // required config number 
+          logPrint("%s\n", jsonBuff);
+        break;   
+        case 'U': 
+          // update or control request
+          memcpy(jsonBuff, wsMsg + 1, wsLen); // remove 'U'
+          parseJson(wsLen);
+        break;
+        case 'H': 
+          // browser keepalive heartbeat
+          heartBeatDone = true;
+        break;
+        case 'K': 
+          // kill websocket connection
+          killSocket();
+        break;
+        default:
+          LOG_WRN("unknown command %s", wsMsg);
+        break;
+      }
+    }
   }
 }
 
@@ -468,19 +521,6 @@ void applyFilters() {
   applyVolume();
 }
 
-void setupAux() {  
-#if INCLUDE_PERIPH
-  SVactive = true;
-#if INCLUDE_PGRAM
-  PGactive = stepperUse = true;
-  setLamp(0);
-#endif
-#if INCLUDE_MCPWM
-  RCactive = true;
-#endif
-#endif
-   
-}
 #if !INCLUDE_PERIPH
 float readVoltage() {
   return -1.0;
@@ -488,8 +528,32 @@ float readVoltage() {
 float readTemperature(bool isCelsius, bool onlyDS18) {
   return readInternalTemp();
 }
-bool pirVal = false;
 #endif
+
+void setInputPeripheral(uint8_t cmd, uint32_t controlVal) {
+  // set data on client for data received from auxiliary input peripheral
+  // not used
+  //if ((char)cmd == 'I') memcpy(&pirVal, &controlVal, sizeof(pirVal));  // set PIR status
+}
+
+int getInputPeripheral(uint8_t cmd) {
+  // auxiliary get data from input peripheral, for return to client
+  // not used
+  uint32_t inputVal = -1;
+  if ((char)cmd == 'I') {
+     // get PIR status
+    bool pirVal = getPIRval();
+    memcpy(&inputVal, &pirVal, sizeof(pirVal)); 
+  }
+  return inputVal;
+}
+
+bool setOutputPeripheral(uint8_t cmd, uint32_t rxValue) {
+  // auxiliary sends data to output peripheral
+  int controlValue;
+  memcpy(&controlValue, &rxValue, sizeof(controlValue));
+  return setPeripheral((char)cmd, controlValue, true);
+}
 
 bool appDataFiles() {
   // callback from setupAssist.cpp, for any app specific files 
@@ -522,8 +586,38 @@ void currentStackUsage() {
 #if INCLUDE_TELEM
   checkStackUse(telemetryHandle, 12);
 #endif
+#if INCLUDE_UART
+  checkStackUse(uartRxHandle, 13);
+#endif
   // 14: http webserver
   for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 15 + i);
+}
+
+static void stopRC() {
+  // stop RC movement if connection lost
+#if INCLUDE_PERIPH
+  setLightsRC(false);
+#endif
+#if INCLUDE_MCPWM
+  if (motorFwdPin > 0) motorSpeed(0, true);
+  if (motorFwdPinR > 0) motorSpeed(0, false); 
+#endif
+}
+
+static void heartBeatTask (void *pvParameter) {
+  // check on aux that ws and / or uart connection available
+  while (true) {
+    delay((heartbeatRC + 1) * 1000); // 1 sec more than browser heartbeat rate
+    if (!heartBeatDone) stopRC(); // stop RC as no heartbeat received
+    heartBeatDone = false;
+  }
+}
+ 
+void startHeartbeat() {
+  // start heartbeat to check websocket and / or uart connectivity for RC control
+  if (RCactive || useUart) {
+    if (heartBeatHandle == NULL) xTaskCreate(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle);
+  }
 }
 
 void doAppPing() {
@@ -542,7 +636,6 @@ void doAppPing() {
 #endif
     LOG_INF("Daily rollover");
   }
-
 #if INCLUDE_EXTHB
   if (external_heartbeat_active) sendExternalHeartbeat();
 #endif
@@ -720,6 +813,9 @@ ntpServer~pool.ntp.org~0~T~NTP Server address
 alarmHour~1~2~N~Hour of day for daily actions
 refreshVal~5~2~N~Web page refresh rate (secs)
 responseTimeoutSecs~10~2~N~Server response timeout (secs)
+useUart~0~3~C~Use UART for Auxiliary connection
+uartTxdPin~~3~N~UART TX pin
+uartRxdPin~~3~N~UART RX pin
 tlSecsBetweenFrames~600~1~N~Timelapse interval (secs)
 tlDurationMins~720~1~N~Timelapse duration (mins)
 tlPlaybackFPS~1~1~N~Timelapse playback FPS

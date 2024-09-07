@@ -50,11 +50,12 @@
 #define INCLUDE_MQTT true    // mqtt.cpp 
 
 #define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
+#define INCLUDE_UART true    // uart.cpp (use another esp32 as Auxiliary connected via UART)
 #define INCLUDE_TELEM true   // telemetry.cpp
 #define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
 #define INCLUDE_EXTHB true   // externalHeartbeat.cpp (heartbeat to remote server)
 #define INCLUDE_PGRAM true   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
-#define INCLUDE_MCPWM true   // mcpwm.cpp (motor control)
+#define INCLUDE_MCPWM true   // mcpwm.cpp (BDC motor control)
 
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
 
@@ -85,7 +86,7 @@
 #include "camera_pins.h"
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -93,19 +94,23 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
-#define APP_VER "10.0"
+#define APP_VER "10.1"
 
-#define HTTP_CLIENTS 2 // http(s), ws(s)
-#define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
 #if defined(AUXILIARY)
+#define APP_NAME "ESP-CAM_AUX" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/Auxil" HTML_EXT
+#define USE_UARTTASK
 #elif defined(SIDE_ALARM)
+#define APP_NAME "ESP-CAM-SIDE" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/SideAl" HTML_EXT
 #define NO_SD
 #else
+#define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
 #endif
+
+#define HTTP_CLIENTS 2 // http(s), ws(s)
+#define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
@@ -135,7 +140,7 @@
 #define EXTPIN 100
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 18
+#define CFG_VER 19
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -174,6 +179,8 @@
 #define SUSTAIN_STACK_SIZE (1024 * 4)
 #define TGRAM_STACK_SIZE (1024 * 6)
 #define TELEM_STACK_SIZE (1024 * 4)
+#define HB_STACK_SIZE (1024 * 2)
+#define UART_STACK_SIZE (1024 * 2)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -191,6 +198,8 @@
 #define MQTT_PRI 1
 #define LED_PRI 1
 #define SERVO_PRI 1
+#define HB_PRI 1
+#define UART_PRI 1
 #define DS18B20_PRI 1
 #define BATT_PRI 1
 #define IDLEMON_PRI 5
@@ -229,6 +238,7 @@ void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudio(bool isValid);
 mjpegStruct getNextFrame(bool firstCall = false);
 size_t getAudioBuffer(bool endStream);
+int getInputPeripheral(uint8_t cmd);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
 bool isNight(uint8_t nightSwitch);
@@ -243,18 +253,21 @@ bool prepRecording();
 void prepTelemetry();
 void prepMic();
 void prepMotors();
+void prepUart();
 void remoteMicHandler(uint8_t* wsMsg, size_t wsMsgLen);
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
 uint8_t setFPSlookup(uint8_t val);
+void setInputPeripheral(uint8_t cmd, uint32_t controlVal);
 void setLamp(uint8_t lampVal);
 void setLightsRC(bool lightsOn);
+bool setOutputPeripheral(uint8_t cmd, uint32_t rxValue);
 void setSteering(int steerVal);
 void setStepperPin(uint8_t pinNum, uint8_t pinPos);
 void setStickTimer(bool restartTimer, uint32_t interval = 0);
-void setupAux();
 void startAudio();
+void startHeartbeat();
 void startSustainTasks();
 bool startTelemetry();
 void stepperDone();
@@ -266,6 +279,7 @@ void storeSensorData(bool fromStream);
 void takePhotos(bool startPhotos);
 void trackSteeering(int controlVal, bool steering);
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
+bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
 /******************** Global app declarations *******************/
@@ -336,6 +350,11 @@ extern uint8_t* audioBuffer;
 extern char srtBuffer[];
 extern size_t srtBytes;
 
+// Auxiliary use
+extern bool useUart;
+extern int uartTxdPin;
+extern int uartRxdPin;
+
 // peripherals used
 extern bool pirUse; // true to use PIR or radar sensor (RCWL-0516) for motion detection
 extern bool lampUse; // true to use lamp
@@ -349,10 +368,10 @@ extern bool wakeUse;
 extern bool buzzerUse; // true to use active buzzer
 extern int buzzerPin; 
 extern int buzzerDuration; 
+extern bool useBDC;
 
 // sensors 
 extern int pirPin; // if usePir is true
-extern bool pirVal;
 extern int lampPin; // if useLamp is true
 extern int wakePin; // if wakeUse is true
 extern int lightsPin;
@@ -360,7 +379,7 @@ extern bool teleUse;
 extern int srtInterval;
 
 // Pan / Tilt Servos 
-extern int servoPanPin; // if useServos is true
+extern int servoPanPin; 
 extern int servoTiltPin;
 // ambient / module temperature reading 
 extern int ds18b20Pin; // if INCLUDE_DS18B20 true
@@ -463,6 +482,7 @@ extern TaskHandle_t stickHandle;
 extern TaskHandle_t sustainHandle[];
 extern TaskHandle_t telegramHandle;
 extern TaskHandle_t telemetryHandle;
+extern TaskHandle_t uartRxHandle;
 extern SemaphoreHandle_t frameSemaphore[];
 extern SemaphoreHandle_t motionSemaphore;
 
