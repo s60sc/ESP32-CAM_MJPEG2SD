@@ -1,8 +1,7 @@
 
 <!DOCTYPE html>
 <!-- 
-  s60sc 2022 - 2024
-  with ideas from @marekful
+  s60sc 2022
 -->
 <html>
   <head>
@@ -1000,8 +999,8 @@
         </div>
                                                 
       </div> 
-    </div>      
-    
+    </div>
+
     <div id="ShowLog" class="tabcontent">
       <br>
       <div class="grid-cols4">
@@ -1066,7 +1065,7 @@
       <div id="appLog"></div>
       <br>
     </div>
-    
+
     <div id="EditConfig" class="tabcontent">
       <br>
       <div class="header">Control</div>
@@ -1109,19 +1108,25 @@
             <text class="local midText" id="wifi">Wifi</text>
           </svg>
         </div>
-        <div id="RCconfigBtn">
+        <div>
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="peripherals">Peripherals</text>
+          </svg>
+        </div>
+        <div id="RCconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="RCconfig">RC Config</text>
           </svg>
         </div>
-        <div id="SVconfigBtn">
+        <div id="SVconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="SVconfig">Servo Config</text>
           </svg>
         </div>
-        <div id="PGconfigBtn">
+        <div id="PGconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="PGconfig">PG Config</text>
@@ -1132,11 +1137,11 @@
         <p class='config-group' id='Cfg'></p>
       </div>
     </div>
-        
+
     <div class="alertMsg">
       <span id="alertText"></span>
     </div>
-    
+
     <script>
       'use strict'
       
@@ -1147,6 +1152,8 @@
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
       const appLogInit = 0;
+      let RCmode = false;
+      let showRC = false;  
       let wsInd = 0;
 
       // following set from app
@@ -1178,20 +1185,24 @@
           else if (key == "refreshLog") getLog();
           else if (key == "logType") { logType = value; sendControl(key, value); return; }
           else if (key == "refreshVal") refreshInterval = value * 1000; 
+          else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
+          else if (key == "peripherals") getConfig("0123");
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
           else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
           else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
+          else if (key == "RCactive") Number(value) ? show($('#RCconfigBtn')) : hide($('#RCconfigBtn'));
           else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
           else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
           else if (key == "minDutyCycle") minDutyCycle = value;
           else if (key == "servoCenter") servoCenter = value;
           else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle, true); }
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
+          else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
+          else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
           else if (key == "waitTime") waitTime = value;
-          else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
           else if (key == "AtakePhotos") { if (fromUser) wsAuxSend(wsInd, "G1"); }
           else if (key == "BabortPhotos") { if (fromUser) wsAuxSend(wsInd, "G0"); }
           else if (key == 'save') await sleep(600); // allow last input to debounce
@@ -1266,7 +1277,6 @@
       function closedTab(isClosed) {}
       
       /************** RC ****************/
-      
       function updateMaxSteerAngle(val) {
         if (maxSteerAngle != val) maxSteerAngle = val;
       }
@@ -1288,7 +1298,7 @@
       let doLoadStatus = true;
       const doRefreshTimer = false;
       const doCustomSync = false;
-      const doHeartbeat = true;
+      const doHeartbeat = false;
 
       const scriptFiles = ['/web?common.js', 'C:/MyStuff/Arduino/CommonMaster/Latest/common.js']; 
       for (let i = 0; i < scriptFiles.length; i++) {
@@ -1296,12 +1306,12 @@
         scriptElement.src = scriptFiles[i];
         document.body.appendChild(scriptElement);
       }
-      
+
       window.addEventListener('load', function() {
         initialise();
         appInit();
       });
-      
+
     </script>
   </body>
 </html>

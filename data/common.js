@@ -508,10 +508,10 @@
         function colorise(line) {
           // color message according to its type
           let colorVar = "";
-          if (line.includes("WARN")) colorVar = "warnColor";
-          if (line.includes("ERROR")) colorVar = "errColor";
-          if (line.includes("DEBUG")) colorVar = "dbgColor";
-          if (line.includes("CHECK")) colorVar = "chkColor";
+          if (line.substring(0, 25).includes("WARN")) colorVar = "warnColor";
+          else if (line.substring(0, 25).includes("ERROR")) colorVar = "errColor";
+          else if (line.substring(0, 25).includes("DEBUG")) colorVar = "dbgColor";
+          //else if (line.substring(0, 25).includes("CHECK")) colorVar = "chkColor";
           if (colorVar.length > 0) {
             const color = root.getPropertyValue('--' + colorVar);
             return "<b><font color=" + color + ">" + line + "</font></b>";
