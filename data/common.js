@@ -1,5 +1,6 @@
 
-        // s60sc 2023
+        // s60sc 2023, 2024
+        // with ideas from @rjsachse
 
         /*********** initialisation  ***********/
 
@@ -14,7 +15,6 @@
         const wsServer = (isSecure ? "wss" : "ws") + "://" + baseHost + ":" + webPort + "/ws";
 
         const wsSkt = [null, null];
-        const ws = wsSkt[0];
         const wsServers = [wsServer, null];
         let hbTimer = null;
         let refreshTimer = null;
@@ -32,6 +32,7 @@
         const smallThumbSize = parseFloat(root.getPropertyValue('--smallThumbSize')) * baseFontSize;
         let isImmed = false;
         let logType = appLogInit;
+        let pageVisible = true;
 
         async function initialise() {
           try {
@@ -42,7 +43,7 @@
             setListeners();
             doLoadStatus ? loadStatus("") : configStatus(false); 
             if (doRefreshTimer && refreshTimer == null) refreshStatus();
-            if (doInitWebSocket) initWebSocket();
+            if (doInitWebSocket) initWebSocket(0);
           } catch (error) {
             showLog("Initialise -  " + error.message);
             alert("Initialise - " + error.message);
@@ -52,9 +53,10 @@
         /*********** websocket functions ***********/
 
         // define websocket handling
-        function initWebSocket(index = 0) {
+        function initWebSocket(index) {
           if (wsSkt[index] == null) {
             wsSkt[index] = new WebSocket(wsServers[index]);
+            wsSkt[index].binaryType = "arraybuffer";
             wsSkt[index].onopen = function(event) {
               // connect to websocket server
               showLog("Connect to " + wsServers[index]);
@@ -62,41 +64,77 @@
               if (doHeartbeat && !hbTimer) heartbeat();
             }
             wsSkt[index].onmessage = onMessage;
-            wsSkt[index].onerror =  function(error) {
-              showLog("WS Error: " + error);
+            wsSkt[index].onerror = function(error) {
+              showLog("WS Error: " + error.reason);
             }
             wsSkt[index].onclose = async function(event) {
-              await sleep(500);
+              await sleep(200);
               showLog("Disconnected " + wsServers[index] + " : " + event.code + ' - ' + event.reason);
               loggingOn = false;
               wsSkt[index] = null;
               // event.codes:
               //   1006 if server not available, or another web page is already open
               //   1005 if closed from app
-              if (event.code == 1006) {}
-              else if (event.code != 1005) setTimeout(initWebSocket(index), refreshInterval); // retry if any other reason
+              if (pageVisible) setTimeout(initWebSocket(index), 100); 
             }
           }
+          return wsSkt[index] ? true : false;
         }
 
         // process received WS message
         function onMessage(messageEvent) {
-          if (messageEvent.data.startsWith("{")) {
-            // json data
-            updateData = JSON.parse(messageEvent.data);
-            let filter = updateData.cfgGroup;
-            delete updateData.cfgGroup;
-            if (filter == "-1") updateStatus(); // status update
-            else buildTable(updateData, filter); // format received config json into html table
-          } else showLog(messageEvent.data, false);
+          if (messageEvent.data instanceof ArrayBuffer) processBuffer(messageEvent.data); // app specific
+          else if (typeof messageEvent.data === 'string') {
+            if (messageEvent.data.startsWith("{")) {
+              // json data
+              updateData = JSON.parse(messageEvent.data);
+              let filter = updateData.cfgGroup;
+              delete updateData.cfgGroup;
+              if (filter == "-1") updateStatus(); // status update
+              else buildTable(updateData, filter); // format received config json into html table
+            } else if (messageEvent.data.startsWith("#")) customWsMsg(messageEvent.data);
+            else showLog(messageEvent.data, false);
+          }
+        }
+        
+        const waitForOpenWs = (socket) => {
+          return new Promise((resolve, reject) => {
+            const maxNumberOfAttempts = 10;
+            const intervalTime = 100; // ms
+            let currentAttempt = 0;
+            const interval = setInterval(() => {
+              if (currentAttempt > maxNumberOfAttempts - 1) {
+                clearInterval(interval);
+                reject(new Error('Maximum number of WS attempts exceeded'));
+              } else if (socket.readyState === WebSocket.OPEN) {
+                clearInterval(interval);
+                resolve();
+              }
+              currentAttempt++;
+            }, intervalTime);
+          });
+        };
+        
+       function sendWsMsg(msg, index = 0) {
+          if (wsSkt[index] == null) initWebSocket(index);
+          if (wsSkt[index].readyState !== WebSocket.OPEN) {
+            try {
+              waitForOpenWs(wsSkt[index]);
+              wsSkt[index].send(msg);
+            } catch (error) {
+              showLog("Websocket " + index + " - " + error.message);
+              return false;
+            }
+          } else wsSkt[index].send(msg);
+          return true;
         }
 
         // periodically check that connection is still up
         function heartbeat() {
           hbTimer = setInterval(function() {
-          wsSkt.forEach((element, index) => {
-            if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[index].send("H");
-          });
+            wsSkt.forEach((element, index) => {
+              if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) sendWsMsg('H', index);
+            });
           }, heartbeatInterval);
         }
 
@@ -301,6 +339,20 @@
           el.disabled = false;
         }
 
+        function disableRangeSlider(el) {;
+          const rangeVal = el.parentElement.children.rangeVal;
+          const itemInactiveColor =  getComputedStyle(rangeVal).getPropertyValue('--itemInactive');
+          rangeVal.style.background = itemInactiveColor;
+          el.classList.add('disabled');
+        }
+
+        function enableRangeSlider(el) {;
+          const rangeVal = el.parentElement.children.rangeVal;
+          const itemInactiveColor =  getComputedStyle(rangeVal).getPropertyValue('--buttonReady');
+          rangeVal.style.background = itemInactiveColor;
+          el.classList.remove('disabled');
+        }
+
         function isActive(el) {
           return el.classList.contains('active') ? true : false;
         }
@@ -446,6 +498,11 @@
             }
           });
 
+          // move away from browser tab
+          document.addEventListener('visibilitychange', () => {
+            if (document.hidden) closedTab(false); // app specific
+          });
+          
           // recalc range marker positions 
           window.addEventListener('resize', function (event) {
             $$('input[type=range]').forEach(el => { rangeSlider(el); });
@@ -456,15 +513,14 @@
             if (document.visibilityState === 'hidden') {
               // User has switched tabs or minimized the window
               wsServers.forEach((element, index) => {
-                if (wsSkt[index]) {
-                  wsSkt[index].send('K');
-                  wsSkt[index].close;
-                }
+                sendWsMsg('K', index);
+                wsSkt[index].close;
               });
               closedTab(true); // app specific
             } else {
               // page visible, reopen websocket(s)
               wsServers.forEach((element, index) => {
+                pageVisible = true;
                 if (wsServers[index] && !wsSkt[index]) initWebSocket(index);
               });
             }
@@ -473,7 +529,7 @@
         }
 
         function sendWsCmd() {
-          // send user command to websocket server
+          // send user input text command to websocket server
           const txt = $('#txtCmd');
           let line = txt.value;
           if (line != "" && ws !== undefined) {
@@ -484,7 +540,7 @@
         }
 
         function sendCmd(reqStr) {
-          ws.send(reqStr);
+          sendWsMsg(reqStr);
           showLog("Cmd: " + reqStr);
         }
 
@@ -782,23 +838,32 @@
       if (deviceHubEl) hubObserver.observe(deviceHubEl);
 
 
-      /*********************** Browser Mic *********************/
+      /*********************** Browser Mic & Speaker *********************/
 
-      // Windows needs to allow microphone use in Microphone Privacy Settings
+      // Windows needs to allow microphone use in Microphone Privacy Settings:
       //
-      // In Microphone Properties / Advanced, check bit depth and sample rate (normally 16 bit 48kHz)
+      // In Microphone Properties / Advanced, check bit depth and sample rate:
+      // - normally 16 bit 48kHz, if not change inSampleRate below
       //
       // chrome needs to allow access to mic from insecure (http) site:
       // Go to : chrome://flags/#unsafely-treat-insecure-origin-as-secure
       // Enter following URL in box: http://<app_ip_address>
+      //
+      // Speaker use needs no additional settings
 
+      let audioContextMic;
+      let audioContextSpkr;
       let micStream;
-      let isMicStreaming = false;
-      const inSampleRate = 48000;
-      let outSampleRate = 16000;
+      let inSampleRate = 48000; // see notes above
+      let outSampleRate = 16000; // PCM output to speaker
       let Resample;
+      let pcmNode;
+      let audioTimeout;
+      let audioBuffer = [];
+      const sendSize = 320; // Size of int16 buffer to send (20ms)
+      const TIMEOUT_DURATION = 1000; // 1 seconds, adjust as needed
 
-      function createAudioWorkletScript(sampleRateRatio) {
+      function createMicAudioWorkletScript(sampleRateRatio) {
         return `
           class Resample extends AudioWorkletProcessor {
             constructor() {
@@ -815,16 +880,19 @@
             }
 
             resampleAudio(inputChannel) {
-              // resample 16 bit 46kHz to 16kHz
+              // resample 16 bit input rate to required output rate kHz
               const outputLength = Math.round(inputChannel.length / this.sampleRateRatio);
               const resampledData = new Int16Array(outputLength);
               let outputIndex = 0;
+              let clampedIndex;
               for (let i = 0; i < outputLength; i++) {
-                const inputIndex = Math.round(i * this.sampleRateRatio);
-                // Clamp the input index to avoid potential out-of-bounds access
-                const clampedIndex = Math.min(inputIndex, inputChannel.length - 1);
+                if (this.sampleRateRatio != 1) {
+                  const inputIndex = Math.round(i * this.sampleRateRatio);
+                  // Clamp the input index to avoid potential out-of-bounds access
+                  clampedIndex = Math.min(inputIndex, inputChannel.length - 1);
+                } else clampedIndex = i;
                 // convert float values -1 : 1 to 16 bit integers
-                resampledData[outputIndex++] = inputChannel[clampedIndex] * 32767;
+                resampledData[outputIndex++] = inputChannel[clampedIndex] * 0x8000;
               }
               return resampledData;
             }
@@ -842,47 +910,130 @@
         `;
       }
 
-      async function runMic() {
-        // start mic
+      async function runMic(index) {
+        // start browser mic
         const sampleRateRatio = inSampleRate / outSampleRate;
-        const audioWorkletScript = createAudioWorkletScript(sampleRateRatio);
+        const audioWorkletScript = createMicAudioWorkletScript(sampleRateRatio);
         try {
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (!ws) initWebSocket();
-          const context = new AudioContext();
-          const source = context.createMediaStreamSource(micStream);
-          await context.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
-          Resample = new AudioWorkletNode(context, "resample");;
-          source.connect(Resample).connect(context.destination);
-
-          if (ws) {
-            if (ws.readyState === WebSocket.OPEN) {
-              isMicStreaming = true;
-              Resample.port.onmessage = function(event) {
-                ws ? ws.send(event.data) : closeMic(); // Send the audio chunk 
-              };
+          if (!audioContextMic || audioContextMic.state === 'closed') audioContextMic = new AudioContext({ sampleRate: inSampleRate });
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
+          const source = audioContextMic.createMediaStreamSource(micStream);
+          const delayNode = audioContextMic.createDelay();
+          delayNode.delayTime.value = 1; // 100ms delay
+          await audioContextMic.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
+          Resample = new AudioWorkletNode(audioContextMic, "resample");
+          source.connect(Resample).connect(delayNode).connect(audioContextMic.destination);
+          // send mic data to app
+          if (Resample) Resample.port.onmessage = function(event) {
+            // buffer data into 20ms chunks
+            const inputDataArray = new Int16Array(event.data);
+            audioBuffer.push(...inputDataArray);
+            if (audioBuffer.length >= sendSize) {
+              const bufferToSend = new Int16Array(audioBuffer.splice(0, sendSize));
+              // send audio, but drop if cant send else lag will occur
+              if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) {
+                wsSkt[index].send(bufferToSend);
+                // display average microphone signal level
+                const sum = bufferToSend.reduce((accumulator, currentValue) => accumulator + Math.abs(currentValue), 0);
+                showMicLevel(sum / bufferToSend.length / 0x1000);
+              }
             }
           }
         } catch (error) {
-          alert("Chrome needs security exception for " + baseHost);
+          alert("Browser needs mic security exception for " + baseHost + ", " + error.message);
         }
       }
 
-      function closeMic() {
-        // stop streaming
-        isMicStreaming = false;
-        if (ws) ws.send('X');
-        // close down mic
+      function showMicLevel(fraction) {
+        const canvas = $('#micLevel');
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--chkColor').trim();
+        function draw() {
+          const fillWidth = fraction * canvas.width;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear
+          ctx.fillRect(0, 0, fillWidth, canvas.height); 
+          requestAnimationFrame(draw);
+        }
+        draw();
+      }
+
+      async function closeMic(index) {
+        // close down browser mic
+        if (wsSkt[index] != null) sendWsMsg('X', index);
         if (micStream) {
           micStream.getTracks().forEach(track => track.stop()); // Close the microphone stream
           micStream = null;
         }
         if (Resample && Resample.port) Resample.port.postMessage({ type: 'stop' }); // Send stop message
         if (Resample) Resample.disconnect();
-        try { micAction(false); } 
-        catch (error) {}
+        Resample = null;
+        if (audioContextMic && audioContextMic.state !== 'closed') {
+          audioContextMic.close().then(() => {});
+        }
+        await sleep(500);
+        showMicLevel(0);
+      }
+      
+      function createSpkrAudioWorkletScript() {
+        return `
+          class PCMProcessor extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this.buffer = new Float32Array(0);
+              this.port.onmessage = this.handleMessage.bind(this);
+            }
+
+            handleMessage(event) {
+              const int16Array = new Int16Array(event.data);
+              const float32Array = new Float32Array(int16Array.length);
+              for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 0x8000; // Convert int16 to float32
+              const newBuffer = new Float32Array(this.buffer.length + float32Array.length);
+              newBuffer.set(this.buffer);
+              newBuffer.set(float32Array, this.buffer.length);
+              this.buffer = newBuffer;
+            }
+
+            process(inputs, outputs) {
+              const output = outputs[0];
+              const channel = output[0];
+              const requiredSize = channel.length;
+
+              if (this.buffer.length < requiredSize) channel.fill(0);
+              else {
+                channel.set(this.buffer.subarray(0, requiredSize));
+                this.buffer = this.buffer.subarray(requiredSize);
+              }
+
+              return true;
+            }
+          }
+
+          registerProcessor('pcmProcessor', PCMProcessor);
+        `;
+      }
+      
+      async function runSpkr(index) {
+        // start browser speaker output
+        if (!audioContextSpkr || audioContextSpkr.state === 'closed') audioContextSpkr = new AudioContext({ sampleRate: outSampleRate });
+        const audioWorkletScript = createSpkrAudioWorkletScript();
+        await audioContextSpkr.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
+        pcmNode = new AudioWorkletNode(audioContextSpkr, 'pcmProcessor');
+        pcmNode.connect(audioContextSpkr.destination);
+        initWebSocket(index);
       }
 
-      function micRemState(value) {
-        value ? runMic() : closeMic();
+      async function outputSpkr(audioData) {
+        // Output incoming PCM data from websocket to browser audio output
+         if (pcmNode) pcmNode.port.postMessage(audioData);
+      }
+
+      function closeSpkr(index) {
+        // close down browser speaker
+        if (pcmNode) {
+          pcmNode.disconnect();
+          pcmNode = null;
+        }
+        if (audioContextSpkr && audioContextSpkr.state !== 'closed') {
+          audioContextSpkr.close().then(() => {});
+        }
       }

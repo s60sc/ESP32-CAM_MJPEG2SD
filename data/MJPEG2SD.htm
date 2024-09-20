@@ -111,7 +111,7 @@
         font-size: calc(var(--buttonSize) * 1.1);
       }
 
-      .tab button.active {
+      .tab button.active, .audButtons.active{
         box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
         background: var(--buttonActive);
       }
@@ -120,8 +120,9 @@
         background: var(--buttonHover);
       }
 
-      .tab button.disabled {
+      .tab button.disabled, input.disabled {
         cursor: default;
+        pointer-events: none;
         background: var(--itemInactive)
       }
 
@@ -437,7 +438,6 @@
         pointer-events: none;
       }
 
-
       /* checkbox slider */
 
       /* Hide the default checkbox */
@@ -509,7 +509,7 @@
         display: block;
       }
 
-      nav.quick-nav {
+      .quick-nav {
         width: var(--buttonDbl);
         height: var(--buttonDbl);
         margin: var(--buttonHalf) var(--buttonHalf); var(--buttonHalf) var(--buttonHalf);
@@ -878,6 +878,21 @@
         touch-action: none;
       }
 
+      .audButtons {
+        height: calc(var(--buttonSize) * 3);
+        width: calc(var(--buttonSize) * 3);
+      }
+
+      .micContainer, .spkrContainer{
+        display: flex;
+        align-items: center; 
+      }
+
+      #micLevel, #spkrLevel {
+        height: var(--buttonDbl);
+        width: calc(var(--buttonSize) * 6);
+      }
+
     </style>
   </head>
 
@@ -899,8 +914,7 @@
             <li><button id="forceStream" class="local" style="float:right;">➤&nbsp;Start Stream</button></li>
             <li><button id="get-still" class="local" style="float:right;">Get Still</button></li>
             <li><div class="sep"></div></li>
-            <li><button id="forcePlayback" class="local" style="float:right;" disabled="disabled" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li>
-            <li><button id="micRem" class="local hidden" style="float:right;">Start Mic</button></li>
+            <li><button id="forcePlayback" class="local disabled" style="float:right;" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li
           </ul>
         </nav>
       </section>
@@ -917,6 +931,14 @@
                 <nav class="quick-nav" id="fileControl" name="playback-transfers">🎥</nav>
                 <nav class="quick-nav" id="picSettings" name="picture-settings">📺</nav>
                 <nav class="quick-nav" id="accSettings" name="access-settings">🔧</nav>
+                <div class="micContainer">
+                  <button class="quick-nav audButtons" id="micRem">🎤</button>
+                  <canvas id="micLevel"></canvas>
+                </div>
+                <div class="spkrContainer">
+                  <button class="quick-nav audButtons" id="spkrRem">🔈</button>
+                  <canvas id="spkrLevel"></canvas>
+                </div>
               </nav>
               <div id="menu-top" class="menu-pinned">
                 <nav class="menu panel" id="camera-control">
@@ -924,7 +946,7 @@
                   <div class="pin-menu" title="Pin / unpin menu">📌</div>
                   <label for="control-cb" class="nav-toggle">📷&nbsp;&nbsp;Camera Control&nbsp;&nbsp;</label>
                   <div class='addButtons'></div>
-                  <div>                    
+                  <div>
                     <div class="input-group" id="framesize-group">
                       <label for="framesize">Resolution</label>
                       <select id="framesize" class="selectField">
@@ -960,10 +982,14 @@
                   <div class="input-group" id="quality-group">
                       <label for="quality">Quality</label>
                       <input title="Set the recording quality" type="range" id="quality" min="4" max="63" value="10">
-                  </div>                          
+                  </div>
                   <div class="input-group" id="micGain-group">
                     <label for="micGain">Microphone Gain</label>
                     <input title="Set microphone gain" type="range" id="micGain" min="0" max="10" value="0">
+                  </div>
+                  <div class="input-group" id="ampGain-group">
+                    <label for="ampVol">Amplifier Volume</label>
+                    <input title="Set amplifier volume" type="range" id="ampVol" min="0" max="10" value="0">
                   </div>
                   <div class="input-group" id="CamTilt-group">
                     <label for="camTilt">Camera Tilt</label>
@@ -979,7 +1005,7 @@
                   </div>
                 </div>
               </nav>
-              <nav class="menu panel" id="picture-settings">                                                   
+              <nav class="menu panel" id="picture-settings">
                 <input type="checkbox" id="settings-cb" class="menu-action">
                 <div class="pin-menu" title="Pin / unpin menu">📌</div>
                 <label for="settings-cb" class="nav-toggle">📺&nbsp;&nbsp;Picture Settings&nbsp;&nbsp;</label>
@@ -1146,7 +1172,7 @@
                       <input id="raw_gma" type="checkbox" checked="checked">
                       <label class="slider" for="raw_gma"></label>
                     </div>
-                  </div>                  
+                  </div>
                 </div>
                 <br><br>
               </nav>
@@ -1207,7 +1233,7 @@
                 <div class='addButtons'></div>
                 <div>
                   <div class="input-group" id="sfiles-group" style="display: grid;">
-                    <label for="sfile">Select folder / file</label>                          
+                    <label for="sfile">Select folder / file</label>
                     <select title="Select sd card file or folder" id="sfile" size="12">
                       <option value="/~reset" selected="selected">-- Select --</option>
                       <option value="/">Get Folders</option>
@@ -1487,7 +1513,7 @@
         </figure>
       </div> 
     </div>
-    
+
     <div id="ShowLog" class="tabcontent">
       <br>
       <div class="grid-cols4">
@@ -1613,6 +1639,12 @@
             <text class="local midText" id="other">Other</text>
           </svg>
         </div>
+        <div id="AudconfigBtn" class="hidden">
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="Audconfig">Audio</text>
+          </svg>
+        </div>
         <div id="RCconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
@@ -1622,13 +1654,13 @@
         <div id="SVconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
-            <text class="local midText" id="SVconfig">Servo Config</text>
+            <text class="local midText" id="SVconfig">Servos</text>
           </svg>
         </div>
         <div id="PGconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
-            <text class="local midText" id="PGconfig">PG Config</text>
+            <text class="local midText" id="PGconfig">PG Control</text>
           </svg>
         </div>
       </div>
@@ -1636,7 +1668,7 @@
         <p class='config-group' id='Cfg'></p>
       </div>
     </div>
-    
+
     <div id="DeviceHub" class="tabcontent">
       <div id="buttonContainer">
         <!-- Input field for users to enter individual IPs -->
@@ -1674,7 +1706,6 @@
       let recordingIndicator;
       let streamButton;
       let playbackButton;
-      let micRemBtn;
       let rotateAngle = 0;
       let RCmode = false;
       let showRC = false; 
@@ -1693,10 +1724,8 @@
       let allowReverse = true;  // set false if reverse motion not required
       let autoControl = true;   // stop motor or center the steering if control not active
       let servoCenter = 90;     // angle in degrees where servo is centered (SG90 style)
-
       // shorter the waitTime, more responsive RC but more load on ESP32
       let waitTime = 20;        // minimum wait in ms between controller updates
-
 
       function appInit() {
         view = $('#stream');
@@ -1705,7 +1734,6 @@
         recordingIndicator = $('#recording-indicator');
         streamButton = $('#forceStream');
         playbackButton = $('#forcePlayback');
-        micRemBtn = $('#micRem');
         $('#steerDirection').min = 0 - maxSteerAngle;
         $('#steerDirection').max = maxSteerAngle;
         $('#steerDirection').classList.add(steerOrientation);
@@ -1718,6 +1746,7 @@
           });
         });
         RCcfgObserver.observe($('#RCconfigBtn'));
+        sustainId = +appClock + Math.ceil(refreshInterval / 1000);
       }
 
       async function processStatus(dest, key, value, fromUser = true) {
@@ -1742,8 +1771,9 @@
           else if (key == "peripherals") getConfig("0123");
           else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
-          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
           else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
+          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
+          else if (key == "Audconfig") { doLoadStatus = false; getConfig("01234567"); }
           else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
@@ -1752,6 +1782,7 @@
           else if (key == "download" && $("#download").value.includes('.')) doDownload();
           else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
           else if (key == "devHub") {value == "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]')); }
+          else if (key == "AuxIP") wsAux(value);
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
           else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
           else if (key == "agc") setAgc(key, value);
@@ -1759,12 +1790,11 @@
           else if (key == "showRecord") setRecIndicator(value);
           else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
           else if (key == "forceStream") streamAction(key);
-          else if (key == "micRem") micAction(true);
-          else if (key == "mampUse") micShow(Number(value));
+          else if (key == "micRem") { value = micOrSpkrState(key); value ? runMic(wsInd) : closeMic(wsInd); }
+          else if (key == "spkrRem") { value = micOrSpkrState(key); value ? runSpkr(wsInd) : closeSpkr(wsInd); }
           else if (key == "RCactive") RCstatus(Number(value));
-          else if (key == "RClights") { value = RCbuttons(key, value); wsAuxSend(wsInd, "L" + value); }
+          else if (key == "RClights") { value = RCbuttons(key, value); wsAuxSend("L" + value, wsInd); }
           else if (key == "RCcontrols") showRCcontrols(RCbuttons(key, value));
-          else if (key == "AuxIP") wsAux(value);
           else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
           else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
           else if (key == "minDutyCycle") minDutyCycle = value;
@@ -1773,11 +1803,17 @@
           else if (key == "autoControl") autoControl = value > 0 ? true : false;
           else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
           else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
+          else if (key == "AudActive") Number(value) ? show($('#AudconfigBtn')) : hide($('#AudconfigBtn'));
           else if (key == "waitTime") waitTime = value;
-          else if (key == "camTilt") { wsAuxSend(wsInd, "T" + value); }
-          else if (key == "camPan") { wsAuxSend(wsInd, "P" + value); }
-          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend(wsInd, "G1"); }
-          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend(wsInd, "G0"); }
+          else if (key == "camTilt") { wsAuxSend("T" + value, wsInd); }
+          else if (key == "camPan") { wsAuxSend("P" + value, wsInd); }
+          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend("G1", wsInd); }
+          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); }
+          else if (key == "lampPin") { value > 0 ? enableRangeSlider($('#lampLevel')) : disableRangeSlider($('#lampLevel')); }
+          else if (key == "servoPanPin") { value > 0 ? enableRangeSlider($('#camPan')) : disableRangeSlider($('#camPan')); }
+          else if (key == "servoTiltPin") { value > 0 ? enableRangeSlider($('#camTilt')) : disableRangeSlider($('#camTilt')); }
+          else if (key == "micSdPin") micState(value);
+          else if (key == "mampSdIo") spkrState(value);
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
         } 
@@ -1815,7 +1851,6 @@
             changeRange('agc_gain', "0", "30", "5", true);
             $('#gainceiling').parentElement.children.rangeMin.innerHTML = '2x';
             $('#gainceiling').parentElement.children.rangeMax.innerHTML = '128x';
-
           } else if (cameraModel == "OV3660" || cameraModel == "OV5640") {
             // change button labels
             $('#aec2_lab').innerHTML = "Night Mode";
@@ -1913,19 +1948,6 @@
         view.src = webServer + "/control?still="+Date.now(); 
         sustainId = +appClock + Math.ceil(refreshInterval / 1000);
         showView(false);
-      }
-
-      async function micAction(changeState) {
-        const micActive = !isActive($('#micRem'));
-        if (changeState) {
-          micActive ? activateMicButton() : deactivateMicButton();
-          await sleep(200);
-          micRemState(micActive);
-          sendControl("micRem", micActive ? '1' : '0');
-        } else {
-          deactivateMicButton();
-          sendControl("micRem", '0');
-        }
       }
 
       function recordAction(key) {
@@ -2026,6 +2048,10 @@
       }
 
       async function stopAll(caller, sendStop = true) {
+        closeMic(wsInd);
+        deactivateButton($('#micRem'));
+        closeSpkr(wsInd);
+        deactivateButton($('#spkrRem'));
         if (!isHidden(viewContainer)) {
           stopRC();
           if (isSecure) await sleep(1000); // otherwise TLS crash
@@ -2035,22 +2061,23 @@
         if (isActive(streamButton)) deactivateStreamButton(sendStop);
         hide(viewContainer);
       }
-
-      function activateMicButton() {
-        micRemBtn.classList.add("active");
-        micRemBtn.classList.add('blinking');
-        micRemBtn.innerHTML = "Stop Mic";
+      
+            
+      function activateButton(thisButton) {
+        thisButton.classList.add("active");
+        thisButton.classList.add('blinking');
       }
-
-      function deactivateMicButton() {
-        micRemBtn.classList.remove("active");
-        micRemBtn.classList.remove('blinking');
-        micRemBtn.innerHTML = "Start Mic";
+      
+      function deactivateButton(thisButton) {
+        thisButton.classList.remove("active");
+        thisButton.classList.remove('blinking');
       }
-
-      function micShow(doShow) {
-        if (doShow) show($('#micRem'));
-        else hide($('#micRem'));
+      
+      function micOrSpkrState(key) {
+        const thisButton = $('#'+key);
+        const thisActive = !isActive(thisButton);
+        thisActive ? activateButton(thisButton) : deactivateButton(thisButton);
+        return +thisActive;
       }
 
       function showView(isFile) {
@@ -2221,13 +2248,17 @@
 
       function sendAll(key, val) {
         sendControl(key, val);
-        if (wsSkt[0] != null) wsSkt[0].send('C' + key + '=' + val);
+        sendWsMsg('C' + key + '=' + val);
       }
-
-      function configStatus(refresh) {} 
-
-      function closedTab(isClosed) {
-        if (isClosed) stopAll("closedTab");
+      
+      function micState(value) {
+        value > 0 ? enableRangeSlider($('#micGain')) : disableRangeSlider($('#micGain')); 
+        value > 0 ? enable($('#spkrRem')) : disable($('#spkrRem'))
+      }
+      
+      function spkrState(value) {
+        value > 0 ? enableRangeSlider($('#ampVol')) : disableRangeSlider($('#ampVol')); 
+        value > 0 ? enable($('#micRem')) : disable($('#micRem')); 
       }
 
       /************** RC ****************/
@@ -2250,8 +2281,7 @@
           show($('#RCdisplay')) 
           RCmode = true;
           loggingOn = false;
-          while (wsSkt[wsInd] && wsSkt[wsInd].readyState != WebSocket.OPEN) await sleep(50); // allow websocket to start
-          if (!wsSkt[wsInd]) stopRC();
+          await sleep(50); // allow websocket to start
           doLoadStatus = false;
         } else stopRC();
       }
@@ -2266,9 +2296,9 @@
           doLoadStatus = true;
           // close off RC activity
           try {
-            wsSkt[wsInd].send("D" + servoCenter);  
-            wsSkt[wsInd].send("M0");
-            wsSkt[wsInd].send("L0");
+            sendWsMsg("D" + servoCenter, wsInd);  
+            sendWsMsg("M0", wsInd);
+            sendWsMsg("L0", wsInd);
           } catch(error) { alert("No connection to " + wsServers[wsInd]); }
           RCmode = false; 
         }
@@ -2297,29 +2327,28 @@
       function RCsliders(key, value) {
         // RC control
         let checkedRC = false;
-        if (wsSkt[wsInd] != null) {
+
           let doSend = false;
           let val = parseInt(value);
           if (key == "steerDirection" || key == "motorSpeed") {
-            if (readyToSend()) doSend = true;
-            checkedRC = true;
-            if (autoControl && !isImmed) {
-              // auto centre steering or stop motor if focus lost
-              val = 0; 
-              const e = $('#'+key);
-              e.parentElement.children.rangeVal.innerHTML = '0';
-              rangeSlider(e, false);
-              doSend = true;
-            }  
-          }
+          if (readyToSend()) doSend = true;
+          checkedRC = true;
+          if (autoControl && !isImmed) {
+            // auto centre steering or stop motor if focus lost
+            val = 0; 
+            const e = $('#'+key);
+            e.parentElement.children.rangeVal.innerHTML = '0';
+            rangeSlider(e, false);
+            doSend = true;
+          }  
           if (doSend) {
             if (key == "steerDirection") {
               val += 1 * servoCenter;
-              wsAuxSend(wsInd, "D" + val);
+              wsAuxSend("D" + val, wsInd);
             }
             else if (key == "motorSpeed") {
               if (Math.abs(val) < minDutyCycle) val = 0;
-              wsAuxSend(wsInd, "M" + val);
+              wsAuxSend("M" + val, wsInd);
             }
           }
         }
@@ -2357,10 +2386,11 @@
         }
       }
 
-      function wsAuxSend(index, msg) {
-        if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[wsInd].send(msg);
-        else stopRC();
+      function wsAuxSend(msg, index) {
+        if (!sendWsMsg(msg, index)) stopRC();
       }
+
+      /*********************** General ************************/
 
       function wsAux(AuxIP) {
         // setup websocket used for auxiliary board if required
@@ -2373,11 +2403,43 @@
         }
       }
 
+      function configStatus(refresh) {} 
 
-      /***************************************************************************/
+      function closedTab(isClosed) {
+        // actions when page refreshed, closed or not in focus
+        deactivateButton($('#micRem'));
+        deactivateButton($('#spkrRem'));
+        if (isClosed) {
+          pageVisible = false;
+          sendControl("micRem", '0');
+          sendControl("spkrRem", '0');
+          stopAll("closedTab");
+        }
+      }
+
+      function processBuffer(bufferData) {
+        // app specific processing of buffer received from web socket
+        outputSpkr(bufferData); // ArrayBuffer containing PCM 16kHz audio data
+      }
+
+      function customWsMsg(data) {}
+
+      function customInit() {
+        disableRangeSlider($('#micGain'));
+        disableRangeSlider($('#ampVol'));
+        disableRangeSlider($('#camTilt'));
+        disableRangeSlider($('#camPan'));
+        disableRangeSlider($('#lampLevel'));
+        disable($('#micRem'));
+        disable($('#spkrRem'));
+        closedTab(false);
+      }
+
+
+/***************************************************************************/
 
       // config for common script - leave as is
-      const doCustomInit = false;
+      const doCustomInit = true;
       const doInitWebSocket = true;
       let doLoadStatus = true;
       const doRefreshTimer = true;
