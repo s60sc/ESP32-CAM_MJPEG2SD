@@ -19,14 +19,17 @@ The application supports:
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
 * Use of [Auxiliary Board](#auxiliary-board) for additional pins.
+* [Intercom](#intercom) feature using mic and speaker on ESP and mic and speaker on user device.
 
 The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, but avoid no-name boards marked `ESPS3 RE:1.0`
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 10.1:
-*  Must be compiled with at least arduino-esp32 core v3.0.3
-*  Reintroduced UART option for [Auxiliary Board](#auxiliary-board)
+Changes in version 10.2:
+* Change to [installation](#installation) instructions for ESP32
+* Audio and Servo configuration have dedicated tabs opened via Peripheral tab
+* [Intercom](#intercom) feature added
+
 
 ## Purpose
 
@@ -64,10 +67,11 @@ The ESP32 time is set from an NTP server or connected browser client.
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
 If compiling with at least arduino-esp32 core v3.0.3 which contains network fixes.
-To free up some heap space, in `appGlobals.h` set `#define INCLUDE_*` for any unused feature to `false`.
 Select the required ESP-CAM board by uncommenting ONE only of the `#define CAMERA_MODEL_*` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
-* Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM` 
+* Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM`  
+
+For ESP32, optional features are not included by default. To include a feature, in `appGlobals.h` set relevant `#define INCLUDE_*` to `true`. 
 
 Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and the following Partition scheme:
 * ESP32 - `Minimal SPIFFS (...)`
@@ -146,18 +150,19 @@ See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 
 **Peripherals** eg:
 * Select if a PIR or radar sensor is to be used (which can also be used in parallel with camera motion detection).
-* Auto switch the lamp on for nightime PIR detection.
 * Control pan / tilt cradle for camera.
-* Connect a PDM or I2S microphone.
+* Connect a PDM or I2S microphone and I2S amplifier.
 * Connect a DS18B20 temperature sensor.
 * Monitor voltage of battery supply on ADC pin.
 * Wakeup on LDR after deep sleep at night.
 
-The **Peripherals** also enables further config tabs to be displayed:
+The **Peripherals** tab also enables further config tabs to be displayed:
+* **Audio**: to configure microphones and amplifiers.
 * **RC Config**: to configure hardware for remote control vehcles.
-* **Servo Config**: to configure servos for camera control and RC steering
-* **PG Config**: to configure hardware for photogrammetry.
-After an option is selected, need to press `Save` then `Reboot ESP` to startup peripherals.
+* **Servos**: to configure servos for camera control and RC steering
+* **PG Control**: to configure and control hardware for photogrammetry.  
+
+After changes are applied, need to press `Save` then `Reboot ESP` to restart peripherals with changes.
 
 Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
 * pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
@@ -202,9 +207,22 @@ Additional options are provided on the camera index page, where:
 
 An I2S microphone eg INMP441 is supported by both ESP32 and ESP32S3. A PDM microphone eg MP34DT01 is only supported on ESP32S3. Audio recording works fine on ESP32S3 but is not viable on ESP32 as it significantly slows down the frame rate. 
 
-The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1). Pin values (predefined for XIAO Sense) and **Use microphone** selector are set under **Peripherals** button on the configuration web page.
+The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. An I2S microphone needs 3 free pins, a PDM microphone needs 2 free pins (the I2S SCK pin must be set to -1). Pin values (predefined for XIAO Sense) are set under **Audio** button on the configuration web page.
 
-The web page has a slider for **Microphone Gain**. The higher the value the higher the gain. Selecting **0** cancels the microphone.  
+The web page has a slider for **Microphone Gain**. The higher the value the higher the gain for ESP microphone. Selecting **0** cancels the microphone.
+
+The Speaker icon button on the web page can be used to listen to the microphone from the browser.
+
+
+## Intercom
+
+The intercom feature allows two way conversation between an ESP32 with microphone and amplifier / speaker installed and the device hosting the app web page where the browser has access to the host device microphone and speaker. Access to the device microphone may have security constraints, see `audio.cpp`. This feature is only viable on an ESP32S3 and needs a good WiFi connection and spatial separation at both ends to prevent a feedback loop.
+
+An I2S amplifier needs 1 free pin on the ESP32S3 if an I2S microphone is installed as they can share the clock pins. Pin values are set under **Audio** button on the configuration web page. 
+
+The web page has a slider for **Amplifier Volume**. The higher the value the higher the volume for ESP speaker. Selecting **0** cancels the speaker.
+
+On the left side on the main web page are icons for browser device microphone and speaker. Selecting the icon (if not grayed out) activates the browser microphone or speaker. 
 
 
 ## OV5640

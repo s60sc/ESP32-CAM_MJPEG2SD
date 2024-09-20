@@ -159,20 +159,26 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
 static void audioStream(httpd_req_t* req, uint8_t taskNum) {
   // output WAV audio stream to remote NVR
 #if INCLUDE_AUDIO
-  esp_err_t res = ESP_OK;
-  httpd_resp_set_type(req, "audio/wav");
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  isStreaming[taskNum] = true;
-  uint32_t totalSamples = 0;
-  while (isStreaming[taskNum]) {
-    size_t buffSize = getAudioBuffer(false);
-    if (buffSize) res = httpd_resp_send_chunk(req, (const char*)audioBuffer, buffSize); 
-    if (res != ESP_OK) isStreaming[taskNum] = false; // client connection closed
-    else totalSamples += buffSize / 2; // 16 bit samples
-  }
-  if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
-  getAudioBuffer(true); // reset for next stream
-  LOG_INF("WAV: sent %lu samples", totalSamples);
+  if (micGain) {
+    esp_err_t res = ESP_OK;
+    httpd_resp_set_type(req, "audio/wav");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    isStreaming[taskNum] = true;
+    uint32_t totalSamples = 0;
+    audioBytes = WAV_HDR_LEN;
+    updateWavHeader();
+    while (isStreaming[taskNum]) {
+      if (audioBytes) {
+        res = httpd_resp_send_chunk(req, (const char*)audioBuffer, audioBytes); 
+        audioBytes = 0;
+      } else delay(20); // allow time for buffer to load
+      if (res != ESP_OK) isStreaming[taskNum] = false; // client connection closed
+      else totalSamples += audioBytes / 2; // 16 bit samples
+    }
+    audioBytes = 1; // stop loading of buffer
+    if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
+    LOG_INF("WAV: sent %lu samples", totalSamples);
+  } else LOG_WRN("No ESP mic defined or mic is off");
 #else 
   httpd_resp_sendstr(req, NULL);
 #endif
@@ -333,7 +339,7 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
         return ESP_OK;
       } else httpd_resp_set_status(req, "500 No free task");
     } else {
-      if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s");
+      if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s, numStreams %d", variable, numStreams);
       else LOG_WRN("Invalid task id: %s", variable);
       httpd_resp_set_status(req, "400 Invalid url");
     }

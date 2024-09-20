@@ -366,6 +366,7 @@ static void fileServerTask(void* parameter) {
   } else LOG_VRB("Root or null is not allowed %s", storedPathName);  
   uploadInProgress = false;
   free(fsChunk);
+  fsHandle = NULL;
   vTaskDelete(NULL);
 }
 
@@ -374,7 +375,7 @@ bool fsStartTransfer(const char* fileFolder) {
   setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
-    xTaskCreate(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle);    
+    if (fsHandle == NULL) xTaskCreate(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle);    
     debugMemory("fsStartTransfer");
     return true;
   } else LOG_WRN("Unable to transfer %s as another transfer in progress", storedPathName);

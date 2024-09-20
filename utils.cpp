@@ -861,7 +861,7 @@ void logPrint(const char *format, ...) {
     // output to web socket if open
     if (msgLen > 1) {
       outBuf[msgLen - 1] = 0; // lose final '/n'
-      if (wsLog) wsAsyncSend(outBuf);
+      if (wsLog) wsAsyncSendText(outBuf);
     }
     xSemaphoreGive(logMutex);
   } 

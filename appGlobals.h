@@ -12,6 +12,7 @@
 
 // User's ESP32 cam board
 #if defined(CONFIG_IDF_TARGET_ESP32)
+#define IS_INCLUDED false
 #define CAMERA_MODEL_AI_THINKER 
 //#define CAMERA_MODEL_WROVER_KIT 
 //#define CAMERA_MODEL_ESP_EYE 
@@ -27,6 +28,7 @@
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
+#define IS_INCLUDED true
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3 
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
@@ -39,23 +41,24 @@
 #endif
 
 /***************************************************************
-  To reduce code size and heap use by removing unwanted features,
-  set relevant defines below to false and optionally delete associated file
+  For ESP32S3, optional features included by default
+  For ESP32, optional features NOT included by default to reduce heap use 
+  To include or exclude a particular feature, replace IS_INCLUDED by true or false
 ***************************************************************/
-#define INCLUDE_TGRAM true   // telegram.cpp
-#define INCLUDE_FTP_HFS true // ftp.cpp (file upload)
-#define INCLUDE_AUDIO true   // audio.cpp (microphone)
-#define INCLUDE_PERIPH true  // peripherals.cpp
-#define INCLUDE_SMTP true    // smtp.cpp (email)
-#define INCLUDE_MQTT true    // mqtt.cpp 
+#define INCLUDE_FTP_HFS IS_INCLUDED // ftp.cpp (file upload)
+#define INCLUDE_TGRAM IS_INCLUDED   // telegram.cpp (Telegram app interface)
+#define INCLUDE_AUDIO IS_INCLUDED   // audio.cpp (microphones & speakers)
+#define INCLUDE_PERIPH IS_INCLUDED  // peripherals.cpp (servos, PIR, led etc)
+#define INCLUDE_SMTP IS_INCLUDED    // smtp.cpp (email)
+#define INCLUDE_MQTT IS_INCLUDED    // mqtt.cpp (MQTT)
 
-#define INCLUDE_CERTS true   // certificates.cpp (https and server certificate checking)
-#define INCLUDE_UART true    // uart.cpp (use another esp32 as Auxiliary connected via UART)
-#define INCLUDE_TELEM true   // telemetry.cpp
-#define INCLUDE_WEBDAV true  // webDav.cpp (WebDAV protocol)
-#define INCLUDE_EXTHB true   // externalHeartbeat.cpp (heartbeat to remote server)
-#define INCLUDE_PGRAM true   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
-#define INCLUDE_MCPWM true   // mcpwm.cpp (BDC motor control)
+#define INCLUDE_CERTS IS_INCLUDED   // certificates.cpp (https and server certificate checking)
+#define INCLUDE_UART IS_INCLUDED    // uart.cpp (use another esp32 as Auxiliary connected via UART)
+#define INCLUDE_TELEM IS_INCLUDED   // telemetry.cpp (real time data collection)
+#define INCLUDE_WEBDAV IS_INCLUDED  // webDav.cpp (WebDAV protocol)
+#define INCLUDE_EXTHB IS_INCLUDED   // externalHeartbeat.cpp (heartbeat to remote server)
+#define INCLUDE_PGRAM IS_INCLUDED   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
+#define INCLUDE_MCPWM IS_INCLUDED  // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
 
@@ -86,7 +89,7 @@
 #include "camera_pins.h"
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "132" // dev only
+#define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -94,7 +97,7 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.1"
+#define APP_VER "10.2"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -114,7 +117,7 @@
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 190 // must be > number of entries in configs.txt
+#define MAX_CONFIGS 200 // must be > number of entries in configs.txt
 #define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
@@ -136,11 +139,8 @@
 #define CHUNKSIZE (1024 * 4)
 #define ISCAM // cam specific code in generics
 
-#define IS_IO_EXTENDER false // must be false except for IO_Extender
-#define EXTPIN 100
-
 // to determine if newer data files need to be loaded
-#define CFG_VER 19
+#define CFG_VER 20
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -153,7 +153,7 @@
 #define TELETEMP "/current.csv"
 #define SRTTEMP "/current.srt"
 
-#define DMA_BUFF_LEN 1024 // used for I2S buffer size
+#define DMA_BUFF_LEN 512 // used for I2S buffer size
 #define DMA_BUFF_CNT 4
 #define MIC_GAIN_CENTER 3 // mid point
 
@@ -181,16 +181,17 @@
 #define TELEM_STACK_SIZE (1024 * 4)
 #define HB_STACK_SIZE (1024 * 2)
 #define UART_STACK_SIZE (1024 * 2)
+#define INTERCOM_STACK_SIZE (1024 * 2)
 
 // task priorities
 #define CAPTURE_PRI 6
 #define SUSTAIN_PRI 5
 #define HTTP_PRI 5
-#define MICREM_PRI 5
 #define STICK_PRI 5
+#define AUDIO_PRI 5
+#define INTERCOM_PRI 5
 #define PLAY_PRI 4
 #define TELEM_PRI 3
-#define AUDIO_PRI 2
 #define TGRAM_PRI 1
 #define EMAIL_PRI 1
 #define FTP_PRI 1
@@ -225,6 +226,7 @@ enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACT
 void applyFilters();
 void applyVolume();
 void appShutdown();
+void browserMicInput(uint8_t* wsMsg, size_t wsMsgLen);
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = false);
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
@@ -235,18 +237,18 @@ bool checkSDFiles();
 void currentStackUsage();
 void displayAudioLed(int16_t audioSample);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
-void finishAudio(bool isValid);
+void finishAudioRecord(bool isValid);
 mjpegStruct getNextFrame(bool firstCall = false);
-size_t getAudioBuffer(bool endStream);
 int getInputPeripheral(uint8_t cmd);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
+void intercom();
 bool isNight(uint8_t nightSwitch);
 void keepFrame(camera_fb_t* fb);
 void micTaskStatus();
 void motorSpeed(int speedVal, bool leftMotor = true);
 void openSDfile(const char* streamFile);
-bool prepAudio();
+void prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
 bool prepRecording();
@@ -254,7 +256,6 @@ void prepTelemetry();
 void prepMic();
 void prepMotors();
 void prepUart();
-void remoteMicHandler(uint8_t* wsMsg, size_t wsMsgLen);
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
@@ -266,7 +267,7 @@ bool setOutputPeripheral(uint8_t cmd, uint32_t rxValue);
 void setSteering(int steerVal);
 void setStepperPin(uint8_t pinNum, uint8_t pinPos);
 void setStickTimer(bool restartTimer, uint32_t interval = 0);
-void startAudio();
+void startAudioRecord();
 void startHeartbeat();
 void startSustainTasks();
 bool startTelemetry();
@@ -278,6 +279,7 @@ void stopTelemetry(const char* fileName);
 void storeSensorData(bool fromStream);
 void takePhotos(bool startPhotos);
 void trackSteeering(int controlVal, bool steering);
+size_t updateWavHeader();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
@@ -318,6 +320,7 @@ extern bool isCapturing;
 extern uint8_t lightLevel;  
 extern uint8_t lampLevel;  
 extern int micGain;
+extern int8_t ampVol;
 extern uint8_t minSeconds; // default min video length (includes moveStopSecs time)
 extern float motionVal;  // motion sensitivity setting - min percentage of changed pixels that constitute a movement
 extern uint8_t nightSwitch; // initial white level % for night/day switching
@@ -342,11 +345,12 @@ extern uint8_t iSDbuffer[];
 extern uint8_t aviHeader[];
 extern const uint8_t dcBuf[]; // 00dc
 extern const uint8_t wbBuf[]; // 01wb
-extern size_t streamBufferSize[];
 extern byte* streamBuffer[]; // buffer for stream frame
-extern size_t motionJpegLen;
+extern size_t streamBufferSize[];
 extern uint8_t* motionJpeg;
+extern size_t motionJpegLen;
 extern uint8_t* audioBuffer;
+extern size_t audioBytes;
 extern char srtBuffer[];
 extern size_t srtBytes;
 
@@ -357,18 +361,14 @@ extern int uartRxdPin;
 
 // peripherals used
 extern bool pirUse; // true to use PIR or radar sensor (RCWL-0516) for motion detection
-extern bool lampUse; // true to use lamp
 extern bool lampAuto; // if true in conjunction with usePir & useLamp, switch on lamp when PIR activated
 extern bool lampNight;
 extern int lampType;
 extern bool voltUse; // true to report on ADC pin eg for for battery
-// microphone cannot be used on IO Extender
-extern bool micUse; // true to use external I2S microphone 
 extern bool wakeUse;
 extern bool buzzerUse; // true to use active buzzer
 extern int buzzerPin; 
 extern int buzzerDuration; 
-extern bool useBDC;
 
 // sensors 
 extern int pirPin; // if usePir is true
@@ -386,16 +386,19 @@ extern int ds18b20Pin; // if INCLUDE_DS18B20 true
 // batt monitoring 
 extern int voltPin; 
 
-// microphone recording
+// audio
+extern bool AudActive;
 extern int micSckPin; // I2S SCK 
 extern int micSWsPin;  // I2S WS / PDM CLK
 extern int micSdPin;  // I2S SD / PDM DAT
+extern bool micRem;
+extern bool spkrRem; // true to use browser speaker
 extern int mampBckIo; 
 extern int mampSwsIo;
 extern int mampSdIo;
 extern volatile bool stopAudio;
 extern volatile audioAction THIS_ACTION;
-extern TaskHandle_t audioHandle;
+extern uint32_t SAMPLE_RATE; // audio sample rate
 
 // configure for specific servo model, eg for SG90
 extern int servoDelay;
@@ -411,18 +414,12 @@ extern int voltDivider;
 extern float voltLow;
 extern int voltInterval;
 
-// audio
-extern uint32_t SAMPLE_RATE; // audio sample rate
-extern bool micRem;
-extern bool mampUse;
-extern uint8_t PREAMP_GAIN; // microphone preamplification factor
-extern int8_t AMP_VOL; // amplifier volume factor
-
 // stepper motor
 extern bool stepperUse;
 extern uint8_t stepINpins[];
 
-// RC
+// Motors and RC
+extern bool useBDC;
 extern bool RCactive;
 extern int motorRevPin;
 extern int motorFwdPin;
@@ -473,7 +470,6 @@ extern TaskHandle_t DS18B20handle;
 extern TaskHandle_t emailHandle;
 extern TaskHandle_t fsHandle;
 extern TaskHandle_t logHandle;
-extern TaskHandle_t audioHandle;
 extern TaskHandle_t mqttTaskHandle;
 extern TaskHandle_t playbackHandle;
 extern esp_ping_handle_t pingHandle;
@@ -483,6 +479,7 @@ extern TaskHandle_t sustainHandle[];
 extern TaskHandle_t telegramHandle;
 extern TaskHandle_t telemetryHandle;
 extern TaskHandle_t uartRxHandle;
+extern TaskHandle_t audioHandle;
 extern SemaphoreHandle_t frameSemaphore[];
 extern SemaphoreHandle_t motionSemaphore;
 

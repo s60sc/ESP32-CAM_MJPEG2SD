@@ -75,7 +75,7 @@
 #define RAM_LOG_LEN (1024 * 7) // size of system message log in bytes stored in slow RTC ram (max 8KB - vars)
 #define MIN_STACK_FREE 512
 #define STARTUP_FAIL "Startup Failure: "
-#define MAX_PAYLOAD_LEN 256 // set bigger than any websocket payload
+#define MAX_PAYLOAD_LEN 672 // set bigger than any incoming websocket payload (20ms audio)
 #define NULL_TEMP -127
 #define OneMHz 1000000
 #define USECS 1000000
@@ -181,7 +181,8 @@ void urlDecode(char* inVal);
 bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_sleep_wakeup_cause_t wakeupResetReason();
-bool wsAsyncSend(const char* wsData);
+void wsAsyncSendBinary(uint8_t* data, size_t len);
+bool wsAsyncSendText(const char* wsData);
 // mqtt.cpp
 void startMqttClient();  
 void stopMqttClient();  
@@ -232,6 +233,8 @@ extern bool doGetExtIP;
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
 extern bool wsLog;
 extern uint16_t sustainId;
+extern bool heartBeatDone;
+extern TaskHandle_t heartBeatHandle;
 
 // remote file server
 extern char fsServer[];
@@ -243,7 +246,6 @@ extern bool autoUpload;
 extern bool deleteAfter;
 extern bool fsUse;
 extern char inFileName[];
-extern bool heartBeatDone;
 
 //  SMTP server
 extern char smtp_login[];

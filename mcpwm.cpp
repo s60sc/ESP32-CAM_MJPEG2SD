@@ -314,6 +314,12 @@ static esp_err_t bdc_motor_del(bdc_motor_handle_t motor)
 #define MCPWM_TIMER_HZ 100000 
 static bdc_motor_handle_t BDCmotor[6] = {NULL, NULL, NULL, NULL, NULL, NULL}; // max 6 motors
 bool useBDC = false;
+int motorRevPin;
+int motorFwdPin;
+int motorRevPinR;
+int motorFwdPinR;
+int pwmFreq = 50;
+bool trackSteer = false;
 
 static bool prepBDCmotor(int groupId, int motorId, int pwmAgpio, int pwmBgpio) {
   bdc_motor_config_t BDCmotorConfig = {

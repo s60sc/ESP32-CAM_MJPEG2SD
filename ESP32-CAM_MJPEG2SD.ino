@@ -71,7 +71,9 @@ void setup() {
 #ifndef AUXILIARY
     prepRecording(); 
 #endif
+#if INCLUDE_PERIPH
     startHeartbeat();
+#endif
     checkMemory();
   } 
 }

@@ -16,9 +16,10 @@ static char alertCaption[100];
 static bool alertReady = false;
 static bool depthColor = true;
 static bool devHub = false;
+char AuxIP[MAX_IP_LEN];
 bool useUart = false; 
+bool RCactive = false;
 volatile audioAction THIS_ACTION = PASS_ACTION;
-static TaskHandle_t heartBeatHandle = NULL;
 static void stopRC();
 
 /************************ webServer callbacks *************************/
@@ -90,10 +91,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     lampLevel = intVal;
     if (!lampType) setLamp(lampLevel); // manual
   }
-  else if (!strcmp(variable, "lampUse")) {
-    lampUse = (bool)intVal;
-    if (!lampType) setLamp(lampLevel); // manual
-  }
   else if (!strcmp(variable, "lampType")) {
     lampType = intVal;
     lampAuto = lampNight = false;
@@ -108,6 +105,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "servoPanPin")) servoPanPin = intVal;
   else if (!strcmp(variable, "servoTiltPin")) servoTiltPin = intVal;
   else if (!strcmp(variable, "voltPin")) voltPin = intVal;
+  else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
   else if (!strcmp(variable, "servoDelay")) servoDelay = intVal;
   else if (!strcmp(variable, "servoMinAngle")) servoMinAngle = intVal;
   else if (!strcmp(variable, "servoMaxAngle")) servoMaxAngle = intVal;
@@ -123,11 +121,25 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
 #endif
 #if INCLUDE_AUDIO
-  else if (!strcmp(variable, "micUse")) micUse = (bool)intVal;
+  else if (!strcmp(variable, "micRem")) {
+    micRem = bool(intVal);
+    LOG_INF("Remote mic is %s", micRem ? "On" : "Off");
+    if (micRem && !ampVol) LOG_WRN("Amp volume is off");
+  }
+  else if (!strcmp(variable, "spkrRem")) {
+    spkrRem = (bool)intVal;
+    LOG_INF("Remote speaker is %s", spkrRem ? "On" : "Off");
+    if (spkrRem && !micGain) LOG_WRN("Mic gain is off");
+  }
   else if (!strcmp(variable, "micGain")) micGain = intVal;
   else if (!strcmp(variable, "micSckPin")) micSckPin = intVal;
   else if (!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
   else if (!strcmp(variable, "micSdPin")) micSdPin = intVal;
+  else if (!strcmp(variable, "ampVol")) ampVol = intVal;
+  else if (!strcmp(variable, "mampBckIo")) mampBckIo = intVal;
+  else if (!strcmp(variable, "mampSwsIo")) mampSwsIo = intVal;
+  else if (!strcmp(variable, "mampSdIo")) mampSdIo = intVal;
+  else if (!strcmp(variable, "AudActive")) AudActive = intVal;
 #endif
 #if INCLUDE_TELEM
   else if (!strcmp(variable, "teleUse")) teleUse = (bool)intVal;
@@ -136,6 +148,19 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
   else if (!strcmp(variable, "wakePin")) wakePin = intVal;
 #if INCLUDE_MCPWM
+  else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
+  else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
+  else if (!strcmp(variable, "motorRevPinR")) motorRevPinR = intVal;
+  else if (!strcmp(variable, "motorFwdPinR")) {
+    motorFwdPinR = intVal;
+    if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
+  }
+  else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
+#endif
+#ifndef AUXILIARY
+  else if (!strcmp(variable, "AuxIP")) strncpy(AuxIP, value, MAX_IP_LEN-1);
+#endif
+#if INCLUDE_PERIPH
   else if (!strcmp(variable, "RCactive")) {
     RCactive = useBDC = (bool)intVal;
     bool aux = false;
@@ -144,19 +169,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #endif
     if (useUart && !aux) useBDC = false;
   }
-  else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
-  else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
-  else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
-  else if (!strcmp(variable, "motorRevPinR")) motorRevPinR = intVal;
-  else if (!strcmp(variable, "motorFwdPinR")) {
-    motorFwdPinR = intVal;
-    if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
-  }
-#ifndef AUXILIARY
-  else if (!strcmp(variable, "AuxIP")) strncpy(AuxIP, value, MAX_IP_LEN-1);
-#endif
   else if (!strcmp(variable, "heartbeatRC")) heartbeatRC = intVal;
-  else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
   else if (!strcmp(variable, "maxDutyCycle")) maxDutyCycle = intVal;  
   else if (!strcmp(variable, "minDutyCycle")) minDutyCycle = intVal;  
@@ -164,8 +177,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "allowReverse")) allowReverse = (bool)intVal;   
   else if (!strcmp(variable, "autoControl")) autoControl = (bool)intVal; 
   else if (!strcmp(variable, "waitTime")) waitTime = intVal;    
-#endif
-#if INCLUDE_PERIPH 
   else if (!strcmp(variable, "lightsRCpin")) lightsRCpin = intVal;
   else if (!strcmp(variable, "stickUse")) stickUse = (bool)intVal; 
   else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
@@ -335,12 +346,12 @@ static bool setPeripheral(char cmd, int controlVal, bool fromUart) {
       if (trackSteer) trackSteeering(controlVal, true);
       else setSteering(controlVal);
     break;
+#endif
+#if INCLUDE_PERIPH
     case 'L':
       // lights
       setLightsRC((bool)controlVal);
     break;
-#endif
-#if INCLUDE_PERIPH
     case 'P':
       // camera pan servo
       setCamPan(controlVal);
@@ -388,10 +399,10 @@ void appSpecificWsHandler(const char* wsMsg) {
     if (!setPeripheral(cmd, controlVal, false)) {
       switch (cmd) {
         case 'X':
-    #if INCLUDE_AUDIO
+#if INCLUDE_AUDIO
           // stop remote mic stream
           stopAudio = true;
-    #endif
+#endif
         break;
         case 'C': 
           // control request
@@ -425,7 +436,7 @@ void appSpecificWsHandler(const char* wsMsg) {
 
 void appSpecificWsBinHandler(uint8_t* wsMsg, size_t wsMsgLen) {
 #if INCLUDE_AUDIO
-  remoteMicHandler(wsMsg, wsMsgLen);
+  browserMicInput(wsMsg, wsMsgLen);
 #endif
 }
 
@@ -449,9 +460,12 @@ void buildAppJsonString(bool filter) {
   p += sprintf(p, "\"camModel\":\"%s\",", camModel);
 #if INCLUDE_PERIPH
   p += sprintf(p, "\"SVactive\":\"%d\",", SVactive); 
-#endif
-#if (INCLUDE_PGRAM && INCLUDE_PERIPH)
+ #if INCLUDE_AUDIO
+  p += sprintf(p, "\"AudActive\":\"%d\",", AudActive); 
+ #endif
+ #if (INCLUDE_PGRAM)
   p += sprintf(p, "\"PGactive\":\"%d\",", PGactive); 
+ #endif
 #endif
 #if INCLUDE_MCPWM
   p += sprintf(p, "\"maxSteerAngle\":\"%d\",", maxSteerAngle); 
@@ -604,6 +618,7 @@ static void stopRC() {
 #endif
 }
 
+#if INCLUDE_PERIPH
 static void heartBeatTask (void *pvParameter) {
   // check on aux that ws and / or uart connection available
   while (true) {
@@ -619,6 +634,7 @@ void startHeartbeat() {
     if (heartBeatHandle == NULL) xTaskCreate(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle);
   }
 }
+#endif 
 
 void doAppPing() {
   if (DEBUG_MEM) {
@@ -782,6 +798,7 @@ lampLevel~0~98~~na
 lenc~1~98~~na
 lswitch~20~98~~na
 micGain~0~98~~na
+ampVol~0~98~~na
 minf~5~98~~na
 motionVal~8~98~~na
 quality~12~98~~na
@@ -840,18 +857,20 @@ sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
 sdFreeSpaceMode~1~2~S:No Check:Delete oldest:Ftp then delete~Action mode on SD min free
 formatIfMountFailed~0~2~C~Format file system on failure
 pirUse~0~3~C~Use PIR for detection
-lampUse~0~3~C~Use lamp
 lampType~0~3~S:Manual:PIR~How lamp activated
 SVactive~0~3~C~Enable servo use
-micUse~0~3~C~Use microphone
 pirPin~~3~N~Pin used for PIR
 lampPin~~3~N~Pin used for Lamp
 servoPanPin~~6~N~Pin used for Pan Servo
 servoTiltPin~~6~N~Pin used for Tilt Servo
 ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
-micSckPin~-1~3~N~pin for mic I2S SCK 
-micSWsPin~-1~3~N~pin for mic I2S WS, PDM CLK
-micSdPin~-1~3~N~pin for mic I2S SD, PDM DAT 
+AudActive~0~3~C~Show audio configuration
+micSckPin~-1~7~N~Microphone I2S SCK pin
+micSWsPin~-1~7~N~Microphone I2S WS, PDM CLK pin
+micSdPin~-1~7~N~Microphone I2S SD, PDM DAT pin
+mampBckIo~-1~7~N~Amplifier I2S BCLK (SCK) pin
+mampSwsIo~-1~7~N~Amplifier I2S LRCLK (WS) pin
+mampSdIo~-1~7~N~Amplifier I2S DIN pin
 servoDelay~0~6~N~Delay between each 1 degree change (ms)
 servoMinAngle~0~6~N~Set min angle for servo model
 servoMaxAngle~180~6~N~Set max angle for servo model

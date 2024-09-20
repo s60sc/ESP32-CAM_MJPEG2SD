@@ -364,11 +364,11 @@ static esp_err_t sendCrossOriginHeader(httpd_req_t *req) {
   return ESP_OK;
 }
 
-bool wsAsyncSend(const char* wsData) {
-  // websockets send function, used for async logging and status updates
+bool wsAsyncSendText(const char* wsData) {
+  // websockets send text function, used for async logging and status updates
   if (fdWs >= 0) {
     // send if connection active
-    httpd_ws_frame_t wsPkt;                                        
+    httpd_ws_frame_t wsPkt;
     wsPkt.payload = (uint8_t*)wsData;
     wsPkt.len = strlen(wsData);
     wsPkt.type = HTTPD_WS_TYPE_TEXT;
@@ -378,6 +378,24 @@ bool wsAsyncSend(const char* wsData) {
     return ret == ESP_OK ? true : false;
   } 
   return false;
+}
+
+void wsAsyncSendBinary(uint8_t* data, size_t len) {
+  // websockets send binary function, used for app specific features
+  if (fdWs >= 0) {
+    if (data == NULL || len == 0) {
+      LOG_WRN("Invalid data or length: data=%p, len=%u", data, len);
+      return;
+    }
+    // send if connection active
+    httpd_ws_frame_t wsPkt;
+    memset(&wsPkt, 0, sizeof(httpd_ws_frame_t)); // Initialize all fields to zero
+    wsPkt.type = HTTPD_WS_TYPE_BINARY;
+    wsPkt.payload = data;
+    wsPkt.len = len;
+    esp_err_t ret = httpd_ws_send_frame_async(httpServer, fdWs, &wsPkt);
+    if (ret != ESP_OK) LOG_WRN("websocket send failed with %s", esp_err_to_name(ret));
+  } // else ignore
 }
 
 static esp_err_t wsHandler(httpd_req_t *req) {
@@ -392,7 +410,7 @@ static esp_err_t wsHandler(httpd_req_t *req) {
         // websocket connection from browser when another browser connection is active
         LOG_WRN("closing connection, as newer Websocket on %u", httpd_req_to_sockfd(req));
         // kill older connection
-        httpd_sess_trigger_close(httpServer, fdWs);
+        killSocket();
       }
     }
     fdWs = httpd_req_to_sockfd(req);

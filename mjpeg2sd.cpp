@@ -124,7 +124,7 @@ static void openAvi() {
   oTime = millis() - oTime;
   LOG_VRB("File opening time: %ums", oTime);
 #if INCLUDE_AUDIO
-  startAudio();
+  startAudioRecord();
 #endif
 #if INCLUDE_TELEM
   haveSrt = startTelemetry();
@@ -293,7 +293,7 @@ static bool closeAvi() {
   bool haveWav = false;
 #if INCLUDE_AUDIO
   // add wav file if exists
-  finishAudio(true);
+  finishAudioRecord(true);
   haveWav = haveWavFile();
   if (haveWav) {
     do {
@@ -746,9 +746,8 @@ bool prepRecording() {
     LOG_INF("- press Start Recording on web page");
 #if INCLUDE_PERIPH
     if (pirUse) {
-      String extStr = (pirPin >= EXTPIN) ? "IO extender" : "";
-      LOG_INF("- attach PIR to %s pin %u", extStr, pirPin);
-      LOG_INF("- raise %s pin %u to 3.3V", extStr, pirPin);
+      LOG_INF("- attach PIR to %s pin %u", pirPin);
+      LOG_INF("- raise %s pin %u to 3.3V", pirPin);
     }
 #endif
     if (useMotion) LOG_INF("- move in front of camera");
@@ -789,6 +788,9 @@ void endTasks() {
 #endif
 #if INCLUDE_TGRAM
   deleteTask(telegramHandle);
+#endif
+#if INCLUDE_AUDIO
+  deleteTask(audioHandle);
 #endif
 }
 
