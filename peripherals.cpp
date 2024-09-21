@@ -348,7 +348,7 @@ static void setupLamp() {
     // assume PWM LED
     PWMled = true;
     ledcAttach(lampPin, 5000, DUTY_BIT_DEPTH); // freq, resolution
-    (0);
+    setLamp(0);
     LOG_INF("Setup PWM Lamp Led on pin %d", lampPin);
 #endif
   } else LOG_WRN("No Lamp Led pin defined");
