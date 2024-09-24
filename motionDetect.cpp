@@ -60,7 +60,7 @@ static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_
 
 bool isNight(uint8_t nightSwitch) {
   // check if night time for suspending recording
-  // or for switching on lamp if enabled
+  // or for switching relay if enabled
   static bool nightTime = false;
   static uint16_t nightCnt = 0;
   if (nightTime) {
@@ -171,7 +171,6 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   uint32_t lux = 0;
   static uint32_t motionCnt = 0;
   uint8_t* jpg_buf = NULL;
-
   // calculate parameters for sample size
   uint8_t scaling = frameData[fsizePtr].scaleFactor; 
   uint16_t reducer = frameData[fsizePtr].sampleRate;
@@ -236,7 +235,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   LOG_VRB("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
 
   dTime = millis();
-  if (changeCount > moveThreshold) {
+  if (!nightTime && changeCount > moveThreshold) {
     LOG_VRB("### Change detected");
     motionCnt++; // number of consecutive changes
     // need minimum sequence of changes to signal valid movement
@@ -247,7 +246,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
       // pass image to TinyML for classification
       if (!dbgMotion && mlUse) if (!tinyMLclassify()) motionCnt = 0; // not classified, so cancel motion
 #endif
-      if (motionCnt) {
+      if (motionCnt) { // in case unset by tinyMLclassify()
 #if INCLUDE_SMTP
         if (smtpUse) {
           // send email with movement image

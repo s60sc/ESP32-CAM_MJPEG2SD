@@ -78,6 +78,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
   if (!res) return false;
   
   while (true) { // fake non loop to enable breaks
+    res = false;
     if (!sendSmtpCommand(client, "", "220")) break;
   
     sprintf(content, "HELO %s: ", APP_NAME);
@@ -147,7 +148,10 @@ static void emailTask(void* parameter) {
   if (emailCount < alertMax) { 
     // send email if under daily limit
     if (emailSend()) LOG_ALT("Sent daily email %u", emailCount + 1);
-    else LOG_WRN("Failed to send email");
+    else {
+      LOG_WRN("Failed to send email");
+      emailCount = alertMax;
+    }
   }
   if (++emailCount == alertMax) LOG_WRN("Daily email limit %u reached", alertMax);
   emailHandle = NULL;

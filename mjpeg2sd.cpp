@@ -177,8 +177,7 @@ static void timeLapse(camera_fb_t* fb, bool tlStop = false) {
         LOG_INF("Started time lapse file %s, duration %u mins, for %u frames",  TLname, tlDurationMins, requiredFrames);
         frameCntTL++; // to stop re-entering
       }
-      // switch on light before capture frame if nightTime and useLamp selected
-      // requires lampActivated = PIR
+      // switch on light before capture frame if nightTime
 #if INCLUDE_PERIPH
       if (nightTime && intervalCnt == intervalMark - (saveFPS / 2)) setLamp(lampLevel);
 #endif
@@ -420,7 +419,7 @@ static boolean processFrame() {
     if (isCapturing && !wasCapturing) {
       // movement has occurred, start recording, and switch on lamp if night time
 #if INCLUDE_PERIPH
-      if (lampAuto && nightTime) setLamp(lampLevel); // switch on lamp
+      if (lampAuto && nightTime) setLamp(lampLevel); // switch on lamp if PIR
 #endif
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback

@@ -246,17 +246,17 @@ static void playRecording() {
 
 static void VCactions() {
   // action user request
+  stopAudio = false;
+  closeI2S();
+  prepAudio();
+  setupFilters();
+          
   switch (THIS_ACTION) {
-    case STOP_ACTION:
-      // complete current action
-      stopAudio = true;
-      displayAudioLed(0);
-    break;
     case RECORD_ACTION: 
       if (micRem) wsAsyncSendText("#M1");
       if (micUse || micRem) makeRecording();
     break;
-    case PLAY_ACTION: 
+    case PLAY_ACTION:
       // continues till stopped
       if (ampUse || spkrRem) playRecording(); // play previous recording
     break;
@@ -272,6 +272,8 @@ static void VCactions() {
     default: 
     break;
   }
+  displayAudioLed(0);
+  xSemaphoreGive(audioSemaphore);
 }
 
 #endif

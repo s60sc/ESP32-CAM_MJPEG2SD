@@ -58,7 +58,7 @@
 #define INCLUDE_WEBDAV IS_INCLUDED  // webDav.cpp (WebDAV protocol)
 #define INCLUDE_EXTHB IS_INCLUDED   // externalHeartbeat.cpp (heartbeat to remote server)
 #define INCLUDE_PGRAM IS_INCLUDED   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
-#define INCLUDE_MCPWM IS_INCLUDED  // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
+#define INCLUDE_MCPWM IS_INCLUDED   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
 
@@ -97,7 +97,7 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.2"
+#define APP_VER "10.2.1"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -140,7 +140,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 20
+#define CFG_VER 21
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -369,6 +369,8 @@ extern bool wakeUse;
 extern bool buzzerUse; // true to use active buzzer
 extern int buzzerPin; 
 extern int buzzerDuration; 
+extern int relayPin;
+extern bool relayMode;
 
 // sensors 
 extern int pirPin; // if usePir is true
@@ -420,7 +422,6 @@ extern uint8_t stepINpins[];
 
 // Motors and RC
 extern bool useBDC;
-extern bool RCactive;
 extern int motorRevPin;
 extern int motorFwdPin;
 extern int motorRevPinR;

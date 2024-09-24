@@ -34,7 +34,7 @@
 bool pirUse; // true to use PIR for motion detection
 bool ledBarUse; // true to use led bar
 uint8_t lampLevel; // brightness of on board lamp led 
-bool lampAuto; // if true in conjunction with pirUse, switch on lamp when PIR activated at night
+bool lampAuto = false; // if true in conjunction with pirUse, switch on lamp when PIR activated at night
 bool lampNight; // if true, lamp comes on at night (not used)
 int lampType; // how lamp is used
 bool voltUse; // true to report on ADC pin eg for for battery
@@ -43,6 +43,7 @@ bool buzzerUse; // true to use buzzer
 bool stepperUse; // true to use stepper motor
 bool SVactive; // true to use servos
 TaskHandle_t heartBeatHandle = NULL;
+bool RCactive = false;
 
 // Pins used by peripherals
 
@@ -94,6 +95,8 @@ int waitTime;
 int stickzPushPin; // digital pin connected to switch output
 int stickXpin; // analog pin connected to X output
 int stickYpin; // analog pin connected to Y output
+int relayPin;
+bool relayMode;
 
 // MY9221 LED Bar pins
 int ledBarClock;
@@ -319,7 +322,6 @@ static void setupBatt() {
 
 #define RGB_BITS 24  // WS2812 / SK6812 has 24 bit color in RGB order
 static bool lampInit = false;
-static bool PWMled = true;
 #if defined(USE_WS2812)
 static rmt_data_t ledData[RGB_BITS];
 #endif
@@ -327,6 +329,7 @@ static rmt_data_t ledData[RGB_BITS];
 static void setupLamp() {
   // setup lamp LED according to board type
   // assumes led wired as active high (ESP32 lamp led on pin 4 is active high, signal led on pin 33 is active low)
+  lampInit = false;
 #if defined(LED_GPIO_NUM)
   if (lampPin <= 0) {
     lampPin = LED_GPIO_NUM;
@@ -340,13 +343,14 @@ static void setupLamp() {
     lampInit = true;
 #if defined(USE_WS2812)
     // WS2812 RGB high intensity led
-    PWMled = false;
     if (rmtInit(lampPin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) 
       LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
-    else LOG_WRN("Failed to setup WS2812 on pin %u", lampPin);
+    else {
+      LOG_WRN("Failed to setup WS2812 on pin %u", lampPin);
+      lampInit = false;
+    }
 #else
     // assume PWM LED
-    PWMled = true;
     ledcAttach(lampPin, 5000, DUTY_BIT_DEPTH); // freq, resolution
     setLamp(0);
     LOG_INF("Setup PWM Lamp Led on pin %d", lampPin);
@@ -355,48 +359,42 @@ static void setupLamp() {
   if (lightsRCpin > 1) pinMode(lightsRCpin, OUTPUT);
 }
 
-static void lampWrite(uint8_t pin, uint32_t value, uint32_t valueMax = 15) {
-  uint32_t duty = (pow(2, DUTY_BIT_DEPTH) / valueMax) * min(value, valueMax);
-  ledcWrite(pin, duty);
-}
-
 void setLamp(uint8_t lampVal) {
   // control lamp status
-  if (!lampPin) lampVal = 0;
-  else {
+  if (lampPin) {
     if (!lampInit) setupLamp();
     if (lampInit) {
-      if (PWMled) {
-        // set lamp brightness using PWM (0 = off, 15 = max)
-        lampWrite(lampPin, lampVal);
 #if defined(USE_WS2812)
-      } else {
-        // assume WS2812 LED - set white color and apply lampVal (0 = off, 15 = max)
-        uint8_t RGB[3]; // each color is 8 bits
-        lampVal = lampVal == 15 ? 255 : lampVal * 16;
-        for (uint8_t i = 0; i < 3; i++) {
-          RGB[i] = lampVal;
-          // apply WS2812 bit encoding pulse timing per bit
-          for (uint8_t j = 0; j < 8; j++) { 
-            int bit = (i * 8) + j;
-            if ((RGB[i] << j) & 0x80) { // get left most bit first
-              // bit = 1
-              ledData[bit].level0 = 1;
-              ledData[bit].duration0 = 8;
-              ledData[bit].level1 = 0;
-              ledData[bit].duration1 = 4;
-            } else {
-              // bit = 0
-              ledData[bit].level0 = 1;
-              ledData[bit].duration0 = 4;
-              ledData[bit].level1 = 0;
-              ledData[bit].duration1 = 8;
-            }
+      // WS2812 LED - set white color and apply lampVal (0 = off, 15 = max)
+      uint8_t RGB[3]; // each color is 8 bits
+      lampVal = lampVal == 15 ? 255 : lampVal * 16;
+      for (uint8_t i = 0; i < 3; i++) {
+        RGB[i] = lampVal;
+        // apply WS2812 bit encoding pulse timing per bit
+        for (uint8_t j = 0; j < 8; j++) { 
+          int bit = (i * 8) + j;
+          if ((RGB[i] << j) & 0x80) { // get left most bit first
+            // bit = 1
+            ledData[bit].level0 = 1;
+            ledData[bit].duration0 = 8;
+            ledData[bit].level1 = 0;
+            ledData[bit].duration1 = 4;
+          } else {
+            // bit = 0
+            ledData[bit].level0 = 1;
+            ledData[bit].duration0 = 4;
+            ledData[bit].level1 = 0;
+            ledData[bit].duration1 = 8;
           }
         }
-        rmtWrite(lampPin, ledData, RGB_BITS, RMT_WAIT_FOR_EVER);
-#endif
       }
+      rmtWrite(lampPin, ledData, RGB_BITS, RMT_WAIT_FOR_EVER);
+#else
+      // assume PWM LED, set lamp brightness using PWM (0 = off, 15 = max)
+      uint8_t valueMax = 15;
+      uint32_t duty = (pow(2, DUTY_BIT_DEPTH) / valueMax) * min(lampVal, valueMax);
+      ledcWrite(lampPin, duty);
+#endif
     }
   }
 }
@@ -425,6 +423,7 @@ static void prepPIR() {
       LOG_WRN("No PIR pin defined");
     }
   }
+  if (relayPin) pinMode(relayPin, OUTPUT);
 }
 
 /********************************* joystick *************************************/

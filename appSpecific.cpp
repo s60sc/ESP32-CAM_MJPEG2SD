@@ -18,7 +18,6 @@ static bool depthColor = true;
 static bool devHub = false;
 char AuxIP[MAX_IP_LEN];
 bool useUart = false; 
-bool RCactive = false;
 volatile audioAction THIS_ACTION = PASS_ACTION;
 static void stopRC();
 
@@ -94,10 +93,13 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "lampType")) {
     lampType = intVal;
     lampAuto = lampNight = false;
-    if (lampType == 1) lampAuto = true;
-    if (!lampType) setLamp(lampLevel); // manual
+    if (lampType == 1) lampAuto = true; // lamp activated by PIR
+    if (!lampType) setLamp(lampLevel); 
     else setLamp(0); 
   }
+  else if (!strcmp(variable, "relayPin")) relayPin = intVal;
+  else if (!strcmp(variable, "relayMode")) relayMode = (bool)intVal;
+  else if (!strcmp(variable, "relaySwitch")) digitalWrite(relayPin, intVal);
   else if (!strcmp(variable, "SVactive")) SVactive = (bool)intVal;
   else if (!strcmp(variable, "voltUse")) voltUse = (bool)intVal;
   else if (!strcmp(variable, "pirPin")) pirPin = intVal;
@@ -637,6 +639,7 @@ void startHeartbeat() {
 #endif 
 
 void doAppPing() {
+  static bool atNight = false;
   if (DEBUG_MEM) {
     currentStackUsage();
     checkMemory();
@@ -657,17 +660,26 @@ void doAppPing() {
 #endif
   // check for night time actions
   if (isNight(nightSwitch)) {
-    if (wakeUse && wakePin) {
-     // to use LDR on wake pin, connect it between pin and 3V3
-     // uses internal pulldown resistor as voltage divider
-     // but may need to add external pull down between pin
-     // and GND to alter required light level for wakeup
-#ifndef AUXILIARY
-     digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
-#endif
-     goToSleep(wakePin, true);
+    if (relayPin && relayMode && !atNight) {
+      // turn on relay at night
+      digitalWrite(relayPin, HIGH);
+      atNight = true; 
     }
-  } 
+    if (wakeUse && wakePin) {
+      // to use LDR on wake pin, connect it between pin and 3V3
+      // uses internal pulldown resistor as voltage divider
+      // but may need to add external pull down between pin
+      // and GND to alter required light level for wakeup
+      #ifndef AUXILIARY
+      digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
+      #endif
+      goToSleep(wakePin, true);
+    }
+  } else if (relayPin && relayMode && atNight) {
+    // turn off relay if day
+    digitalWrite(relayPin, LOW); 
+    atNight = false; 
+  }
 }
 
 /************** telegram app specific **************/
@@ -942,4 +954,7 @@ pinFocus~-1~5~N~Pin connected to camera focus
 extCam~0~5~C~Use external camera
 AtakePhotos~Start~5~A~Start photogrammetry
 BabortPhotos~Abort~5~A~Abort photogrammetry
+relayPin~-1~3~N~Pin to switch relay 
+relayMode~0~3~S:Manual:Night~How relay activated
+relaySwitch~0~3~C~Switch relay off / on
 )~";
