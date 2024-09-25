@@ -660,25 +660,27 @@ void doAppPing() {
 #endif
   // check for night time actions
   if (isNight(nightSwitch)) {
-    if (relayPin && relayMode && !atNight) {
-      // turn on relay at night
-      digitalWrite(relayPin, HIGH);
-      atNight = true; 
-    }
     if (wakeUse && wakePin) {
       // to use LDR on wake pin, connect it between pin and 3V3
       // uses internal pulldown resistor as voltage divider
       // but may need to add external pull down between pin
       // and GND to alter required light level for wakeup
-      #ifndef AUXILIARY
+#ifndef AUXILIARY
       digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
-      #endif
+#endif
       goToSleep(wakePin, true);
+    }
+#if INCLUDE_PERIPH
+    if (relayPin && relayMode && !atNight) {
+      // turn on relay at night
+      digitalWrite(relayPin, HIGH);
+      atNight = true; 
     }
   } else if (relayPin && relayMode && atNight) {
     // turn off relay if day
     digitalWrite(relayPin, LOW); 
     atNight = false; 
+#endif
   }
 }
 
