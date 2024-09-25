@@ -1306,41 +1306,15 @@
                     <input id="timezone" name="timezone" length=64 placeholder="Time zone string">
                   </div>
                   <div class="input-group" id="time-group">
-                    <label for="timezoneSel">Time zone select</label>
+                    <label for="regionSel">Select a Region</label>
+                    <select id="regionSel" name="regionSel" class="selectField">
+                      <option value="" selected>Loading...</option>
+                    </select>
+                  </div>
+                  <div class="input-group" id="time-group">
+                    <label for="timezoneSel">Select a Time zone</label>
                     <select id="timezoneSel" name="timezoneSel" class="selectField">
-                      <option value="" selected>&nbsp;-- Select --</option>
-                      <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
-                      <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/Belfast</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
-                      <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
-                      <option value="<-12>12">GMT-12:00</option>
-                      <option value="<-11>11">GMT-11:00</option>
-                      <option value="<-10>10">GMT-10:00</option>
-                      <option value="<-09>9">GMT-9:00</option>
-                      <option value="<-08>8">GMT-8:00</option>
-                      <option value="<-07>7">GMT-7:00</option>
-                      <option value="<-06>6">GMT-6:00</option>
-                      <option value="<-05>5">GMT-5:00</option>
-                      <option value="<-04>4">GMT-4:00</option>
-                      <option value="<-03>3">GMT-3:00</option>
-                      <option value="<-02>2">GMT-2:00</option>
-                      <option value="<-01>1">GMT-1:00</option>
-                      <option value="GMT0">GMT+0:00</option>
-                      <option value="<+01>-1">GMT+1:00</option>
-                      <option value="<+02>-2">GMT+2:00</option>
-                      <option value="<+03>-3">GMT+3:00</option>
-                      <option value="<+04>-4">GMT+4:00</option>
-                      <option value="<+05>-5">GMT+5:00</option>
-                      <option value="<+06>-6">GMT+6:00</option>
-                      <option value="<+07>-7">GMT+7:00</option>
-                      <option value="<+08>-8">GMT+8:00</option>
-                      <option value="<+09>-9">GMT+9:00</option>
-                      <option value="<+10>-10">GMT+10:00</option>
-                      <option value="<+11>-11">GMT+11:00</option>
-                      <option value="<+12>-12">GMT+12:00</option>                                  
+                      <option value="" selected>Loading...</option>
                     </select>
                   </div>
                   <br>
@@ -1747,6 +1721,7 @@
         });
         RCcfgObserver.observe($('#RCconfigBtn'));
         sustainId = +appClock + Math.ceil(refreshInterval / 1000);
+        fetchTimeZones();
       }
 
       async function processStatus(dest, key, value, fromUser = true) {
@@ -2435,6 +2410,78 @@
         closedTab(false);
       }
 
+    async function fetchTimeZones() {
+      const timezoneSelected = document.getElementById('timezone');
+      const regionDropdown = document.getElementById('regionSel');
+      const timezoneDropdown = document.getElementById('timezoneSel');
+
+      try {
+        const response = await fetch('https://raw.githubusercontent.com/nayarsystems/posix_tz_db/refs/heads/master/zones.json');
+        if (!response.ok) {
+          throw new Error('Network response was not ok to fetch Timezone data');
+        }
+        const data = await response.json();
+
+        // List of "Etc" time zones to exclude
+        const excludeEtcTimeZones = new Set([
+          "Etc/GMT", "Etc/GMT+0", "Etc/GMT0", "Etc/Greenwich", "Etc/UTC", "Etc/UCT", "Etc/Universal", "Etc/Zulu"
+        ]);
+
+        // Group time zones by region and filter out specific "Etc" duplicates
+        const timeZonesByRegion = {};
+
+        for (const [key, value] of Object.entries(data)) {
+          const region = key.split('/')[0];
+          if (region === "Etc" && excludeEtcTimeZones.has(key)) continue; // Skip specific "Etc" duplicates
+
+          // Rename "Etc" region to "GMT"
+          const regionName = region === "Etc" ? "GMT" : region;
+          if (!timeZonesByRegion[regionName]) {
+            timeZonesByRegion[regionName] = [];
+          }
+          timeZonesByRegion[regionName].push({ name: key, posix: value });
+        }
+
+        // Populate the region dropdown and sort "GMT" to the bottom
+        const regions = Object.keys(timeZonesByRegion).sort((a, b) => {
+          if (a === "GMT") return 1;
+          if (b === "GMT") return -1;
+          return a.localeCompare(b);
+        });
+
+        regionDropdown.innerHTML = '<option value="" selected> -- Select --</option>'; // Reset the dropdown
+        regions.forEach(region => {
+          const option = document.createElement('option');
+          option.value = region;
+          option.textContent = region;
+          regionDropdown.appendChild(option);
+        });
+
+        // Reset the timezone dropdown to "-- Select --"
+        timezoneDropdown.innerHTML = '<option value="" selected> -- Select --</option>';
+
+        // Update the time zone dropdown based on region selection
+        regionDropdown.addEventListener('change', function() {
+          const selectedRegion = this.value;
+          timezoneDropdown.innerHTML = '<option value="" selected>Loading...</option>'; // Reset the dropdown
+
+          if (timeZonesByRegion[selectedRegion]) {
+            timezoneDropdown.innerHTML = '<option value="" selected> -- Select --</option>'; // Reset the dropdown
+            timeZonesByRegion[selectedRegion].forEach(zone => {
+              const option = document.createElement('option');
+              option.value = zone.posix;
+              option.textContent = zone.name.split('/').slice(1).join('/'); // Remove region from label
+              timezoneDropdown.appendChild(option);
+            });
+          }
+        });
+
+        // Log the timeZonesByRegion for debugging
+        console.log('Time Zones by Region:', timeZonesByRegion);
+      } catch (error) {
+        console.error('Failed to fetch time zones:', error);
+      }
+    }
 
 /***************************************************************************/
 
