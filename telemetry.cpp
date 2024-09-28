@@ -12,7 +12,6 @@
 #include "appGlobals.h"
 
 #if INCLUDE_TELEM
-#include <Wire.h>
 
 #define NUM_BUFF 2 
 #define MAX_SRT_LEN 128 // store each srt entry, for subtitle streaming
@@ -26,9 +25,6 @@ static bool capturing = false;
 static char teleFileName[FILE_NAME_LEN];
 char srtBuffer[MAX_SRT_LEN];
 size_t srtBytes = 0;
-
-static bool scanI2C();
-static bool checkI2C(byte addr);
 
 /*************** USER TO MODIFY CODE BELOW for REQUIRED SENSORS ******************/
 
@@ -88,9 +84,7 @@ MPU9250 mpu9250; // Create an instance of the MPU9250 sensor
 static bool setupSensors() {
   // setup required sensors
   bool res = true;
-    Wire.begin(I2C_SDA, I2C_SCL); // join I2C bus as master 
-    LOG_INF("I2C started at %dkHz", Wire.getClock() / 1000);
-    if (!scanI2C()) return false;
+    initializeI2C(I2C_SDA, I2C_SCL);
 
   #ifdef USE_BMx280
     if (bmx280.begin()) {
@@ -267,25 +261,6 @@ void stopTelemetry(const char* fileName) {
     strcpy(teleFileName, fileName); 
     capturing = false; // stop task
   }
-}
-
-static bool checkI2C(byte addr) {
-  // check if device present at address
-  Wire.beginTransmission(addr);
-  return !Wire.endTransmission(true);
-}
-
-static bool scanI2C() {
-  // identify addresses of active I2C devices
-  int numDevices = 0;
-  for (byte address = 0; address < 127; address++) {
-    if (checkI2C(address)) {
-      LOG_INF("I2C device present at address: 0x%02X", address);
-      numDevices++;
-    }
-  }
-  LOG_INF("I2C devices found: %d", numDevices);
-  return (bool)numDevices;
 }
 
 #endif

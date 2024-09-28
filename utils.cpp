@@ -1118,3 +1118,54 @@ static void initBrownout(void) {
     brownoutStatus = 0; 
   }
 }
+
+/************** i2c utils **************/
+#ifdef TwoWire_h
+bool initializeI2C(int sdaPin, int sclPin) {
+  static bool i2cInitialized = false; // Static flag to track I2C initialization
+
+  if (i2cInitialized) return true; // Already initialized, no need to reinitialize
+
+  // Use default pins if not provided
+  if (sdaPin == -1) {
+    #ifdef I2C_SDA
+    sdaPin = I2C_SDA; // Default SDA pin
+    #else
+    LOG_WRN("No I2C SDA pin defined or passed");
+    return false;
+    #endif
+  }
+  if (sclPin == -1) {
+    #ifdef I2C_SCL
+    sclPin = I2C_SCL; // Default SCL pin
+    #else
+    LOG_WRN("No I2C SCL pin defined or passed");
+    return false;
+    #endif
+  }
+
+  Wire.begin(sdaPin, sclPin); // Join I2C bus as master
+  LOG_INF("I2C started at %dkHz", Wire.getClock() / 1000);
+  i2cInitialized = true; // Set the flag to indicate initialization
+  return scanI2C();
+}
+
+bool checkI2C(byte addr) {
+  // check if device present at address
+  Wire.beginTransmission(addr);
+  return !Wire.endTransmission(true);
+}
+
+bool scanI2C() {
+  // identify addresses of active I2C devices
+  int numDevices = 0;
+  for (byte address = 0; address < 127; address++) {
+    if (checkI2C(address)) {
+      LOG_INF("I2C device present at address: 0x%02X", address);
+      numDevices++;
+    }
+  }
+  LOG_INF("I2C devices found: %d", numDevices);
+  return (bool)numDevices;
+}
+#endif

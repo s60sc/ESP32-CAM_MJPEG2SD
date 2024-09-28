@@ -838,6 +838,16 @@ static bool camPower() {
 bool prepCam() {
   // initialise camera depending on model and board
   if (!camPower()) return false;
+  // Check if using same i2c bus
+#if (SIOD_GPIO_NUM == -1) || (SIOD_GPIO_NUM == I2C_SDA) 
+#if (SIOD_GPIO_NUM == I2C_SDA)
+  #undef SIOD_GPIO_NUM
+  #define SIOD_GPIO_NUM -1
+  #undef SIOC_GPIO_NUM
+  #define SIOC_GPIO_NUM -1
+#endif
+  initializeI2C();
+#endif
   bool res = false;
   // buffer sizing depends on psram size (4M or 8M)h
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)

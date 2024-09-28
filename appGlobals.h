@@ -37,6 +37,7 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
+//#define CAMERA_MODEL_XENOIONEX
 //#define AUXILIARY
 #endif
 
@@ -87,6 +88,11 @@
 
 #include "esp_camera.h"
 #include "camera_pins.h"
+// Check if wire.h needs to be included
+#if defined(INCLUDE_TELEM) || defined(INCLUDE_OLED) || (SIOD_GPIO_NUM == -1) || (SIOD_GPIO_NUM == I2C_SDA)
+#include <Wire.h>
+#endif
+
 
 //#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
@@ -283,6 +289,12 @@ size_t updateWavHeader();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
+// i2c
+#ifdef TwoWire_h
+bool initializeI2C(int sdaPin = -1, int sclPin = -1);
+bool checkI2C(byte addr);
+bool scanI2C();
+#endif
 
 /******************** Global app declarations *******************/
 
