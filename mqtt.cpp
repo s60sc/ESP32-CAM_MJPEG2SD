@@ -10,7 +10,10 @@
 #if (!INCLUDE_CERTS)
 const char* mqtt_rootCACertificate = "";
 #endif
- 
+#if (INCLUDE_MQTT_HAS)
+void sendMqttHasDiscovery();
+void sendMqttHasState();
+#endif 
 char mqtt_broker[MAX_HOST_LEN] = "";         //Mqtt server ip to connect.  
 char mqtt_port[5] = "";                      //Mqtt server port to connect.  
 char mqtt_user[MAX_HOST_LEN] = "";           //Mqtt server username.  
@@ -47,10 +50,10 @@ void mqttPublish(const char* payload) {
 }
 
 void mqttPublishPath(const char* suffix, const char* payload) {
-  char topic[FILE_NAME_LEN];
+  char topic[2*FILE_NAME_LEN];
 
   if (!strlen(mqtt_topic_prefix)) return;
-  snprintf(topic, FILE_NAME_LEN, "%s%s/%s", mqtt_topic_prefix, hostName, suffix);
+  snprintf(topic, 2 * FILE_NAME_LEN, "%s%s/%s", mqtt_topic_prefix, hostName, suffix);
   mqtt_client_publish(topic, payload);
 }
 
@@ -58,7 +61,11 @@ static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, in
   LOG_INF("Mqtt connected");
   esp_mqtt_client_publish(mqtt_client, lwt_topic, "online", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
   mqttConnected = true;
-
+#if (INCLUDE_MQTT_HAS)
+  sendMqttHasDiscovery();
+  vTaskDelay(1000 / portTICK_RATE_MS);   
+  sendMqttHasState();
+#endif
   int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
   if (id == -1){
     LOG_WRN("Mqtt failed to subscribe: %s", cmd_topic );
@@ -127,6 +134,14 @@ void checkForRemoteQuery() {
         } else if (!strcmp(query, "status?q")) {
           buildJsonString(true);
           mqttPublish(jsonBuff);
+#if (INCLUDE_MQTT_HAS)          
+        } else if (!strcmp(query, "state")) {
+          sendMqttHasState();          
+        } else if (!strcmp(query, "disc")) {
+          sendMqttHasDiscovery();
+          vTaskDelay(1000 / portTICK_RATE_MS);   
+          sendMqttHasState();          
+#endif          
         }
       }
       query = strtok(NULL, ";");
@@ -236,5 +251,90 @@ void startMqttClient(void){
     }
   }
 }
+
+#if (INCLUDE_MQTT_HAS)
+void sendHasEntities (const char *name, const char *displayName, const char *units = "",const char *icon = "", const char *category="config",const char *topic=""){
+  char* p = jsonBuff;
+  *p++ = '{';
+  p += sprintf(p, "\"name\":\"%s\",", displayName);
+  p += sprintf(p, "\"unique_id\":\"%s_%012llX\",", name, ESP.getEfuseMac() );
+  p += sprintf(p, "\"object_id\":\"%s %s\",", hostName, name);
+  if(strlen(units)>0)
+    p += sprintf(p, "\"unit_of_measurement\":\"%s\",", units);
+  if(strlen(icon)>0)
+    p += sprintf(p, "\"icon\":\"%s\",", icon);
+  if(strlen(category)>0)
+    p += sprintf(p, "\"entity_category\":\"%s\",", category);  
+  if(strlen(topic))
+    p += sprintf(p, "\"state_topic\":\"%s%s/%s\",", mqtt_topic_prefix, hostName, topic);  
+  else
+    p += sprintf(p, "\"state_topic\":\"%s%s/%s\",", mqtt_topic_prefix, hostName, name);  
+  
+  if(strcmp(category, "diagnostic") != 0){
+    p += sprintf(p, "\"availability_topic\":\"%s%s/%s\",", mqtt_topic_prefix, hostName, "lwt");    
+    p += sprintf(p, "\"payload_available\":\"%s\",", "online");
+    p += sprintf(p, "\"payload_not_available\":\"%s\",", "offline");
+  }
+  p += sprintf(p, "\"device\":");  
+    *p++ = '{';
+      p += sprintf(p, "\"name\": \"%s\",", hostName);
+      p += sprintf(p, "\"model\": \"%s-%s\",", hostName, ESP.getChipModel());
+      p += sprintf(p, "\"sw_version\": \"%s\", ", APP_VER);
+      p += sprintf(p, "\"connections\": [[ \"mac\", \"%s\"]],", WiFi.macAddress().c_str() );
+      p += sprintf(p, "\"identifiers\": [ \"%s-%i\"],", ESP.getChipModel(), ESP.getChipRevision());
+      p += sprintf(p, "\"configuration_url\": \"http://%s/\",", WiFi.localIP().toString());
+      p += sprintf(p, "\"manufacturer\":\"%s\"", "esp32cam");
+    *p++ = '}';
+  *p++ = '}';
+  *p = 0;
+
+  char suffix[FILE_NAME_LEN] = "";
+  sprintf(suffix, "%s/config", name);
+  mqttPublishPath(suffix, jsonBuff);
+}
+
+void sendMqttHasDiscovery(){
+  //Home Asssistant Config
+  sendHasEntities ("motion", "Motion detect");
+  sendHasEntities ("record", "Record video");
+  //Home Asssistant Diagnostic 
+  sendHasEntities ("clock", "Camera clock", "", "mdi:clock-outline", "diagnostic", "clock");
+  sendHasEntities ("up_time", "Up time", "", "mdi:clock", "diagnostic", "up_time");
+  sendHasEntities ("atemp", "Camera temperature", "C", "mdi:coolant-temperature", "diagnostic", "atemp");
+  sendHasEntities ("wifi_rssi", "Signal Strength", "dBm", "mdi:wifi", "diagnostic", "wifi_rssi");
+  sendHasEntities ("wifi_ip", "Wifi IP", "", "mdi:wifi", "diagnostic", "wifi_ip");
+  sendHasEntities ("free_heap",  "Free Heap", "", "mdi:memory", "diagnostic", "free_heap");
+  sendHasEntities ("free_psram", "Free PSRAM", "", "mdi:memory", "diagnostic", "free_psram");
+  sendHasEntities ("free_bytes", "Free SD", "", "mdi:memory", "diagnostic", "free_bytes");
+}
+
+void sendMqttHasState(){  
+  char* p = jsonBuff;
+  char timeBuff[20];
+  strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
+  mqttPublishPath("clock", timeBuff);
+  formatElapsedTime(timeBuff, millis());
+  mqttPublishPath("up_time", timeBuff);
+  float aTemp = readTemperature(true);
+  if (aTemp > -127.0){    
+    sprintf(p, "%0.1f", aTemp);
+    mqttPublishPath("atemp", p);
+  }
+  sprintf(p, "%i", WiFi.RSSI());
+  mqttPublishPath("wifi_rssi", p);
+  sprintf(p, "%s", WiFi.localIP().toString());
+  mqttPublishPath("wifi_ip", p);
+
+  sprintf(p, "%s", fmtSize(ESP.getFreeHeap()) );
+  mqttPublishPath("free_heap", p);
+  sprintf(p, "%s", fmtSize(ESP.getFreePsram()) );
+  mqttPublishPath("free_psram", p);
+  sprintf(p, "%s", fmtSize(STORAGE.totalBytes() - STORAGE.usedBytes()) );
+  mqttPublishPath("free_bytes", p);
+  if (isCapturing) mqttPublishPath("record", "on");
+  else mqttPublishPath("record", "off");
+  mqttPublishPath("motion", "off");
+}
+#endif
 
 #endif
