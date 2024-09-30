@@ -65,7 +65,7 @@ static void startPing();
 static void setupMdnsHost() {  
   // set up MDNS service 
   char mdnsName[MAX_IP_LEN]; // max mdns host name length
-  snprintf(mdnsName, MAX_IP_LEN, hostName);
+  snprintf(mdnsName, MAX_IP_LEN, "%s", hostName);
   if (MDNS.begin(mdnsName)) {
     // Add service to MDNS
     MDNS.addService("http", "tcp", HTTP_PORT);

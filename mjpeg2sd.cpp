@@ -745,8 +745,8 @@ bool prepRecording() {
     LOG_INF("- press Start Recording on web page");
 #if INCLUDE_PERIPH
     if (pirUse) {
-      LOG_INF("- attach PIR to %s pin %u", pirPin);
-      LOG_INF("- raise %s pin %u to 3.3V", pirPin);
+      LOG_INF("- attach PIR to pin %u", pirPin);
+      LOG_INF("- raise pin %u to 3.3V", pirPin);
     }
 #endif
     if (useMotion) LOG_INF("- move in front of camera");

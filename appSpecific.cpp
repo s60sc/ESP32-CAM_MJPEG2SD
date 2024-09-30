@@ -164,12 +164,14 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #endif
 #if INCLUDE_PERIPH
   else if (!strcmp(variable, "RCactive")) {
-    RCactive = useBDC = (bool)intVal;
+    RCactive = (bool)intVal;
     bool aux = false;
 #ifdef AUXILIARY
     aux = true;
 #endif
-    if (useUart && !aux) useBDC = false;
+#if INCLUDE_MCPWM
+    useBDC = (useUart && !aux) ? false : (bool)intVal;
+#endif
   }
   else if (!strcmp(variable, "heartbeatRC")) heartbeatRC = intVal;
   else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
