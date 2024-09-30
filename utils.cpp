@@ -668,6 +668,9 @@ void doRestart(const char* restartStr) {
 #ifdef ISCAM
   appShutdown();
 #endif
+#if INCLUDE_MQTT
+  if (mqtt_active) stopMqttClient();
+#endif  
   resetCrashLoop();
   flush_log(true);
   delay(2000);
