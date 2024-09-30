@@ -5,6 +5,7 @@
 #include "esp_arduino_version.h"
 #pragma once
 // to compile with -Wall -Werror=all -Wextra
+#pragma GCC diagnostic error "-Wformat=2"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 //#pragma GCC diagnostic ignored "-Wunused-variable"
