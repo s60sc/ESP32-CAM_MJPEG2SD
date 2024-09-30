@@ -51,7 +51,7 @@
 #define INCLUDE_PERIPH IS_INCLUDED  // peripherals.cpp (servos, PIR, led etc)
 #define INCLUDE_SMTP IS_INCLUDED    // smtp.cpp (email)
 #define INCLUDE_MQTT IS_INCLUDED    // mqtt.cpp (MQTT)
-
+#define INCLUDE_MQTT_HAS IS_INCLUDED// mqtt.cpp (MQTT) Send home assistant discovery messages
 #define INCLUDE_CERTS IS_INCLUDED   // certificates.cpp (https and server certificate checking)
 #define INCLUDE_UART IS_INCLUDED    // uart.cpp (use another esp32 as Auxiliary connected via UART)
 #define INCLUDE_TELEM IS_INCLUDED   // telemetry.cpp (real time data collection)
