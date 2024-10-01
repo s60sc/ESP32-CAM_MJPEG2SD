@@ -282,7 +282,7 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
       p += sprintf(p, "\"sw_version\": \"%s\", ", APP_VER);
       p += sprintf(p, "\"connections\": [[ \"mac\", \"%s\"]],", WiFi.macAddress().c_str() );
       p += sprintf(p, "\"identifiers\": [ \"%s-%i\"],", ESP.getChipModel(), ESP.getChipRevision());
-      p += sprintf(p, "\"configuration_url\": \"http://%s/\",", WiFi.localIP().toString());
+      p += sprintf(p, "\"configuration_url\": \"http://%s/\",", WiFi.localIP().toString().c_str());
       p += sprintf(p, "\"manufacturer\":\"%s\"", "esp32cam");
     *p++ = '}';
   *p++ = '}';
@@ -322,7 +322,7 @@ void sendMqttHasState(){
   }
   sprintf(p, "%i", WiFi.RSSI());
   mqttPublishPath("wifi_rssi", p);
-  sprintf(p, "%s", WiFi.localIP().toString());
+  sprintf(p, "%s", WiFi.localIP().toString().c_str());
   mqttPublishPath("wifi_ip", p);
 
   sprintf(p, "%s", fmtSize(ESP.getFreeHeap()) );
