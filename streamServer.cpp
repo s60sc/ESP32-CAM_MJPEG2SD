@@ -279,6 +279,26 @@ void startSustainTasks() {
 }
 
 esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
+  // first check if authentication is required
+  if (strlen(Auth_Name)) {
+    // authentication required
+    size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
+    char credentials[credLen];
+    snprintf(credentials, credLen, "%s:%s", Auth_Name, Auth_Pass);
+    size_t authLen = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
+    if (authLen) {
+      // check credentials supplied are valid
+      char auth[authLen];
+      httpd_req_get_hdr_value_str(req, "Authorization", auth, authLen);
+      if (!strstr(auth, encode64(credentials))) authLen = 0; // credentials not valid
+    }
+    if (!authLen) {
+      // not authenticated
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
+      httpd_resp_set_status(req, "401 Unauthorised");
+      return httpd_resp_sendstr(req, NULL);
+    }
+  }
   // handle long running request as separate task
   esp_err_t res = ESP_FAIL;
   // obtain details from query string
