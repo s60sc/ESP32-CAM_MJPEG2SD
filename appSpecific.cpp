@@ -122,6 +122,10 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal;
   else if (!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
 #endif
+#if INCLUDE_I2C
+  else if (!strcmp(variable, "I2Csda")) I2Csda = intVal;
+  else if (!strcmp(variable, "I2Cscl")) I2Cscl = intVal;
+#endif
 #if INCLUDE_AUDIO
   else if (!strcmp(variable, "micRem")) {
     micRem = bool(intVal);
@@ -641,7 +645,6 @@ void startHeartbeat() {
 #endif 
 
 void doAppPing() {
-  static bool atNight = false;
   if (DEBUG_MEM) {
     currentStackUsage();
     checkMemory();
@@ -659,6 +662,9 @@ void doAppPing() {
   }
 #if INCLUDE_EXTHB
   if (external_heartbeat_active) sendExternalHeartbeat();
+#endif
+#if INCLUDE_PERIPH
+    static bool atNight = false;
 #endif
   // check for night time actions
   if (isNight(nightSwitch)) {
@@ -812,7 +818,7 @@ gainceiling~0~98~~na
 hmirror~0~98~~na
 lampLevel~0~98~~na
 lenc~1~98~~na
-lswitch~20~98~~na
+lswitch~10~98~~na
 micGain~0~98~~na
 ampVol~0~98~~na
 minf~5~98~~na
@@ -961,4 +967,6 @@ BabortPhotos~Abort~5~A~Abort photogrammetry
 relayPin~-1~3~N~Pin to switch relay 
 relayMode~0~3~S:Manual:Night~How relay activated
 relaySwitch~0~3~C~Switch relay off / on
+I2Csda~-1~3~N~I2C SDA pin if unshared
+I2Cscl~-1~3~N~I2C SCL pin if unshared
 )~";

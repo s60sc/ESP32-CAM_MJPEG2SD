@@ -5,10 +5,6 @@
 * s60sc 2020 - 2024
 */
 
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 3)
-#error Must be compiled with arduino-esp32 core v3.0.3 or higher
-#endif
-
 #include "appGlobals.h"
 
 void setup() {
@@ -51,25 +47,29 @@ void setup() {
     prepUpload();
 #endif
 #if INCLUDE_UART
-  prepUart();
+    prepUart();
 #endif
 #if INCLUDE_PERIPH
-   prepPeripherals();
+    prepPeripherals();
+  #if INCLUDE_MCPWM 
+    prepMotors();
+  #endif
 #endif
 #if INCLUDE_AUDIO
     prepAudio(); 
 #endif
-#if INCLUDE_TELEM
-    prepTelemetry();
-#endif
 #if INCLUDE_TGRAM
     prepTelegram();
 #endif
-#if INCLUDE_MCPWM 
-    prepMotors();
-#endif
 #ifndef AUXILIARY
     prepRecording(); 
+#endif
+#if INCLUDE_I2C
+  #if INCLUDE_TELEM
+    prepTelemetry();
+  #else
+    prepI2Cdevices();
+  #endif
 #endif
 #if INCLUDE_PERIPH
     startHeartbeat();

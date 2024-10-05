@@ -15,6 +15,7 @@ The application supports:
 * [MQTT](#mqtt) control.
 * [External Heartbeat](#external-heartbeat) support.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led
+* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9350, SSD1306, LCD1602, etc
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
@@ -25,10 +26,9 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 10.2:
-* Change to [installation](#installation) instructions for ESP32
-* Audio and Servo configuration have dedicated tabs opened via Peripheral tab
-* [Intercom](#intercom) feature added
+Changes in version 10.3:
+* Change to [installation](#installation) instructions for ESP32 and ESP32S3
+* Support for [I2C devices](#i2c-devices) sharing two of the camera pins
 
 
 ## Purpose
@@ -71,18 +71,18 @@ Select the required ESP-CAM board by uncommenting ONE only of the `#define CAMER
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
 * Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM`  
 
-For ESP32, optional features are not included by default. To include a feature, in `appGlobals.h` set relevant `#define INCLUDE_*` to `true`. 
+Optional features are not included by default. To include a feature, in `appGlobals.h` set relevant `#define INCLUDE_*` to `true`. 
 
 Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and the following Partition scheme:
 * ESP32 - `Minimal SPIFFS (...)`
 * ESP32S3 - `8M with spiffs (...)` or `16MB(3MB APP...)`
 
-**NOTE: If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v3.x
-using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)** 
-
-**NOTE: If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
-
-**NOTE: If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.**
+**NOTE:**
+* **If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v3.x
+using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
+* **If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
+* **If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.**
+* **If you get warning: `Crash loop detected, check log`, it is usually an inadequate power supply.**
 
 
 On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
@@ -104,6 +104,7 @@ After selecting the AVI file, press **Start Playback** button to playback the re
 The **Start Stream** button shows a live video only feed from the camera. 
 
 Recordings can then be uploaded to an FTP or HTTPS server or downloaded to the browser for playback on a media application, eg VLC.
+To incorporate FTP or HTTPS server, set `#define INCLUDE_FTP_HFS` to `true`.
 
 A time lapse feature is also available which can run in parallel with motion capture. Time lapse files have the format **20200130_201015_VGA_15_60_T.avi**
 
@@ -156,6 +157,8 @@ See [**Motion detection by Camera**](#motion-detection-by-camera) section.
 * Monitor voltage of battery supply on ADC pin.
 * Wakeup on LDR after deep sleep at night.
 
+To incorporate peripherals, set `#define INCLUDE_PERIPH` to `true`.
+
 The **Peripherals** tab also enables further config tabs to be displayed:
 * **Audio**: to configure microphones and amplifiers.
 * **RC Config**: to configure hardware for remote control vehcles.
@@ -181,7 +184,7 @@ On-board LEDs:
   * XIAO: Lamp n/a, signal 21.
 
 **Other**:
-SD, email, telegram, etc management. 
+SD, email, telegram, etc management. To icorporate email (SMTP), set `#define INCLUDE_SMTP` to `true`.
 
 When a feature is enable or disabled, the **Save** button should be used to persist the change, and the ESP should be rebooted using **Reboot ESP** button.
 
@@ -212,6 +215,8 @@ The audio is formatted as 16 bit single channel PCM with sample rate of 16kHz. A
 The web page has a slider for **Microphone Gain**. The higher the value the higher the gain for ESP microphone. Selecting **0** cancels the microphone.
 
 The Speaker icon button on the web page can be used to listen to the microphone from the browser.
+
+To incorporate, set `#define INCLUDE_AUDIO` to `true`.
 
 
 ## Intercom
@@ -264,6 +269,8 @@ The auxiliary board can be used to drive the hardware for:
  Instal app on auxiliary board after uncommenting ONLY `#define AUXILIARY` in camera selection block in `appGlobals.h`. The auxiliary board does not need camera, SD card or PSRAM, just wifi and enough pins to connect to the relevant hardware. Note that MCPWM for BDC motors is not supported by ESP32-C3.  
  
  The Auxil web page on the auxiliary board is a cut down version of the camera app web page. The configuration details under **RC Config**, **Servo Config** and **PG Config** tabs must be entered on the auxiliary board web page, not the cam web page. If using UART, enter relevant pin numbers on both web pages and wire RX to TX between boards plus a common ground.
+ 
+To incorporate, set `#define INCLUDE_UART` to `true`.
 
 ## MQTT
 
@@ -280,6 +287,8 @@ topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/status -> {"MOTION":"ON"
 
 You can also publish control commands to the /cmd channel in order to control camera.  
 topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
+
+To incorporate, set `#define INCLUDE_MQTT` to `true`.
 
 ## External Heartbeat
 
@@ -301,6 +310,8 @@ If you are using EspSee, it will do a POST request to defined domain/URI (i.e. h
 
 If you want to have multiple cameras accessible from the same external IP (behind router) you might need to do port forwarding and set ports on EspSee camera entries accordingly.
 
+To incorporate, set `#define INCLUDE_EXTHB` to `true`.
+
 
 ## Port Forwarding
 
@@ -313,17 +324,34 @@ To obtain `your_router_external_ip` value, use eg: https://api.ipify.org
 Set a static IP address for your ESP camera device.  
 For security, **Authentication settings** should be defined in **Access Settings** sidebar button.
 
+## I2C Devices
+
+<img align=right src="extras/I2C.jpg" width="300" height="450">
+
+Multiple I2C devices can share the same two I2C pins. As the camera also uses I2C then the other devices can either share the camera I2C pins or use a separate I2C port. The shared I2C concept was contributed by [@rjsachse](https://github.com/rjsachse). 
+
+The former approach saves pins, particularly on the ESP32, but generally ESP32 cam boards do not have the pins exposed so some soldering of wires is required. The ESP32S3 boards generally have all pins exposed.  
+
+The image shows how wires can be connected to the shared I2C port on the ESP32 AI Thinker style cams. The orange wire is the SDA pin (GPIO26) and the white wire is the SCL pin (GPIO27). Each wire is soldered to the top of an on-board resistor.
+
+By default, the I2C port is shared with the camera, but a separate port can be used by defining alternative SDA and SCL pins under the **Peripherals** tab.
+
+To incorporate I2C support, set `#define INCLUDE_I2C` to `true`.
+To enable a particular I2C device, set corresponding `#define USE_*` to `true` in `appGlobals.h`.
+
 ## Telemetry Recording
 
 This feature is better used on an ESP32S3 camera board due to performance and memory limitations on ESP32.
 
 Telemetry such as environmental and motion data (eg from BMP280 and MPU9250 on GY-91 board) can be captured during a camera recording. It is stored in a separate CSV file for presentation in a spreadsheet. The CSV file is named after the corresponding AVI file. A subtitle (SRT) file is also created named after the corresponding AVI file. The CSV and SRT files are uploaded or deleted along with the corresponding AVI file. For downloading, the AVI, CSV and SRT files are bundled into a zip file. If the SRT file is in the same folder as the AVI file, telemetry data subtitles will be displayed by a media player. 
 
-The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for the GY-91 board.
+The user needs to add the code for the required sensors to the file `telemetry.cpp`. Contains simple example for the BMP280 and MPU9250 devices.
 
 To switch on telemetry recording, select the `Use telemetry recording` option bunder the **Peripherals** button. The frequency of data collection is set by `Telemetry collection interval (secs)`.
 
 Note: esp-camera library [conflict](https://forum.arduino.cc/t/conflicitng-declaration-in-adafruit_sensor-esp32-camera/586568) if use Adafruit sensor library.
+
+To incorporate, set `#define INCLUDE_TELEM` to `true`.
 
 ## Telegram Bot
 
@@ -335,6 +363,8 @@ You may want to make the bot private.
 Note that this feature uses a lot of heap space due to TLS.
 
 The Telegram Bot will now receive motion alerts from the app showing a frame from the recording with a caption containing a command link for the associated recording (max 50MB) which can be downloaded and played.  
+
+To incorporate, set `#define INCLUDE_TGRAM` to `true`.
 
 <img src="extras/telegram.png" width="500" height="500">
 
@@ -359,6 +389,8 @@ Motion detection should be disabled beforehand.
 
 This feature can make use of an [Auxiliary Board](#auxiliary-board).  
 
+To incorporate, set `#define INCLUDE_PERIPH` to `true` and `#define INCLUDE_MCPWM` to `true`.
+
 #### Only use this feature if you are familiar with coding and electronics, and can fix issues yourself
 
 ## Machine Learning
@@ -374,6 +406,7 @@ More details in `appGlobals.h`.
 Use 96x96 grayscale or RGB images and train the model with for example the following Transfer learning Neural Network settings:  
 
 <img src="extras/TinyML.png" width="500" height="400">
+
 
 ## Camera Hub
 
@@ -403,6 +436,8 @@ If multiple streams are enabled they need to be processed by an intermediate too
 A simple WebDAV server is included. A WebDAV client such as Windows 10 File Explorer can be used to access and manage the SD card content. In a folder's address bar enter `<ip_address>/webdav`, eg `192.168.1.132/webdav`  
 For Windows 11, Android, MacOS, Linux see `webDav.cpp` file.
 
+To incorporate, set `#define INCLUDE_WEBDAV` to `true`
+
 <img src="extras/webdav.png" width="600" height="300">
 
 ## Photogrammetry
@@ -414,5 +449,5 @@ This will show an extra config button **PG Config**. Pressing this button will b
 
 This feature can make use of an [Auxiliary Board](#auxiliary-board).  
 
-See `photogram.cpp` for more information.
+See `photogram.cpp` for more information. To incorporate, set `#define INCLUDE_PGRAM` to `true`
 

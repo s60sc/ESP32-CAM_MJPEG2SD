@@ -12,7 +12,6 @@
 
 // User's ESP32 cam board
 #if defined(CONFIG_IDF_TARGET_ESP32)
-#define IS_INCLUDED false
 #define CAMERA_MODEL_AI_THINKER 
 //#define CAMERA_MODEL_WROVER_KIT 
 //#define CAMERA_MODEL_ESP_EYE 
@@ -28,7 +27,6 @@
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-#define IS_INCLUDED true
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3 
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
@@ -37,28 +35,37 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
+//#define CAMERA_MODEL_XENOIONEX
 //#define AUXILIARY
 #endif
 
 /***************************************************************
-  For ESP32S3, optional features included by default
-  For ESP32, optional features NOT included by default to reduce heap use 
-  To include or exclude a particular feature, replace IS_INCLUDED by true or false
+  Optional features NOT included by default to reduce heap use 
+  To include a particular feature, change false to true
 ***************************************************************/
-#define INCLUDE_FTP_HFS IS_INCLUDED // ftp.cpp (file upload)
-#define INCLUDE_TGRAM IS_INCLUDED   // telegram.cpp (Telegram app interface)
-#define INCLUDE_AUDIO IS_INCLUDED   // audio.cpp (microphones & speakers)
-#define INCLUDE_PERIPH IS_INCLUDED  // peripherals.cpp (servos, PIR, led etc)
-#define INCLUDE_SMTP IS_INCLUDED    // smtp.cpp (email)
-#define INCLUDE_MQTT IS_INCLUDED    // mqtt.cpp (MQTT)
+#define INCLUDE_FTP_HFS false // ftp.cpp (file upload)
+#define INCLUDE_TGRAM false   // telegram.cpp (Telegram app interface)
+#define INCLUDE_AUDIO false   // audio.cpp (microphones & speakers)
+#define INCLUDE_PERIPH false  // peripherals.cpp (servos, PIR, led etc)
+#define INCLUDE_SMTP false    // smtp.cpp (email)
+#define INCLUDE_MQTT false    // mqtt.cpp (MQTT)
 
-#define INCLUDE_CERTS IS_INCLUDED   // certificates.cpp (https and server certificate checking)
-#define INCLUDE_UART IS_INCLUDED    // uart.cpp (use another esp32 as Auxiliary connected via UART)
-#define INCLUDE_TELEM IS_INCLUDED   // telemetry.cpp (real time data collection)
-#define INCLUDE_WEBDAV IS_INCLUDED  // webDav.cpp (WebDAV protocol)
-#define INCLUDE_EXTHB IS_INCLUDED   // externalHeartbeat.cpp (heartbeat to remote server)
-#define INCLUDE_PGRAM IS_INCLUDED   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
-#define INCLUDE_MCPWM IS_INCLUDED   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
+#define INCLUDE_CERTS false   // certificates.cpp (https and server certificate checking)
+#define INCLUDE_UART false    // uart.cpp (use another esp32 as Auxiliary connected via UART)
+#define INCLUDE_TELEM false   // telemetry.cpp (real time data collection). Needs INCLUDE_I2C true
+#define INCLUDE_WEBDAV false  // webDav.cpp (WebDAV protocol)
+#define INCLUDE_EXTHB false   // externalHeartbeat.cpp (heartbeat to remote server)
+#define INCLUDE_PGRAM false   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
+#define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
+#define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
+
+// if INCLUDE_I2C true, set each I2C device used to true 
+#define USE_SSD1306 false
+#define USE_BMx280 false
+#define USE_MPU6050 false
+#define USE_MPU9250 false
+#define USE_DS3231 false
+#define USE_LCD1602 false
 
 #define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
 
@@ -97,7 +104,7 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.2.2"
+#define APP_VER "10.3"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -140,7 +147,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 21
+#define CFG_VER 22
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -238,10 +245,13 @@ void currentStackUsage();
 void displayAudioLed(int16_t audioSample);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudioRecord(bool isValid);
+float* getBMx280();
+float* getMPU9250();
 mjpegStruct getNextFrame(bool firstCall = false);
 int getInputPeripheral(uint8_t cmd);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
+bool identifyBMx();
 void intercom();
 bool isNight(uint8_t nightSwitch);
 void keepFrame(camera_fb_t* fb);
@@ -251,6 +261,8 @@ void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
+void prepI2Ccam(int camSda, int camScl);
+bool prepI2Cdevices();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();

@@ -70,12 +70,12 @@ bool checkDataFiles() {
 }
 
 const char* setupPage_html = R"~(
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Application setup</title> 
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Application setup</title> 
 </head>
 <script>
 function Config(){
@@ -116,6 +116,7 @@ function Config(){
 )~";
 
 const char* otaPage_html = R"~(
+<!DOCTYPE html>
 <html>
   <head>
     <title>OTA</title>
@@ -188,6 +189,33 @@ const char* otaPage_html = R"~(
         $("#progressOta").value = 0;
       }
     </script>
+  </body>
+</html>
+)~";
+
+const char* failPageS_html = R"~(
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Startup Failure</title>
+    <script>
+      function getLog() {
+        fetch('/control?displayLog=1')
+        .then(response => response.text())
+        .then(logdata => { document.getElementById('appLog').innerText = logdata;})
+        .catch(error => alert('Error fetching log:', error));
+      }
+    </script>
+  </head>
+  <body>
+    <h2>
+)~";
+
+const char* failPageE_html = R"~(
+    </h2>
+    <h3><a href="#" onclick="getLog(); return false;">Check log</a></h3>
+    <h3><a href='/control?reset=1' class='button'>Reboot ESP after fix</a></h3>
+    <div id="appLog"></div>
   </body>
 </html>
 )~";

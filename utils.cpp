@@ -20,6 +20,7 @@ char startupFailure[SF_LEN] = {0};
 size_t alertBufferSize = 0;
 byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
 RTC_NOINIT_ATTR uint32_t crashLoop;
+RTC_NOINIT_ATTR char brownoutStatus;
 static void initBrownout(void);
 int wakePin; // if wakeUse is true
 bool wakeUse = false; // true to allow app to sleep and wake
@@ -65,7 +66,7 @@ static void startPing();
 static void setupMdnsHost() {  
   // set up MDNS service 
   char mdnsName[MAX_IP_LEN]; // max mdns host name length
-  snprintf(mdnsName, MAX_IP_LEN, "%s", hostName);
+  snprintf(mdnsName, MAX_IP_LEN, "%.*s", MAX_IP_LEN - 1, hostName);
   if (MDNS.begin(mdnsName)) {
     // Add service to MDNS
     MDNS.addService("http", "tcp", HTTP_PORT);
@@ -878,7 +879,7 @@ void logSetup() {
   printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
-  if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log");
+  if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log %s", (brownoutStatus == 'B' || brownoutStatus == 'R') ? "(brownout)" : " ");
   crashLoop = MAGIC_NUM;
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
   logMutex = xSemaphoreCreateMutex(); // control access to log formatter
@@ -1017,7 +1018,6 @@ static esp_sleep_wakeup_cause_t printWakeupReason() {
   return wakeup_reason;
 }
 
-RTC_NOINIT_ATTR char brownoutStatus;
 
 static esp_reset_reason_t printResetReason() {
   esp_reset_reason_t bootReason = esp_reset_reason();

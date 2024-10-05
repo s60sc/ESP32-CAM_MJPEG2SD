@@ -78,41 +78,49 @@ static void displayLog(httpd_req_t *req) {
   } 
 }
 
+bool checkAuth(httpd_req_t* req) {
+  // check if authentication is required
+  if (strlen(Auth_Name)) {
+    // authentication required
+    size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
+    char credentials[credLen];
+    snprintf(credentials, credLen, "%s:%s", Auth_Name, Auth_Pass);
+    size_t authLen = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
+    if (authLen) {
+      // check credentials supplied are valid
+      char auth[authLen];
+      httpd_req_get_hdr_value_str(req, "Authorization", auth, authLen);
+      if (!strstr(auth, encode64(credentials))) authLen = 0; // credentials not valid
+    }
+    if (!authLen) {
+      // not authenticated
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
+      httpd_resp_set_status(req, "401 Unauthorised");
+      httpd_resp_sendstr(req, NULL);
+      return false;
+    }
+  }
+  return true; // authentication ok or not required
+}
+
 static esp_err_t indexHandler(httpd_req_t* req) {
   strcpy(inFileName, INDEX_PAGE_PATH);
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   // first check if a startup failure needs to be reported
   if (strlen(startupFailure)) {
-    httpd_resp_set_type(req, "text/html");                        
-    return httpd_resp_sendstr(req, startupFailure);
+    httpd_resp_set_type(req, "text/html");                   
+    httpd_resp_sendstr_chunk(req, failPageS_html);
+    httpd_resp_sendstr_chunk(req, startupFailure);
+    httpd_resp_sendstr_chunk(req, failPageE_html);
+    httpd_resp_sendstr_chunk(req, NULL);
   }
   // Show wifi wizard if not setup, using access point mode  
   if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");                             
     return httpd_resp_sendstr(req, setupPage_html);
-  } else {
-    // first check if authentication is required
-    if (strlen(Auth_Name)) {
-      // authentication required
-      size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
-      char credentials[credLen];
-      snprintf(credentials, credLen, "%s:%s", Auth_Name, Auth_Pass);
-      size_t authLen = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
-      if (authLen) {
-        // check credentials supplied are valid
-        char auth[authLen];
-        httpd_req_get_hdr_value_str(req, "Authorization", auth, authLen);
-        if (!strstr(auth, encode64(credentials))) authLen = 0; // credentials not valid
-      }
-      if (!authLen) {
-        // not authenticated
-        httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
-        httpd_resp_set_status(req, "401 Unauthorised");
-        return httpd_resp_sendstr(req, NULL);
-      }
-    }
-  }
+  } else if (!checkAuth(req)) return ESP_OK; // check if authentication required & passed
+
   return fileHandler(req);
 }
 

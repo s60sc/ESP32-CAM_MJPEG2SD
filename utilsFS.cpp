@@ -322,7 +322,7 @@ void deleteFolderOrFile(const char* deleteThis) {
 #define BLOCKSIZE 512
 
 static esp_err_t writeHeader(File& inFile, httpd_req_t* req) {  
-  char tarHeader[BLOCKSIZE] = {}; // 512 bytes tar header
+  char tarHeader[BLOCKSIZE] = {0}; // 512 bytes tar header
   strncpy(tarHeader, inFile.name(), 99); // name of file
   sprintf(tarHeader + 100, "0000666"); // file permissions stored as ascii octal number
   sprintf(tarHeader + 124, "%011o", inFile.size()); // length of file in bytes as 6 digit ascii octal number
@@ -335,7 +335,6 @@ static esp_err_t writeHeader(File& inFile, httpd_req_t* req) {
   uint32_t checksum = 0;
   for (const auto& ch : tarHeader) checksum += ch;
   sprintf(tarHeader + 148, "%06lo", checksum); // six digit octal number with leading zeroes followed by a NUL and then a space.
-
   return httpd_resp_send_chunk(req, tarHeader, BLOCKSIZE);
 }
 

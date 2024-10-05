@@ -838,8 +838,20 @@ static bool camPower() {
 bool prepCam() {
   // initialise camera depending on model and board
   if (!camPower()) return false;
+  int siodGpioNum = SIOD_GPIO_NUM;
+  int siocGpioNum = SIOC_GPIO_NUM; 
+#if INCLUDE_I2C
+  if (I2Csda < 0) {
+    // share I2C port
+    prepI2Ccam(SIOD_GPIO_NUM, SIOC_GPIO_NUM);
+    
+    // stop camera doing own I2C initialisation
+    siodGpioNum = -1;
+    siocGpioNum = -1;   
+  }
+#endif
   bool res = false;
-  // buffer sizing depends on psram size (4M or 8M)h
+  // buffer sizing depends on psram size (4M or 8M)
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
   framesize_t maxFS = ESP.getPsramSize() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
   // configure camera
@@ -858,8 +870,8 @@ bool prepCam() {
   config.pin_pclk = PCLK_GPIO_NUM;
   config.pin_vsync = VSYNC_GPIO_NUM;
   config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
+  config.pin_sccb_sda = siodGpioNum;
+  config.pin_sccb_scl = siocGpioNum;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = xclkMhz * OneMHz;
