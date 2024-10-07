@@ -2382,12 +2382,14 @@
 
       function closedTab(isClosed) {
         // actions when page refreshed, closed or not in focus
-        deactivateButton($('#micRem'));
-        deactivateButton($('#spkrRem'));
+        const micRemBtn = $('#micRem');
+        const spkrRemBtn = $('#spkrRem');
+        deactivateButton(micRemBtn);
+        deactivateButton(spkrRemBtn);
         if (isClosed) {
           pageVisible = false;
-          sendControl("micRem", '0');
-          sendControl("spkrRem", '0');
+          if (!micRemBtn.classList.contains('disabled')) sendControl("micRem", '0');
+          if (!spkrRemBtn.classList.contains('disabled')) sendControl("spkrRem", '0');
           stopAll("closedTab");
         }
       }
