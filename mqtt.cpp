@@ -10,8 +10,8 @@
 #if (!INCLUDE_CERTS)
 const char* mqtt_rootCACertificate = "";
 #endif
-#if (INCLUDE_MQTT_HAS)
-#define HAS_AVAILABILITY "homeassistant/status"
+#if (INCLUDE_MQTT_HASIO)
+#define HASIO_AVAILABILITY "homeassistant/status"
 void sendMqttHasDiscovery();
 void sendMqttHasState();
 #endif 
@@ -62,13 +62,13 @@ static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, in
   LOG_INF("Mqtt connected");
   esp_mqtt_client_publish(mqtt_client, lwt_topic, "online", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
   mqttConnected = true;
-#if (INCLUDE_MQTT_HAS)
+#if (INCLUDE_MQTT_HASIO)
   sendMqttHasDiscovery();
   vTaskDelay(1000 / portTICK_RATE_MS);   
   sendMqttHasState();
-  int id0 = esp_mqtt_client_subscribe(mqtt_client, HAS_AVAILABILITY, 1);
+  int id0 = esp_mqtt_client_subscribe(mqtt_client, HASIO_AVAILABILITY, 1);
   if (id0 == -1){
-    LOG_WRN("Mqtt failed to subscribe: %s", HAS_AVAILABILITY );
+    LOG_WRN("Mqtt failed to subscribe: %s", HASIO_AVAILABILITY );
   }
 #endif  
   int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
@@ -90,8 +90,8 @@ static void mqtt_data_handler(void *handler_args, esp_event_base_t base, int32_t
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   LOG_VRB("Mqtt topic=%.*s ", event->topic_len, event->topic);
   LOG_VRB("Mqtt data=%.*s ", event->data_len, event->data);
-#if INCLUDE_MQTT_HAS
-  if(strncmp(event->topic, HAS_AVAILABILITY, event->topic_len) == 0){
+#if INCLUDE_MQTT_HASIO
+  if(strncmp(event->topic, HASIO_AVAILABILITY, event->topic_len) == 0){
     sendMqttHasDiscovery();
     vTaskDelay(1000 / portTICK_RATE_MS);   
     sendMqttHasState();
@@ -149,7 +149,7 @@ void checkForRemoteQuery() {
         } else if (!strcmp(query, "status?q")) {
           buildJsonString(true);
           mqttPublishPath("status", jsonBuff);
-#if (INCLUDE_MQTT_HAS)          
+#if (INCLUDE_MQTT_HASIO)          
         } else if (!strcmp(query, "state")) {
           sendMqttHasState();          
         } else if (!strcmp(query, "disc")) {
@@ -267,8 +267,7 @@ void startMqttClient(void){
   }
 }
 
-#if (INCLUDE_MQTT_HAS)
-//https://pictogrammers.com/library/mdi/icon/list-status/
+#if (INCLUDE_MQTT_HASIO)
 void sendHasEntities (const char *name, const char *displayName, const char *units = "",
                       const char *icon = "", const char *category = "", const char *topic = "",
                       const char *payload_on = "",const char *payload_off = ""){
@@ -276,7 +275,7 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
   *p++ = '{';
   p += sprintf(p, "\"name\":\"%s\",", displayName);
   p += sprintf(p, "\"uniq_id\":\"%s_%012llX\",", name, ESP.getEfuseMac() );
-  p += sprintf(p, "\"obj_id\":\"%s %s\",", hostName, name);
+  //p += sprintf(p, "\"obj_id\":\"%s %s\",", hostName, name);
   if(strlen(units)>0)
     p += sprintf(p, "\"unit_of_meas\":\"%s\",", units);
   if(strlen(icon)>0)
@@ -346,7 +345,6 @@ void sendMqttHasDiscovery(){
   sendHasEntities ("restart", "Restart device", "", "mdi:restart", "config", "", "reset");
   sendHasEntities ("state", "Diagnostics", "", "mdi:list-status", "config", "", "state");
 }
-//https://jamesachambers.com/cheap-esp32-cam-home-assistant-esphome-camera-guide/
 void sendMqttHasState(){  
   char* p = jsonBuff;
   char timeBuff[20];
