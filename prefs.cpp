@@ -359,7 +359,10 @@ void updateStatus(const char* variable, const char* _value, bool fromUser) {
     saveConfigVect();
   } else {
     res = updateAppStatus(variable, value, fromUser);
-    if (!res) LOG_VRB("Unrecognised config: %s", variable);
+    if (!res) {
+      if (fromUser) LOG_WRN("Trying to config %s but feature not included", variable);
+      else LOG_VRB("Unrecognised config: %s", variable);
+    }
   }
   if (res) updateConfigVect(variable, value);  
 }
