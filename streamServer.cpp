@@ -279,71 +279,74 @@ void startSustainTasks() {
 }
 
 esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
-  // handle long running request as separate task
+  // first check if authentication is required & passed
   esp_err_t res = ESP_FAIL;
-  // obtain details from query string
-  if (extractQueryKeyVal(req, variable, value) == ESP_OK) {
-    // playback, download, web streaming uses task 0
-    // remote streaming eg video uses task 1, audio task 2, srt task 3
-    uint8_t taskNum = 99;
-    if (!strcmp(variable, "download")) taskNum = 0;
-    else if (!strcmp(variable, "playback")) taskNum = 0;
-    else if (!strcmp(variable, "stream")) taskNum = 0;
-    else if (!strcmp(variable, "video")) taskNum = 1;
-    else if (!strcmp(variable, "audio")) taskNum = 2;
-    else if (!strcmp(variable, "srt")) taskNum = 3;
+  if (checkAuth(req)) { 
+    // handle long running request as separate task
+    // obtain details from query string
+    if (extractQueryKeyVal(req, variable, value) == ESP_OK) {
+      // playback, download, web streaming uses task 0
+      // remote streaming eg video uses task 1, audio task 2, srt task 3
+      uint8_t taskNum = 99;
+      if (!strcmp(variable, "download")) taskNum = 0;
+      else if (!strcmp(variable, "playback")) taskNum = 0;
+      else if (!strcmp(variable, "stream")) taskNum = 0;
+      else if (!strcmp(variable, "video")) taskNum = 1;
+      else if (!strcmp(variable, "audio")) taskNum = 2;
+      else if (!strcmp(variable, "srt")) taskNum = 3;
 
-    if (taskNum < numStreams) {
-      if (taskNum == 0) {
-        if (req->method == HTTP_HEAD) { 
-          // task check request from app web page
-          if (sustainReq[taskNum].inUse) {
-            // task not free, try stopping it for new stream
-            if (!strcmp(variable, "stream")) {
-              isStreaming[taskNum] = false;
-              if (!taskNum) doPlayback = false; // only for task 0
-              delay(END_WAIT + 100);
+      if (taskNum < numStreams) {
+        if (taskNum == 0) {
+          if (req->method == HTTP_HEAD) { 
+            // task check request from app web page
+            if (sustainReq[taskNum].inUse) {
+              // task not free, try stopping it for new stream
+              if (!strcmp(variable, "stream")) {
+                isStreaming[taskNum] = false;
+                if (!taskNum) doPlayback = false; // only for task 0
+                delay(END_WAIT + 100);
+              }
+            } 
+            if (sustainReq[taskNum].inUse) {
+              LOG_WRN("Task %d not free", taskNum);
+              httpd_resp_set_status(req, "500 No free task");
             }
-          } 
+            else {
+              sustainId = currEpoch; // task available
+              res = ESP_OK;
+            }
+            httpd_resp_sendstr(req, NULL);
+            return res;
+          }
+        } else {
+          // stop remote streaming if currently active
           if (sustainReq[taskNum].inUse) {
-            LOG_WRN("Task %d not free", taskNum);
-            httpd_resp_set_status(req, "500 No free task");
+            isStreaming[taskNum] = false;
+            delay(END_WAIT + 100);
           }
-          else {
-            sustainId = currEpoch; // task available
-            res = ESP_OK;
-          }
-          httpd_resp_sendstr(req, NULL);
-          return res;
         }
+            
+        // action request if task available
+        if (!sustainReq[taskNum].inUse) {
+          // make copy of request data and pass request to task indexed by request
+          uint8_t i = taskNum;
+          sustainReq[i].inUse = true;
+          sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
+          new (sustainReq[i].req) httpd_req_t(*req);
+          sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
+          memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
+          strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
+          // activate relevant task
+          xTaskNotifyGive(sustainHandle[i]);
+          return ESP_OK;
+        } else httpd_resp_set_status(req, "500 No free task");
       } else {
-        // stop remote streaming if currently active
-        if (sustainReq[taskNum].inUse) {
-          isStreaming[taskNum] = false;
-          delay(END_WAIT + 100);
-        }
+        if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s, numStreams %d", variable, numStreams);
+        else LOG_WRN("Invalid task id: %s", variable);
+        httpd_resp_set_status(req, "400 Invalid url");
       }
-          
-      // action request if task available
-      if (!sustainReq[taskNum].inUse) {
-        // make copy of request data and pass request to task indexed by request
-        uint8_t i = taskNum;
-        sustainReq[i].inUse = true;
-        sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
-        new (sustainReq[i].req) httpd_req_t(*req);
-        sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
-        memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
-        strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
-        // activate relevant task
-        xTaskNotifyGive(sustainHandle[i]);
-        return ESP_OK;
-      } else httpd_resp_set_status(req, "500 No free task");
-    } else {
-      if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s, numStreams %d", variable, numStreams);
-      else LOG_WRN("Invalid task id: %s", variable);
-      httpd_resp_set_status(req, "400 Invalid url");
-    }
-  } else httpd_resp_set_status(req, "400 Bad URL");
-  httpd_resp_sendstr(req, NULL);
+    } else httpd_resp_set_status(req, "400 Bad URL");
+    httpd_resp_sendstr(req, NULL);
+  } 
   return res;
 }

@@ -7,15 +7,22 @@
 // and have downloaded relevant device libraries.
 // Best used on ESP32S3, not tested on ESP32
 
-// s60sc 2023
+// s60sc 2023, 2024
 
 #include "appGlobals.h"
 
 #if INCLUDE_TELEM
+#if !INCLUDE_I2C
+#error "Need INCLUDE_I2C true"
+#endif
+
 #include <Wire.h>
 
-#define NUM_BUFF 2 
-#define MAX_SRT_LEN 128 // store each srt entry, for subtitle streaming
+// If separate I2C pins are not defined, then the telemetry I2C devices
+// share the camera I2C pins: SIOD_GPIO_NUM and SIOC_GPIO_NUM in camera_pins.h are shared
+
+#define NUM_BUFF 2 // CSV, SRT
+#define MAX_LINE_LEN 128 // adjust to be max size of formatted telemetry row
 
 TaskHandle_t telemetryHandle = NULL;
 bool teleUse = false;
@@ -24,103 +31,77 @@ static char* teleBuf[NUM_BUFF]; // csv and srt telemetry data buffers
 size_t highPoint[NUM_BUFF]; // indexes to buffers
 static bool capturing = false;
 static char teleFileName[FILE_NAME_LEN];
-char srtBuffer[MAX_SRT_LEN];
+char srtBuffer[MAX_LINE_LEN]; // store each srt entry, for subtitle streaming
+char csvHeader[MAX_LINE_LEN]; // column headers for CSV file
 size_t srtBytes = 0;
-
-static bool scanI2C();
-static bool checkI2C(byte addr);
 
 /*************** USER TO MODIFY CODE BELOW for REQUIRED SENSORS ******************/
 
-// example code for BMP280 and MPU9250 I2C sensors on GY-91 board
-//#define USE_GY91 // uncomment to support GY-91 board (BMP280 + MPU9250)
+// example code for BMx280 and MPU9250 I2C sensors 
+// if using GY-91 board (combination BMP280 + MPU9250), 
+//  then in periphsI2C.cpp, set both USE_BMx280 and USE_MPU9250 to true
 
-// user defined header row, first field is always Time, row must end with \n
-#define TELEHEADER "Time,Temperature (C),Pressure (mb),Altitude (m),Heading,Pitch,Roll\n"
-#define BUF_OVERFLOW 100 // set to be max size of formatted telemetry row
+// user defined CSV header row per device used, must start with a comma
+#define BME_CSV ",Temperature (C),Humidity (%),Pressure (mb),Altitude (m)"
+#define BMP_CSV ",Temperature (C),Pressure (mb),Altitude (m)"
+#define MPU_CSV ",Heading,Pitch,Roll"
+// user defined SRT content line per device used, must start with 2 spaces
+#define BME_SRT "  %0.1fC  %0.1fRH  %0.1fmb  %0.1fm"
+#define BMP_SRT "  %0.1fC  %0.1fmb  %0.1fm"
+#define MPU_SRT "  %0.1f  %0.1f  %0.1f"
 
-// if require I2C, define which pins to use for I2C bus
-// if pins not correctly defined for board, spurious results will occur
-#ifndef I2C_SDA
-#define I2C_SDA 20
-#define I2C_SCL 21
-#endif
-
-#ifdef USE_GY91
-#include <BMx280I2C.h>
-#define BMP_ADDRESS 0x76 
-#define STD_PRESSURE 1013.25 // standard pressure mb at sea level
-#define DEGREE_SYMBOL "\xC2\xB0"
-BMx280I2C bmp280(BMP_ADDRESS);
-
-#include "MPU9250.h"
-// accel axis orientation on GY-91:                      
-// - X : short side (pitch)
-// - Y : long side (roll)
-// - Z : up (yaw from true N)
-#define MPU_ADDRESS 0x68 
-// Note internal AK8963 magnetometer is at address 0x0C
-#define LOCAL_MAG_DECLINATION (4 + 56/60)  // see https://www.magnetic-declination.com/
-MPU9250 mpu9250;
-#endif
+static bool isBME = false;
 
 static bool setupSensors() {
   // setup required sensors
-  bool res = true;
-#ifdef USE_GY91
-  Wire.begin(I2C_SDA, I2C_SCL); // join I2C bus as master 
-  LOG_INF("I2C started at %dkHz", Wire.getClock() / 1000);
-  if (!scanI2C()) return false;
+  bool res = false;
+#if USE_BMx280  
+  if (checkI2Cdevice("BMx280")) {
+    bool isBME = identifyBMx();
+    LOG_INF("%s available", isBME ? "BME280" : "BMP280");
+    if (isBME) strncat(csvHeader, BME_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
+    else strncat(csvHeader, BMP_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
+    res = true;
+  } else LOG_WRN("%s not available", isBME ? "BME280" : "BMP280");
+#endif
 
-  if (bmp280.begin()) {
-    LOG_INF("BMP280 available");
-    // set defaults
-    bmp280.resetToDefaults();
-    bmp280.writeOversamplingPressure(BMx280MI::OSRS_P_x16);
-    bmp280.writeOversamplingTemperature(BMx280MI::OSRS_T_x16);
-  } else {
-    LOG_WRN("BMP280 not available at address 0x%02X", BMP_ADDRESS);
-    return false;
-  } 
-  
-  if (mpu9250.setup(MPU_ADDRESS)) {
-    mpu9250.setMagneticDeclination(LOCAL_MAG_DECLINATION);
-    mpu9250.selectFilter(QuatFilterSel::MADGWICK);
-    mpu9250.setFilterIterations(15);
-    LOG_INF("MPU9250 calibrating, leave still");
-    mpu9250.calibrateAccelGyro();
-//    LOG_INF("Move MPU9250 in a figure of eight until done");
-//    delay(2000);
-//    mpu9250.calibrateMag();
+#if USE_MPU9250
+  if (checkI2Cdevice("MPU9250")) {
     LOG_INF("MPU9250 available");
-  }
-  else {
-    LOG_WRN("MPU9250 not available at address 0x%02X", MPU_ADDRESS);
-    return false;
-  }
+    strncat(csvHeader, MPU_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
+    res = true;
+  } else LOG_WRN("MPU9250 not available");
 #endif
   return res; 
 }
 
 static void getSensorData() {
   // get sensor data and format as csv row & srt entry in buffers
-#ifdef USE_GY91
-  bmp280.measure();
-  if (bmp280.hasValue()) {
-    float bmpPressure = bmp280.getPressure() * 0.01;  // pascals to mb/hPa
-    float bmpAltitude = 44330.0 * (1.0 - pow(bmpPressure / STD_PRESSURE, 1.0 / 5.255)); // altitude in meters
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", bmp280.getTemperature(), bmpPressure, bmpAltitude);
-    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "  %0.1fC  %0.1fmb  %0.1fm", bmp280.getTemperature(), bmpPressure, bmpAltitude);
-  } else for (int i=0; i< 2; i++) highPoint[i] += sprintf(teleBuf[i] + highPoint[i], ",-,-,-");
-  
-  if (mpu9250.update()) {
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
-    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "  %0.1f  %0.1f  %0.1f", mpu9250.getYaw(), mpu9250.getPitch(), mpu9250.getRoll()); 
+#if USE_BMx280
+  float* bmxData = getBMx280();
+  if (isBME) {
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
+    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BME_SRT, bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
+  } else {
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[1], bmxData[2]);
+    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BMP_SRT, bmxData[0], bmxData[1], bmxData[2]);
   }
+#if INCLUDE_MQTT
+  if (mqtt_active) {
+    sprintf(jsonBuff, "{\"Temp\":\"%0.1f\", \"TIME\":\"%s\"}", bmxData[0], esp_log_system_timestamp());
+    mqttPublish(jsonBuff);
+  }
+#endif
+#endif
+
+#if USE_MPU9250
+  float* mpuData = getMPU9250();
+  highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", mpuData[0], mpuData[1], mpuData[2]); 
+  highPoint[1] += sprintf(teleBuf[1] + highPoint[1], MPU_SRT, mpuData[0], mpuData[1], mpuData[2]);  
 #endif
 }
 
-/*************** LEAVE CODE BELOW AS IS ******************/
+/*************** LEAVE CODE BELOW AS IS UNLESS YOU KNOW WHAT YOUR DOING ******************/
 
 void storeSensorData(bool fromStream) {
   // can be called from telemetry task or streaming task
@@ -132,7 +113,7 @@ void storeSensorData(bool fromStream) {
   size_t startData = highPoint[1];
   getSensorData();
   if (!srtBytes) { 
-    srtBytes = min(highPoint[1] - startData, (size_t)MAX_SRT_LEN);
+    srtBytes = min(highPoint[1] - startData, (size_t)MAX_LINE_LEN);
     memcpy(srtBuffer, teleBuf[1] + startData, srtBytes);
   }
 }
@@ -151,7 +132,7 @@ static void telemetryTask(void* pvParameters) {
     File teleFile = STORAGE.open(TELETEMP, FILE_WRITE);
     File srtFile = STORAGE.open(SRTTEMP, FILE_WRITE);
     // write CSV header row to buffer
-    highPoint[0] = sprintf(teleBuf[0], "%s", TELEHEADER); 
+    highPoint[0] = sprintf(teleBuf[0], "Time%s\n", csvHeader); 
     highPoint[1] = 0;
     
     // loop while camera recording
@@ -203,8 +184,12 @@ static void telemetryTask(void* pvParameters) {
 void prepTelemetry() {
   // called by app initialisation
   if (teleUse) {
+    // initialise I2C port separate from camera if required
+    if (I2Csda > 0) prepI2C();
+    // setup telemetry collection and recording task
+    prepI2Cdevices();
     teleInterval = srtInterval;
-    for (int i=0; i < NUM_BUFF; i++) teleBuf[i] = psramFound() ? (char*)ps_malloc(RAMSIZE + BUF_OVERFLOW) : (char*)malloc(RAMSIZE + BUF_OVERFLOW);
+    for (int i=0; i < NUM_BUFF; i++) teleBuf[i] = psramFound() ? (char*)ps_malloc(RAMSIZE + MAX_LINE_LEN) : (char*)malloc(RAMSIZE + MAX_LINE_LEN);
     if (setupSensors()) xTaskCreate(&telemetryTask, "telemetryTask", TELEM_STACK_SIZE, NULL, TELEM_PRI, &telemetryHandle);
     else teleUse = false;
     LOG_INF("Telemetry recording %s available", teleUse ? "is" : "NOT");
@@ -222,29 +207,8 @@ bool startTelemetry() {
 
 void stopTelemetry(const char* fileName) {
   // called when camera recording stopped
-  if (teleUse) {
-    strcpy(teleFileName, fileName); 
-    capturing = false; // stop task
-  }
-}
-
-static bool checkI2C(byte addr) {
-  // check if device present at address
-  Wire.beginTransmission(addr);
-  return !Wire.endTransmission(true);
-}
-
-static bool scanI2C() {
-  // identify addresses of active I2C devices
-  int numDevices = 0;
-  for (byte address = 0; address < 127; address++) {
-    if (checkI2C(address)) {
-      LOG_INF("I2C device present at address: 0x%02X", address);
-      numDevices++;
-    }
-  }
-  LOG_INF("I2C devices found: %d", numDevices);
-  return (bool)numDevices;
+  if (teleUse) strcpy(teleFileName, fileName); 
+  capturing = false; // stop task
 }
 
 #endif

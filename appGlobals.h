@@ -37,13 +37,13 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
+//#define CAMERA_MODEL_XENOIONEX
 //#define AUXILIARY
 #endif
 
 /***************************************************************
-  For ESP32S3, optional features included by default
-  For ESP32, optional features NOT included by default to reduce heap use 
-  To include or exclude a particular feature, replace IS_INCLUDED by true or false
+  Optional features NOT included by default to reduce heap use 
+  To include a particular feature, change false to true
 ***************************************************************/
 #define INCLUDE_FTP_HFS IS_INCLUDED // ftp.cpp (file upload)
 #define INCLUDE_TGRAM IS_INCLUDED   // telegram.cpp (Telegram app interface)
@@ -97,7 +97,7 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.2.2"
+#define APP_VER "10.3"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -140,7 +140,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 21
+#define CFG_VER 22
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -238,10 +238,13 @@ void currentStackUsage();
 void displayAudioLed(int16_t audioSample);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudioRecord(bool isValid);
+float* getBMx280();
+float* getMPU9250();
 mjpegStruct getNextFrame(bool firstCall = false);
 int getInputPeripheral(uint8_t cmd);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
+bool identifyBMx();
 void intercom();
 bool isNight(uint8_t nightSwitch);
 void keepFrame(camera_fb_t* fb);
@@ -251,6 +254,8 @@ void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
+void prepI2Ccam(int camSda, int camScl);
+bool prepI2Cdevices();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();

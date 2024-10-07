@@ -3,9 +3,15 @@
 // s60sc 2021, 2022
 
 #include "esp_arduino_version.h"
+
+#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 3)
+#error Must be compiled with arduino-esp32 core v3.0.3 or higher
+#endif
+
 #pragma once
 // to compile with -Wall -Werror=all -Wextra
-#pragma GCC diagnostic error "-Wformat=2"
+//#pragma GCC diagnostic error "-Wformat=2"
+#pragma GCC diagnostic ignored "-Wformat-y2k"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 //#pragma GCC diagnostic ignored "-Wunused-variable"
@@ -98,8 +104,10 @@ void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
 bool checkAlarm();
+bool checkAuth(httpd_req_t* req);
 bool checkDataFiles();
 bool checkFreeStorage();
+bool checkI2Cdevice(const char* devName);
 void checkMemory(const char* source = "");
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx);
 void debugMemory(const char* caller);
@@ -142,6 +150,7 @@ void logPrint(const char *fmtStr, ...);
 void logSetup();
 void OTAprereq();
 bool parseJson(int rxSize);
+bool prepI2C();
 void prepPeripherals();
 void prepSMTP();
 bool prepTelegram();
@@ -300,6 +309,8 @@ extern bool timeSynchronized;
 extern bool monitorOpen; 
 extern const char* setupPage_html;
 extern const char* otaPage_html;
+extern const char* failPageS_html;
+extern const char* failPageE_html;
 extern char startupFailure[];
 extern time_t currEpoch;
 extern bool RCactive;
@@ -310,6 +321,10 @@ extern UBaseType_t uxHighWaterMarkArr[];
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
 extern int sdFreeSpaceMode; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload to ftp and then delete folder on SD 
 extern bool formatIfMountFailed ; // Auto format the file system if mount failed. Set to false to not auto format.
+
+// I2C pins
+extern int I2Csda;
+extern int I2Cscl;
 
 #define HTTP_METHOD_STRING(method) \
   (method == HTTP_DELETE) ? "DELETE" : \

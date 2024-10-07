@@ -26,6 +26,9 @@ MX1508 DC Motor Driver with PWM Control
 #include "appGlobals.h"
 
 #if INCLUDE_MCPWM
+#if !INCLUDE_PERIPH
+#error "Need INCLUDE_PERIPH true"
+#endif
 
 // Includes code from github.com/espressif/idf-extra-components/blob/master/bdc_motor
 //  modified to compile with c++:

@@ -24,6 +24,9 @@
 #include "appGlobals.h"
 
 #if INCLUDE_PGRAM 
+#if !INCLUDE_PERIPH
+#error "Need INCLUDE_PERIPH true"
+#endif
 
 // Use web interface to specify the following parameters
 uint8_t numberOfPhotos; // number of photos to be taken in a rotation of the turntable
