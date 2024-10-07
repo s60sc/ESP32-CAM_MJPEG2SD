@@ -64,7 +64,7 @@ void reloadConfigs() {
 #if INCLUDE_MQTT
   if (mqtt_active) {
     buildJsonString(1);
-    mqttPublishPath("config", jsonBuff);
+    mqttPublishPath("status", jsonBuff);
   }
 #endif
 }
@@ -237,7 +237,7 @@ void updateStatus(const char* variable, const char* _value, bool fromUser) {
   if (mqtt_active) {
     char buff[(IN_FILE_NAME_LEN * 2)];
     snprintf(buff, IN_FILE_NAME_LEN * 2, "%s=%s", variable, value);
-    mqttPublish(buff);
+    mqttPublishPath("state", buff);
   }
 #endif
 
