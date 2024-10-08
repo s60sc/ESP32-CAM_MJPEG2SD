@@ -51,7 +51,7 @@
 #define INCLUDE_PERIPH IS_INCLUDED  // peripherals.cpp (servos, PIR, led etc)
 #define INCLUDE_SMTP IS_INCLUDED    // smtp.cpp (email)
 #define INCLUDE_MQTT IS_INCLUDED    // mqtt.cpp (MQTT)
-#define INCLUDE_MQTT_HAS IS_INCLUDED// mqtt.cpp (MQTT) Send home assistant discovery messages
+#define INCLUDE_MQTT_HASIO IS_INCLUDED// mqtt.cpp (MQTT) Send home assistant discovery messages
 #define INCLUDE_CERTS IS_INCLUDED   // certificates.cpp (https and server certificate checking)
 #define INCLUDE_UART IS_INCLUDED    // uart.cpp (use another esp32 as Auxiliary connected via UART)
 #define INCLUDE_TELEM IS_INCLUDED   // telemetry.cpp (real time data collection)
@@ -97,7 +97,7 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.3"
+#define APP_VER "10.4"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -140,7 +140,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 22
+#define CFG_VER 23
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
