@@ -283,12 +283,24 @@ To enable MQTT, under **Edit Config** -> **Others** tab, enter fields:
 Mqtt will auto connect if configuration is not blank on ping success.
 
 It will send messages e.g. Record On/Off Motion On/Off to the mqtt broker on channel /status.  
-topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/status -> {"MOTION":"ON", "TIME":"10:07:47.560"}`
+topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/state -> {"MOTION":"ON", "TIME":"10:07:47.560"}`
 
 You can also publish control commands to the /cmd channel in order to control camera.  
 topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
 
 To incorporate, set `#define INCLUDE_MQTT` to `true`.
+
+## MQTT Home Assistant device auto discovery
+
+To enable set `#define INCLUDE_MQTT_HASIO` to `true` .
+
+It will send mqtt discovery messages to automatically create a home assistant camera device inside mqtt devices integration.
+
+It will publish motion on/off messages on channel homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/motion that can be used for home automations.
+
+The device will also publish an image payload on motion detection that will be displayed on the dashboard.
+
+<a href="extras/hasio_device.png"><img src="extras/hasio_device.png" width="300" height="250"></a>
 
 ## External Heartbeat
 
