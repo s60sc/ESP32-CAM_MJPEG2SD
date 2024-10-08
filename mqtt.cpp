@@ -12,6 +12,7 @@ const char* mqtt_rootCACertificate = "";
 #endif
 #if (INCLUDE_MQTT_HASIO)
 #define HASIO_AVAILABILITY "homeassistant/status"
+char image_topic[FILE_NAME_LEN] = "";  //Mqtt server topic to publish image payloads.
 void sendMqttHasDiscovery();
 void sendMqttHasState();
 #endif 
@@ -62,15 +63,6 @@ static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, in
   LOG_INF("Mqtt connected");
   esp_mqtt_client_publish(mqtt_client, lwt_topic, "online", 0, MQTT_LWT_QOS, MQTT_LWT_RETAIN);
   mqttConnected = true;
-#if (INCLUDE_MQTT_HASIO)
-  sendMqttHasDiscovery();
-  vTaskDelay(1000 / portTICK_RATE_MS);   
-  sendMqttHasState();
-  int id0 = esp_mqtt_client_subscribe(mqtt_client, HASIO_AVAILABILITY, 1);
-  if (id0 == -1){
-    LOG_WRN("Mqtt failed to subscribe: %s", HASIO_AVAILABILITY );
-  }
-#endif  
   int id = esp_mqtt_client_subscribe(mqtt_client, cmd_topic, 1);
   if (id == -1){
     LOG_WRN("Mqtt failed to subscribe: %s", cmd_topic );
@@ -78,6 +70,16 @@ static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, in
     return;
   }
   else LOG_VRB("Mqtt subscribed: %s", cmd_topic );
+
+#if (INCLUDE_MQTT_HASIO)
+  sendMqttHasDiscovery();
+  vTaskDelay(1000 / portTICK_RATE_MS);   
+  sendMqttHasState();
+  id = esp_mqtt_client_subscribe(mqtt_client, HASIO_AVAILABILITY, 1);
+  if (id == -1){
+    LOG_WRN("Mqtt failed to subscribe: %s", HASIO_AVAILABILITY );
+  }else LOG_VRB("Mqtt subscribed: %s", HASIO_AVAILABILITY );
+#endif 
 }
 
 static void mqtt_disconnected_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -118,6 +120,20 @@ static void mqtt_error_handler(void *handler_args, esp_event_base_t base, int32_
     mqttConnected = false;
   }
 }
+void sendMqttImage(){
+  uint32_t startTime = millis();
+  if (!strlen(mqtt_topic_prefix)) return;
+  doKeepFrame = true;
+  while (doKeepFrame && millis() - startTime < 4 * MAX_FRAME_WAIT) delay(100);
+  if (!doKeepFrame && alertBufferSize) {
+     const char* picBuff = (const char*)(alertBuffer);
+     int id = esp_mqtt_client_publish(mqtt_client, image_topic, picBuff, alertBufferSize, MQTT_QOS, 0);
+     LOG_VRB("Sended pic, size: %lu", alertBufferSize );
+  }else{
+    LOG_INF("Fail to send image");
+  }
+}
+
 void checkForRemoteQuery() {
   //Execute remote query i.e. dbgVerbose=1;framesize=7;fps=1
   if (strlen(remoteQuery) > 0) {
@@ -150,6 +166,9 @@ void checkForRemoteQuery() {
           buildJsonString(true);
           mqttPublishPath("status", jsonBuff);
 #if (INCLUDE_MQTT_HASIO)          
+        } else if (!strcmp(query, "still")) {
+           sendMqttImage();
+           sendMqttHasState();
         } else if (!strcmp(query, "state")) {
           sendMqttHasState();          
         } else if (!strcmp(query, "disc")) {
@@ -227,7 +246,8 @@ void startMqttClient(void){
   sprintf(mqtt_uri, "mqtt://%s:%s", mqtt_broker, mqtt_port);
   snprintf(lwt_topic, FILE_NAME_LEN, "%ssensor/%s/lwt", mqtt_topic_prefix, hostName);
   snprintf(cmd_topic, FILE_NAME_LEN, "%ssensor/%s/cmd", mqtt_topic_prefix, hostName);
- 
+  snprintf(image_topic, FILE_NAME_LEN, "%ssensor/%s/still", mqtt_topic_prefix, hostName);
+
   esp_mqtt_client_config_t mqtt_cfg = {
     .broker = {
       .address = { .uri = mqtt_uri },
@@ -280,20 +300,27 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
     p += sprintf(p, "\"unit_of_meas\":\"%s\",", units);
   if(strlen(icon)>0)
     p += sprintf(p, "\"ic\":\"%s\",", icon);
-  if(strlen(category)>0)
-    p += sprintf(p, "\"ent_cat\":\"%s\",", category);  
-  if(strlen(topic))
-    p += sprintf(p, "\"stat_t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, topic);  
-  else
-    p += sprintf(p, "\"stat_t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, name);  
   
-  if(strlen(payload_on) && strlen(payload_off) ){  
-    p += sprintf(p, "\"payload_on\":\"%s\",", payload_on);
-    p += sprintf(p, "\"payload_off\":\"%s\",", payload_off);
-    p += sprintf(p, "\"command_topic\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, "cmd");  
-  }else if(strlen(payload_on) && !strlen(payload_off) ){
-    p += sprintf(p, "\"payload_press\":\"%s\",", payload_on);
-    p += sprintf(p, "\"command_topic\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, "cmd");  
+  if(strcmp(category, "camera") == 0 ){
+    p += sprintf(p, "\"t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, topic);
+  
+  }else{
+    if(strlen(category)>0){  
+      p += sprintf(p, "\"ent_cat\":\"%s\",", category);  
+    }
+    if(strlen(topic))
+      p += sprintf(p, "\"stat_t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, topic);  
+    else
+      p += sprintf(p, "\"stat_t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, name);  
+  
+    if(strlen(payload_on) && strlen(payload_off) ){  
+      p += sprintf(p, "\"pl_on\":\"%s\",", payload_on);
+      p += sprintf(p, "\"pl_off\":\"%s\",", payload_off);
+      p += sprintf(p, "\"cmd_t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, "cmd");  
+    }else if(strlen(payload_on) && !strlen(payload_off) ){
+      p += sprintf(p, "\"pl_prs\":\"%s\",", payload_on);
+      p += sprintf(p, "\"cmd_t\":\"%ssensor/%s/%s\",", mqtt_topic_prefix, hostName, "cmd");  
+    }
   }
   
   if(strcmp(category, "diagnostic") != 0 && strlen(payload_on) == 0){
@@ -303,12 +330,12 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
   }
   p += sprintf(p, "\"device\":");
     *p++ = '{';
-      p += sprintf(p, "\"name\": \"%s\",", hostName);
-      p += sprintf(p, "\"mdl\": \"%s-%s\",", hostName, ESP.getChipModel());
-      p += sprintf(p, "\"sw\": \"%s\", ", APP_VER);
-      p += sprintf(p, "\"cns\": [[ \"mac\", \"%s\"]],", WiFi.macAddress().c_str() );
-      p += sprintf(p, "\"ids\": [ \"%s-%i\"],", ESP.getChipModel(), ESP.getChipRevision());
-      p += sprintf(p, "\"cu\": \"http://%s/\",", WiFi.localIP().toString().c_str());
+      p += sprintf(p, "\"name\":\"%s\",", hostName);
+      p += sprintf(p, "\"ids\":[\"%s-%s\"],", hostName, ESP.getChipModel());
+      p += sprintf(p, "\"sw\":\"%s\",", APP_VER);
+      p += sprintf(p, "\"cns\":[[ \"mac\",\"%s\"]],", WiFi.macAddress().c_str() );
+      p += sprintf(p, "\"mdl\":\"%s-%i\",", ESP.getChipModel(), ESP.getChipRevision());
+      p += sprintf(p, "\"cu\":\"http://%s/\",", WiFi.localIP().toString().c_str());
       p += sprintf(p, "\"mf\":\"%s\"", "esp32cam");
     *p++ = '}';
   *p++ = '}';
@@ -320,6 +347,8 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
     mqttPublishPath(suffix, jsonBuff, "switch");
   else if(strlen(payload_on) && !strlen(payload_off))
     mqttPublishPath(suffix, jsonBuff, "button");
+  else if(strcmp(category, "camera") == 0 )
+    mqttPublishPath("config", jsonBuff, "camera");
   else
     mqttPublishPath(suffix, jsonBuff);
 
@@ -327,8 +356,8 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
 
 void sendMqttHasDiscovery(){
   //Home Asssistant sensors
-  sendHasEntities ("motion", "Motion detect", "", "mdi:motion-sensor");
-  sendHasEntities ("record", "Recording","", "mdi:video-check");
+  sendHasEntities ("motion", "Motion", "", "mdi:motion-sensor");
+  sendHasEntities ("record", "Record","", "mdi:video-check");
   //Home Asssistant Diagnostic 
   sendHasEntities ("clock", "Camera clock", "", "mdi:clock-outline", "diagnostic", "clock");
   sendHasEntities ("up_time", "Up time", "", "mdi:clock", "diagnostic", "up_time");
@@ -340,10 +369,14 @@ void sendMqttHasDiscovery(){
   sendHasEntities ("free_bytes", "Free SD", "", "mdi:memory", "diagnostic", "free_bytes");
   //Home Asssistant Buttons
   sendHasEntities ("led", "Camera led", "", "mdi:led-on", "", "", "lampLevel=15","lampLevel=0");
-  sendHasEntities ("recording", "Record", "", "mdi:video-check", "", "", "forceRecord=1","forceRecord=0");
+  sendHasEntities ("forceRecord", "Start Record", "", "mdi:video-check", "", "", "forceRecord=1","forceRecord=0");
   //Home Asssistant Config Buttons
+  sendHasEntities ("still", "Get Picture", "", "mdi:list-status", "config", "", "still");
+  sendHasEntities ("state", "Get diagnostics", "", "mdi:list-status", "config", "", "state");
   sendHasEntities ("restart", "Restart device", "", "mdi:restart", "config", "", "reset");
-  sendHasEntities ("state", "Diagnostics", "", "mdi:list-status", "config", "", "state");
+  //Home Asssistant Camera
+  sendHasEntities (hostName, "cam", "", "mdi:video", "camera", "still");
+  mqttPublishPath("cmd", "still"); 
 }
 void sendMqttHasState(){  
   char* p = jsonBuff;
@@ -361,17 +394,16 @@ void sendMqttHasState(){
   mqttPublishPath("wifi_rssi", p);
   sprintf(p, "%s", WiFi.localIP().toString().c_str());
   mqttPublishPath("wifi_ip", p);
-
   sprintf(p, "%s", fmtSize(ESP.getFreeHeap()) );
   mqttPublishPath("free_heap", p);
   sprintf(p, "%s", fmtSize(ESP.getFreePsram()) );
   mqttPublishPath("free_psram", p);
   sprintf(p, "%s", fmtSize(STORAGE.totalBytes() - STORAGE.usedBytes()) );
   mqttPublishPath("free_bytes", p);
-  if (isCapturing) mqttPublishPath("recording", "on");
+  
+  if (isCapturing) mqttPublishPath("record", "on");
   else mqttPublishPath("record", "off");
   mqttPublishPath("motion", "off");
 }
 #endif
-
 #endif
