@@ -3,6 +3,10 @@
 
 #include "appGlobals.h"
 
+#if (INCLUDE_HASIO && !INCLUDE_MQTT)
+#error "Need INCLUDE_MQTT true"
+#endif
+
 #if INCLUDE_MQTT
 #define CONFIG_MQTT_PROTOCOL_311
 #include "mqtt_client.h" 
@@ -10,7 +14,7 @@
 #if (!INCLUDE_CERTS)
 const char* mqtt_rootCACertificate = "";
 #endif
-#if (INCLUDE_MQTT_HASIO)
+#if (INCLUDE_HASIO)
 #define HASIO_AVAILABILITY "homeassistant/status"
 char image_topic[FILE_NAME_LEN] = "";  //Mqtt server topic to publish image payloads.
 void sendMqttHasDiscovery();
@@ -46,14 +50,13 @@ void mqtt_client_publish(const char* topic, const char* payload){
 }
 
 void mqttPublish(const char* payload) {
-  if (!strlen(mqtt_topic_prefix)) return; //Called before load config?    
+  if (!strlen(mqtt_topic_prefix)) return; //Called before load config?
   if (!strlen(mqttPublishTopic)) snprintf(mqttPublishTopic, FILE_NAME_LEN, "%ssensor/%s/state", mqtt_topic_prefix, hostName);
   mqtt_client_publish(mqttPublishTopic, payload);
 }
 
 void mqttPublishPath(const char* suffix, const char* payload, const char *device) {
-  char topic[2*FILE_NAME_LEN];
-
+  char topic[2 * FILE_NAME_LEN];
   if (!strlen(mqtt_topic_prefix)) return;
   snprintf(topic, 2 * FILE_NAME_LEN, "%s%s/%s/%s", mqtt_topic_prefix, device, hostName, suffix);
   mqtt_client_publish(topic, payload);
@@ -71,7 +74,7 @@ static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, in
   }
   else LOG_VRB("Mqtt subscribed: %s", cmd_topic );
 
-#if (INCLUDE_MQTT_HASIO)
+#if (INCLUDE_HASIO)
   sendMqttHasDiscovery();
   vTaskDelay(1000 / portTICK_RATE_MS);   
   sendMqttHasState();
@@ -92,7 +95,7 @@ static void mqtt_data_handler(void *handler_args, esp_event_base_t base, int32_t
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   LOG_VRB("Mqtt topic=%.*s ", event->topic_len, event->topic);
   LOG_VRB("Mqtt data=%.*s ", event->data_len, event->data);
-#if INCLUDE_MQTT_HASIO
+#if INCLUDE_HASIO
   if(strncmp(event->topic, HASIO_AVAILABILITY, event->topic_len) == 0){
     sendMqttHasDiscovery();
     vTaskDelay(1000 / portTICK_RATE_MS);   
@@ -165,7 +168,7 @@ void checkForRemoteQuery() {
         } else if (!strcmp(query, "status?q")) {
           buildJsonString(true);
           mqttPublishPath("status", jsonBuff);
-#if (INCLUDE_MQTT_HASIO)          
+#if (INCLUDE_HASIO)          
         } else if (!strcmp(query, "still")) {
            sendMqttImage();
            sendMqttHasState();
@@ -287,7 +290,7 @@ void startMqttClient(void){
   }
 }
 
-#if (INCLUDE_MQTT_HASIO)
+#if (INCLUDE_HASIO)
 void sendHasEntities (const char *name, const char *displayName, const char *units = "",
                       const char *icon = "", const char *category = "", const char *topic = "",
                       const char *payload_on = "",const char *payload_off = ""){

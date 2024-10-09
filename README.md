@@ -12,7 +12,7 @@ The application supports:
 * Alert notification using [Telegram](#telegram-bot) or Email
 * Concurrent streaming to web browser and [remote NVR](#stream-to-nvr)
 * Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
-* [MQTT](#mqtt) control.
+* [MQTT](#mqtt) control with Home Assistant integration.
 * [External Heartbeat](#external-heartbeat) support.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led
 * Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9350, SSD1306, LCD1602, etc
@@ -26,9 +26,10 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
 
-Changes in version 10.3:
+Changes in version 10.4:
 * Change to [installation](#installation) instructions for ESP32 and ESP32S3
 * Support for [I2C devices](#i2c-devices) sharing two of the camera pins
+* [Home Assistant MQTT](#home-assistant-mqtt-camera-integration) camera integration
 
 
 ## Purpose
@@ -280,27 +281,28 @@ To enable MQTT, under **Edit Config** -> **Others** tab, enter fields:
 * optionally `Mqtt user name` and `Mqtt user password`
 * Then set `Mqtt enabled` 
 
-Mqtt will auto connect if configuration is not blank on ping success.
+MQTT will auto connect if configuration is not blank on ping success.
 
 It will send messages e.g. Record On/Off Motion On/Off to the mqtt broker on channel /status.  
-topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/state -> {"MOTION":"ON", "TIME":"10:07:47.560"}`
+topic: `homeassistant/sensor/{esp cam hostname}/state -> {"MOTION":"ON", "TIME":"10:07:47.560"}`
 
-You can also publish control commands to the /cmd channel in order to control camera.  
-topic: `homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/cmd -> dbgVerbose=1;framesize=7;fps=1`
+You can also publish control commands to the /cmd channel in order to control camera.
+topic: `homeassistant/sensor/{esp cam hostname}/cmd -> dbgVerbose=1;framesize=7;fps=1`
 
 To incorporate, set `#define INCLUDE_MQTT` to `true`.
 
-## MQTT Home Assistant device auto discovery
+### Home assistant MQTT camera integration
 
-To enable set `#define INCLUDE_MQTT_HASIO` to `true` .
+Integration with Home Assistant [MQTT Camera](https://www.home-assistant.io/integrations/camera.mqtt/) contributed by [@gemi254](https://github.com/gemi254) - send mqtt discovery messages to:
+* publish an image payload on motion detection that will be displayed on the dashboard
+* automatically create a home assistant camera device inside mqtt devices integration.
+* publish motion on/off messages on channel `homeassistant/sensor/{esp cam hostname}/motion` that can be used for home automations.
+* publish an image payload on motion detection that will be displayed on the dashboard.
 
-It will send mqtt discovery messages to automatically create a home assistant camera device inside mqtt devices integration.
+To incorporate set `#define INCLUDE_HASIO` to `true`.
 
-It will publish motion on/off messages on channel homeassistant/sensor/ESP-CAM_MJPEG_904CAAF23A08/motion that can be used for home automations.
+<a href="extras/hasio_device.png"><img src="extras/hasio_device.png" width="500" height="350"></a>
 
-The device will also publish an image payload on motion detection that will be displayed on the dashboard.
-
-<a href="extras/hasio_device.png"><img src="extras/hasio_device.png" width="300" height="250"></a>
 
 ## External Heartbeat
 
