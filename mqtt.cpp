@@ -376,7 +376,11 @@ void sendMqttHasDiscovery(){
   sendHasEntities ("restart", "Restart device", "", "mdi:restart", "config", "", "reset");
   //Home Asssistant Camera
   sendHasEntities (hostName, "cam", "", "mdi:video", "camera", "still");
-  mqttPublishPath("cmd", "still"); 
+  mqttPublishPath("cmd", "still");
+    
+  if (isCapturing) mqttPublishPath("record", "on");
+  else mqttPublishPath("record", "off");
+  mqttPublishPath("motion", "off"); 
 }
 void sendMqttHasState(){  
   char* p = jsonBuff;
@@ -400,10 +404,6 @@ void sendMqttHasState(){
   mqttPublishPath("free_psram", p);
   sprintf(p, "%s", fmtSize(STORAGE.totalBytes() - STORAGE.usedBytes()) );
   mqttPublishPath("free_bytes", p);
-  
-  if (isCapturing) mqttPublishPath("record", "on");
-  else mqttPublishPath("record", "off");
-  mqttPublishPath("motion", "off");
 }
 #endif
 #endif
