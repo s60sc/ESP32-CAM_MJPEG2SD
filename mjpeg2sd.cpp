@@ -318,6 +318,13 @@ static bool closeAvi() {
   aviFile.close();
   LOG_VRB("Final SD storage time %lu ms", millis() - cTime);
   uint32_t hTime = millis();
+#if INCLUDE_MQTT
+  if (mqtt_active) {
+    sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
+    mqttPublish(jsonBuff);
+    mqttPublishPath("record", "off");
+  }
+#endif
   if (vidDurationSecs >= minSeconds) {
     // name file to include actual dateTime, FPS, duration, and frame count
     int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%lu%s%s.%s", 
@@ -349,13 +356,6 @@ static bool closeAvi() {
     LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
     checkMemory();
     LOG_INF("*************************************");
-#if INCLUDE_MQTT
-    if (mqtt_active) {
-      sprintf(jsonBuff, "{\"RECORD\":\"OFF\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
-      mqttPublish(jsonBuff);
-      mqttPublishPath("record", "off");
-    }
-#endif
 #if INCLUDE_FTP_HFS
     if (autoUpload) {
       if (deleteAfter) {

@@ -911,7 +911,7 @@ mqtt_broker~~2~T~Mqtt server ip to connect
 mqtt_port~1883~2~N~Mqtt server port
 mqtt_user~~2~T~Mqtt user name
 mqtt_user_Pass~~2~T~Mqtt user password
-mqtt_topic_prefix~homeassistant/sensor/~2~T~Mqtt topic path prefix
+mqtt_topic_prefix~homeassistant/~2~T~Mqtt topic path prefix
 external_heartbeat_active~0~2~C~External Heartbeat Server enabled
 external_heartbeat_domain~~2~T~Heartbeat receiver domain or IP (eg. www.espsee.com)
 external_heartbeat_uri~~2~T~Heartbeat receiver URI (eg. /heartbeat/)

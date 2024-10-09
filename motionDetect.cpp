@@ -266,6 +266,9 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
         sprintf(jsonBuff, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}",esp_log_system_timestamp());
         mqttPublish(jsonBuff);
         mqttPublishPath("motion", "on");
+#if INCLUDE_MQTT_HASIO
+        mqttPublishPath("cmd", "still");       
+#endif        
       }
 #endif
     } 
