@@ -376,9 +376,9 @@ static void predefPins() {
 #if defined(I2S_SD)
   char micPin[3];
   sprintf(micPin, "%d", I2S_SD);
-  updateStatus("micSWsPin", micPin);
-  sprintf(micPin, "%d", I2S_WS);
   updateStatus("micSdPin", micPin);
+  sprintf(micPin, "%d", I2S_WS);
+  updateStatus("micSWsPin", micPin);
   sprintf(micPin, "%d", I2S_SCK);
   updateStatus("micSckPin", micPin);
 #endif
