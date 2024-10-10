@@ -338,6 +338,8 @@ To obtain `your_router_external_ip` value, use eg: https://api.ipify.org
 Set a static IP address for your ESP camera device.  
 For security, **Authentication settings** should be defined in **Access Settings** sidebar button.
 
+Note that some internet providers will use [CGNAT](https://en.wikipedia.org/wiki/Carrier-grade_NAT), which will make port forwarding hard to achieve or impossible (you might need to contact your ISP and ask them for a solution if they are willing to help).
+
 ## I2C Devices
 
 <img align=right src="extras/I2C.jpg" width="300" height="450">
