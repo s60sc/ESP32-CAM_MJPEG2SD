@@ -336,7 +336,7 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
     httpd_resp_sendstr_chunk(req, "MJPE2SD");
     httpd_resp_sendstr_chunk(req, "°C</text></svg>");
     httpd_resp_sendstr_chunk(req, NULL);
-  }
+  } else return ESP_FAIL;
   return ESP_OK;
 }
 

@@ -208,8 +208,8 @@ static esp_err_t controlHandler(httpd_req_t *req) {
     }
     if (!strcmp(variable, "startOTA")) snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, value); 
     else {
-      updateStatus(variable, value);
-      appSpecificWebHandler(req, variable, value); 
+      // if not handled by appSpecificWebHandler(), try updateStatus()
+      if (appSpecificWebHandler(req, variable, value) == ESP_FAIL) updateStatus(variable, value);
     }
   }
   httpd_resp_sendstr(req, NULL); 

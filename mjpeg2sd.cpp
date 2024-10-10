@@ -401,12 +401,18 @@ static boolean processFrame() {
     keepFrame(fb);
     doKeepFrame = false;
   }
-  // determine if time to monitor, then get motion capture status
-  if (!forceRecord && useMotion && doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
+  // determine if time to monitor
+  if (useMotion && doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
+  if (!useMotion && doMonitor(true)) checkMotion(fb, false, true); // calc light level only
+  
 #if INCLUDE_PERIPH
   if (pirUse) {
     pirVal = getPIRval();
-    if (!pirVal && !isCapturing && !useMotion && doMonitor(isCapturing)) checkMotion(fb, isCapturing); // to update light level
+    if (pirVal && !isCapturing) {
+      // start of PIR detection, switch on lamp if requested
+      if (lampAuto && nightTime) setLamp(lampLevel);
+      notifyMotion(fb);
+    } 
   }
 #endif
 
@@ -417,10 +423,7 @@ static boolean processFrame() {
     else if (!forceRecord && wasRecording) wasRecording = false;
     
     if (isCapturing && !wasCapturing) {
-      // movement has occurred, start recording, and switch on lamp if night time
-#if INCLUDE_PERIPH
-      if (lampAuto && nightTime) setLamp(lampLevel); // switch on lamp if PIR
-#endif
+      // movement has occurred, start recording
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
       LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");

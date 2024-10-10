@@ -97,7 +97,7 @@
 #include "camera_pins.h"
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "132" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -105,7 +105,7 @@
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.4"
+#define APP_VER "10.4.1"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -239,7 +239,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = 
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
 void buzzerAlert(bool buzzerOn);
-bool checkMotion(camera_fb_t* fb, bool motionStatus);
+bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly = false);
 int8_t checkPotVol(int8_t adjVol);
 bool checkSDFiles();
 void currentStackUsage();
@@ -258,6 +258,7 @@ bool isNight(uint8_t nightSwitch);
 void keepFrame(camera_fb_t* fb);
 void micTaskStatus();
 void motorSpeed(int speedVal, bool leftMotor = true);
+void notifyMotion(camera_fb_t* fb);
 void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
@@ -374,7 +375,7 @@ extern int uartRxdPin;
 
 // peripherals used
 extern bool pirUse; // true to use PIR or radar sensor (RCWL-0516) for motion detection
-extern bool lampAuto; // if true in conjunction with usePir & useLamp, switch on lamp when PIR activated
+extern bool lampAuto; // if true in conjunction with usePir, switch on lamp when PIR activated
 extern bool lampNight;
 extern int lampType;
 extern bool voltUse; // true to report on ADC pin eg for for battery

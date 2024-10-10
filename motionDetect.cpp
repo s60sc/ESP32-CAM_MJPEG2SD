@@ -164,7 +164,7 @@ static bool tinyMLclassify() {
 }
 #endif
 
-bool checkMotion(camera_fb_t* fb, bool motionStatus) {
+bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   // check difference between current and previous image (subtract background)
   // convert image from JPEG to downscaled RGB888 or 8 bit grayscale bitmap
   uint32_t dTime = millis();
@@ -233,78 +233,86 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus) {
   nightTime = isNight(nightSwitch);
   memcpy(prevBuff, currBuff, resizeDimLen); // save image for next comparison 
   LOG_VRB("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
+  if (lightLevelOnly) return false; // no motion checking, only calc of light level
 
-  dTime = millis();
-  if (!nightTime && changeCount > moveThreshold) {
-    LOG_VRB("### Change detected");
-    motionCnt++; // number of consecutive changes
-    // need minimum sequence of changes to signal valid movement
-    if (!motionStatus && motionCnt >= detectMotionFrames) {
-      LOG_VRB("***** Motion - START");
-      motionStatus = true; // motion started
-#if INCLUDE_TINYML
-      // pass image to TinyML for classification
-      if (!dbgMotion && mlUse) if (!tinyMLclassify()) motionCnt = 0; // not classified, so cancel motion
-#endif
-      if (motionCnt) { // in case unset by tinyMLclassify()
-#if INCLUDE_SMTP
-        if (smtpUse) {
-          // send email with movement image
-          keepFrame(fb);
-          char subjectMsg[50];
-          snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s", hostName);
-          emailAlert("Motion Alert", subjectMsg);
-        } 
-#endif
-#if INCLUDE_TGRAM
-        if (tgramUse) keepFrame(fb); // for telegram, wait till filename available
-#endif
-      }
+  if (dbgMotion) {
+    // show motion detection during streaming for tuning
+    if (!motionJpegLen) {
+      // ready to setup next movement map for streaming
       dTime = millis();
-#if INCLUDE_MQTT
-      if (mqtt_active && motionCnt) {
-        sprintf(jsonBuff, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}",esp_log_system_timestamp());
-        mqttPublish(jsonBuff);
-        mqttPublishPath("motion", "on");
-#if INCLUDE_HASIO
-        mqttPublishPath("cmd", "still");
+      // build jpeg of changeMap for debug streaming
+      if (!fmt2jpg(changeMap, resizeDimLen, RESIZE_DIM, RESIZE_DIM, PIXFORMAT_RGB888, JPEG_QUAL, &jpg_buf, &motionJpegLen))
+        LOG_WRN("motionDetect: fmt2jpg() failed"); 
+      memcpy(motionJpeg, jpg_buf, motionJpegLen); 
+      free(jpg_buf); // releases 128kB in to_jpg.cpp
+      jpg_buf = NULL;
+      xSemaphoreGive(motionSemaphore);
+      LOG_VRB("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime);
+    }
+  } else {
+    // normal motion detection
+    dTime = millis();
+    if (!nightTime && changeCount > moveThreshold) {
+      LOG_VRB("### Change detected");
+      motionCnt++; // number of consecutive changes
+      // need minimum sequence of changes to signal valid movement
+      if (!motionStatus && motionCnt >= detectMotionFrames) {
+        LOG_VRB("***** Motion - START");
+        motionStatus = true; // motion started
+#if INCLUDE_TINYML
+        // pass image to TinyML for classification
+        if (mlUse) if (!tinyMLclassify()) motionCnt = 0; // not classified, so cancel motion
 #endif
+        if (motionCnt) notifyMotion(fb);
+        dTime = millis();
+#if INCLUDE_MQTT
+        if (mqtt_active && motionCnt) {
+          sprintf(jsonBuff, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
+          mqttPublish(jsonBuff);
+          mqttPublishPath("motion", "on");
+#if INCLUDE_HASIO
+          mqttPublishPath("cmd", "still");
+#endif
+        }
+#endif
+      } 
+    } else motionCnt = 0;
+  
+    if (motionStatus && !motionCnt) {
+      // insufficient change or motion not classified
+      LOG_VRB("***** Motion - STOP");
+      motionStatus = false; // motion stopped
+#if INCLUDE_MQTT
+      if (mqtt_active) {
+        sprintf(jsonBuff, "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
+        mqttPublish(jsonBuff);
+        mqttPublishPath("motion", "off");
       }
 #endif
     } 
-  } else motionCnt = 0;
-
-  if (motionStatus && !motionCnt) {
-    // insufficient change or motion not classified
-    LOG_VRB("***** Motion - STOP");
-    motionStatus = false; // motion stopped
-#if INCLUDE_MQTT
-    if (mqtt_active) {
-      sprintf(jsonBuff, "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
-      mqttPublish(jsonBuff);
-      mqttPublishPath("motion", "off");
-    }
-#endif
-  } 
-  if (motionStatus) LOG_VRB("*** Motion - ongoing %u frames", motionCnt);
-
-  if (dbgMotion && !motionJpegLen) {
-    // ready to setup next movement map for streaming
-    dTime = millis();
-    // build jpeg of changeMap for debug streaming
-    if (!fmt2jpg(changeMap, resizeDimLen, RESIZE_DIM, RESIZE_DIM, PIXFORMAT_RGB888, JPEG_QUAL, &jpg_buf, &motionJpegLen))
-      LOG_WRN("motionDetect: fmt2jpg() failed"); 
-    memcpy(motionJpeg, jpg_buf, motionJpegLen); 
-    free(jpg_buf); // releases 128kB in to_jpg.cpp
-    jpg_buf = NULL;
-    xSemaphoreGive(motionSemaphore);
-    LOG_VRB("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime);
+    if (motionStatus) LOG_VRB("*** Motion - ongoing %u frames", motionCnt);
   }
-
+  
   if (dbgVerbose) checkMemory();  
   LOG_VRB("============================");
   // motionStatus indicates whether motion previously ongoing or not
   return nightTime ? false : motionStatus;
+}
+
+void notifyMotion(camera_fb_t* fb) {
+  // send out notification of motion if requested
+#if INCLUDE_SMTP
+  if (smtpUse) {
+    // send email with movement image
+    keepFrame(fb);
+    char subjectMsg[50];
+    snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s", hostName);
+    emailAlert("Motion Alert", subjectMsg);
+  } 
+#endif
+#if INCLUDE_TGRAM
+  if (tgramUse) keepFrame(fb); // for telegram, wait till filename available
+#endif
 }
 
 /************* copied and modified from esp32-camera/to_bmp.c to access jpg_scale_t *****************/

@@ -148,12 +148,9 @@ static void emailTask(void* parameter) {
   if (emailCount < alertMax) { 
     // send email if under daily limit
     if (emailSend()) LOG_ALT("Sent daily email %u", emailCount + 1);
-    else {
-      LOG_WRN("Failed to send email");
-      emailCount = alertMax;
-    }
+    else LOG_WRN("Failed to send email");
   }
-  if (++emailCount == alertMax) LOG_WRN("Daily email limit %u reached", alertMax);
+  if (++emailCount >= alertMax) LOG_WRN("Daily email limit %u reached", alertMax);
   emailHandle = NULL;
   vTaskDelete(NULL);
 }
