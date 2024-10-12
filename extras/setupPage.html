@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Application setup</title>
+<style>body{background-color:#e0f7fa;font-family:Arial,sans-serif}.dropdown{position:relative;display:inline-block;width:calc(100%)}.dropdown-content{display:none;position:absolute;background-color:#fff;width:100%;box-shadow:0 8px 16px 0 rgba(0,0,0,0.2);z-index:1;overflow:hidden;white-space:nowrap}.dropdown-content div,.dropdown-content button{color:black;padding:12px 16px;text-decoration:none;display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:0;cursor:pointer}.dropdown-content div:hover,.dropdown-content button:hover{background-color:#f1f1f1}.network-details{display:flex;align-items:center;gap:8px}.signal-icon{width:16px;height:16px;background-image:url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAAAQCAMAAADeZIrLAAAAJFBMVEX///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADHJj5lAAAAC3RSTlMAIjN3iJmqu8zd7vF8pzcAAABsSURBVHja7Y1BCsAwCASNSVo3/v+/BUEiXnIoXkoX5jAQMxTHzK9cVSnvDxwD8bFx8PhZ9q8FmghXBhqA1faxk92PsxvRc2CCCFdhQCbRkLoAQ3q/wWUBqG35ZxtVzW4Ed6LngPyBU2CobdIDQ5oPWI5nCUwAAAAASUVORK5CYII=');background-size:96px 16px;position:absolute;right:16px}.wpa-text{position:absolute;right:64px;font-size:.3em}.encryption-icon{position:absolute;right:32px;font-size:1em}.input{width:calc(100% - 32px);padding:12px 16px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;display:inline-block}.center-button{display:flex;justify-content:center}.styled-button{background-color:#007bff;color:white;border:0;padding:10px 20px;text-align:center;text-decoration:none;display:inline-block;font-size:16px;margin:4px 2px;cursor:pointer;border-radius:4px}.styled-button:hover{background-color:#0056b3}</style>
+</head>
+<script>let ssidList=[];function fetchSSIDs(){const ssidSelect=document.getElementById('ST_SSID');ssidSelect.placeholder='Loading...';const scanButton=document.getElementById('scan-button');if(scanButton){scanButton.textContent='Scanning...';scanButton.disabled=true;}
+fetch('/wifi').then(response=>response.json()).then(data=>{ssidList=data.networks;updateDropdown();ssidSelect.placeholder='Select your SSID';if(scanButton){scanButton.textContent='Scan';scanButton.disabled=false;}}).catch(error=>{console.error('Error fetching SSIDs:',error);ssidSelect.placeholder='Select your SSID';if(scanButton){scanButton.textContent='Scan';scanButton.disabled=false;}});}
+function updateDropdown(){const dropdownContent=document.getElementById('dropdown-content');dropdownContent.innerHTML='';let longestSSID='';ssidList.forEach(network=>{if(network.ssid.length>longestSSID.length){longestSSID=network.ssid;}});const tempElement=document.createElement('span');tempElement.style.visibility='hidden';tempElement.style.whiteSpace='nowrap';tempElement.textContent=longestSSID;document.body.appendChild(tempElement);const dropdownWidth=tempElement.offsetWidth+100;document.body.removeChild(tempElement);dropdownContent.style.width=`${dropdownWidth}px`;ssidList.forEach(network=>{let signalStrength;if(network.strength>=-65){signalStrength=4;}else if(network.strength>=-75){signalStrength=3;}else if(network.strength>=-85){signalStrength=2;}else if(network.strength>=-95){signalStrength=1;}else{signalStrength=0;}
+const div=document.createElement('div');const encryptionStatus=network.encryption==='Open'?'🔓':'🔒';div.innerHTML=`<span>${network.ssid}</span><div class="network-details"><span class="encryption-icon">${encryptionStatus}</span><span class="signal-icon"style="background-position: -${signalStrength * 16}px 0;"alt="Signal Strength"></span></div>`;div.onclick=()=>{document.getElementById('ST_SSID').value=network.ssid;dropdownContent.style.display='none';};dropdownContent.appendChild(div);});const scanButton=document.createElement('button');scanButton.id='scan-button';scanButton.textContent='Scan';scanButton.classList.add('center-button');scanButton.onclick=fetchSSIDs;dropdownContent.appendChild(scanButton);}
+function toggleDropdown(){const dropdownContent=document.getElementById('dropdown-content');dropdownContent.style.display=dropdownContent.style.display==='block'?'none':'block';}
+function hideDropdown(event){const dropdownContent=document.getElementById('dropdown-content');if(!event.target.closest('.dropdown')){dropdownContent.style.display='none';}}
+function Config(){if(!window.confirm('This will reboot the device to activate new settings.'))return false;fetch('/control?ST_SSID='+encodeURI(document.getElementById('ST_SSID').value)).then(r=>{console.log(r);return fetch('/control?ST_Pass='+encodeURI(document.getElementById('ST_Pass').value))}).then(r=>{console.log(r);return fetch('/control?save=1')}).then(r=>{console.log(r);return fetch('/control?reset=1')}).then(r=>{console.log(r);});return false;}
+window.onload=fetchSSIDs;document.addEventListener('click',hideDropdown);</script>
+<body>
+<br>
+<center>
+<table border=0>
+<tr>
+<th colspan=3>Wifi setup..</th>
+</tr>
+<tr>
+<td colspan=3></td>
+</tr>
+<tr>
+<td colspan=3>
+<label for=ST_SSID>SSID</label>
+<div class=dropdown>
+<input id=ST_SSID name=ST_SSID placeholder=Loading... class=input onclick=toggleDropdown() autocomplete=off>
+<div id=dropdown-content class=dropdown-content></div>
+</div>
+</td>
+</tr>
+<tr>
+<td colspan=3>
+<label for=ST_Pass>Password</label>
+<input id=ST_Pass name=ST_Pass length=64 placeholder="Router password" class=input autocomplete=off>
+</td>
+</tr>
+<tr>
+<td colspan=3></td>
+</tr>
+<tr>
+<td colspan=3 align=center>
+<button type=button class=styled-button onClick="return Config()">Connect</button>
+<button type=button class=styled-button onclick=window.location.reload()>Cancel</button>
+</td>
+</tr>
+</table>
+<br /><br /><a href=/web?OTA.htm><button class=styled-button>OTA
+Update</button></a>
+</center>
+</body>
+</html>
