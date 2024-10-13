@@ -30,7 +30,7 @@ Changes in version 10.4:
 * Change to [installation](#installation) instructions for ESP32 and ESP32S3
 * Support for [I2C devices](#i2c-devices) sharing two of the camera pins
 * [Home Assistant MQTT](#home-assistant-mqtt-camera-integration) camera integration
-
+* Enhanced initial setup web page (contributed by [@rjsachse](https://github.com/rjsachse))
 
 ## Purpose
 
@@ -86,7 +86,7 @@ using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#iss
 * **If you get warning: `Crash loop detected, check log`, it is usually an inadequate power supply.**
 
 
-On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router and password details to be entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
+On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router to be selected and router password entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
 
 Subsequent updates to the application, or to the **/data** folder files, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab, or by using a WebDAV client.
 

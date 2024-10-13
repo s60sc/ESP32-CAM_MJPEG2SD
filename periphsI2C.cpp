@@ -127,7 +127,7 @@ void prepI2Ccam(int camSda, int camScl) {
 #define SSD1306_BIaddr 0x3d // built in oled 
 #define SSD1306_Extaddr 0x3c // external oled (also address for OV5640
 #if USE_SSD1306
-#include "SSD1306Wire.h" 
+#include "SSD1306Wire.h" // https://github.com/ThingPulse/esp8266-oled-ssd1306
 SSD1306Wire oledBI(SSD1306_BIaddr);
 SSD1306Wire oledExt(SSD1306_Extaddr);
 SSD1306Wire* thisOled;
@@ -190,7 +190,7 @@ void finalMsg(const char* finalTxt) {
     thisOled->resetDisplay();
     oledLine(finalTxt,0,0,128,16);
     thisOled->display();
-    delay(2000); //// keep tag displayed
+    delay(2000); // keep tag displayed
   }
 }
 #endif
@@ -228,7 +228,7 @@ byte* getPCF8591() { // analog channels
 #define STD_PRESSURE 1013.25 // reference pressure in mB/hPa at sea level
 #define DEGREE_SYMBOL "\xC2\xB0"
 
-#include <BMx280I2C.h>
+#include <BMx280I2C.h> // https://github.com/christandlg/BMx280MI
 BMx280I2C bmxDef(BMx280_Def); 
 BMx280I2C bmxAlt(BMx280_Alt);
 BMx280I2C* thisBmx;
@@ -367,7 +367,7 @@ NCS: n/a
 CSB: I2C Address selection BMP280
 */
 #if USE_MPU9250
-#include "MPU9250.h"
+#include "MPU9250.h" // https://github.com/hideakitai/MPU9250
 // accel axis orientation on GY-91:                      
 // - X : short side (pitch)
 // - Y : long side (roll)
@@ -424,7 +424,7 @@ float* getMPU9250() {
 #define DS3231_RTC 0x68 // real time clock (address may conflict with MPU6050)
 #if USE_DS3231
 #include "driver/rtc_io.h"
-#include <RtcDS3231.h>
+#include <RtcDS3231.h> // https://github.com/Makuna/Rtc/wiki
 RtcDS3231<TwoWire> Rtc(Wire);
 
 static bool DS3231ok = false;
