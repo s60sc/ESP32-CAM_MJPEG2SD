@@ -117,9 +117,11 @@ static esp_err_t indexHandler(httpd_req_t* req) {
   // Show wifi wizard if not setup, using access point mode  
   if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
-    httpd_resp_set_type(req, "text/html");                             
-    return httpd_resp_sendstr(req, setupPage_html);
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    return httpd_resp_send(req, (const char*)setupPage_html_gz, setupPage_html_gz_len);
   } else if (!checkAuth(req)) return ESP_OK; // check if authentication required & passed
+
 
   return fileHandler(req);
 }
@@ -347,6 +349,52 @@ esp_err_t uploadHandler(httpd_req_t *req) {
   return res;
 }
 
+const char* getEncryptionType(wifi_auth_mode_t encryptionType) {
+  switch (encryptionType) {
+    case WIFI_AUTH_OPEN:
+      return "Open";
+    case WIFI_AUTH_WEP:
+      return "WEP";
+    case WIFI_AUTH_WPA_PSK:
+      return "WPA_PSK";
+    case WIFI_AUTH_WPA2_PSK:
+      return "WPA2_PSK";
+    case WIFI_AUTH_WPA_WPA2_PSK:
+      return "WPA_WPA2_PSK";
+    case WIFI_AUTH_WPA2_ENTERPRISE:
+      return "WPA2_ENTERPRISE";
+    default:
+      return "Unknown";
+  }
+}
+
+static esp_err_t wifiHandler(httpd_req_t *req) {
+  // Scan for WiFi networks
+  int w = WiFi.scanNetworks();
+  // Start building the JSON string
+  String jsonString = "{\"networks\":[";
+  // Populate the JSON string with scan results
+  for (int i = 0; i < w; ++i) {
+    if (i > 0) {
+      jsonString += ",";
+    }
+    jsonString += "{\"ssid\":\"" + String(WiFi.SSID(i)) + "\",";
+    jsonString += "\"encryption\":\"" + String(getEncryptionType(WiFi.encryptionType(i))) + "\",";
+    jsonString += "\"strength\":" + String(WiFi.RSSI(i)) + "}";
+  }
+  // Close the JSON array and object
+  jsonString += "]}";
+  // Set the response type to JSON
+  httpd_resp_set_type(req, "application/json");
+  // Add CORS headers ONLT FOR TESTING !!!
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
+  // Send the JSON string as the response
+  httpd_resp_sendstr(req, jsonString.c_str());
+  return ESP_OK;
+}
+
 void showHttpHeaders(httpd_req_t *req) {
   // httpd_req_aux struct members hidden so need to access them via offsets
   // to calculate offset any element not on 4 byte boundary has to be packed
@@ -527,6 +575,7 @@ void startWebServer() {
   httpd_uri_t uploadUri = {.uri = "/upload", .method = HTTP_POST, .handler = uploadHandler, .user_ctx = NULL};
   httpd_uri_t sustainUri = {.uri = "/sustain", .method = HTTP_GET, .handler = appSpecificSustainHandler, .user_ctx = NULL};
   httpd_uri_t checkUri = {.uri = "/sustain", .method = HTTP_HEAD, .handler = appSpecificSustainHandler, .user_ctx = NULL};
+  httpd_uri_t wifiUri = {.uri = "/wifi", .method = HTTP_GET, .handler = wifiHandler, .user_ctx = NULL};
 
   if (res == ESP_OK) {
     httpd_register_uri_handler(httpServer, &indexUri);
@@ -538,6 +587,7 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &uploadUri);
     httpd_register_uri_handler(httpServer, &sustainUri);
     httpd_register_uri_handler(httpServer, &checkUri);
+    httpd_register_uri_handler(httpServer, &wifiUri);
     httpd_register_err_handler(httpServer, HTTPD_404_NOT_FOUND, customOrNotFoundHandler);
 
     LOG_INF("Starting web server on port: %u", useHttps ? HTTPS_PORT : HTTP_PORT);
