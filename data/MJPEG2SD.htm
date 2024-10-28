@@ -1307,7 +1307,7 @@
                   </div>
                   <div class="input-group" id="time-group">
                     <label for="regionSel">Select Region</label>
-                    <select id="regionSel" name="regionSel" class="selectField">
+                    <select id="regionSel" name="regionSel" class="selectField local">
                       <option value="" selected>Loading...</option>
                     </select>
                   </div>
@@ -2479,7 +2479,7 @@
         });
 
         // Log the timeZonesByRegion for debugging
-        console.log('Time Zones by Region:', timeZonesByRegion);
+        //console.log('Time Zones by Region:', timeZonesByRegion);
       } catch (error) {
         console.error('Failed to fetch time zones:', error);
       }
