@@ -15,12 +15,12 @@ The application supports:
 * [MQTT](#mqtt) control with Home Assistant integration.
 * [External Heartbeat](#external-heartbeat) support.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led
-* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9350, SSD1306, LCD1602, etc
+* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9350, SSD1306, LCD1602, etc.
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
 * Use of [Auxiliary Board](#auxiliary-board) for additional pins.
-* [Intercom](#intercom) feature using mic and speaker on ESP and mic and speaker on user device.
+* [Intercom](#intercom) feature using mic and speaker on ESP and mic and speaker on user device browser.
 
 The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, but avoid no-name boards marked `ESPS3 RE:1.0`
 
@@ -168,14 +168,18 @@ The **Peripherals** tab also enables further config tabs to be displayed:
 
 After changes are applied, need to press `Save` then `Reboot ESP` to restart peripherals with changes.
 
-Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 33.
+Note that there are not enough free pins on the ESP32 camera module to allow all external sensors to be used. Pins that can be used (with some limitations) are: 3, 4, 12, 13, 26, 27 32, 33.
 * pin 3: Labelled U0R. Only use as input pin, as also used for flashing. 
 * pin 4: Also used for onboard lamp. Lamp can be disabled by removing its current limiting resistor. 
 * pin 12: Only use as output pin.
 * pin 13: Is weakly pulled high.
+* pins 26, 27: I2C pins shareable with camera - see [I2C devices](#i2c-devices)
+* pin 32: Controls camera power on / off. Not broken out, but with electronics knowledge can be disconnected leaving camera permanently on by referring to the board schematic.
 * pin 33: Used by onboard red LED. Not broken out, but can repurpose the otherwise pointless VCC pin by removing its adjacent resistor marked 3V3, and the red LED current limiting resistor, then running a wire between the VCC pin and the red LED resistor solder tab.
 
-The ESP32S3 Freenove board can support all of the above peripherals with its spare pins.  
+Do not use any other exposed pin including pin 16 used by PSRAM.
+
+The ESP32S3 Freenove board can support multiple peripherals with its spare pins.
 The ESP32S3 XIAO Sense board has fewer free pins but more than the ESP32.
 
 On-board LEDs:
