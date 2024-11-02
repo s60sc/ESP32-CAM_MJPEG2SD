@@ -119,7 +119,7 @@ static void takePhoto() {
   delay(shutterTime);
   digitalWrite(pinShutter, LOW);
   if (pinFocus) digitalWrite(pinFocus, LOW);
-  LOG_INF("Photo %u of %u taken", photosDone + 1, numberOfPhotos);
+  if (photosDone < numberOfPhotos) LOG_INF("Photo %u of %u taken", photosDone + 1, numberOfPhotos);
 }
 
 static void pgramTask (void *pvParameter) {
