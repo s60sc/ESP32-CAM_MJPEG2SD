@@ -993,11 +993,11 @@
                   </div>
                   <div class="input-group" id="CamTilt-group">
                     <label for="camTilt">Camera Tilt</label>
-                    <input title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90">
+                    <input class="local" title="Set camera tilt angle" type="range" id="camTilt" min="0" max="180" value="90">
                   </div>
                   <div class="input-group" id="CamPan-group">
                     <label for="camPan">Camera Pan</label>
-                    <input title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90">
+                    <input class="local" title="Set camera pan angle" type="range" id="camPan" min="0" max="180" value="90">
                   </div>
                   <div class="input-group" id="lamp-group">
                     <label for="lampLevel">Lamp</label>
@@ -1470,7 +1470,7 @@
               <div class="RCcontrolFmt RClightsFmt" title="Switch RC lights on / off">  
                 <svg class="svgIcon">
                   <rect class="RCoff"/>
-                  <text class="RCcontrol" id="RClights">💡</text> 
+                  <text class="RCcontrol local" id="RClights">💡</text> 
                 </svg>
               </div>
               <div class="RCcontrolFmt RCsteerFmt">
@@ -1757,7 +1757,7 @@
           else if (key == "download" && $("#download").value.includes('.')) doDownload();
           else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
           else if (key == "devHub") {value == "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]')); }
-          else if (key == "AuxIP") wsAux(value);
+          else if (key == "AuxIP") { wsAux(value); return; }
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
           else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
           else if (key == "agc") setAgc(key, value);
@@ -1782,8 +1782,8 @@
           else if (key == "waitTime") waitTime = value;
           else if (key == "camTilt") { wsAuxSend("T" + value, wsInd); }
           else if (key == "camPan") { wsAuxSend("P" + value, wsInd); }
-          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend("G1", wsInd); }
-          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); }
+          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend("G1", wsInd); return;}
+          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); return;}
           else if (key == "lampPin") { value > 0 ? enableRangeSlider($('#lampLevel')) : disableRangeSlider($('#lampLevel')); }
           else if (key == "servoPanPin") { value > 0 ? enableRangeSlider($('#camPan')) : disableRangeSlider($('#camPan')); }
           else if (key == "servoTiltPin") { value > 0 ? enableRangeSlider($('#camTilt')) : disableRangeSlider($('#camTilt')); }
