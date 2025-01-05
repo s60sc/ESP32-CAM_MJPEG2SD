@@ -719,15 +719,6 @@ bool prepRecording() {
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
-  camera_fb_t* fb = esp_camera_fb_get();
-  if (fb == NULL) {
-    LOG_ERR("Failed to get camera frame - check camera hardware"); // usually a camera hardware / ribbon cable fault
-    return false;
-  }
-  else {
-    esp_camera_fb_return(fb);
-    fb = NULL;
-  }
   reloadConfigs(); // apply camera config
   startSDtasks();
 #if INCLUDE_TINYML
@@ -953,6 +944,18 @@ bool prepCam() {
       s->set_vflip(s, 1);
   #endif
       res = true;
+    }
+  }
+  // check that camera data is accessible
+  if (res) {
+    camera_fb_t* fb = esp_camera_fb_get();
+    if (fb == NULL) {
+      // usually a camera hardware / ribbon cable fault
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to get camera frame - check camera hardware"); 
+    } else {
+      esp_camera_fb_return(fb);
+      fb = NULL;
+      res = false;
     }
   }
   debugMemory("prepCam");
