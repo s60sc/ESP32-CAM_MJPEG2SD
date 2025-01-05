@@ -4,6 +4,9 @@
 
 #pragma once
 #include "globals.h"
+#if !CONFIG_IDF_TARGET_ESP32S3 && !CONFIG_IDF_TARGET_ESP32
+#error "Must select ESP32 or ESP32S3 board"
+#endif
 
 /**************************************************************************
  Uncomment one only of the ESP32 or ESP32S3 camera models in the block below
@@ -96,8 +99,8 @@
 #include "esp_camera.h"
 #include "camera_pins.h"
 
-//#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "132" // dev only
+#define DEV_ONLY // leave commented out
+#define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
