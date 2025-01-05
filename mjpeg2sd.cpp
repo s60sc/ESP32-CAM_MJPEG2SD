@@ -390,6 +390,12 @@ static boolean processFrame() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL || !fb->len || fb->len > MAX_JPEG) return false;
   timeLapse(fb);
+#if INCLUDE_RTSP
+  // Send frame via RTP
+  if(rtspServer.readyToSendFrame()) {
+    rtspServer.sendRTSPFrame(fb->buf, fb->len, quality, fb->width, fb->height);
+  }
+#endif
   for (int i = 0; i < vidStreams; i++) {
     if (!streamBufferSize[i] && streamBuffer[i] != NULL) {
       memcpy(streamBuffer[i], fb->buf, fb->len);

@@ -1598,6 +1598,12 @@
         <div>
           <svg>
             <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="streaming">Streaming</text>
+          </svg>
+        </div>
+        <div>
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
             <text class="local midText" id="motion">Motion</text>
           </svg>
         </div>
@@ -1741,6 +1747,7 @@
           else if (key == "refreshVal") refreshInterval = value * 1000; 
           else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
+          else if (key == "streaming") getConfig("012345678");
           else if (key == "motion") getConfig("01");
           else if (key == "other") getConfig("012");
           else if (key == "peripherals") getConfig("0123");
