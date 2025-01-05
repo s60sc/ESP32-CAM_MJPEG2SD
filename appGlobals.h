@@ -99,7 +99,7 @@
 #include "esp_camera.h"
 #include "camera_pins.h"
 
-#define DEV_ONLY // leave commented out
+//#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
