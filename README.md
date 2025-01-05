@@ -31,6 +31,7 @@ Changes in version 10.4:
 * Support for [I2C devices](#i2c-devices) sharing two of the camera pins
 * [Home Assistant MQTT](#home-assistant-mqtt-camera-integration) camera integration
 * Enhanced initial setup web page (contributed by [@rjsachse](https://github.com/rjsachse))
+* Updated for arduino-esp32 core v3.1.0
 
 ## Purpose
 
@@ -67,7 +68,7 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
-If compiling with at least arduino-esp32 core v3.0.3 which contains network fixes.
+Compile with at least arduino-esp32 core v3.0.3 which contains network fixes.
 Select the required ESP-CAM board by uncommenting ONE only of the `#define CAMERA_MODEL_*` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
 * Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM`  

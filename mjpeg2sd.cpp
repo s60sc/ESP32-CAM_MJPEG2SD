@@ -721,7 +721,7 @@ bool prepRecording() {
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL) {
-    LOG_WRN("Failed to get camera frame");
+    LOG_ERR("Failed to get camera frame - check camera hardware"); // usually a camera hardware / ribbon cable fault
     return false;
   }
   else {
@@ -755,7 +755,7 @@ bool prepRecording() {
     if (useMotion) LOG_INF("- move in front of camera");
   }
   logLine();
-  LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
+  LOG_INF("Camera model %s ready @ %uMHz", camModel, xclkMhz); 
   debugMemory("prepRecording");
   return true;
 }
@@ -924,7 +924,7 @@ bool prepCam() {
           strcpy(camModel, "Other");
         break;
       }
-      LOG_INF("Camera init OK for model %s on board %s", camModel, CAM_BOARD);
+      LOG_INF("Camera init OK for %s", camModel);
   
       // set frame size to configured value
       char fsizePtr[4];
