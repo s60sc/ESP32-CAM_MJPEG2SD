@@ -659,7 +659,9 @@ static void boardInfo() {
   const char* psramMode = "QSPI";
 #endif
   char memInfo[100] = "none";
+#if !CONFIG_IDF_TARGET_ESP32C3
   if (psramFound()) sprintf(memInfo, "%s, mode %s @ %dMhz", fmtSize(ESP.getPsramSize()), psramMode, CONFIG_SPIRAM_SPEED);
+#endif
   LOG_INF("PSRAM %s", memInfo);
 }
 
@@ -995,7 +997,7 @@ static void statsTask(void *arg) {
         break;
       }
 
-      printf("\nTask stats interval %ums on %u cores\n", (runCounter - prevRunCounter) / 1000, CONFIG_FREERTOS_NUMBER_OF_CORES);
+      printf("\nTask stats interval %lums on %u cores\n", (runCounter - prevRunCounter) / 1000, CONFIG_FREERTOS_NUMBER_OF_CORES);
       printf("\n| %-16s | %-10s | %-3s | %-4s | %-6s |\n", "Task name", "State", "Pri", "Core", "Core%");
       printf("|------------------|------------|-----|------|--------|\n"); 
       // Match each task in start_array to those in the end_array
