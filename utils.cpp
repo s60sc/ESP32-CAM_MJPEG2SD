@@ -24,6 +24,7 @@ RTC_NOINIT_ATTR char brownoutStatus;
 static void initBrownout(void);
 int wakePin; // if wakeUse is true
 bool wakeUse = false; // true to allow app to sleep and wake
+char* jsonBuff = NULL;
 
 /************************** Wifi **************************/
 
@@ -822,6 +823,7 @@ static void logTask(void *arg) {
 
 void logPrint(const char *format, ...) {
   // feeds logTask to format message, then outputs as required
+  if (logMutex == NULL) logSetup();
   if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(logWait)) == pdTRUE) {
     strncpy(fmtBuf, format, MAX_OUT);
     va_start(arglist, format); 
@@ -947,6 +949,8 @@ const char* encode64(const char* inp) {
 
 /************** task monitoring ***************/
 
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 1, 0)
+
 static const char* getTaskStateString(eTaskState state) {
   // 
   switch (state) { 
@@ -1022,6 +1026,7 @@ void runTaskStats() {
   // Create and start stats task
   xTaskCreatePinnedToCore(statsTask, "statsTask", 4096, NULL, STATS_TASK_PRIO, NULL, tskNO_AFFINITY);
 }
+#endif
 
 void checkMemory(const char* source ) {
   LOG_INF("%s Free: heap %u, block: %u, min: %u, pSRAM %u", source, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());

@@ -30,7 +30,6 @@
 static fs::FS fp = STORAGE;
 static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
-char* jsonBuff = NULL;
 static char appId[16];
 static char variable[FILE_NAME_LEN] = {0};
 static char value[IN_FILE_NAME_LEN] = {0};
