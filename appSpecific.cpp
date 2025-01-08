@@ -986,7 +986,7 @@ I2Csda~-1~3~N~I2C SDA pin if unshared
 I2Cscl~-1~3~N~I2C SCL pin if unshared
 rtsp0Video~1~8~C~Enable RTSP Video
 rtsp1Audio~0~8~C~Enable RTSP Audio
-rtsp2Subtitles~0~8~C~Enable RTSP Subtitles
+rtsp2Subtitles~1~8~C~Enable RTSP Subtitles
 rtsp3Port~554~8~N~RTSP ServerPort
 rtsp4VideoPort~5430~8~N~RTSP Video Port
 rtsp5AudioPort~5432~8~N~RTSP Audio Port

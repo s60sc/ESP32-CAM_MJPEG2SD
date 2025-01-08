@@ -98,7 +98,7 @@
 #include "camera_pins.h"
 
 #if INCLUDE_RTSP
-#include <RTSPServer.h>
+#include <ESP32-RTSPServer.h> //https://github.com/rjsachse/ESP32-RTSPServer.git
 // RTSPServer instance
 extern RTSPServer rtspServer;
 #define RTSP_VIDEO_NONBLOCK
@@ -182,7 +182,7 @@ extern RTSPServer rtspServer;
 #endif
 #define STICK_STACK_SIZE (1024 * 4)
 #define BATT_STACK_SIZE (1024 * 2)
-#define CAPTURE_STACK_SIZE (1024 * 4)
+#define CAPTURE_STACK_SIZE (1024 * 5)
 #define EMAIL_STACK_SIZE (1024 * 6)
 #define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)

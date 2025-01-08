@@ -1,3 +1,4 @@
+// Library can be found here https://github.com/rjsachse/ESP32-RTSPServer.git or in Arduino library
 
   // Initialize the RTSP server
   /**
@@ -66,6 +67,21 @@ RTSPServer::TransportType determineTransportType() {
   }
 }
 
+void sendRTSPSubtitles(void* arg) { 
+  char data[100];
+  time_t currEpoch = getEpoch();
+  size_t len = strftime(data, 12, "%H:%M:%S  ", localtime(&currEpoch));
+  len += sprintf(data + len, "FPS: %lu", rtspServer.rtpFps);
+#if INCLUDE_TELEM
+  // add telemetry data 
+  if (teleUse) {
+    storeSensorData(true);
+    if (srtBytes) len += sprintf(data + len, "%s"(const char*)srtBuffer);
+    srtBytes = 0;
+  }
+#endif
+  rtspServer.sendRTSPSubtitles(data, len);
+}
 
 void prepRTSP() {
   RTSPServer::TransportType transport = determineTransportType();
@@ -84,6 +100,7 @@ void prepRTSP() {
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s, Connect to: rtsp://%s:%d", transportStr, WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
+      if (transport != RTSPServer::AUDIO_ONLY && transport != RTSPServer::VIDEO_ONLY && transport != RTSPServer::VIDEO_AND_AUDIO) rtspServer.startSubtitlesTimer(sendRTSPSubtitles); // 1-second period
     } else { 
       LOG_ERR("Failed to start RTSP server"); 
     }

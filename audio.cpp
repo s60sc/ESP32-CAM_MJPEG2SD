@@ -354,7 +354,7 @@ static void camActions() {
       if(rtspServer.readyToSendAudio()) {
         rtspServer.sendRTSPAudio(sampleBuffer, bytesRead);
       }
-#endif      
+#endif
       if (!audioBytes) {
         // fill audioBuffer to send to NVR
         memcpy(audioBuffer, sampleBuffer, bytesRead);
