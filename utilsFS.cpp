@@ -8,6 +8,7 @@
 int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sdFreeSpaceMode action is enabled
 int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to FTP/HFS and then delete on SD 
 bool formatIfMountFailed = true; // Auto format the file system if mount failed. Set to false to not auto format.
+int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
 static fs::FS fp = STORAGE;
 
 // hold sorted list of filenames/folders names in order of newest first
@@ -17,7 +18,7 @@ static auto previousDir = "/~previous";
 static char fsType[10] = {0};
 
 static void infoSD() {
-#if !(CONFIG_IDF_TARGET_ESP32C3)
+#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
   uint8_t cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) LOG_WRN("No SD card attached");
   else {
@@ -25,22 +26,22 @@ static void infoSD() {
     if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
     else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
     else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
-    LOG_INF("SD card type %s, Size: %s", typeStr, fmtSize(SD_MMC.cardSize()));
+    LOG_INF("SD card type %s, Size: %s @ %uMHz", typeStr, fmtSize(SD_MMC.cardSize()), sdmmcFreq / 1000);
   }
 #endif
 }
 
 static bool prepSD_MMC() {
   bool res = false;
-#if !(CONFIG_IDF_TARGET_ESP32C3)
+#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
   /* open SD card in MMC 1 bit mode
      MMC4  MMC1  ESP32 ESP32S3
-      D2          12
-      D3    ..    13
       CMD  CMD    15    38
       CLK  CLK    14    39
       D0   D0     2     40
       D1          4
+      D2          12
+      D3          13
   */
   if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); // small number to force vector into psram
   fileVec.reserve(1000);
@@ -54,7 +55,7 @@ static bool prepSD_MMC() {
 #endif
 #endif
   
-  res = SD_MMC.begin("/sdcard", true, formatIfMountFailed);
+  res = SD_MMC.begin("/sdcard", true, formatIfMountFailed, sdmmcFreq);
 #if defined(CAMERA_MODEL_AI_THINKER)
   pinMode(4, OUTPUT);
   digitalWrite(4, 0); // set lamp pin fully off as sd_mmc library still initialises pin 4 in 1 line mode
@@ -88,7 +89,7 @@ static void listFolder(const char* rootDir) {
 bool startStorage() {
   // start required storage device (SD card or flash file system)
   bool res = false;
-#if !(CONFIG_IDF_TARGET_ESP32C3)
+#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
     strcpy(fsType, "SD_MMC");
     res = prepSD_MMC();
