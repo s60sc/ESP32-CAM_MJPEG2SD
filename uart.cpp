@@ -23,6 +23,9 @@
 #include "appGlobals.h"
 
 #if INCLUDE_UART
+#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 1, 0)
+#error uart.cpp must be compiled with arduino-esp32 core v3.1.0 or higher
+#endif
 #include "driver/uart.h"
 
 // UART pins
@@ -30,7 +33,7 @@
 #define UART_CTS UART_PIN_NO_CHANGE
 
 #define UART_BAUD_RATE 115200
-#define BUFF_LEN UART_FIFO_LEN * 2
+#define BUFF_LEN (UART_FIFO_LEN * 2)
 #define MSG_LEN 8 
 
 // UART connection for Auxiliary
@@ -47,7 +50,7 @@ static byte uartBuffRx[BUFF_LEN];
 static const char* uartErr[] = {"FRAME_ERR", "PARITY_ERR", "UART_BREAK", "DATA_BREAK",
   "BUFFER_FULL", "FIFO_OVF", "UART_DATA", "PATTERN_DET", "EVENT_MAX"};
 static const uint16_t header = 0x55aa; 
-static int uartId;
+static uart_port_t uartId;
 
 static bool readUart() {
   // Read data from the UART when available 

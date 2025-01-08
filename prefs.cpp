@@ -30,7 +30,6 @@
 static fs::FS fp = STORAGE;
 static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
-char* jsonBuff = NULL;
 static char appId[16];
 static char variable[FILE_NAME_LEN] = {0};
 static char value[IN_FILE_NAME_LEN] = {0};
@@ -384,7 +383,7 @@ void buildJsonString(uint8_t filter) {
     char timeBuff[20];
     strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
     p += sprintf(p, "\"clock\":\"%s\",", timeBuff);
-    formatElapsedTime(timeBuff, millis());
+    formatElapsedTime(timeBuff, millis()); // rolls over after 49.7 days due to max uint32
     p += sprintf(p, "\"up_time\":\"%s\",", timeBuff);   
     p += sprintf(p, "\"free_heap\":\"%s\",", fmtSize(ESP.getFreeHeap()));    
     p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  

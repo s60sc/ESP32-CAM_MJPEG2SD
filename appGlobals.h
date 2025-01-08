@@ -4,6 +4,9 @@
 
 #pragma once
 #include "globals.h"
+#if !CONFIG_IDF_TARGET_ESP32S3 && !CONFIG_IDF_TARGET_ESP32
+#error "Must select ESP32 or ESP32S3 board"
+#endif
 
 /**************************************************************************
  Uncomment one only of the ESP32 or ESP32S3 camera models in the block below
@@ -105,7 +108,7 @@ extern RTSPServer rtspServer;
 #endif
 
 //#define DEV_ONLY // leave commented out
-#define STATIC_IP_OCTAL "132" // dev only
+#define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -113,7 +116,7 @@ extern RTSPServer rtspServer;
 #define HOSTNAME_GRP 99
 //#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.4.2"
+#define APP_VER "10.4.3"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars

@@ -725,15 +725,6 @@ bool prepRecording() {
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
-  camera_fb_t* fb = esp_camera_fb_get();
-  if (fb == NULL) {
-    LOG_WRN("Failed to get camera frame");
-    return false;
-  }
-  else {
-    esp_camera_fb_return(fb);
-    fb = NULL;
-  }
   reloadConfigs(); // apply camera config
   startSDtasks();
 #if INCLUDE_TINYML
@@ -761,7 +752,7 @@ bool prepRecording() {
     if (useMotion) LOG_INF("- move in front of camera");
   }
   logLine();
-  LOG_INF("Camera model %s on board %s ready @ %uMHz", camModel, CAM_BOARD, xclkMhz); 
+  LOG_INF("Camera model %s ready @ %uMHz", camModel, xclkMhz); 
   debugMemory("prepRecording");
   return true;
 }
@@ -930,7 +921,7 @@ bool prepCam() {
           strcpy(camModel, "Other");
         break;
       }
-      LOG_INF("Camera init OK for model %s on board %s", camModel, CAM_BOARD);
+      LOG_INF("Camera init OK for %s", camModel);
   
       // set frame size to configured value
       char fsizePtr[4];
@@ -959,6 +950,18 @@ bool prepCam() {
       s->set_vflip(s, 1);
   #endif
       res = true;
+    }
+  }
+  // check that camera data is accessible
+  if (res) {
+    camera_fb_t* fb = esp_camera_fb_get();
+    if (fb == NULL) {
+      // usually a camera hardware / ribbon cable fault
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to get camera frame - check camera hardware"); 
+    } else {
+      esp_camera_fb_return(fb);
+      fb = NULL;
+      res = false;
     }
   }
   debugMemory("prepCam");

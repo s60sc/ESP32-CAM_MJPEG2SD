@@ -169,6 +169,7 @@ void replaceChar(char* s, char c, char r);
 void reset_log();
 void resetWatchDog();
 bool retrieveConfigVal(const char* variable, char* value);
+void runTaskStats();
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking = true);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
