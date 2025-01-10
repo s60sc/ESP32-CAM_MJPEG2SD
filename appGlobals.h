@@ -30,7 +30,7 @@
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
+//#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3 
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
 //#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
@@ -38,7 +38,7 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
-//#define CAMERA_MODEL_XENOIONEX
+#define CAMERA_MODEL_XENOIONEX
 //#define AUXILIARY
 #endif
 
@@ -48,7 +48,7 @@
 ***************************************************************/
 #define INCLUDE_FTP_HFS false // ftp.cpp (file upload)
 #define INCLUDE_TGRAM false   // telegram.cpp (Telegram app interface)
-#define INCLUDE_AUDIO false   // audio.cpp (microphones & speakers)
+#define INCLUDE_AUDIO true   // audio.cpp (microphones & speakers)
 #define INCLUDE_PERIPH false  // peripherals.cpp (servos, PIR, led etc)
 #define INCLUDE_SMTP false    // smtp.cpp (email)
 #define INCLUDE_MQTT false    // mqtt.cpp (MQTT)
@@ -62,6 +62,7 @@
 #define INCLUDE_PGRAM false   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
+#define INCLUDE_RTSP true     // RTSP Streaming
 
 // if INCLUDE_I2C true, set each I2C device used to true 
 #define USE_SSD1306 false
@@ -99,6 +100,13 @@
 #include "esp_camera.h"
 #include "camera_pins.h"
 
+#if INCLUDE_RTSP
+#include <ESP32-RTSPServer.h> //https://github.com/rjsachse/ESP32-RTSPServer.git
+// RTSPServer instance
+extern RTSPServer rtspServer;
+#define RTSP_VIDEO_NONBLOCK
+#endif
+
 //#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
@@ -128,7 +136,7 @@
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 200 // must be > number of entries in configs.txt
+#define MAX_CONFIGS 210 // must be > number of entries in configs.txt
 #define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
@@ -177,7 +185,7 @@
 #endif
 #define STICK_STACK_SIZE (1024 * 4)
 #define BATT_STACK_SIZE (1024 * 2)
-#define CAPTURE_STACK_SIZE (1024 * 4)
+#define CAPTURE_STACK_SIZE (1024 * 5)
 #define EMAIL_STACK_SIZE (1024 * 6)
 #define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)
@@ -300,6 +308,7 @@ size_t updateWavHeader();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
+void prepRTSP();
 
 /******************** Global app declarations *******************/
 
@@ -480,6 +489,18 @@ extern float gearing;
 extern uint8_t numberOfPhotos;
 extern float tRPM;
 extern bool extCam;
+
+// RTSP 
+extern int quality; //Variable to hold quality for RTSP frame
+extern bool rtspVideo;
+extern bool rtspAudio;
+extern bool rtspSubtitles;
+extern int rtspPort;
+extern uint16_t rtpVideoPort;
+extern uint16_t rtpAudioPort;
+extern uint16_t rtpSubtitlesPort;
+extern char RTP_ip[];
+extern uint8_t rtpTTL;
 
 // task handling
 extern TaskHandle_t battHandle;

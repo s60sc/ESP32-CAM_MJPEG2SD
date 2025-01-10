@@ -339,13 +339,22 @@ static void camActions() {
   // apply esp mic input to required outputs
   while (true) {
     size_t bytesRead = 0;
+#if INCLUDE_RTSP
+    if (micRecording || !audioBytes || spkrRem || rtspServer.readyToSendAudio()) bytesRead = espMicInput(); // load sampleBuffer
+#else
     if (micRecording || !audioBytes || spkrRem) bytesRead = espMicInput(); // load sampleBuffer
+#endif
     if (bytesRead) {
       if (micRecording) {
         // record mic input to SD
         wavFile.write((uint8_t*)sampleBuffer, bytesRead);
         totalSamples += bytesRead / sampleWidth; 
       }
+#if INCLUDE_RTSP
+      if(rtspServer.readyToSendAudio()) {
+        rtspServer.sendRTSPAudio(sampleBuffer, bytesRead);
+      }
+#endif
       if (!audioBytes) {
         // fill audioBuffer to send to NVR
         memcpy(audioBuffer, sampleBuffer, bytesRead);

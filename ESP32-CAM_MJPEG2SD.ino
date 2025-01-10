@@ -74,6 +74,9 @@ void setup() {
 #if INCLUDE_PERIPH
     startHeartbeat();
 #endif
+#if INCLUDE_RTSP
+    prepRTSP();
+#endif
     checkMemory();
   } 
 }

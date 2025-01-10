@@ -226,6 +226,18 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
 #endif
 
+#if INCLUDE_RTSP
+  else if (!strcmp(variable, "rtsp0Video")) rtspVideo = (bool)intVal;
+  else if (!strcmp(variable, "rtsp1Audio")) rtspAudio = (bool)intVal;
+  else if (!strcmp(variable, "rtsp2Subtitles")) rtspSubtitles = (bool)intVal;
+  else if (!strcmp(variable, "rtsp3Port")) rtspPort = intVal;
+  else if (!strcmp(variable, "rtsp4VideoPort")) rtpVideoPort = intVal;
+  else if (!strcmp(variable, "rtsp5AudioPort")) rtpAudioPort = intVal;
+  else if (!strcmp(variable, "rtsp6SubtitlesPort")) rtpSubtitlesPort = intVal;
+  else if (!strcmp(variable, "rtsp7Ip")) strncpy(RTP_ip, value, MAX_IP_LEN-1);
+  else if (!strcmp(variable, "rtsp8TTL")) rtpTTL = intVal;
+#endif
+
 #ifndef AUXILIARY
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
@@ -250,7 +262,10 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     if (playbackHandle != NULL) setFPS(FPS);
   }
   else if (s) {
-    if (!strcmp(variable, "quality")) res = s->set_quality(s, intVal);
+    if (!strcmp(variable, "quality")) {
+      res = s->set_quality(s, intVal);
+      quality = intVal;
+    }
     else if (!strcmp(variable, "contrast")) res = s->set_contrast(s, intVal);
     else if (!strcmp(variable, "brightness")) res = s->set_brightness(s, intVal);
     else if (!strcmp(variable, "saturation")) res = s->set_saturation(s, intVal);
@@ -870,9 +885,9 @@ detectChangeThreshold~15~1~N~Pixel difference to indicate change
 mlUse~0~1~C~Use Machine Learning
 mlProbability~0.8~1~N~ML minimum positive probability 0.0 - 1.0
 depthColor~0~1~C~Color depth for motion detection: Gray <> RGB
-streamNvr~0~1~C~Enable NVR Video stream: /sustain?video=1
-streamSnd~0~1~C~Enable NVR Audio stream: /sustain?audio=1
-streamSrt~0~1~C~Enable NVR Subtitle stream: /sustain?srt=1
+streamNvr~0~8~C~Enable NVR Video stream: /sustain?video=1
+streamSnd~0~8~C~Enable NVR Audio stream: /sustain?audio=1
+streamSrt~0~8~C~Enable NVR Subtitle stream: /sustain?srt=1
 smtpUse~0~2~C~Enable email sending
 smtpMaxEmails~10~2~N~Max daily alerts
 sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
@@ -969,4 +984,13 @@ relayMode~0~3~S:Manual:Night~How relay activated
 relaySwitch~0~3~C~Switch relay off / on
 I2Csda~-1~3~N~I2C SDA pin if unshared
 I2Cscl~-1~3~N~I2C SCL pin if unshared
+rtsp0Video~1~8~C~Enable RTSP Video
+rtsp1Audio~0~8~C~Enable RTSP Audio
+rtsp2Subtitles~1~8~C~Enable RTSP Subtitles
+rtsp3Port~554~8~N~RTSP ServerPort
+rtsp4VideoPort~5430~8~N~RTSP Video Port
+rtsp5AudioPort~5432~8~N~RTSP Audio Port
+rtsp6SubtitlesPort~5434~8~N~RTSP Subtitles Port
+rtsp7Ip~239.255.0.1~8~T~RTSP Multicast IP
+rtsp8TTL~1~8~N~RTSP Multicast Time-to-Live
 )~";
