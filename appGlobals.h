@@ -48,7 +48,7 @@
 ***************************************************************/
 #define INCLUDE_FTP_HFS false // ftp.cpp (file upload)
 #define INCLUDE_TGRAM false   // telegram.cpp (Telegram app interface)
-#define INCLUDE_AUDIO true   // audio.cpp (microphones & speakers)
+#define INCLUDE_AUDIO false   // audio.cpp (microphones & speakers)
 #define INCLUDE_PERIPH false  // peripherals.cpp (servos, PIR, led etc)
 #define INCLUDE_SMTP false    // smtp.cpp (email)
 #define INCLUDE_MQTT false    // mqtt.cpp (MQTT)
