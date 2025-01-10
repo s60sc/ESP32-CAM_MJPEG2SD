@@ -62,7 +62,7 @@
 #define INCLUDE_PGRAM false   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
-#define INCLUDE_RTSP true     // RTSP Streaming
+#define INCLUDE_RTSP false    // RTSP Streaming
 
 // if INCLUDE_I2C true, set each I2C device used to true 
 #define USE_SSD1306 false
