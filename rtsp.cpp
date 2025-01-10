@@ -19,13 +19,13 @@
    * @return true if initialization is successful, false otherwise.
    */
 // RjSachse 2025
+
 #include "appGlobals.h"
 
 #if INCLUDE_RTSP
 
 RTSPServer rtspServer;
 
-int quality; //Variable to hold quality for RTSP frame
 bool rtspVideo;
 bool rtspAudio;
 bool rtspSubtitles;

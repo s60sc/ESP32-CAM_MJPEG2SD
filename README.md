@@ -10,7 +10,7 @@ The application supports:
 * [Telemetry Recording](#telemetry-recording) during camera recording.
 * [Remote Control](#remote-control) of camera mounted vehicle.
 * Alert notification using [Telegram](#telegram-bot) or Email
-* Concurrent streaming to web browser and [remote NVR](#stream-to-nvr)
+* Concurrent streaming to web browser and [remote NVR](#stream-to-nvr) using HTTP or RTSP
 * Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
 * [MQTT](#mqtt) control with Home Assistant integration.
 * [External Heartbeat](#external-heartbeat) support.
@@ -24,14 +24,11 @@ The application supports:
 
 The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, but avoid no-name boards marked `ESPS3 RE:1.0`
 
-***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash), or to suggest an improvement or enhancement. Thanks.*** 
+***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
+To suggest an improvement or enhancement use Discussions.*** 
 
-Changes in version 10.4:
-* Change to [installation](#installation) instructions for ESP32 and ESP32S3
-* Support for [I2C devices](#i2c-devices) sharing two of the camera pins
-* [Home Assistant MQTT](#home-assistant-mqtt-camera-integration) camera integration
-* Enhanced initial setup web page (contributed by [@rjsachse](https://github.com/rjsachse))
-* Updated for arduino-esp32 core v3.1.0
+Changes in version 10.5:
+* Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
 
 ## Purpose
 
@@ -443,7 +440,28 @@ The IP addresses are stored in the browser local storage, not the app itself.
 
 This feature is better used on an ESP32S3 camera board due to performance and memory limitations on ESP32.
 
-Streams separate from the web browser are available for capture by a remote NVR. To enable these streams, under **Edit Config** -> **Motion** tab, select: 
+Either HTTP or RTSP can be used, but not together. RTSP is more sophisticated.
+
+#### RTSP
+
+This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/RTSPServer) library for details.
+
+To integrate library with this app, set `#define INCLUDE_RTSP` to `true`.
+
+To enable RTSP, under **Edit Config** -> **Streaming** tab, select: 
+* `Enable RTSP Video` for video stream
+* `Enable RTSP Audio` for audio stream (need to setup [microphone](#audio-recording) beforehand).
+* `Enable RTSP Subtitles` for subtitle stream (need to setup [telemetry](#telemetry-recording) beforehand, otherwise just a timestamp and FPS will be output)
+
+Then save and reboot. 
+
+To view the stream, connect to `rtsp://<camera_ip>:554` using app supporting RTSP.
+
+#### HTTP
+
+HTPP streaming is available if `#define INCLUDE_RTSP` is set to `false`.
+
+Streams separate from the web browser are available for capture by a remote NVR. To enable these streams, under **Edit Config** -> **Streaming** tab, select: 
 * `Enable Video stream on /sustain?video=1` for MJPEG stream
 * `Enable Audio stream on /sustain?audio=1` for WAV stream (need to setup [microphone](#audio-recording) beforehand).
 * `Enable Subtitle stream on /sustain?srt=1` for SRT stream (need to setup [telemetry](#telemetry-recording) beforehand, otherwise just a timestamp will be output).
@@ -451,6 +469,7 @@ Streams separate from the web browser are available for capture by a remote NVR.
 Then save and reboot. 
 
 If multiple streams are enabled they need to be processed by an intermediate tool for synchronisation, eg [go2rtc](https://github.com/AlexxIT/go2rtc) (but which does not handle subtitles [yet?](https://github.com/AlexxIT/go2rtc/issues/932)). See [ESP32-CAM_Audio](https://github.com/spawn451/ESP32-CAM_Audio#usage) for go2rtc configuration examples. If a recording occurs during streaming it will take priority and the streams may stutter.
+
 
 ## WebDAV
 

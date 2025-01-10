@@ -18,6 +18,7 @@ static bool depthColor = true;
 static bool devHub = false;
 char AuxIP[MAX_IP_LEN];
 bool useUart = false; 
+int quality; // Variable to hold quality for RTSP frame
 volatile audioAction THIS_ACTION = PASS_ACTION;
 static void stopRC();
 
@@ -63,8 +64,8 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
   else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
   else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal;  
-  else if (!strcmp(variable, "streamNvr")) streamNvr = (bool)intVal; 
-  else if (!strcmp(variable, "streamSnd")) streamSnd = (bool)intVal; 
+  else if (!strcmp(variable, "streamVid")) streamVid = (bool)intVal; 
+  else if (!strcmp(variable, "streamAud")) streamAud = (bool)intVal; 
   else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
 #endif
@@ -885,8 +886,8 @@ detectChangeThreshold~15~1~N~Pixel difference to indicate change
 mlUse~0~1~C~Use Machine Learning
 mlProbability~0.8~1~N~ML minimum positive probability 0.0 - 1.0
 depthColor~0~1~C~Color depth for motion detection: Gray <> RGB
-streamNvr~0~8~C~Enable NVR Video stream: /sustain?video=1
-streamSnd~0~8~C~Enable NVR Audio stream: /sustain?audio=1
+streamVid~0~8~C~Enable NVR Video stream: /sustain?video=1
+streamAud~0~8~C~Enable NVR Audio stream: /sustain?audio=1
 streamSrt~0~8~C~Enable NVR Subtitle stream: /sustain?srt=1
 smtpUse~0~2~C~Enable email sending
 smtpMaxEmails~10~2~N~Max daily alerts

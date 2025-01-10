@@ -30,7 +30,7 @@
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-//#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
+#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3 
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
 //#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
@@ -38,7 +38,7 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
-#define CAMERA_MODEL_XENOIONEX
+//#define CAMERA_MODEL_XENOIONEX
 //#define AUXILIARY
 #endif
 
@@ -114,9 +114,8 @@ extern RTSPServer rtspServer;
 #define DBG_ON false // esp debug output
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
-//#define REPORT_IDLE // core processor idle time monitoring
  
-#define APP_VER "10.4.3"
+#define APP_VER "10.5"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -159,7 +158,7 @@ extern RTSPServer rtspServer;
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 23
+#define CFG_VER 24
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -222,7 +221,6 @@ extern RTSPServer rtspServer;
 #define UART_PRI 1
 #define DS18B20_PRI 1
 #define BATT_PRI 1
-#define IDLEMON_PRI 5
 
 /******************** Function declarations *******************/
 
@@ -280,7 +278,9 @@ bool prepRecording();
 void prepTelemetry();
 void prepMic();
 void prepMotors();
+void prepRTSP();
 void prepUart();
+void runRTSPtasks();
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
@@ -308,7 +308,6 @@ size_t updateWavHeader();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
-void prepRTSP();
 
 /******************** Global app declarations *******************/
 
@@ -360,8 +359,8 @@ extern uint8_t xclkMhz;
 extern char camModel[];
 extern bool doKeepFrame;
 extern int alertMax; // too many could cause account suspension (daily emails)
-extern bool streamNvr;
-extern bool streamSnd;
+extern bool streamVid;
+extern bool streamAud;
 extern bool streamSrt;
 extern uint8_t numStreams;
 extern uint8_t vidStreams;
@@ -491,7 +490,7 @@ extern float tRPM;
 extern bool extCam;
 
 // RTSP 
-extern int quality; //Variable to hold quality for RTSP frame
+extern int quality; // Variable to hold quality for RTSP frame
 extern bool rtspVideo;
 extern bool rtspAudio;
 extern bool rtspSubtitles;

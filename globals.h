@@ -29,7 +29,7 @@
 #include "ping/ping_sock.h"
 #include <Preferences.h>
 #include <regex>
-#if !CONFIG_IDF_TARGET_ESP32C3
+#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
 #include <SD_MMC.h>
 #endif
 #include <LittleFS.h>
@@ -136,6 +136,7 @@ const char* getEncType(int ssidIndex);
 void getExtIP();
 time_t getEpoch();
 size_t getFreeStorage();
+uint32_t getFrequency();
 bool getLocalNTP();
 float getNTCcelsius(uint16_t resistance, float oldTemp);
 void goToSleep(int wakeupPin, bool deepSleep);
@@ -150,6 +151,7 @@ void logPrint(const char *fmtStr, ...);
 void logSetup();
 void OTAprereq();
 bool parseJson(int rxSize);
+bool prepFreq(int maxFreq, int sampleInterval);
 bool prepI2C();
 void prepPeripherals();
 void prepSMTP();

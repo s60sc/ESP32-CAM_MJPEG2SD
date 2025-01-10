@@ -5,8 +5,7 @@
 // - audio streaming uses task 2
 // - subtitle streaming uses task 3
 //
-// s60sc 2022 - 2024
-//
+// s60sc 2022 - 2025
 
 #include "appGlobals.h"
 
@@ -20,8 +19,8 @@
 
 static fs::FS fpv = STORAGE;
 bool forcePlayback = false; // browser playback status
-bool streamNvr = false;
-bool streamSnd = false;
+bool streamVid = false;
+bool streamAud = false;
 bool streamSrt = false;
 static bool isStreaming[MAX_STREAMS] = {false};
 size_t streamBufferSize[MAX_STREAMS] = {0};
@@ -255,8 +254,8 @@ static void sustainTask(void* p) {
 
 void startSustainTasks() {
   // start httpd sustain tasks
-  if (streamNvr) numStreams = vidStreams = 2;
-  if (streamSnd) numStreams = 3;
+  if (streamVid) numStreams = vidStreams = 2;
+  if (streamAud) numStreams = 3;
   if (streamSrt) numStreams = 4;
   if (numStreams > MAX_STREAMS) {
     LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
@@ -265,7 +264,7 @@ void startSustainTasks() {
   if (MAX_JPEG * (vidStreams + 1) > ESP.getFreePsram()) {
     LOG_WRN("Insufficient PSRAM for NVR streams");
     vidStreams = 1;
-    streamNvr = streamSnd = streamSrt = false;
+    streamVid = streamAud = streamSrt = false;
   }
   for (int i = 0; i < vidStreams; i++)
     if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(MAX_JPEG); 
@@ -273,7 +272,7 @@ void startSustainTasks() {
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
     xTaskCreate(sustainTask, "sustainTask", SUSTAIN_STACK_SIZE, &sustainReq[i].taskNum, SUSTAIN_PRI, &sustainHandle[i]); 
-  } 
+  }
   LOG_INF("Started %d %s sustain tasks", numStreams, useHttps ? "HTTPS" : "HTTP");
   debugMemory("startSustainTasks");
 }
