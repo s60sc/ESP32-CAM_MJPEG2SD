@@ -67,7 +67,7 @@ The ESP32 time is set from an NTP server or connected browser client.
 ## Installation
 
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
-Compile with at least arduino-esp32 core v3.0.3 which contains network fixes.
+Compile with at least arduino-esp32 core v3.1.1 which contains network fixes and frame selection changes.
 Select the required ESP-CAM board by uncommenting ONE only of the `#define CAMERA_MODEL_*` in `appGlobals.h` unless using the one of the defaults:
 * ESP32 Cam board - `CAMERA_MODEL_AI_THINKER`
 * Freenove ESP32S3 Cam board - `CAMERA_MODEL_FREENOVE_ESP32S3_CAM`  
