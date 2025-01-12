@@ -1,6 +1,6 @@
 // mjpeg2sd app specific functions
 //
-// Direct access URLs for NVR:
+// Direct access (HTTP) URLs for NVR:
 // - Video streaming: app_ip/sustain?video=1 
 // - Audio streaming: app_ip/sustain?audio=1
 // - Subtitle streaming: app_ip/sustain?srt=1
@@ -63,10 +63,12 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "timeLapseOn")) timeLapseOn = intVal;
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
   else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
-  else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal;  
+  else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal; 
+#if !INCLUDE_RTSP 
   else if (!strcmp(variable, "streamVid")) streamVid = (bool)intVal; 
   else if (!strcmp(variable, "streamAud")) streamAud = (bool)intVal; 
   else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
+#endif
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
 #endif
 #if INCLUDE_FTP_HFS
@@ -228,8 +230,8 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #endif
 
 #if INCLUDE_RTSP
-  else if (!strcmp(variable, "rtsp0Video")) rtspVideo = (bool)intVal;
-  else if (!strcmp(variable, "rtsp1Audio")) rtspAudio = (bool)intVal;
+  else if (!strcmp(variable, "rtsp0Video")) rtspVideo = streamVid = (bool)intVal;
+  else if (!strcmp(variable, "rtsp1Audio")) rtspAudio = streamAud = (bool)intVal;
   else if (!strcmp(variable, "rtsp2Subtitles")) rtspSubtitles = (bool)intVal;
   else if (!strcmp(variable, "rtsp3Port")) rtspPort = intVal;
   else if (!strcmp(variable, "rtsp4VideoPort")) rtpVideoPort = intVal;
@@ -829,7 +831,7 @@ contrast~0~98~~na
 dcw~1~98~~na
 enableMotion~1~98~~na
 fps~20~98~~na
-framesize~9~98~~na
+framesize~11~98~~na
 gainceiling~0~98~~na
 hmirror~0~98~~na
 lampLevel~0~98~~na

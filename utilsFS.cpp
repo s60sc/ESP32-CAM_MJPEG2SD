@@ -1,6 +1,18 @@
 // General purpose SD card and flash storage utilities
 //
-// s60sc 2021, 2022 
+// Card can be accessed using a 1 data bit or 4 data bits (if allowed by board)
+// 4 data bits is potentially faster on ESP32S3 (depending on card spec) 
+// but requires 3 additional pins
+/* The following #defines must be declared under the relevant camera entry in camera_pins.h
+   1 bit       4 bit        
+   SD_MMC_CMD  SD_MMC_CMD  
+   SD_MMC_CLK  SD_MMC_CLK   
+   SD_MMC_D0   SD_MMC_D0    
+               SD_MMC_D1     
+               SD_MMC_D2    
+               SD_MMC_D3    
+*/
+// s60sc 2021, 2022, 2025
 
 #include "appGlobals.h"
 
@@ -8,7 +20,8 @@
 int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sdFreeSpaceMode action is enabled
 int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to FTP/HFS and then delete on SD 
 bool formatIfMountFailed = true; // Auto format the file system if mount failed. Set to false to not auto format.
-int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
+static int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
+static bool use1bitMode = true;
 static fs::FS fp = STORAGE;
 
 // hold sorted list of filenames/folders names in order of newest first
@@ -26,7 +39,7 @@ static void infoSD() {
     if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
     else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
     else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
-    LOG_INF("SD card type %s, Size: %s @ %uMHz", typeStr, fmtSize(SD_MMC.cardSize()), sdmmcFreq / 1000);
+    LOG_INF("SD card type %s, Size: %s @ %uMHz, using %d bit mode", typeStr, fmtSize(SD_MMC.cardSize()), sdmmcFreq / 1000, use1bitMode ? 1 : 4);
   }
 #endif
 }
@@ -34,15 +47,6 @@ static void infoSD() {
 static bool prepSD_MMC() {
   bool res = false;
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
-  /* open SD card in MMC 1 bit mode
-     MMC4  MMC1  ESP32 ESP32S3
-      CMD  CMD    15    38
-      CLK  CLK    14    39
-      D0   D0     2     40
-      D1          4
-      D2          12
-      D3          13
-  */
   if (psramFound()) heap_caps_malloc_extmem_enable(MIN_RAM); // small number to force vector into psram
   fileVec.reserve(1000);
   if (psramFound()) heap_caps_malloc_extmem_enable(MAX_RAM);
@@ -51,11 +55,18 @@ static bool prepSD_MMC() {
   LOG_WRN("SD card pins not defined");
   return false;
 #else
+ #if defined(SD_MMC_D1)
+  // assume 4 bit mode
+  SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0, SD_MMC_D1, SD_MMC_D2, SD_MMC_D3);
+  use1bitMode = false;
+ #else
+  // assume 1 bit mode
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
+ #endif
 #endif
 #endif
   
-  res = SD_MMC.begin("/sdcard", true, formatIfMountFailed, sdmmcFreq);
+  res = SD_MMC.begin("/sdcard", use1bitMode, formatIfMountFailed, sdmmcFreq);
 #if defined(CAMERA_MODEL_AI_THINKER)
   pinMode(4, OUTPUT);
   digitalWrite(4, 0); // set lamp pin fully off as sd_mmc library still initialises pin 4 in 1 line mode

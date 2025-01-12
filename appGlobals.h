@@ -100,13 +100,6 @@
 #include "esp_camera.h"
 #include "camera_pins.h"
 
-#if INCLUDE_RTSP
-#include <ESP32-RTSPServer.h> //https://github.com/rjsachse/ESP32-RTSPServer.git
-// RTSPServer instance
-extern RTSPServer rtspServer;
-#define RTSP_VIDEO_NONBLOCK
-#endif
-
 //#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
@@ -115,7 +108,7 @@ extern RTSPServer rtspServer;
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.5"
+#define APP_VER "10.5.1"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -158,7 +151,7 @@ extern RTSPServer rtspServer;
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 24
+#define CFG_VER 25
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -184,7 +177,7 @@ extern RTSPServer rtspServer;
 #endif
 #define STICK_STACK_SIZE (1024 * 4)
 #define BATT_STACK_SIZE (1024 * 2)
-#define CAPTURE_STACK_SIZE (1024 * 5)
+#define CAPTURE_STACK_SIZE (1024 * 4)
 #define EMAIL_STACK_SIZE (1024 * 6)
 #define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)
@@ -534,13 +527,16 @@ struct frameStruct {
 };
 
 // indexed by frame size - needs to be consistent with sensor.h framesize_t enum
+// https://github.com/espressif/esp32-camera/blob/master/driver/include/sensor.h
 const frameStruct frameData[] = {
   {"96X96", 96, 96, 30, 1, 1},   // 2MP sensors
   {"QQVGA", 160, 120, 30, 1, 1},
+  {"128X128", 128, 128, 30, 1, 1},
   {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
   {"240X240", 240, 240, 30, 2, 1}, 
   {"QVGA", 320, 240, 30, 2, 1}, 
+  {"320X320", 320, 320, 30, 2, 1}, 
   {"CIF", 400, 296, 30, 2, 1},  
   {"HVGA", 480, 320, 30, 2, 1}, 
   {"VGA", 640, 480, 20, 3, 1}, 
@@ -556,5 +552,6 @@ const frameStruct frameData[] = {
   {"QHD", 2560, 1440, 5, 4, 1},   // 5MP Sensors
   {"WQXGA", 2560, 1600, 5, 4, 1},
   {"P_FHD", 1080, 1920, 5, 4, 1},
-  {"QSXGA", 2560, 1920, 4, 4, 1}
+  {"QSXGA", 2560, 1920, 4, 4, 1},
+  {"5MP", 2592, 1944, 4, 4, 1}
 };

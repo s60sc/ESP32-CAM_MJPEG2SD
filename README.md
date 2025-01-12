@@ -27,8 +27,10 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes in version 10.5:
+Changes in version 10.5.1:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
+* Frame resolution selection mismatch corrected
+* SD card 4 bit mode configurable (see `utilsFS.cpp`)
 
 ## Purpose
 
@@ -442,6 +444,8 @@ This feature is better used on an ESP32S3 camera board due to performance and me
 
 Either HTTP or RTSP can be used, but not together. RTSP is more sophisticated.
 
+Streaming performance depends on quality of network connection, but can be increased by switching off motion detection, as if a recording occurs during streaming it will take priority and the streams may stutter.
+
 #### RTSP
 
 This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/RTSPServer) library for details.
@@ -468,7 +472,7 @@ Streams separate from the web browser are available for capture by a remote NVR.
 
 Then save and reboot. 
 
-If multiple streams are enabled they need to be processed by an intermediate tool for synchronisation, eg [go2rtc](https://github.com/AlexxIT/go2rtc) (but which does not handle subtitles [yet?](https://github.com/AlexxIT/go2rtc/issues/932)). See [ESP32-CAM_Audio](https://github.com/spawn451/ESP32-CAM_Audio#usage) for go2rtc configuration examples. If a recording occurs during streaming it will take priority and the streams may stutter.
+If multiple streams are enabled they need to be processed by an intermediate tool for synchronisation, eg [go2rtc](https://github.com/AlexxIT/go2rtc) (but which does not handle subtitles [yet?](https://github.com/AlexxIT/go2rtc/issues/932)). See [ESP32-CAM_Audio](https://github.com/spawn451/ESP32-CAM_Audio#usage) for go2rtc configuration examples. 
 
 
 ## WebDAV

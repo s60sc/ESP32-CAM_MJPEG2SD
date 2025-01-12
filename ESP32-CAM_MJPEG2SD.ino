@@ -77,7 +77,7 @@ void setup() {
 #if INCLUDE_RTSP
     prepRTSP();
 #endif
-    checkMemory();
+    checkMemory("Setup");
   } 
 }
 

@@ -24,6 +24,8 @@
 
 #if INCLUDE_RTSP
 
+#include <ESP32-RTSPServer.h> 
+
 RTSPServer rtspServer;
 
 bool rtspVideo;
@@ -67,6 +69,37 @@ RTSPServer::TransportType determineTransportType() {
   }
 }
 
+static void sendRTSPVideo(void* p) {
+  // Send jpeg frames via RTSP at current frame rate
+  uint8_t taskNum = 1;
+  streamBufferSize[taskNum] = 0;
+  while (true) {
+    if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdTRUE) {
+      if (streamBufferSize[taskNum] && rtspServer.readyToSendFrame()) {
+        // use frame stored by processFrame()
+        rtspServer.sendRTSPFrame(streamBuffer[taskNum], streamBufferSize[taskNum], quality, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight);
+      }
+    }
+    streamBufferSize[taskNum] = 0; 
+  }
+  vTaskDelete(NULL);
+}
+
+static void sendRTSPAudio(void* p) {
+#if INCLUDE_AUDIO
+  // send audio chunks via RTSP
+  audioBytes = 0;
+  while (true) {
+    if (micGain && audioBytes && rtspServer.readyToSendAudio()) {
+      rtspServer.sendRTSPAudio((int16_t*)audioBuffer, audioBytes);
+      audioBytes = 0;
+    } 
+    delay(20);
+  }
+#endif
+  vTaskDelete(NULL);
+}
+
 void sendRTSPSubtitles(void* arg) { 
   char data[100];
   time_t currEpoch = getEpoch();
@@ -99,8 +132,13 @@ void prepRTSP() {
     
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
-      LOG_INF("RTSP server started successfully with transport%s, Connect to: rtsp://%s:%d", transportStr, WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
+      LOG_INF("RTSP server started successfully with transport%s", transportStr);
+      LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
       if (transport != RTSPServer::AUDIO_ONLY && transport != RTSPServer::VIDEO_ONLY && transport != RTSPServer::VIDEO_AND_AUDIO) rtspServer.startSubtitlesTimer(sendRTSPSubtitles); // 1-second period
+
+      // start video & audio tasks, need bigger stack for video
+      if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", SUSTAIN_STACK_SIZE + 1024, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
+      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", SUSTAIN_STACK_SIZE, NULL, SUSTAIN_PRI, &sustainHandle[2]); 
     } else { 
       LOG_ERR("Failed to start RTSP server"); 
     }

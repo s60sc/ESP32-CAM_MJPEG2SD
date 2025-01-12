@@ -46,8 +46,6 @@ static uint32_t wTimeTot; // total SD write time
 static uint32_t oTime; // file opening time
 static uint32_t cTime; // file closing time
 static uint32_t sTime; // file streaming time
-
-uint8_t frameDataRows = 14; // number of frame sizes
 static uint32_t frameInterval; // units of us between frames
 
 // SD card storage
@@ -390,12 +388,7 @@ static boolean processFrame() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL || !fb->len || fb->len > MAX_JPEG) return false;
   timeLapse(fb);
-#if INCLUDE_RTSP
-  // Send frame via RTP
-  if(rtspServer.readyToSendFrame()) {
-    rtspServer.sendRTSPFrame(fb->buf, fb->len, quality, fb->width, fb->height);
-  }
-#endif
+
   for (int i = 0; i < vidStreams; i++) {
     if (!streamBufferSize[i] && streamBuffer[i] != NULL) {
       memcpy(streamBuffer[i], fb->buf, fb->len);
@@ -407,6 +400,7 @@ static boolean processFrame() {
     keepFrame(fb);
     doKeepFrame = false;
   }
+
   // determine if time to monitor
   if (useMotion && doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
   if (!useMotion && doMonitor(true)) checkMotion(fb, false, true); // calc light level only
@@ -837,6 +831,8 @@ static bool camPower() {
 
 bool prepCam() {
   // initialise camera depending on model and board
+  if (FRAMESIZE_INVALID != sizeof(frameData) / sizeof(frameData[0])) 
+    LOG_ERR("framesize_t entries %d != frameData entries %d", FRAMESIZE_INVALID, sizeof(frameData) / sizeof(frameData[0]));
   if (!camPower()) return false;
   int siodGpioNum = SIOD_GPIO_NUM;
   int siocGpioNum = SIOC_GPIO_NUM; 
@@ -927,7 +923,7 @@ bool prepCam() {
       char fsizePtr[4];
       if (retrieveConfigVal("framesize", fsizePtr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtr)));
       else s->set_framesize(s, FRAMESIZE_SVGA);
-  
+
       // model specific corrections
       if (s->id.PID == OV3660_PID) {
         // initial sensors are flipped vertically and colors are a bit saturated
