@@ -29,7 +29,7 @@ To suggest an improvement or enhancement use Discussions.***
 
 Changes in version 10.5.1:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
-* Frame resolution selection mismatch corrected
+* Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
 
 ## Purpose
