@@ -232,7 +232,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #if INCLUDE_RTSP
   else if (!strcmp(variable, "rtsp0Video")) rtspVideo = streamVid = (bool)intVal;
   else if (!strcmp(variable, "rtsp1Audio")) rtspAudio = streamAud = (bool)intVal;
-  else if (!strcmp(variable, "rtsp2Subtitles")) rtspSubtitles = (bool)intVal;
+  else if (!strcmp(variable, "rtsp2Subtitles")) rtspSubtitles = streamSrt = (bool)intVal;
   else if (!strcmp(variable, "rtsp3Port")) rtspPort = intVal;
   else if (!strcmp(variable, "rtsp4VideoPort")) rtpVideoPort = intVal;
   else if (!strcmp(variable, "rtsp5AudioPort")) rtpAudioPort = intVal;

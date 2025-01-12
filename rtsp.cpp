@@ -116,6 +116,12 @@ void sendRTSPSubtitles(void* arg) {
   rtspServer.sendRTSPSubtitles(data, len);
 }
 
+static void startRTSPSubtitles(void* arg) {
+  rtspServer.startSubtitlesTimer(sendRTSPSubtitles); // 1-second period
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+  vTaskDelete(NULL); // not reached
+}
+
 void prepRTSP() {
   RTSPServer::TransportType transport = determineTransportType();
   rtpIp.fromString(RTP_ip);
@@ -134,11 +140,11 @@ void prepRTSP() {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s", transportStr);
       LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
-      if (transport != RTSPServer::AUDIO_ONLY && transport != RTSPServer::VIDEO_ONLY && transport != RTSPServer::VIDEO_AND_AUDIO) rtspServer.startSubtitlesTimer(sendRTSPSubtitles); // 1-second period
 
-      // start video & audio tasks, need bigger stack for video
-      if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", SUSTAIN_STACK_SIZE + 1024, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
-      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", SUSTAIN_STACK_SIZE, NULL, SUSTAIN_PRI, &sustainHandle[2]); 
+      // start RTSP tasks, need bigger stack for video
+      if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
+      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 4, NULL, SUSTAIN_PRI, &sustainHandle[2]);
+      if (rtspSubtitles) xTaskCreate(startRTSPSubtitles, "startRTSPSubtitles", 1024 * 1, NULL, SUSTAIN_PRI, &sustainHandle[3]);  
     } else { 
       LOG_ERR("Failed to start RTSP server"); 
     }
