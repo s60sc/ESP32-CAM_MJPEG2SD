@@ -4,8 +4,8 @@
 
 #include "esp_arduino_version.h"
 
-#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 3)
-#error Must be compiled with arduino-esp32 core v3.0.3 or higher
+#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 1, 1)
+#error Must be compiled with arduino-esp32 core v3.1.1 or higher
 #endif
 
 #pragma once
