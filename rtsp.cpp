@@ -109,7 +109,7 @@ void sendRTSPSubtitles(void* arg) {
   // add telemetry data 
   if (teleUse) {
     storeSensorData(true);
-    if (srtBytes) len += sprintf(data + len, "%s"(const char*)srtBuffer);
+    if (srtBytes) len += sprintf(data + len, "%s", (const char*)srtBuffer);
     srtBytes = 0;
   }
 #endif
