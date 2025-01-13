@@ -326,9 +326,11 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
           }
         } else {
           // stop remote streaming if currently active
-          if (sustainReq[taskNum].inUse) {
-            isStreaming[taskNum] = false;
-            delay(END_WAIT + 100);
+          if (taskNum < MAX_STREAMS) {
+            if (sustainReq[taskNum].inUse) {
+              isStreaming[taskNum] = false;
+              delay(END_WAIT + 100);
+            }
           }
         }
             
