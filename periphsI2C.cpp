@@ -41,7 +41,7 @@ static const char* clientName[128] = {
   "OV2640", "OV2640", "", "", "", "", "", "", "MPUxx50/DS3231", "MPUxx50", "", "", "", "", "", "",
   "", "", "", "", "", "", "BMx280", "BMx280", "OV5640", "OV5640", "", "", "", "", "", ""};
 
-bool prepI2Cdevices();
+static bool prepI2Cdevices();
 
 /********************* Generic I2C Utilities ***********************/
 
@@ -103,23 +103,21 @@ static bool sendI2Cdata(int clientAddr, uint8_t controlByte, uint8_t numBytes) {
 
 bool prepI2C() {
   // start I2C port and prep I2C peripherals
-  if (I2Csda == I2Cscl) {
+  if (I2Csda < 0) { 
+    // I2C bus shared with camera
+    I2Csda = SIOD_GPIO_NUM;
+    I2Cscl = SIOC_GPIO_NUM;
+    LOG_INF("I2C bus shared with camera");
+  } else if (I2Csda == I2Cscl) {
     LOG_ALT("I2C pins not defined");
     return false;
-  }  
+  } 
   Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
-  LOG_INF("Initialise I2C at %dkHz using pins: %d, %d", Wire.getClock() / 1000, I2Csda, I2Cscl);
+  //Wire.setClock(400000); // default 100kHz, max 400kHz
+  LOG_INF("I2C initialised at %dkHz using pins SDA: %d, SCL: %d", Wire.getClock() / 1000, I2Csda, I2Cscl);
   I2Cdevices = 0;
   scanI2C();
   return prepI2Cdevices();
-}
-
-void prepI2Ccam(int camSda, int camScl) {
-  // specific to camera app
-  Wire.begin(camSda, camScl); // Join I2C bus as master
-  LOG_INF("Initialise shared I2C at %dkHz using pins: %d, %d", Wire.getClock() / 1000, camSda, camScl);
-  I2Cdevices = 0;
-  scanI2C();
 }
 
 /***************************************** OLED Display *************************************/
@@ -796,10 +794,10 @@ bool checkI2Cdevice(const char* devName) {
   return false;
 }
 
-bool prepI2Cdevices() {
+static bool prepI2Cdevices() {
   // setup available I2C devices 
   // Note: only called externally by cam
-  if (I2Cdevices < 0) LOG_ERR("prepI2C[cam]() not called");
+  if (I2Cdevices < 0) LOG_ERR("prepI2C() not called");
   else if (I2Cdevices == 0) LOG_WRN("No I2C devices connected");
   else {
 #if USE_SSD1306

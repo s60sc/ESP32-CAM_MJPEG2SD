@@ -4,6 +4,7 @@
 
 #pragma once
 #include "globals.h"
+
 #if !CONFIG_IDF_TARGET_ESP32S3 && !CONFIG_IDF_TARGET_ESP32
 #error "Must select ESP32 or ESP32S3 board"
 #endif
@@ -61,8 +62,9 @@
 #define INCLUDE_EXTHB false   // externalHeartbeat.cpp (heartbeat to remote server)
 #define INCLUDE_PGRAM false   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
+#define INCLUDE_RTSP false    // rtsp.cpp (RTSP Streaming). Requires additional library: ESP32-RTSPServer
+#define INCLUDE_DS18B20 false // if true, requires INCLUDE_PERIPH and additional libraries: OneWire and DallasTemperature
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
-#define INCLUDE_RTSP false    // RTSP Streaming
 
 // if INCLUDE_I2C true, set each I2C device used to true 
 #define USE_SSD1306 false
@@ -71,8 +73,6 @@
 #define USE_MPU9250 false
 #define USE_DS3231 false
 #define USE_LCD1602 false
-
-#define INCLUDE_DS18B20 false // if true, requires additional libraries: OneWire and DallasTemperature
 
 // To include Edge Impulse arduino library for additional motion detect filtering
 // Use Edge Impulse Studio to create model:
@@ -104,11 +104,11 @@
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
-#define DBG_ON false // esp debug output
+#define DBG_ON false // esp debug output (set arduino Core Debug Level accordingly)
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.5.1"
+#define APP_VER "10.5.2"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -265,15 +265,12 @@ void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
-void prepI2Ccam(int camSda, int camScl);
-bool prepI2Cdevices();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
 void prepMotors();
 void prepRTSP();
 void prepUart();
-void runRTSPtasks();
 void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);

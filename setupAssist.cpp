@@ -69,7 +69,7 @@ bool checkDataFiles() {
   return res;
 }
 
-/// To customise the the setupPage, use example in extras folder setupPage.html and then use cyberchef.org to convert to hex (see example in extras folder for cyberchef settings)
+// To customise the the setupPage, use example in extras folder setupPage.html and then use cyberchef.org to convert to hex (see example in extras folder for cyberchef settings)
 const uint8_t setupPage_html_gz[] PROGMEM = {
   0x1f, 0x8b, 0x08, 0x08, 0xbd, 0xf2, 0x0a, 0x67, 0x00, 0xff, 0x73, 0x65, 0x74, 0x75, 0x70, 0x50, 
   0x61, 0x67, 0x65, 0x2e, 0x68, 0x74, 0x6d, 0x6c, 0x00, 0xc5, 0x38, 0xeb, 0x72, 0xdb, 0xba, 0xd1, 

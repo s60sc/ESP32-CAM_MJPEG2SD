@@ -39,7 +39,7 @@ static void infoSD() {
     if (cardType == CARD_MMC) strcpy(typeStr, "MMC");
     else if (cardType == CARD_SD) strcpy(typeStr, "SDSC");
     else if (cardType == CARD_SDHC) strcpy(typeStr, "SDHC");
-    LOG_INF("SD card type %s, Size: %s @ %uMHz, using %d bit mode", typeStr, fmtSize(SD_MMC.cardSize()), sdmmcFreq / 1000, use1bitMode ? 1 : 4);
+    LOG_INF("SD card type %s, Size: %s, using %d bit mode @ %uMHz", typeStr, fmtSize(SD_MMC.cardSize()), use1bitMode ? 1 : 4, sdmmcFreq / 1000);
   }
 #endif
 }

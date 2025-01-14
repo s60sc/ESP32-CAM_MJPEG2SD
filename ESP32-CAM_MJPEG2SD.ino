@@ -65,10 +65,9 @@ void setup() {
     prepRecording(); 
 #endif
 #if INCLUDE_I2C
+  prepI2C();
   #if INCLUDE_TELEM
     prepTelemetry();
-  #else
-    prepI2Cdevices();
   #endif
 #endif
 #if INCLUDE_PERIPH
@@ -78,6 +77,7 @@ void setup() {
     prepRTSP();
 #endif
     checkMemory("Setup");
+    if (DEBUG_MEM) runTaskStats();
   } 
 }
 

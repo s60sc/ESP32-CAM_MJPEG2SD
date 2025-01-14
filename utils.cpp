@@ -967,7 +967,7 @@ static const char* getTaskStateString(eTaskState state) {
 static void statsTask(void *arg) { 
   // Output real time task stats periodically
   #define STATS_TASK_PRIO     10
-  #define STATS_INTERVAL      5000
+  #define STATS_INTERVAL      30000 // ms
   #define ARRAY_SIZE_OFFSET   40   // Increase this if ESP_ERR_INVALID_SIZE
 
   static configRUN_TIME_COUNTER_TYPE prevRunCounter = 0;
@@ -1028,7 +1028,7 @@ void runTaskStats() {
 }
 #endif
 
-void checkMemory(const char* source ) {
+void checkMemory(const char* source) {
   LOG_INF("%s Free: heap %u, block: %u, min: %u, pSRAM %u", source, ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
   if (ESP.getFreeHeap() < WARN_HEAP) LOG_WRN("Free heap only %u, min %u", ESP.getFreeHeap(), ESP.getMinFreeHeap());
   if (ESP.getMaxAllocHeap() < WARN_ALLOC) LOG_WRN("Max allocatable heap block is only %u", ESP.getMaxAllocHeap());
@@ -1036,6 +1036,7 @@ void checkMemory(const char* source ) {
 
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx) {
   // get minimum free stack size for task since started
+  // taskIdx used to index minStack[] array
   static uint32_t minStack[20]; 
   uint32_t freeStack = 0;
   if (thisTask != NULL) {

@@ -834,18 +834,7 @@ bool prepCam() {
   if (FRAMESIZE_INVALID != sizeof(frameData) / sizeof(frameData[0])) 
     LOG_ERR("framesize_t entries %d != frameData entries %d", FRAMESIZE_INVALID, sizeof(frameData) / sizeof(frameData[0]));
   if (!camPower()) return false;
-  int siodGpioNum = SIOD_GPIO_NUM;
-  int siocGpioNum = SIOC_GPIO_NUM; 
-#if INCLUDE_I2C
-  if (I2Csda < 0) {
-    // share I2C port
-    prepI2Ccam(SIOD_GPIO_NUM, SIOC_GPIO_NUM);
-    
-    // stop camera doing own I2C initialisation
-    siodGpioNum = -1;
-    siocGpioNum = -1;   
-  }
-#endif
+  
   bool res = false;
   // buffer sizing depends on psram size (4M or 8M)
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
@@ -866,8 +855,8 @@ bool prepCam() {
   config.pin_pclk = PCLK_GPIO_NUM;
   config.pin_vsync = VSYNC_GPIO_NUM;
   config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = siodGpioNum;
-  config.pin_sccb_scl = siocGpioNum;
+  config.pin_sccb_sda = SIOD_GPIO_NUM;
+  config.pin_sccb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = xclkMhz * OneMHz;
@@ -898,7 +887,7 @@ bool prepCam() {
       retries--;
     }
   } 
-  if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%x on %s", err, CAM_BOARD);
+  if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%x:%s on %s", err, espErrMsg(err), CAM_BOARD);
   else {
     sensor_t* s = esp_camera_sensor_get();
     if (s == NULL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to access camera on %s", CAM_BOARD);

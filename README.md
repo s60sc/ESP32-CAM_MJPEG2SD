@@ -27,10 +27,11 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes in version 10.5.1:
+Changes in version 10.5.2:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
 * Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
+* Shared I2C fixed following code changes in Arduino core v3.1.1
 
 ## Purpose
 

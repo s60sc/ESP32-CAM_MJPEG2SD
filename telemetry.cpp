@@ -16,8 +16,6 @@
 #error "Need INCLUDE_I2C true"
 #endif
 
-#include <Wire.h>
-
 // If separate I2C pins are not defined, then the telemetry I2C devices
 // share the camera I2C pins: SIOD_GPIO_NUM and SIOC_GPIO_NUM in camera_pins.h are shared
 
@@ -40,6 +38,7 @@ size_t srtBytes = 0;
 // example code for BMx280 and MPU9250 I2C sensors 
 // if using GY-91 board (combination BMP280 + MPU9250), 
 //  then in periphsI2C.cpp, set both USE_BMx280 and USE_MPU9250 to true
+// GY-91 best powered via 5V to VIN (using internal LDO) than direct 3V3
 
 // user defined CSV header row per device used, must start with a comma
 #define BME_CSV ",Temperature (C),Humidity (%),Pressure (mb),Altitude (m)"
@@ -51,6 +50,8 @@ size_t srtBytes = 0;
 #define MPU_SRT "  %0.1f  %0.1f  %0.1f"
 
 static bool isBME = false;
+static bool haveBMX = false;
+static bool haveMPU = false;
 
 static bool setupSensors() {
   // setup required sensors
@@ -61,7 +62,7 @@ static bool setupSensors() {
     LOG_INF("%s available", isBME ? "BME280" : "BMP280");
     if (isBME) strncat(csvHeader, BME_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
     else strncat(csvHeader, BMP_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
-    res = true;
+    haveBMX = res = true;
   } else LOG_WRN("%s not available", isBME ? "BME280" : "BMP280");
 #endif
 
@@ -69,7 +70,7 @@ static bool setupSensors() {
   if (checkI2Cdevice("MPU9250")) {
     LOG_INF("MPU9250 available");
     strncat(csvHeader, MPU_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
-    res = true;
+    haveMPU = res = true;
   } else LOG_WRN("MPU9250 not available");
 #endif
   return res; 
@@ -78,26 +79,30 @@ static bool setupSensors() {
 static void getSensorData() {
   // get sensor data and format as csv row & srt entry in buffers
 #if USE_BMx280
-  float* bmxData = getBMx280();
-  if (isBME) {
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
-    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BME_SRT, bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
-  } else {
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[1], bmxData[2]);
-    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BMP_SRT, bmxData[0], bmxData[1], bmxData[2]);
-  }
-#if INCLUDE_MQTT
-  if (mqtt_active) {
-    sprintf(jsonBuff, "{\"Temp\":\"%0.1f\", \"TIME\":\"%s\"}", bmxData[0], esp_log_system_timestamp());
-    mqttPublish(jsonBuff);
-  }
+  if (haveBMX) {
+    float* bmxData = getBMx280();
+    if (isBME) {
+      highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BME_SRT, bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
+    } else {
+      highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[1], bmxData[2]);
+      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BMP_SRT, bmxData[0], bmxData[1], bmxData[2]);
+    }
+  #if INCLUDE_MQTT
+    if (mqtt_active) {
+      sprintf(jsonBuff, "{\"Temp\":\"%0.1f\", \"TIME\":\"%s\"}", bmxData[0], esp_log_system_timestamp());
+      mqttPublish(jsonBuff);
+    }
 #endif
+  }
 #endif
 
 #if USE_MPU9250
-  float* mpuData = getMPU9250();
-  highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", mpuData[0], mpuData[1], mpuData[2]); 
-  highPoint[1] += sprintf(teleBuf[1] + highPoint[1], MPU_SRT, mpuData[0], mpuData[1], mpuData[2]);  
+  if (haveMPU) {
+    float* mpuData = getMPU9250();
+    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", mpuData[0], mpuData[1], mpuData[2]); 
+    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], MPU_SRT, mpuData[0], mpuData[1], mpuData[2]);  
+  }
 #endif
 }
 
@@ -184,10 +189,6 @@ static void telemetryTask(void* pvParameters) {
 void prepTelemetry() {
   // called by app initialisation
   if (teleUse) {
-    // initialise I2C port separate from camera if required
-    if (I2Csda > 0) prepI2C();
-    // setup telemetry collection and recording task
-    prepI2Cdevices();
     teleInterval = srtInterval;
     for (int i=0; i < NUM_BUFF; i++) teleBuf[i] = psramFound() ? (char*)ps_malloc(RAMSIZE + MAX_LINE_LEN) : (char*)malloc(RAMSIZE + MAX_LINE_LEN);
     if (setupSensors()) xTaskCreate(&telemetryTask, "telemetryTask", TELEM_STACK_SIZE, NULL, TELEM_PRI, &telemetryHandle);

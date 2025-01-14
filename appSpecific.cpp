@@ -602,9 +602,6 @@ bool appDataFiles() {
 
 void currentStackUsage() {
   checkStackUse(captureHandle, 0);
-#if INCLUDE_DS18B20
-  checkStackUse(DS18B20handle, 1);
-#endif
 #if INCLUDE_SMTP
   checkStackUse(emailHandle, 2);
 #endif
@@ -618,8 +615,15 @@ void currentStackUsage() {
 #endif
   // 7: pingtask
   checkStackUse(playbackHandle, 8);
+#if INCLUDE_PERIPH
+ #if INCLUDE_DS18B20
+  checkStackUse(DS18B20handle, 1);
+ #endif
   checkStackUse(servoHandle, 9);
   checkStackUse(stickHandle, 10);
+  checkStackUse(heartBeatHandle, 14);
+  checkStackUse(battHandle, 15);
+#endif
 #if INCLUDE_TGRAM
   checkStackUse(telegramHandle, 11);
 #endif
@@ -629,8 +633,8 @@ void currentStackUsage() {
 #if INCLUDE_UART
   checkStackUse(uartRxHandle, 13);
 #endif
-  // 14: http webserver
-  for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 15 + i);
+  // 16: http webserver
+  for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 17 + i);
 }
 
 static void stopRC() {
