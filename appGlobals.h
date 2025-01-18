@@ -4,10 +4,16 @@
 
 #pragma once
 #include "globals.h"
+#include <SPIFFS.h>
+#include <LittleFS.h>
+#include <SPIFFS.h>
+#include <FS.h>
 
 #if !CONFIG_IDF_TARGET_ESP32S3 && !CONFIG_IDF_TARGET_ESP32
 #error "Must select ESP32 or ESP32S3 board"
 #endif
+
+extern bool is_sd_card_initialized;
 
 /**************************************************************************
  Uncomment one only of the ESP32 or ESP32S3 camera models in the block below
