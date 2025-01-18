@@ -28,6 +28,9 @@
 
 RTSPServer rtspServer;
 
+//Comment out to enable multiple clients for all transports (TCP, UDP, Multicast)
+//#define OVERRIDE_RTSP_SINGLE_CLIENT_MODE
+
 bool rtspVideo;
 bool rtspAudio;
 bool rtspSubtitles;
@@ -36,6 +39,7 @@ uint16_t rtpVideoPort;
 uint16_t rtpAudioPort;
 uint16_t rtpSubtitlesPort;
 char RTP_ip [MAX_IP_LEN];
+uint8_t rtspMaxClients;
 uint8_t rtpTTL;
 
 IPAddress rtpIp;
@@ -134,6 +138,7 @@ void prepRTSP() {
   rtspServer.rtpAudioPort = rtpAudioPort; 
   rtspServer.rtpSubtitlesPort = rtpSubtitlesPort;
   rtspServer.rtpIp = rtpIp; 
+  rtspServer.maxRTSPClients = rtspMaxClients;
   rtspServer.rtpTTL = rtpTTL; 
     
   if (transport != RTSPServer::NONE) {
@@ -143,7 +148,7 @@ void prepRTSP() {
 
       // start RTSP tasks, need bigger stack for video
       if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
-      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 4, NULL, SUSTAIN_PRI, &sustainHandle[2]);
+      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[2]);
       if (rtspSubtitles) xTaskCreate(startRTSPSubtitles, "startRTSPSubtitles", 1024 * 1, NULL, SUSTAIN_PRI, &sustainHandle[3]);  
     } else { 
       LOG_ERR("Failed to start RTSP server"); 

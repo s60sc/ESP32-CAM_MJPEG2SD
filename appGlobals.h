@@ -108,7 +108,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.5.2"
+#define APP_VER "10.5.3"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -489,6 +489,7 @@ extern uint16_t rtpVideoPort;
 extern uint16_t rtpAudioPort;
 extern uint16_t rtpSubtitlesPort;
 extern char RTP_ip[];
+extern uint8_t rtspMaxClients;
 extern uint8_t rtpTTL;
 
 // task handling

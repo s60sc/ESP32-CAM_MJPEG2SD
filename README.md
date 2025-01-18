@@ -27,8 +27,9 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes in version 10.5.2:
+Changes in version 10.5.3:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
+* RTSP server now has multiple client support 
 * Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
 * Shared I2C fixed following code changes in Arduino core v3.1.1
@@ -449,7 +450,7 @@ Streaming performance depends on quality of network connection, but can be incre
 
 #### RTSP
 
-This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/RTSPServer) library for details.
+This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/ESP32-RTSPServer) library for details. Must be version 1.2.0
 
 To integrate library with this app, set `#define INCLUDE_RTSP` to `true`.
 
@@ -461,6 +462,8 @@ To enable RTSP, under **Edit Config** -> **Streaming** tab, select:
 Then save and reboot. 
 
 To view the stream, connect to `rtsp://<camera_ip>:554` using app supporting RTSP.
+
+RTSP now supports multiple clients for multicast. You can also override this logic and enable multiple clients for all transports (TCP, UDP, Multicast) by commenting out //#define OVERRIDE_RTSP_SINGLE_CLIENT_MODE in rtsp.cpp. However, enabling multiple clients for all transports can slow the stream down and may cause issues, so use with care. It is better to leave it for only one client if using TCP or UDP unicast for best results. For more details, check out the README in the RTSPServer library.
 
 #### HTTP
 

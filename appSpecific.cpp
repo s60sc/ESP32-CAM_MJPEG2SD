@@ -238,7 +238,8 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "rtsp5AudioPort")) rtpAudioPort = intVal;
   else if (!strcmp(variable, "rtsp6SubtitlesPort")) rtpSubtitlesPort = intVal;
   else if (!strcmp(variable, "rtsp7Ip")) strncpy(RTP_ip, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "rtsp8TTL")) rtpTTL = intVal;
+  else if (!strcmp(variable, "rtsp8MaxC")) rtspMaxClients = intVal;
+  else if (!strcmp(variable, "rtsp9TTL")) rtpTTL = intVal;
 #endif
 
 #ifndef AUXILIARY
@@ -999,5 +1000,6 @@ rtsp4VideoPort~5430~8~N~RTSP Video Port
 rtsp5AudioPort~5432~8~N~RTSP Audio Port
 rtsp6SubtitlesPort~5434~8~N~RTSP Subtitles Port
 rtsp7Ip~239.255.0.1~8~T~RTSP Multicast IP
-rtsp8TTL~1~8~N~RTSP Multicast Time-to-Live
+rtsp8MaxC~3~8~N~RTSP Multicast Max Connections
+rtsp9TTL~1~8~N~RTSP Multicast Time-to-Live
 )~";
