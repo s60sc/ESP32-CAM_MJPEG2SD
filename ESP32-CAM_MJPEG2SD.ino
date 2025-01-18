@@ -6,6 +6,7 @@
 */
 
 #include "appGlobals.h"
+bool is_sd_card_initialized = 0;
 
 void setup() {
   logSetup();
