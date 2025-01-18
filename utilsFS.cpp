@@ -56,6 +56,7 @@ static bool prepSD_MMC() {
   return false;
 #else
  #if defined(SD_MMC_D1)
+   delay(10);
   // assume 4 bit mode
   SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0, SD_MMC_D1, SD_MMC_D2, SD_MMC_D3);
   use1bitMode = false;
@@ -67,6 +68,7 @@ static bool prepSD_MMC() {
 #endif
   
   res = SD_MMC.begin("/sdcard", use1bitMode, formatIfMountFailed, sdmmcFreq);
+   delay(100);
 #if defined(CAMERA_MODEL_AI_THINKER)
   pinMode(4, OUTPUT);
   digitalWrite(4, 0); // set lamp pin fully off as sd_mmc library still initialises pin 4 in 1 line mode
@@ -97,47 +99,110 @@ static void listFolder(const char* rootDir) {
   LOG_INF("%s: %s used of %s", fsType, fmtSize(STORAGE.usedBytes()), totalBytes);
 }
 
-bool startStorage() {
+bool checkFilesExist(const char* partitionType)
+{
+  bool allFilesExist = true;
+  String missingFiles = "";
+  if (!STORAGE.exists("/MJPEG2SD.htm"))
+  {
+    allFilesExist = false;
+    missingFiles += "MJPEG2SD.htm ";
+  }
+  if (!STORAGE.exists("/common.js"))
+  {
+    allFilesExist = false;
+    missingFiles += "common.js ";
+  }
+  if (!STORAGE.exists("/Auxil.htm"))
+  {
+    allFilesExist = false;
+    missingFiles += "Auxil.htm ";
+  }
+  if (!allFilesExist)
+  {
+    Serial.printf("Missing files on %s: %s\n", partitionType, missingFiles.c_str());
+  }
+  return allFilesExist;
+}
+
+bool startStorage()
+{
   // start required storage device (SD card or flash file system)
   bool res = false;
-#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
-  if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
-    strcpy(fsType, "SD_MMC");
-    res = prepSD_MMC();
-    if (res) listFolder(DATA_DIR);
-    else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
-    debugMemory("startStorage");
-    return res; 
-  }
-#endif
-  // One of SPIFFS or LittleFS
-  if (!strlen(fsType)) {
-#ifdef _SPIFFS_H_
-    if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
-      strcpy(fsType, "SPIFFS");
-      res = SPIFFS.begin(formatIfMountFailed);
-    }
-#endif
-#ifdef _LITTLEFS_H_
-    if ((fs::LittleFSFS*)&STORAGE == &LittleFS) {
-      strcpy(fsType, "LittleFS");
-      res = LittleFS.begin(formatIfMountFailed);
-      // create data folder if not present
-      if (res) LittleFS.mkdir(DATA_DIR);
-    }
-#endif
-    if (res) {  
-      // list details of files on file system
-      const char* rootDir = !strcmp(fsType, "LittleFS") ? DATA_DIR : "/";
+  is_sd_card_initialized = 0; //to be sure it is not 1 so we check it here.
+  
+  // Attempt to mount LittleFS
+  if (LittleFS.begin())
+  {
+    strcpy(fsType, "LittleFS");
+    // Create data folder if not present
+    LittleFS.mkdir(DATA_DIR);
+    const char* rootDir = !strcmp(fsType, "LittleFS") ? DATA_DIR : "/";
+    res = checkFilesExist("LittleFS");
+    if (res)
+    {
       listFolder(rootDir);
     }
-  } else {
-    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsType);  
+  }
+  else
+  {
+    LOG_INF("LittleFS not found.");
+  }
+  
+  // If LittleFS is not mounted or files are missing, attempt to mount SPIFFS
+  if (!res && SPIFFS.begin())
+  {
+    strcpy(fsType, "SPIFFS");
+    res = checkFilesExist("SPIFFS");
+    if (res)
+    {
+      listFolder("/");
+    }
+  }
+  else
+  {
+    LOG_INF("SPIFFS not found.");
+  }
+  
+  // If neither LittleFS nor SPIFFS is mounted or files are missing, attempt to mount SD card
+  if (!res)
+  {
+    strcpy(fsType, "SD_MMC");
+    res = prepSD_MMC();
+    if (res)
+    {
+      is_sd_card_initialized = 1;
+      LOG_INF("SD card initialized.");
+      res = checkFilesExist("SD_MMC");
+      if (res)
+      {
+        listFolder(DATA_DIR);
+      }
+      else
+      {
+        snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Required files missing on SD card");
+      }
+    }
+    else
+    {
+      is_sd_card_initialized = 0;
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to initialize SD card. Check SD card");
+    }
+  }
+  // Ensure SD card is initialized regardless of the file system used
+  if (!is_sd_card_initialized && !prepSD_MMC())
+  {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to initialize SD card");
+  }
+  if (!res)
+  {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount any file system or required files missing");
     dataFilesChecked = true; // disable setupAssist as no file system
   }
   debugMemory("startStorage");
   return res;
 }
+
 
 static void getOldestDir(char* oldestDir) {
   // get oldest folder by its date name
