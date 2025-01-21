@@ -829,6 +829,45 @@ static bool camPower() {
 }
 #endif
 
+static esp_err_t changeXCLK(camera_config_t config) {
+  //since the original setup doesnt create over 20MHz clock, we do it forcefully
+  if (config.xclk_freq_hz <= 20 * OneMHz) return ESP_OK;
+  esp_err_t res = ESP_OK;
+  // Deinitialize the existing LEDC configuration
+  ledc_stop(LEDC_LOW_SPEED_MODE, config.ledc_channel, 0);
+  delay(5);
+  // Configure the LEDC timer
+  ledc_timer_config_t ledc_timer = {
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .duty_resolution = LEDC_TIMER_1_BIT,
+    .timer_num = config.ledc_timer,
+    .freq_hz = config.xclk_freq_hz,
+    .clk_cfg = LEDC_AUTO_CLK
+  };
+  res = ledc_timer_config(&ledc_timer);
+  if (res != ESP_OK) {
+    LOG_ERR("Failed to configure timer %s", espErrMsg(res));
+    return res;
+  }
+  // Configure the LEDC channel
+  ledc_channel_config_t ledc_channel = {
+    .gpio_num = XCLK_GPIO_NUM,
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .channel = config.ledc_channel,
+    .intr_type = LEDC_INTR_DISABLE,
+    .timer_sel = config.ledc_timer,
+    .duty = 1,  // 50% duty cycle for 1-bit resolution
+    .hpoint = 0
+  };
+  res = ledc_channel_config(&ledc_channel);
+  if (res != ESP_OK) {
+    LOG_ERR("Failed to configure channel %s", espErrMsg(res));
+    return res;
+  }
+  delay(20);
+  return res;
+}
+
 bool prepCam() {
   // initialise camera depending on model and board
   if (FRAMESIZE_INVALID != sizeof(frameData) / sizeof(frameData[0])) 
@@ -841,9 +880,8 @@ bool prepCam() {
   framesize_t maxFS = ESP.getPsramSize() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
   // configure camera
   camera_config_t config;
-  // i dont use LEDC channel 0 since usually every one and everything uses channel 0 by default.and possibly conflict with SD card too.
   config.ledc_channel = LEDC_CHANNEL_1;
-  config.ledc_timer = LEDC_TIMER_1;// i dont use timer0 since usually every one and everything uses timer 0 by default.
+  config.ledc_timer = LEDC_TIMER_1;
   config.pin_d0 = Y2_GPIO_NUM;
   config.pin_d1 = Y3_GPIO_NUM;
   config.pin_d2 = Y4_GPIO_NUM;
@@ -879,45 +917,9 @@ bool prepCam() {
   uint8_t retries = 2;
   while (retries && err != ESP_OK) {
     err = esp_camera_init(&config);
-    //since the original setup doesnt create over 20MHz clock, we do it forcefully
-    // Deinitialize the existing LEDC configuration
-    ledc_stop(LEDC_LOW_SPEED_MODE, config.ledc_channel, 0);
-    delay(5); // for fun! but really for making sure it stops!
-    // Configure the LEDC timer
-    ledc_timer_config_t ledc_timer =
-    {
-      .speed_mode = LEDC_LOW_SPEED_MODE,
-      .duty_resolution = LEDC_TIMER_1_BIT,
-      .timer_num = config.ledc_timer,
-      .freq_hz = config.xclk_freq_hz,
-      .clk_cfg = LEDC_AUTO_CLK
-    };
-    if (ledc_timer_config(&ledc_timer) != ESP_OK)
-    {
-      LOG_ERR("mjpeg2sd.cpp - ledc_timer_config(&ledc_timer) != ESP_OK");
-      delay(1000);
-    }
-    // Configure the LEDC channel
-    ledc_channel_config_t ledc_channel =
-    {
-      .gpio_num = XCLK_GPIO_NUM,
-      .speed_mode = LEDC_LOW_SPEED_MODE,
-      .channel = config.ledc_channel,
-      .intr_type = LEDC_INTR_DISABLE,
-      .timer_sel = config.ledc_timer,
-      .duty = 1,  // 50% duty cycle for 1-bit resolution
-      .hpoint = 0
-    };
-    
-    if (ledc_channel_config(&ledc_channel) != ESP_OK)
-    {
-      LOG_ERR("mjpeg2sd.cpp - ledc_channel_config(&ledc_channel) != ESP_OK");
-      delay(1000);
-    }
-    delay(20);//fun fun!
-    
+    if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
-      // reset the camera, if the reset pin is connected
+      // power cycle the camera, provided pin is connected
       digitalWrite(PWDN_GPIO_NUM, 1);
       delay(100);
       digitalWrite(PWDN_GPIO_NUM, 0); 
@@ -925,6 +927,8 @@ bool prepCam() {
       retries--;
     }
   } 
+
+
   if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%x:%s on %s", err, espErrMsg(err), CAM_BOARD);
   else {
     sensor_t* s = esp_camera_sensor_get();

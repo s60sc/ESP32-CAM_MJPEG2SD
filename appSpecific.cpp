@@ -519,7 +519,7 @@ void buildAppJsonString(bool filter) {
       if (cardType == CARD_MMC) p += sprintf(p, "\"card\":\"%s\",", "MMC"); 
       else if (cardType == CARD_SD) p += sprintf(p, "\"card\":\"%s\",", "SDSC");
       else if (cardType == CARD_SDHC) p += sprintf(p, "\"card\":\"%s\",", "SDHC"); 
-      else if (cardType == 99) p += sprintf(p, "\"card\":\"%s\",", "LittlrFS"); 
+      else if (cardType == 99) p += sprintf(p, "\"card\":\"%s\",", "LittleFS"); 
     }
     if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) p += sprintf(p, "\"card_size\":\"%s\",", fmtSize(SD_MMC.cardSize()));
     p += sprintf(p, "\"used_bytes\":\"%s\",", fmtSize(STORAGE.usedBytes()));
