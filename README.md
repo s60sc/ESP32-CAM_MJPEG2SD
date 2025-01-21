@@ -348,6 +348,9 @@ Note that some internet providers will use [CGNAT](https://en.wikipedia.org/wiki
 
 ## I2C Devices
 
+**I2C sharing not available in arduino core v3.1.1 due to camera library [issue](https://github.com/espressif/esp32-camera/issues/718). 
+Use separate I2C port.**
+
 <img align=right src="extras/I2C.jpg" width="300" height="450">
 
 Multiple I2C devices can share the same two I2C pins. As the camera also uses I2C then the other devices can either share the camera I2C pins or use a separate I2C port. The shared I2C concept was contributed by [@rjsachse](https://github.com/rjsachse). 
