@@ -864,7 +864,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
     LOG_ERR("Failed to configure channel %s", espErrMsg(res));
     return res;
   }
-  delay(20);
+  delay(200); // base on datasheet, it needs < 300 ms for configuration to settle in. we just put 200ms. it doesnt hurt.
   return res;
 }
 
@@ -906,6 +906,7 @@ bool prepCam() {
   config.frame_size = maxFS;
   config.jpeg_quality = 10;
   config.fb_count = FB_CNT;
+  config.sccb_i2c_port = 0;// using I2C 0. to be sure what port we are using. it can be changed.
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -920,10 +921,16 @@ bool prepCam() {
     if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
       // power cycle the camera, provided pin is connected
-      digitalWrite(PWDN_GPIO_NUM, 1);
-      delay(100);
-      digitalWrite(PWDN_GPIO_NUM, 0); 
-      delay(100);
+      #ifdef PWDN_GPIO_NUM // both ckecks are needed. if we send -1 to digitalWrite, it can cause crashe or errors.
+      if (PWDN_GPIO_NUM > -1)
+      {
+        digitalWrite(PWDN_GPIO_NUM, 1);
+        delay(100);
+        digitalWrite(PWDN_GPIO_NUM, 0); 
+        delay(100);
+      }
+      #endif
+      else delay(200);
       retries--;
     }
   } 
