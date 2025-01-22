@@ -921,16 +921,14 @@ bool prepCam() {
     if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
       // power cycle the camera, provided pin is connected
-      #ifdef PWDN_GPIO_NUM // both ckecks are needed. if we send -1 to digitalWrite, it can cause crashe or errors.
-      if (PWDN_GPIO_NUM > -1)
-      {
+      #if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both ckecks are needed. if we send -1 to digitalWrite, it can cause crashe or errors.
         digitalWrite(PWDN_GPIO_NUM, 1);
         delay(100);
         digitalWrite(PWDN_GPIO_NUM, 0); 
         delay(100);
-      }
+      #else
+        delay(200);
       #endif
-      else delay(200);
       retries--;
     }
   } 
