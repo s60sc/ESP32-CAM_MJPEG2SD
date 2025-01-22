@@ -921,7 +921,7 @@ bool prepCam() {
     if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
       // power cycle the camera, provided pin is connected
-      #ifdef PWDN_GPIO_NUM // both ckecks are needed.
+      #ifdef PWDN_GPIO_NUM // both ckecks are needed. if we send -1 to digitalWrite, it can cause crashe or errors.
       if (PWDN_GPIO_NUM > -1)
       {
         digitalWrite(PWDN_GPIO_NUM, 1);
