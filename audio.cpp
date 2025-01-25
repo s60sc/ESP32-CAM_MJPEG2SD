@@ -201,6 +201,11 @@ static void ampOutput(size_t bytesRead = sampleBytes) {
   applyFilters();
   if (spkrRem) wsAsyncSendBinary((uint8_t*)sampleBuffer, bytesRead); // browser speaker
   else if (ampUse) I2Sstd.write((uint8_t*)sampleBuffer, bytesRead); // esp amp speaker
+  if (!RTSPAudioBytes) {
+    // fill audio buffer to send to RTSP
+    memcpy(RTSPAudioBuffer, sampleBuffer, bytesRead);
+    RTSPAudioBytes = bytesRead;
+  }
   displayAudioLed(sampleBuffer[0]);
 }
 
@@ -258,10 +263,10 @@ static void VCactions() {
     break;
     case PLAY_ACTION:
       // continues till stopped
-      if (ampUse || spkrRem) playRecording(); // play previous recording
+      if (ampUse || spkrRem || RTSPAudio) playRecording(); // play previous recording
     break;
     case PASS_ACTION:
-      if (ampUse || spkrRem) {
+      if (ampUse || spkrRem || RTSPAudio) {
         if (micRem) wsAsyncSendText("#M1");
         LOG_INF("Passthru started");
         wsBufferLen = 0;

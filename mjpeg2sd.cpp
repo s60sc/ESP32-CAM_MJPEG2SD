@@ -829,6 +829,45 @@ static bool camPower() {
 }
 #endif
 
+static esp_err_t changeXCLK(camera_config_t config) {
+  //since the original setup doesnt create over 20MHz clock, we do it forcefully
+  if (config.xclk_freq_hz <= 20 * OneMHz) return ESP_OK;
+  esp_err_t res = ESP_OK;
+  // Deinitialize the existing LEDC configuration
+  ledc_stop(LEDC_LOW_SPEED_MODE, config.ledc_channel, 0);
+  delay(5);
+  // Configure the LEDC timer
+  ledc_timer_config_t ledc_timer = {
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .duty_resolution = LEDC_TIMER_1_BIT,
+    .timer_num = config.ledc_timer,
+    .freq_hz = config.xclk_freq_hz,
+    .clk_cfg = LEDC_AUTO_CLK
+  };
+  res = ledc_timer_config(&ledc_timer);
+  if (res != ESP_OK) {
+    LOG_ERR("Failed to configure timer %s", espErrMsg(res));
+    return res;
+  }
+  // Configure the LEDC channel
+  ledc_channel_config_t ledc_channel = {
+    .gpio_num = XCLK_GPIO_NUM,
+    .speed_mode = LEDC_LOW_SPEED_MODE,
+    .channel = config.ledc_channel,
+    .intr_type = LEDC_INTR_DISABLE,
+    .timer_sel = config.ledc_timer,
+    .duty = 1,  // 50% duty cycle for 1-bit resolution
+    .hpoint = 0
+  };
+  res = ledc_channel_config(&ledc_channel);
+  if (res != ESP_OK) {
+    LOG_ERR("Failed to configure channel %s", espErrMsg(res));
+    return res;
+  }
+  delay(200); // base on datasheet, it needs < 300 ms for configuration to settle in. we just put 200ms. it doesnt hurt.
+  return res;
+}
+
 bool prepCam() {
   // initialise camera depending on model and board
   if (FRAMESIZE_INVALID != sizeof(frameData) / sizeof(frameData[0])) 
@@ -841,8 +880,8 @@ bool prepCam() {
   framesize_t maxFS = ESP.getPsramSize() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
   // configure camera
   camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
+  config.ledc_channel = LEDC_CHANNEL_1;
+  config.ledc_timer = LEDC_TIMER_1;
   config.pin_d0 = Y2_GPIO_NUM;
   config.pin_d1 = Y3_GPIO_NUM;
   config.pin_d2 = Y4_GPIO_NUM;
@@ -867,6 +906,7 @@ bool prepCam() {
   config.frame_size = maxFS;
   config.jpeg_quality = 10;
   config.fb_count = FB_CNT;
+  config.sccb_i2c_port = 0;// using I2C 0. to be sure what port we are using. it can be changed.
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -878,15 +918,22 @@ bool prepCam() {
   uint8_t retries = 2;
   while (retries && err != ESP_OK) {
     err = esp_camera_init(&config);
+    if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
       // power cycle the camera, provided pin is connected
-      digitalWrite(PWDN_GPIO_NUM, 1);
-      delay(100);
-      digitalWrite(PWDN_GPIO_NUM, 0); 
-      delay(100);
+      #if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both ckecks are needed. if we send -1 to digitalWrite, it can cause crashe or errors.
+        digitalWrite(PWDN_GPIO_NUM, 1);
+        delay(100);
+        digitalWrite(PWDN_GPIO_NUM, 0); 
+        delay(100);
+      #else
+        delay(200);
+      #endif
       retries--;
     }
   } 
+
+
   if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%x:%s on %s", err, espErrMsg(err), CAM_BOARD);
   else {
     sensor_t* s = esp_camera_sensor_get();

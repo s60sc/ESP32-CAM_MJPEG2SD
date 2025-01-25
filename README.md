@@ -27,18 +27,20 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes in version 10.5.3:
+
+Changes up to version 10.5.3:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
 * RTSP server now has multiple client support 
 * Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
 * Shared I2C fixed following code changes in Arduino core v3.1.1
+* 24Mhz camera clock available for faster frame rate on ESP32S3, contributed by [@josef2600](https://github.com/josef2600).
 
 ## Purpose
 
 The application enables video capture of motion detection or timelapse recording. Examples include security cameras, wildlife monitoring, rocket flight monitoring, FPV vehicle control.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
 
-Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 on a AI Thinker OV2640 board, set to maximum JPEG quality and highest clock rate.
+Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 on a AI Thinker OV2640 board, set to maximum JPEG quality and clock rate of 20MHz. With a clock rate of 24Mhz on ESP32S3, the maximum frame rates can increase 50->60, 25->30 but it may be necessary to reduce JPEG quality.
 
 Frame Size | OV2640 camera max fps | mjpeg2sd max fps | Detection time ms
 ------------ | ------------- | ------------- | -------------
@@ -347,6 +349,9 @@ For security, **Authentication settings** should be defined in **Access Settings
 Note that some internet providers will use [CGNAT](https://en.wikipedia.org/wiki/Carrier-grade_NAT), which will make port forwarding hard to achieve or impossible (you might need to contact your ISP and ask them for a solution if they are willing to help).
 
 ## I2C Devices
+
+**I2C sharing not available in arduino core v3.1.1 due to camera library [issue](https://github.com/espressif/esp32-camera/issues/718). 
+Use separate I2C port.**
 
 <img align=right src="extras/I2C.jpg" width="300" height="450">
 
