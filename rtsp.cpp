@@ -147,7 +147,9 @@ void prepRTSP() {
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s", transportStr);
-      LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
+      strlen(rtspUser) ? 
+          LOG_INF("Connect to: rtsp://<username>:<password>@%s:%d (credentials not shown for security reasons)", WiFi.localIP().toString().c_str(), rtspServer.rtspPort) :
+          LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
 
       // start RTSP tasks, need bigger stack for video
       if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
