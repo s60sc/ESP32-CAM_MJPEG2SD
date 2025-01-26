@@ -491,8 +491,8 @@ extern uint16_t rtpSubtitlesPort;
 extern char RTP_ip[];
 extern uint8_t rtspMaxClients;
 extern uint8_t rtpTTL;
-extern char rtspUser[];
-extern char rtspPassword[];
+extern char RTSP_Name[];
+extern char RTSP_Pass[];
 
 // task handling
 extern TaskHandle_t battHandle;

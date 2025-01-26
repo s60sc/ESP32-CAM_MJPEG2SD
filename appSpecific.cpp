@@ -228,23 +228,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
   else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
 #endif
-
-#if INCLUDE_RTSP
- 
-  else if (!strcmp(variable, "rtsp00User")) strncpy(rtspUser, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "rtsp01Pass")) strncpy(rtspPassword, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "rtsp02Video")) rtspVideo = streamVid = (bool)intVal;
-  else if (!strcmp(variable, "rtsp03Audio")) rtspAudio = streamAud = (bool)intVal;
-  else if (!strcmp(variable, "rtsp04Subtitles")) rtspSubtitles = streamSrt = (bool)intVal;
-  else if (!strcmp(variable, "rtsp05Port")) rtspPort = intVal;
-  else if (!strcmp(variable, "rtsp06VideoPort")) rtpVideoPort = intVal;
-  else if (!strcmp(variable, "rtsp07AudioPort")) rtpAudioPort = intVal;
-  else if (!strcmp(variable, "rtsp08SubtitlesPort")) rtpSubtitlesPort = intVal;
-  else if (!strcmp(variable, "rtsp09Ip")) strncpy(RTP_ip, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "rtsp10MaxC")) rtspMaxClients = intVal;
-  else if (!strcmp(variable, "rtsp11TTL")) rtpTTL = intVal;
-#endif
-
 #ifndef AUXILIARY
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
@@ -995,16 +978,16 @@ relayMode~0~3~S:Manual:Night~How relay activated
 relaySwitch~0~3~C~Switch relay off / on
 I2Csda~-1~3~N~I2C SDA pin if unshared
 I2Cscl~-1~3~N~I2C SCL pin if unshared
-rtsp00User~~8~T~RTSP Auth Username
-rtsp01Pass~~8~T~RTSP Auth Password
-rtsp02Video~1~8~C~Enable RTSP Video
-rtsp03Audio~0~8~C~Enable RTSP Audio
-rtsp04Subtitles~1~8~C~Enable RTSP Subtitles
-rtsp05Port~554~8~N~RTSP ServerPort
-rtsp06VideoPort~5430~8~N~RTSP Video Port
-rtsp07AudioPort~5432~8~N~RTSP Audio Port
-rtsp08SubtitlesPort~5434~8~N~RTSP Subtitles Port
-rtsp09Ip~239.255.0.1~8~T~RTSP Multicast IP
-rtsp10MaxC~3~8~N~RTSP Multicast Max Connections
-rtsp11TTL~1~8~N~RTSP Multicast Time-to-Live
+RTSP_Name~~8~T~RTSP Auth Username
+RTSP_Pass~~8~T~RTSP Auth Password
+rtsp00Video~1~8~C~Enable RTSP Video
+rtsp01Audio~0~8~C~Enable RTSP Audio
+rtsp02Subtitles~1~8~C~Enable RTSP Subtitles
+rtsp03Port~554~8~N~RTSP ServerPort
+rtsp04VideoPort~5430~8~N~RTSP Video Port
+rtsp05AudioPort~5432~8~N~RTSP Audio Port
+rtsp06SubtitlesPort~5434~8~N~RTSP Subtitles Port
+rtsp07Ip~239.255.0.1~8~T~RTSP Multicast IP
+rtsp08MaxC~3~8~N~RTSP Multicast Max Connections
+rtsp09TTL~1~8~N~RTSP Multicast Time-to-Live
 )~";

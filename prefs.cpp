@@ -192,6 +192,9 @@ static bool savePrefs(bool retain = true) {
 #if INCLUDE_MQTT
   prefs.putString("mqtt_user_Pass", mqtt_user_Pass);
 #endif
+#if INCLUDE_RTSP
+  prefs.putString("RTSP_Pass", RTSP_Pass);
+#endif
   prefs.end();
   LOG_INF("Saved preferences");
   return true;
@@ -221,6 +224,9 @@ static bool loadPrefs() {
 #endif
 #if INCLUDE_MQTT
   prefs.getString("mqtt_user_Pass", mqtt_user_Pass, MAX_PWD_LEN);
+#endif
+#if INCLUDE_RTSP
+  prefs.getString("RTSP_Pass", RTSP_Pass, MAX_PWD_LEN);
 #endif
   prefs.end();
   return true;
@@ -314,7 +320,20 @@ void updateStatus(const char* variable, const char* _value, bool fromUser) {
   else if (!strcmp(variable, "mqtt_user_Pass") && value[0] != '*') strncpy(mqtt_user_Pass, value, MAX_PWD_LEN-1);
   else if (!strcmp(variable, "mqtt_topic_prefix")) strncpy(mqtt_topic_prefix, value, (FILE_NAME_LEN/2)-1);
 #endif
-
+#if INCLUDE_RTSP
+  else if (!strcmp(variable, "RTSP_Name")) strncpy(RTSP_Name, value, MAX_HOST_LEN-1);
+  else if (!strcmp(variable, "RTSP_Pass")  && value[0] != '*')strncpy(RTSP_Pass, value, MAX_PWD_LEN-1);
+  else if (!strcmp(variable, "rtsp00Video")) rtspVideo = streamVid = (bool)intVal;
+  else if (!strcmp(variable, "rtsp01Audio")) rtspAudio = streamAud = (bool)intVal;
+  else if (!strcmp(variable, "rtsp02Subtitles")) rtspSubtitles = streamSrt = (bool)intVal;
+  else if (!strcmp(variable, "rtsp03Port")) rtspPort = intVal;
+  else if (!strcmp(variable, "rtsp04VideoPort")) rtpVideoPort = intVal;
+  else if (!strcmp(variable, "rtsp05AudioPort")) rtpAudioPort = intVal;
+  else if (!strcmp(variable, "rtsp06SubtitlesPort")) rtpSubtitlesPort = intVal;
+  else if (!strcmp(variable, "rtsp07Ip")) strncpy(RTP_ip, value, MAX_IP_LEN-1);
+  else if (!strcmp(variable, "rtsp08MaxC")) rtspMaxClients = intVal;
+  else if (!strcmp(variable, "rtsp09TTL")) rtpTTL = intVal;
+#endif
   // Other settings
   else if (!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
   else if (!strcmp(variable, "timezone")) strncpy(timezone, value, FILE_NAME_LEN-1);
@@ -410,6 +429,9 @@ void buildJsonString(uint8_t filter) {
 #endif
 #if INCLUDE_MQTT
       p += sprintf(p, "\"mqtt_user_Pass\":\"%.*s\",", strlen(mqtt_user_Pass), FILLSTAR);
+#endif
+#if INCLUDE_RTSP
+      p += sprintf(p, "\"RTSP_Pass\":\"%.*s\",", strlen(RTSP_Pass), FILLSTAR);
 #endif
     }
   } else {

@@ -41,8 +41,9 @@ uint16_t rtpSubtitlesPort;
 char RTP_ip[MAX_IP_LEN];
 uint8_t rtspMaxClients;
 uint8_t rtpTTL;
-char rtspUser[MAX_IP_LEN] = "";
-char rtspPassword[MAX_IP_LEN] = "";
+char RTSP_Name[MAX_HOST_LEN-1] = "";
+char RTSP_Pass[MAX_PWD_LEN-1] = "";
+bool useAuth;
 
 IPAddress rtpIp;
 char transportStr[30];  // Adjust the size as needed
@@ -129,7 +130,7 @@ static void startRTSPSubtitles(void* arg) {
 }
 
 void prepRTSP() {
-  rtspServer.setCredentials(rtspUser, rtspPassword); // Set RTSP authentication
+  useAuth = rtspServer.setCredentials(RTSP_Name, RTSP_Pass); // Set RTSP authentication
   RTSPServer::TransportType transport = determineTransportType();
   rtpIp.fromString(RTP_ip);
   rtspServer.transport = transport;
@@ -147,7 +148,7 @@ void prepRTSP() {
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s", transportStr);
-      strlen(rtspUser) ? 
+      useAuth ? 
           LOG_INF("Connect to: rtsp://<username>:<password>@%s:%d (credentials not shown for security reasons)", WiFi.localIP().toString().c_str(), rtspServer.rtspPort) :
           LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
 

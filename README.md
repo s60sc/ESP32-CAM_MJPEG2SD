@@ -3,6 +3,7 @@
 
 Application for ESP32 / ESP32S3 with OV2640 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
+* [RTSP Server](#rtsp) stream Video, Audio and Subtitles
 * [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
 * Time lapse recording
 * [Audio Recording](#audio-recording) from I2S or PDM microphones
@@ -29,7 +30,7 @@ To suggest an improvement or enhancement use Discussions.***
 
 Changes up to version 10.5.4:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
-* RTSP server now has multiple client support as well as user/pass authentication
+* RTSP server now has multiple client support as well as user/pass authentication.
 * Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
 * Shared I2C fixed following code changes in Arduino core v3.1.1
@@ -454,7 +455,7 @@ Streaming performance depends on quality of network connection, but can be incre
 
 #### RTSP
 
-This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/ESP32-RTSPServer) library for details. Must be version 1.3.0 or above
+This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/ESP32-RTSPServer) library for details. Must be version 1.3.1 or above
 
 To integrate library with this app, set `#define INCLUDE_RTSP` to `true`.
 
