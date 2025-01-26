@@ -62,7 +62,7 @@
 #define INCLUDE_EXTHB false   // externalHeartbeat.cpp (heartbeat to remote server)
 #define INCLUDE_PGRAM false   // photogram.cpp (photogrammetry feature). Needs INCLUDE_PERIPH true
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
-#define INCLUDE_RTSP false    // rtsp.cpp (RTSP Streaming). Requires additional library: ESP32-RTSPServer
+#define INCLUDE_RTSP false    // rtsp.cpp (RTSP Streaming). Requires additional library: Latest ESP32-RTSPServer (https://github.com/rjsachse/ESP32-RTSPServer)
 #define INCLUDE_DS18B20 false // if true, requires INCLUDE_PERIPH and additional libraries: OneWire and DallasTemperature
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
 
@@ -108,7 +108,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.5.3"
+#define APP_VER "10.5.4"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -151,7 +151,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 25
+#define CFG_VER 26
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -491,6 +491,8 @@ extern uint16_t rtpSubtitlesPort;
 extern char RTP_ip[];
 extern uint8_t rtspMaxClients;
 extern uint8_t rtpTTL;
+extern char rtspUser[];
+extern char rtspPassword[];
 
 // task handling
 extern TaskHandle_t battHandle;

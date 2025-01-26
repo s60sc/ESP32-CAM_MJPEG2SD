@@ -38,9 +38,11 @@ int rtspPort;
 uint16_t rtpVideoPort;
 uint16_t rtpAudioPort;
 uint16_t rtpSubtitlesPort;
-char RTP_ip [MAX_IP_LEN];
+char RTP_ip[MAX_IP_LEN];
 uint8_t rtspMaxClients;
 uint8_t rtpTTL;
+char rtspUser[MAX_IP_LEN] = "";
+char rtspPassword[MAX_IP_LEN] = "";
 
 IPAddress rtpIp;
 char transportStr[30];  // Adjust the size as needed
@@ -127,6 +129,7 @@ static void startRTSPSubtitles(void* arg) {
 }
 
 void prepRTSP() {
+  rtspServer.setCredentials(rtspUser, rtspPassword); // Set RTSP authentication
   RTSPServer::TransportType transport = determineTransportType();
   rtpIp.fromString(RTP_ip);
   rtspServer.transport = transport;
