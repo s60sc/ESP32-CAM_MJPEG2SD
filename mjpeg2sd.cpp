@@ -841,7 +841,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
     .speed_mode = LEDC_LOW_SPEED_MODE,
     .duty_resolution = LEDC_TIMER_1_BIT,
     .timer_num = config.ledc_timer,
-    .freq_hz = config.xclk_freq_hz,
+    .freq_hz = (uint32_t)config.xclk_freq_hz, // Fix arduino  warning: narrowing conversion from 'int' to 'uint32_t'
     .clk_cfg = LEDC_AUTO_CLK
   };
   res = ledc_timer_config(&ledc_timer);

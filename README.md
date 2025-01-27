@@ -3,6 +3,7 @@
 
 Application for ESP32 / ESP32S3 with OV2640 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
+* [RTSP Server](#rtsp) stream Video, Audio and Subtitles
 * [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
 * Time lapse recording
 * [Audio Recording](#audio-recording) from I2S or PDM microphones
@@ -27,8 +28,9 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes up to version 10.5.3:
+Changes up to version 10.5.4:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
+* RTSP server now has multiple client support as well as user/pass authentication.
 * Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
 * Shared I2C fixed following code changes in Arduino core v3.1.1
@@ -453,7 +455,7 @@ Streaming performance depends on quality of network connection, but can be incre
 
 #### RTSP
 
-This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/RTSPServer) library for details.
+This requires an additional library to be installed - see [RTSPServer](https://github.com/rjsachse/ESP32-RTSPServer) library for details. Must be version 1.3.1 or above
 
 To integrate library with this app, set `#define INCLUDE_RTSP` to `true`.
 
@@ -464,7 +466,14 @@ To enable RTSP, under **Edit Config** -> **Streaming** tab, select:
 
 Then save and reboot. 
 
-To view the stream, connect to `rtsp://<camera_ip>:554` using app supporting RTSP.
+To view the stream, connect to `rtsp://<camera_ip>:<RTSPport>` using app supporting RTSP.
+
+Or if authentication is enabled (username and password):
+`rtsp://<RTSPuser>:<RTSPpass>@<camera_ip>:<RTSPport>`
+
+RTSP now supports multiple clients for multicast. You can also override this logic and enable multiple clients for all transports (TCP, UDP, Multicast) by commenting out //#define OVERRIDE_RTSP_SINGLE_CLIENT_MODE in rtsp.cpp. 
+However, enabling multiple clients for all transports can slow the stream down and may cause issues, so use with care. It is better to leave it for only one client if using TCP or UDP unicast for best results. For more details, 
+check out the README in the RTSPServer library.
 
 #### HTTP
 

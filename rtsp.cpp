@@ -28,6 +28,9 @@
 
 RTSPServer rtspServer;
 
+//Comment out to enable multiple clients for all transports (TCP, UDP, Multicast)
+//#define OVERRIDE_RTSP_SINGLE_CLIENT_MODE
+
 bool rtspVideo;
 bool rtspAudio;
 bool rtspSubtitles;
@@ -35,8 +38,12 @@ int rtspPort;
 uint16_t rtpVideoPort;
 uint16_t rtpAudioPort;
 uint16_t rtpSubtitlesPort;
-char RTP_ip [MAX_IP_LEN];
+char RTP_ip[MAX_IP_LEN];
+uint8_t rtspMaxClients;
 uint8_t rtpTTL;
+char RTSP_Name[MAX_HOST_LEN-1] = "";
+char RTSP_Pass[MAX_PWD_LEN-1] = "";
+bool useAuth;
 
 IPAddress rtpIp;
 char transportStr[30];  // Adjust the size as needed
@@ -123,6 +130,7 @@ static void startRTSPSubtitles(void* arg) {
 }
 
 void prepRTSP() {
+  useAuth = rtspServer.setCredentials(RTSP_Name, RTSP_Pass); // Set RTSP authentication
   RTSPServer::TransportType transport = determineTransportType();
   rtpIp.fromString(RTP_ip);
   rtspServer.transport = transport;
@@ -134,16 +142,19 @@ void prepRTSP() {
   rtspServer.rtpAudioPort = rtpAudioPort; 
   rtspServer.rtpSubtitlesPort = rtpSubtitlesPort;
   rtspServer.rtpIp = rtpIp; 
+  rtspServer.maxRTSPClients = rtspMaxClients;
   rtspServer.rtpTTL = rtpTTL; 
     
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s", transportStr);
-      LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
+      useAuth ? 
+          LOG_INF("Connect to: rtsp://<username>:<password>@%s:%d (credentials not shown for security reasons)", WiFi.localIP().toString().c_str(), rtspServer.rtspPort) :
+          LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
 
       // start RTSP tasks, need bigger stack for video
       if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
-      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 4, NULL, SUSTAIN_PRI, &sustainHandle[2]);
+      if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[2]);
       if (rtspSubtitles) xTaskCreate(startRTSPSubtitles, "startRTSPSubtitles", 1024 * 1, NULL, SUSTAIN_PRI, &sustainHandle[3]);  
     } else { 
       LOG_ERR("Failed to start RTSP server"); 
