@@ -35,6 +35,8 @@ uint8_t xclkMhz = 20; // camera clock rate MHz
 bool doKeepFrame = false;
 static bool haveSrt = false;
 char camModel[10];
+static int siodGpio = SIOD_GPIO_NUM;
+static int siocGpio = SIOC_GPIO_NUM;
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -841,7 +843,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
     .speed_mode = LEDC_LOW_SPEED_MODE,
     .duty_resolution = LEDC_TIMER_1_BIT,
     .timer_num = config.ledc_timer,
-    .freq_hz = (uint32_t)config.xclk_freq_hz, // Fix arduino  warning: narrowing conversion from 'int' to 'uint32_t'
+    .freq_hz = (uint32_t)config.xclk_freq_hz,
     .clk_cfg = LEDC_AUTO_CLK
   };
   res = ledc_timer_config(&ledc_timer);
@@ -873,7 +875,14 @@ bool prepCam() {
   if (FRAMESIZE_INVALID != sizeof(frameData) / sizeof(frameData[0])) 
     LOG_ERR("framesize_t entries %d != frameData entries %d", FRAMESIZE_INVALID, sizeof(frameData) / sizeof(frameData[0]));
   if (!camPower()) return false;
-  
+#if INCLUDE_I2C
+  if (shareI2C(SIOD_GPIO_NUM, SIOC_GPIO_NUM)) { 
+    // if shared, set camera to use shared
+    siodGpio = -1;
+    siocGpio = -1;
+  }
+#endif
+
   bool res = false;
   // buffer sizing depends on psram size (4M or 8M)
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
@@ -894,8 +903,8 @@ bool prepCam() {
   config.pin_pclk = PCLK_GPIO_NUM;
   config.pin_vsync = VSYNC_GPIO_NUM;
   config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
+  config.pin_sccb_sda = siodGpio;
+  config.pin_sccb_scl = siocGpio;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = xclkMhz * OneMHz;
@@ -906,7 +915,7 @@ bool prepCam() {
   config.frame_size = maxFS;
   config.jpeg_quality = 10;
   config.fb_count = FB_CNT;
-  config.sccb_i2c_port = 0;// using I2C 0. to be sure what port we are using. it can be changed.
+  config.sccb_i2c_port = 0;// using I2C 0. to be sure what port we are using.
 
 #if defined(CAMERA_MODEL_ESP_EYE)
   pinMode(13, INPUT_PULLUP);
@@ -921,14 +930,14 @@ bool prepCam() {
     if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
       // power cycle the camera, provided pin is connected
-      #if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both ckecks are needed. if we send -1 to digitalWrite, it can cause crashe or errors.
-        digitalWrite(PWDN_GPIO_NUM, 1);
-        delay(100);
-        digitalWrite(PWDN_GPIO_NUM, 0); 
-        delay(100);
-      #else
-        delay(200);
-      #endif
+#if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both ckecks are needed. if send -1 to digitalWrite, it can cause crash.
+      digitalWrite(PWDN_GPIO_NUM, 1);
+      delay(100);
+      digitalWrite(PWDN_GPIO_NUM, 0); 
+      delay(100);
+#else
+      delay(200);
+#endif
       retries--;
     }
   } 

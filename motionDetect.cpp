@@ -184,7 +184,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     if (fsizePtr > 16) {
       LOG_WRN("Frame size %s too large for processing", frameData[fsizePtr].frameSizeStr);
       useMotion = false;
-    } else LOG_WRN("jpg2rgb() failure");
+    }
     return motionStatus;
   }
   LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
@@ -377,5 +377,6 @@ static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_
   jpeg.output = out; 
   jpeg.data_offset = 0;
   esp_err_t res = esp_jpg_decode(src_len, scale, _jpg_read, _rgb_write, (void*)&jpeg);
+  if (res != ESP_OK) LOG_WRN("jpg2rgb failure: %s", espErrMsg(res)); 
   return (res == ESP_OK) ? true : false;
 }

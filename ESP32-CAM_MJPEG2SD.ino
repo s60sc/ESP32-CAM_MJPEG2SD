@@ -61,9 +61,6 @@ void setup() {
 #if INCLUDE_TGRAM
     prepTelegram();
 #endif
-#ifndef AUXILIARY
-    prepRecording(); 
-#endif
 #if INCLUDE_I2C
   prepI2C();
   #if INCLUDE_TELEM
@@ -73,8 +70,11 @@ void setup() {
 #if INCLUDE_PERIPH
     startHeartbeat();
 #endif
-#if INCLUDE_RTSP
+#ifndef AUXILIARY
+    prepRecording(); 
+ #if INCLUDE_RTSP
     prepRTSP();
+ #endif
 #endif
     checkMemory();
   } 

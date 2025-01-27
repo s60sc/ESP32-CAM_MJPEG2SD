@@ -28,6 +28,7 @@ int I2Csda = -1;
 int I2Cscl = -1;
 static byte I2CDATA[10]; // store I2C data received or to be sent 
 static int I2Cdevices = -1;
+static bool isShared = false;
   
 // I2C device names, indexed by address
 static bool deviceStatus[128] = {false}; // whether device present
@@ -101,20 +102,33 @@ static bool sendI2Cdata(int clientAddr, uint8_t controlByte, uint8_t numBytes) {
   return sendTransmission(clientAddr, false);
 }
 
+bool shareI2C(int sdaShare, int sclShare) {
+  // apply given pins if bus to be shared 
+// await cam lib fix
+//  if (I2Csda < 0) { 
+//    // I2C bus shared with another peripheral, eg camera
+//    I2Csda = sdaShare;
+//    I2Cscl = sclShare;
+//    isShared = true;
+//    Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
+//    LOG_INF("I2C bus shared with camera");
+//  }
+  return isShared;
+}
+
 bool prepI2C() {
-  // start I2C port and prep I2C peripherals
-  if (I2Csda < 0) { 
-    // I2C bus shared with camera
-    I2Csda = SIOD_GPIO_NUM;
-    I2Cscl = SIOC_GPIO_NUM;
-    LOG_INF("I2C bus shared with camera");
-  } else if (I2Csda == I2Cscl) {
-    LOG_ALT("I2C pins not defined");
+  // start I2C port if not shared then prep I2C peripherals
+  if (I2Csda == I2Cscl) {
+    LOG_ALT("I2C pins not defined: %d", I2Csda);
     return false;
   } 
-  Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
-  //Wire.setClock(400000); // default 100kHz, max 400kHz
-  LOG_INF("I2C initialised at %dkHz using pins SDA: %d, SCL: %d", Wire.getClock() / 1000, I2Csda, I2Cscl);
+  // start I2C
+  if (!isShared) {
+    Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
+    //Wire.setClock(400000); // default 100kHz, max 400kHz
+  }
+  LOG_INF("%sI2C initialised at %dkHz using pins SDA: %d, SCL: %d", isShared ? "Shared " : "", Wire.getClock() / 1000, I2Csda, I2Cscl);
+
   I2Cdevices = 0;
   scanI2C();
   return prepI2Cdevices();

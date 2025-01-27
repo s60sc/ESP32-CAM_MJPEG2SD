@@ -228,6 +228,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
   else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
 #endif
+
 #ifndef AUXILIARY
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
