@@ -104,15 +104,15 @@ static bool sendI2Cdata(int clientAddr, uint8_t controlByte, uint8_t numBytes) {
 
 bool shareI2C(int sdaShare, int sclShare) {
   // apply given pins if bus to be shared 
-// await cam lib fix
-//  if (I2Csda < 0) { 
-//    // I2C bus shared with another peripheral, eg camera
-//    I2Csda = sdaShare;
-//    I2Cscl = sclShare;
-//    isShared = true;
-//    Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
-//    LOG_INF("I2C bus shared with camera");
-//  }
+  /* await cam lib fix */
+  if (I2Csda < 0) { 
+    // I2C bus shared with another peripheral, eg camera
+    I2Csda = sdaShare;
+    I2Cscl = sclShare;
+    isShared = true;
+    Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
+    LOG_INF("I2C bus shared with camera");
+  }
   return isShared;
 }
 

@@ -9,8 +9,11 @@
 #endif
 
 #pragma once
+
+//#define DEV_ONLY // leave commented out
+#ifdef DEV_ONLY
 // to compile with -Wall -Werror=all -Wextra
-//#pragma GCC diagnostic error "-Wformat=2"
+#pragma GCC diagnostic error "-Wformat=2"
 #pragma GCC diagnostic ignored "-Wformat-y2k"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -19,6 +22,7 @@
 //#pragma GCC diagnostic ignored "-Wignored-qualifiers"
 //#pragma GCC diagnostic ignored "-Wclass-memaccess"
 #pragma GCC diagnostic ignored "-Wvolatile"
+#endif
 
 /******************** Libraries *******************/
 

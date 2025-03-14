@@ -28,13 +28,14 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes up to version 10.5.4:
+Changes up to version 10.6:
 * Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
 * Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
 * SD card 4 bit mode configurable (see `utilsFS.cpp`)
 * Shared I2C fixed following code changes in Arduino core v3.1.1
 * 24Mhz camera clock available for faster frame rate on ESP32S3, contributed by [@josef2600](https://github.com/josef2600).
 * RTSP server now has multiple client support as well as user/pass authentication.
+* Limited support added for boards with only 2MB PSRAM
 
 ## Purpose
 
@@ -86,7 +87,6 @@ Select the ESP32 or ESP32S3 Dev Module board and compile with PSRAM enabled and 
 * **If you get compilation errors you need to update your `arduino-esp32` core library in the IDE to latest v3.x
 using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#issuecomment-1034928567)**
 * **If you get error: `Startup Failure: Check SD card inserted`, or `Camera init error 0x105` it is usually a [camera board selection](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/219#issuecomment-1627785417) issue**
-* **If you get error: `Camera init error 0xffffffff`, it is due to some cam boards being sold with only 2MB PSRAM which is insufficient for this app.**
 * **If you get warning: `Crash loop detected, check log`, it is usually an inadequate power supply.**
 
 
@@ -205,7 +205,7 @@ JPEG images of any size are retrieved from the camera and 1 in N images are samp
 
 For movement detection a high sample rate of 1 in 2 is used. When movement has been detected, the rate for checking for movement stop is reduced to 1 in 10 so that the JPEGs can be captured with only a small overhead. The **Detection time ms** table shows typical time in millis to decode and analyse a frame retrieved from the OV2640 camera.
 
-Motion detection by camera is enabled by default, to disable click off **Enable motion detect** in **Motion Detect & Recording** sidebar button.
+Motion detection by camera is enabled by default, to disable click off **Enable motion detect** in **Motion Detect & Recording** sidebar button. Motion detection is not available for frame sizes > SXGA due to limitations with `esp_jpg_decode()`.
 
 <img align=right src="extras/motion.png" width="200" height="200">
 

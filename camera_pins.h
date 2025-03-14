@@ -320,8 +320,15 @@
 #define HREF_GPIO_NUM     4
 #define PCLK_GPIO_NUM     3
 
-#elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
-#define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE_FREENOVE"
+#elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM) || defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
+#if defined(CAMERA_MODEL_ESP32S3_EYE)
+#define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE"
+#elif defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
+#define CAM_BOARD "CAMERA_MODEL_FREENOVE_ESP32S3_CAM"
+#elif defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
+#define CAM_BOARD "CAMERA_MODEL_PCBFUN_ESP32S3_CAM"
+#endif
+
 #define PWDN_GPIO_NUM -1
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM 15
@@ -341,7 +348,7 @@
 #define HREF_GPIO_NUM 7
 #define PCLK_GPIO_NUM 13
 
-#if defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
+#if defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM) || defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
 #define USE_WS2812 // Use WS2812 rgb led
 #endif
 #ifdef USE_WS2812 
@@ -354,6 +361,12 @@
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
+#if defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
+// uncomment following pins for SD MMC 4 bit mode
+//#define SD_MMC_D1 41
+//#define SD_MMC_D2 14
+//#define SD_MMC_D3 47
+#endif
 
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 // Define Mic Pins
@@ -491,6 +504,32 @@
 #define USE_WS2812
 #define LED_GPIO_NUM     48
 
+#elif defined(CAMERA_MODEL_UICPAL_ESP32)
+#define CAM_BOARD "CAMERA_MODEL_UICPAL_ESP32"
+
+// Camera
+#define PWDN_GPIO_NUM    -1
+#define RESET_GPIO_NUM    5
+#define XCLK_GPIO_NUM    15
+#define SIOD_GPIO_NUM    21
+#define SIOC_GPIO_NUM    22
+
+#define Y9_GPIO_NUM       2
+#define Y8_GPIO_NUM      13
+#define Y7_GPIO_NUM      12
+#define Y6_GPIO_NUM      32
+#define Y5_GPIO_NUM      25
+#define Y4_GPIO_NUM      27
+#define Y3_GPIO_NUM      26
+#define Y2_GPIO_NUM      33
+#define VSYNC_GPIO_NUM   17
+#define HREF_GPIO_NUM    16
+#define PCLK_GPIO_NUM    14
+
+// SD Card
+#define SD_MMC_CLK       18
+#define SD_MMC_CMD       19
+#define SD_MMC_D0        23
 
 #elif defined(AUXILIARY)
 #define CAM_BOARD "AUXILIARY"

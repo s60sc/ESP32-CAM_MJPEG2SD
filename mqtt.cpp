@@ -131,7 +131,7 @@ void sendMqttImage(){
   if (!doKeepFrame && alertBufferSize) {
      const char* picBuff = (const char*)(alertBuffer);
      int id = esp_mqtt_client_publish(mqtt_client, image_topic, picBuff, alertBufferSize, MQTT_QOS, 0);
-     LOG_VRB("Sended pic, size: %lu", alertBufferSize );
+     LOG_VRB("Sent pic, size: %lu", alertBufferSize );
   }else{
     LOG_INF("Fail to send image");
   }

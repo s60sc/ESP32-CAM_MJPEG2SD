@@ -54,11 +54,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "enableMotion")) {
     // Turn on/off motion detection 
     useMotion = (intVal) ? true : false; 
-    if (fsizePtr > 16 && useMotion) {
-      useMotion = false;
-      updateConfigVect("enableMotion", "0");
-      LOG_WRN("Motion detection disabled as frame size %s is too large", frameData[fsizePtr].frameSizeStr);
-    } else LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
+    LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
   }
   else if (!strcmp(variable, "timeLapseOn")) timeLapseOn = intVal;
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
@@ -233,18 +229,18 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   // camera settings
   else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
   else if (!strcmp(variable, "framesize")) {
-    fsizePtr = intVal;
-    if (s) {
-      if (s->set_framesize(s, (framesize_t)fsizePtr) != ESP_OK) res = false;
-      // update default FPS for this frame size
-      if (playbackHandle != NULL) {
-        setFPSlookup(fsizePtr);
-        updateConfigVect("fps", String(FPS).c_str()); 
-      }
-      if (fsizePtr > 16 && useMotion) {
-        useMotion = false;
-        updateConfigVect("enableMotion", "0");
-        LOG_WRN("Motion detection disabled as frame size %s is too large", frameData[fsizePtr].frameSizeStr);
+    if (intVal > maxFS && fromUser) LOG_WRN("Frame size %s too large for %s PSRAM ", frameData[intVal].frameSizeStr, fmtSize(ESP.getPsramSize()));
+    else {
+      fsizePtr = intVal;
+      if (fsizePtr > FRAMESIZE_SXGA) LOG_WRN("Motion detection not available as frame size %s too large", frameData[fsizePtr].frameSizeStr);
+
+      if (s) {
+        if (s->set_framesize(s, (framesize_t)fsizePtr) != ESP_OK) res = false;
+        // update default FPS for this frame size
+        if (playbackHandle != NULL) {
+          setFPSlookup(fsizePtr);
+          updateConfigVect("fps", String(FPS).c_str()); 
+        }
       }
     }
   }

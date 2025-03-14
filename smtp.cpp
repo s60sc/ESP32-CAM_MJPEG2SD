@@ -173,7 +173,7 @@ void emailAlert(const char* _subject, const char* _message) {
 void prepSMTP() {
   if (smtpUse) {
     emailCount = 0;
-    if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_JPEG); 
+    if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(maxFrameBuffSize); 
     LOG_INF("Email alerts active");
   } 
 }

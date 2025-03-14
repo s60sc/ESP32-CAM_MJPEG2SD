@@ -37,6 +37,8 @@ static bool haveSrt = false;
 char camModel[10];
 static int siodGpio = SIOD_GPIO_NUM;
 static int siocGpio = SIOC_GPIO_NUM;
+size_t maxFrameBuffSize;
+framesize_t maxFS = FRAMESIZE_SVGA; // default
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -229,7 +231,7 @@ static void timeLapse(camera_fb_t* fb, bool tlStop = false) {
 
 void keepFrame(camera_fb_t* fb) {
   // keep required frame for external server alert
-  if (fb->len < MAX_JPEG && alertBuffer != NULL) {
+  if (fb->len < maxFrameBuffSize && alertBuffer != NULL) {
     memcpy(alertBuffer, fb->buf, fb->len);
     alertBufferSize = fb->len;
   }
@@ -388,7 +390,7 @@ static boolean processFrame() {
   bool finishRecording = false;
 
   camera_fb_t* fb = esp_camera_fb_get();
-  if (fb == NULL || !fb->len || fb->len > MAX_JPEG) return false;
+  if (fb == NULL || !fb->len || fb->len > maxFrameBuffSize) return false;
   timeLapse(fb);
 
   for (int i = 0; i < vidStreams; i++) {
@@ -748,7 +750,6 @@ bool prepRecording() {
     if (useMotion) LOG_INF("- move in front of camera");
   }
   logLine();
-  LOG_INF("Camera model %s ready @ %uMHz", camModel, xclkMhz); 
   debugMemory("prepRecording");
   return true;
 }
@@ -884,9 +885,15 @@ bool prepCam() {
 #endif
 
   bool res = false;
-  // buffer sizing depends on psram size (4M or 8M)
+  // buffer sizing depends on psram size (2M, 4M or 8M)
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
-  framesize_t maxFS = ESP.getPsramSize() > 5 * ONEMEG ? FRAMESIZE_QSXGA : FRAMESIZE_UXGA;
+  maxFS = FRAMESIZE_SVGA; // 2M
+  if (ESP.getPsramSize() > 5 * ONEMEG) maxFS = FRAMESIZE_QSXGA; // 8M
+  else if (ESP.getPsramSize() > 3 * ONEMEG) maxFS = FRAMESIZE_UXGA; // 4M
+  // define buffer size depending on maximum frame size available, esp32-camera/driver/cam_hal.c: cam_obj->recv_size
+  maxFrameBuffSize = maxAlertBuffSize = frameData[maxFS].frameWidth * frameData[maxFS].frameHeight / 5; 
+  LOG_INF("Max frame size for %s PSRAM is %s", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr);
+
   // configure camera
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_1;
@@ -930,7 +937,7 @@ bool prepCam() {
     if (err == ESP_OK) err = changeXCLK(config);
     if (err != ESP_OK) {
       // power cycle the camera, provided pin is connected
-#if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both ckecks are needed. if send -1 to digitalWrite, it can cause crash.
+#if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both checks are needed. if send -1 to digitalWrite, it can cause crash.
       digitalWrite(PWDN_GPIO_NUM, 1);
       delay(100);
       digitalWrite(PWDN_GPIO_NUM, 0); 
@@ -962,7 +969,6 @@ bool prepCam() {
           strcpy(camModel, "Other");
         break;
       }
-      LOG_INF("Camera init OK for %s", camModel);
   
       // set frame size to configured value
       char fsizePtr[4];
@@ -1002,7 +1008,8 @@ bool prepCam() {
     } else {
       esp_camera_fb_return(fb);
       fb = NULL;
-      res = false;
+      res = true;
+      LOG_INF("Camera model %s ready @ %uMHz", camModel, xclkMhz); 
     }
   }
   debugMemory("prepCam");

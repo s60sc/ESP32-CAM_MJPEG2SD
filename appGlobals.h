@@ -27,11 +27,13 @@
 //#define CAMERA_MODEL_TTGO_T_JOURNAL 
 //#define CAMERA_MODEL_ESP32_CAM_BOARD
 //#define CAMERA_MODEL_TTGO_T_CAMERA_PLUS
+//#define CAMERA_MODEL_UICPAL_ESP32
 //#define AUXILIARY
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
+//#define CAMERA_MODEL_PCBFUN_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3 
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
 //#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
@@ -100,7 +102,6 @@
 #include "esp_camera.h"
 #include "camera_pins.h"
 
-//#define DEV_ONLY // leave commented out
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
@@ -108,7 +109,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.5.4"
+#define APP_VER "10.6"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -129,7 +130,6 @@
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
 #define MAX_CONFIGS 210 // must be > number of entries in configs.txt
-#define MAX_JPEG (ONEMEG / 2) // UXGA jpeg frame buffer at highest quality 375kB rounded up
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
 #define TLS_HEAP (64 * 1024) // min free heap for TLS session
@@ -138,7 +138,6 @@
 #define MAX_FRAME_WAIT 1200
 #define RGB888_BYTES 3 // number of bytes per pixel
 #define GRAYSCALE_BYTES 1 // number of bytes per pixel 
-#define MAX_ALERT MAX_JPEG
 
 #ifdef NO_SD
 #define STORAGE LittleFS
@@ -332,6 +331,7 @@ extern bool forceRecord; // Recording enabled by rec button
 extern bool forcePlayback; // playback enabled by user
 extern uint8_t FPS;
 extern uint8_t fsizePtr; // index to frameData[] for record
+extern framesize_t maxFS;
 extern bool isCapturing;
 extern uint8_t lightLevel;  
 extern uint8_t lampLevel;  
@@ -369,6 +369,8 @@ extern uint8_t* audioBuffer;
 extern size_t audioBytes;
 extern char srtBuffer[];
 extern size_t srtBytes;
+extern size_t maxFrameBuffSize;
+extern size_t maxAlertBuffSize;
 
 // Auxiliary use
 extern bool useUart;
@@ -528,6 +530,7 @@ struct frameStruct {
 };
 
 // indexed by frame size - needs to be consistent with sensor.h framesize_t enum
+// and update corresponding frameSizeData[] entries in avi.cpp 
 // https://github.com/espressif/esp32-camera/blob/master/driver/include/sensor.h
 const frameStruct frameData[] = {
   {"96X96", 96, 96, 30, 1, 1},   // 2MP sensors

@@ -265,13 +265,13 @@ void startSustainTasks() {
     LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
     numStreams = MAX_STREAMS;
   }
-  if (MAX_JPEG * (vidStreams + 1) > ESP.getFreePsram()) {
+  if (maxFrameBuffSize * (vidStreams + 1) > ESP.getFreePsram()) {
     LOG_WRN("Insufficient PSRAM for NVR streams");
     vidStreams = 1;
     streamVid = streamAud = streamSrt = false;
   }
   for (int i = 0; i < vidStreams; i++)
-    if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(MAX_JPEG); 
+    if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(maxFrameBuffSize); 
 
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number

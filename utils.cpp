@@ -18,6 +18,7 @@ bool dataFilesChecked = false;
 // allow any startup failures to be reported via browser for remote devices
 char startupFailure[SF_LEN] = {0};
 size_t alertBufferSize = 0;
+size_t maxAlertBuffSize = 32 * 1024;
 byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
 RTC_NOINIT_ATTR uint32_t crashLoop;
 RTC_NOINIT_ATTR char brownoutStatus;
@@ -887,9 +888,9 @@ void logSetup() {
   boardInfo();
   LOG_INF("Compiled with arduino-esp32 v%s", ESP_ARDUINO_VERSION_STR);
   wakeupResetReason();
-  if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(MAX_ALERT); 
+  if (alertBuffer == NULL) alertBuffer = psramFound() ? (byte*)ps_malloc(maxAlertBuffSize) : (byte*)malloc(maxAlertBuffSize); 
   if (jsonBuff == NULL) jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
-  debugMemory("logSetup"); 
+  debugMemory("logSetup");
 }
 
 void formatHex(const char* inData, size_t inLen) {

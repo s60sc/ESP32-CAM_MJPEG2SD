@@ -167,6 +167,7 @@ static bool tinyMLclassify() {
 bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   // check difference between current and previous image (subtract background)
   // convert image from JPEG to downscaled RGB888 or 8 bit grayscale bitmap
+  if (fsizePtr > FRAMESIZE_SXGA) return false;
   uint32_t dTime = millis();
   uint32_t lux = 0;
   static uint32_t motionCnt = 0;
@@ -180,13 +181,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   stride = (colorDepth == RGB888_BYTES) ? GRAYSCALE_BYTES : RGB888_BYTES; // stride is inverse of colorDepth
 
   static uint8_t* rgb_buf = (uint8_t*)ps_malloc(sampleWidth * sampleHeight * RGB888_BYTES);
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgb_buf, (jpg_scale_t)scaling)) {
-    if (fsizePtr > 16) {
-      LOG_WRN("Frame size %s too large for processing", frameData[fsizePtr].frameSizeStr);
-      useMotion = false;
-    }
-    return motionStatus;
-  }
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgb_buf, (jpg_scale_t)scaling)) return motionStatus;
   LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
   
   // allocate buffer space on heap
@@ -374,7 +369,7 @@ static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_
   jpeg.width = 0;
   jpeg.height = 0;
   jpeg.input = src;
-  jpeg.output = out; 
+  jpeg.output = out;
   jpeg.data_offset = 0;
   esp_err_t res = esp_jpg_decode(src_len, scale, _jpg_read, _rgb_write, (void*)&jpeg);
   if (res != ESP_OK) LOG_WRN("jpg2rgb failure: %s", espErrMsg(res)); 
