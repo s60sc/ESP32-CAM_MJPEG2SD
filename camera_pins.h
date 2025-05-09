@@ -531,6 +531,45 @@
 #define SD_MMC_CMD       19
 #define SD_MMC_D0        23
 
+
+
+#elif defined(CAMERA_MODEL_Waveshare_ESP32_S3_ETH)
+// Waveshare ESP32-S3-ETH per schematic found here https://files.waveshare.com/wiki/ESP32-S3-ETH/ESP32-S3-ETH-Schematic.pdf
+#define CAM_BOARD "CAMERA_MODEL_Waveshare_ESP32_S3_ETH"
+#define PWDN_GPIO_NUM    8  // Drives MOSFET's for camera power supplies. 
+#define RESET_GPIO_NUM   -1 // 
+#define XCLK_GPIO_NUM    3  // Clock
+#define SIOD_GPIO_NUM    48 // SIO_DAT
+#define SIOC_GPIO_NUM    47 // SIO_CLK
+
+#define Y9_GPIO_NUM      18 // D7
+#define Y8_GPIO_NUM      15 // D6
+#define Y7_GPIO_NUM      38 // D5
+#define Y6_GPIO_NUM      40 // D4
+#define Y5_GPIO_NUM      42 // D3
+#define Y4_GPIO_NUM      46 // D2
+#define Y3_GPIO_NUM      45 // D1
+#define Y2_GPIO_NUM      41 // D0
+#define VSYNC_GPIO_NUM   1  // Potentail for GP16, but that's normally NC
+#define HREF_GPIO_NUM    2  //
+#define PCLK_GPIO_NUM    39 //
+
+#define USE_WS2812          // This board has a WS2812 RGB LED, so lets define it. 
+#define LED_GPIO_NUM     4  // WS2812B rgb led NOTE GPIO21 is normally NC
+
+// Define SD Pins
+#define SD_MMC_CLK 7        //
+#define SD_MMC_CMD 6        // CMD/DI/MOSI
+#define SD_MMC_D0 5         // DAT0/D0/MISO
+// Chip select pin is GPIO4, this has 10k pull up, so non-configured pin will default to being selected, but beware that pin may be imporant. 
+
+// Define Mic Pins (DOES NOT have NATIVE Mic)
+#define I2S_SD 34           // I2S Microphone
+#define I2S_WS 33
+#define I2S_SCK 35          // clock
+
+
+
 #elif defined(AUXILIARY)
 #define CAM_BOARD "AUXILIARY"
 #define PWDN_GPIO_NUM -1
