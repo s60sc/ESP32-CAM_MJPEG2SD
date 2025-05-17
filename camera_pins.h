@@ -555,7 +555,7 @@
 #define PCLK_GPIO_NUM    39 //
 
 #define USE_WS2812          // This board has a WS2812 RGB LED, so lets define it. 
-#define LED_GPIO_NUM     4  // WS2812B rgb led NOTE GPIO21 is normally NC
+#define LED_GPIO_NUM     21 // WS2812B rgb led
 
 // Define SD Pins
 #define SD_MMC_CLK 7        //
