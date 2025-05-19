@@ -110,7 +110,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.6"
+#define APP_VER "10.6.1"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -151,7 +151,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 26
+#define CFG_VER 27
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"

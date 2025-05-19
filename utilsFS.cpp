@@ -15,14 +15,18 @@
 // s60sc 2021, 2022, 2025
 
 #include "appGlobals.h"
+#include "ff.h"
+#include "vfs_fat_internal.h"
 
 // Storage settings
 int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sdFreeSpaceMode action is enabled
 int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to FTP/HFS and then delete on SD 
 bool formatIfMountFailed = true; // Auto format the file system if mount failed. Set to false to not auto format.
-static int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
 static bool use1bitMode = true;
 static fs::FS fp = STORAGE;
+#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
+static int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
+#endif
 
 // hold sorted list of filenames/folders names in order of newest first
 static std::vector<std::string> fileVec;
@@ -424,4 +428,31 @@ esp_err_t downloadFile(File& df, httpd_req_t* req) {
 #endif
   } else res = sendChunks(df, req); // send AVI
   return res;
+}
+
+bool formatSDcard() {
+  // format SD card, erases existing content
+  // can take some time to complete
+  // invoke from url: <cam ip>/control?formatSD=1
+  LOG_INF("Format the SD card, wait ...");
+  char drv[3] = {'0', ':', 0};
+  const size_t workbuf_size = 4096;
+  void* workbuf = NULL;
+  size_t allocation_unit_size = 4 * 1024;
+  int sector_size_default = 512;
+
+  workbuf = ff_memalloc(workbuf_size);
+  if (workbuf == NULL) {
+    LOG_ERR("workbuf memory not allocated");
+    return false;
+  }
+
+  size_t alloc_unit_size = esp_vfs_fat_get_allocation_unit_size(
+      sector_size_default, allocation_unit_size);
+  const MKFS_PARM opt = {(BYTE)FM_ANY, 0, 0, 0, alloc_unit_size};
+  FRESULT res = f_mkfs(drv, &opt, workbuf, workbuf_size);
+  ff_memfree(workbuf);
+  if (res != FR_OK) LOG_ERR("SD card format failed");
+  else LOG_INF("SD card formatted with alloc unit size %d", alloc_unit_size);
+  return res != FR_OK ? false : true;
 }

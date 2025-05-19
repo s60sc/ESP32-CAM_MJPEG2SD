@@ -24,20 +24,22 @@ static byte* chunk;
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {   
   // use chunked encoding to send large content to browser
   size_t chunksize = 0;
+  esp_err_t res = ESP_OK;
   while ((chunksize = df.read(chunk, CHUNKSIZE))) {
-    if (httpd_resp_send_chunk(req, (char*)chunk, chunksize) != ESP_OK) break;
+    res = httpd_resp_send_chunk(req, (char*)chunk, chunksize);
+    if (res != ESP_OK) break;
     // httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
   } 
   if (endChunking) {
     df.close();
     httpd_resp_sendstr_chunk(req, NULL);
   }
-  if (chunksize) {
-    LOG_WRN("Failed to send %s to browser", inFileName);
-    httpd_resp_set_status(req, "500 Failed to send file");
-    httpd_resp_sendstr(req, NULL);
+  if (res != ESP_OK) {
+    snprintf(startupFailure, SF_LEN, "Low memory - failed to send to browser");
+    LOG_WRN("%s: %s, err %s", startupFailure, inFileName, espErrMsg(res));
+    OTAprereq(); // free up memory
   } 
-  return chunksize ? ESP_FAIL : ESP_OK;
+  return res;
 }
 
 esp_err_t fileHandler(httpd_req_t* req, bool download) {

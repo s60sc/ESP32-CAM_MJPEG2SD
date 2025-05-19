@@ -87,7 +87,7 @@ static void IRAM_ATTR frameISR() {
   // interrupt at current frame rate
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   if (isPlaying) xSemaphoreGiveFromISR (playbackSemaphore, &xHigherPriorityTaskWoken ); // notify playback to send frame
-  vTaskNotifyGiveFromISR(captureHandle, &xHigherPriorityTaskWoken); // wake capture task to process frame
+  if (captureHandle != NULL) vTaskNotifyGiveFromISR(captureHandle, &xHigherPriorityTaskWoken); // wake capture task to process frame
   if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
 }
 
@@ -705,15 +705,21 @@ static void playbackTask(void* parameter) {
 
 /******************* Startup ********************/
 
-static void startSDtasks() {
+static bool startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, CAPTURE_PRI, &captureHandle);
   xTaskCreate(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, PLAY_PRI, &playbackHandle);
+  xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, CAPTURE_PRI, &captureHandle);
+  if (captureHandle == NULL) {
+    // Usually insufficient memory
+    OTAprereq();
+    return false;
+  }
   // set initial camera framesize and FPS from configs
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, (framesize_t)fsizePtr);
   setFPS(FPS); 
   debugMemory("startSDtasks");
+  return true;
 }
 
 bool prepRecording() {
@@ -724,7 +730,7 @@ bool prepRecording() {
   motionSemaphore = xSemaphoreCreateBinary();
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   reloadConfigs(); // apply camera config
-  startSDtasks();
+  if (!startSDtasks()) return false;
 #if INCLUDE_TINYML
   LOG_INF("%sUsing TinyML", mlUse ? "" : "Not ");
 #endif

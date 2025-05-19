@@ -135,6 +135,7 @@ char* fmtSize (uint64_t sizeVal);
 void forceCrash();
 void formatElapsedTime(char* timeStr, uint32_t timeVal, bool noDays = false);
 void formatHex(const char* inData, size_t inLen);
+bool formatSDcard();
 bool fsStartTransfer(const char* fileFolder);
 const char* getEncType(int ssidIndex);
 void getExtIP();

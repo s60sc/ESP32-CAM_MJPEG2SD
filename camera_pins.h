@@ -532,7 +532,6 @@
 #define SD_MMC_D0        23
 
 
-
 #elif defined(CAMERA_MODEL_Waveshare_ESP32_S3_ETH)
 // Waveshare ESP32-S3-ETH per schematic found here https://files.waveshare.com/wiki/ESP32-S3-ETH/ESP32-S3-ETH-Schematic.pdf
 #define CAM_BOARD "CAMERA_MODEL_Waveshare_ESP32_S3_ETH"
@@ -567,7 +566,6 @@
 #define I2S_SD 34           // I2S Microphone
 #define I2S_WS 33
 #define I2S_SCK 35          // clock
-
 
 
 #elif defined(AUXILIARY)

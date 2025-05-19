@@ -71,10 +71,13 @@ void setup() {
     startHeartbeat();
 #endif
 #ifndef AUXILIARY
-    prepRecording(); 
  #if INCLUDE_RTSP
     prepRTSP();
  #endif
+ if (!prepRecording()) {
+   snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient memory, remove optional features");
+   LOG_WRN("%s", startupFailure);
+ }
 #endif
     checkMemory();
   } 

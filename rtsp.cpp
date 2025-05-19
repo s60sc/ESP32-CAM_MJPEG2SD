@@ -76,34 +76,23 @@ RTSPServer::TransportType determineTransportType() {
   }
 }
 
+#ifdef ISCAM
+
 static void sendRTSPVideo(void* p) {
   // Send jpeg frames via RTSP at current frame rate
   uint8_t taskNum = 1;
   streamBufferSize[taskNum] = 0;
   while (true) {
-    if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdTRUE) {
-      if (streamBufferSize[taskNum] && rtspServer.readyToSendFrame()) {
-        // use frame stored by processFrame()
-        rtspServer.sendRTSPFrame(streamBuffer[taskNum], streamBufferSize[taskNum], quality, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight);
+    if (frameSemaphore[taskNum] != NULL) {
+      if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdTRUE) {
+        if (streamBufferSize[taskNum] && rtspServer.readyToSendFrame()) {
+          // use frame stored by processFrame()
+          rtspServer.sendRTSPFrame(streamBuffer[taskNum], streamBufferSize[taskNum], quality, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight);
+        }
       }
-    }
-    streamBufferSize[taskNum] = 0; 
+      streamBufferSize[taskNum] = 0; 
+    } else delay(100);
   }
-  vTaskDelete(NULL);
-}
-
-static void sendRTSPAudio(void* p) {
-#if INCLUDE_AUDIO
-  // send audio chunks via RTSP
-  audioBytes = 0;
-  while (true) {
-    if (micGain && audioBytes && rtspServer.readyToSendAudio()) {
-      rtspServer.sendRTSPAudio((int16_t*)audioBuffer, audioBytes);
-      audioBytes = 0;
-    } 
-    delay(20);
-  }
-#endif
   vTaskDelete(NULL);
 }
 
@@ -129,7 +118,40 @@ static void startRTSPSubtitles(void* arg) {
   vTaskDelete(NULL); // not reached
 }
 
+#endif
+
+static void sendRTSPAudio(void* p) {
+#if INCLUDE_AUDIO
+  // send audio chunks via RTSP
+  audioBytes = 0;
+  while (true) {
+    if (micGain && audioBytes && rtspServer.readyToSendAudio()) {
+      rtspServer.sendRTSPAudio((int16_t*)audioBuffer, audioBytes);
+      audioBytes = 0;
+    } 
+    delay(20);
+  }
+#endif
+  vTaskDelete(NULL);
+}
+
+static void initRTSP() {
+#ifdef ISVC
+  // Initialize the RTSP server for VC using constants
+  rtspVideo = rtspSubtitles = false;
+  rtspAudio = true;
+  strcpy(RTP_ip, "239.255.0.1");
+  rtspPort = 554;
+  rtpAudioPort = 5432; 
+  rtpVideoPort = 0; 
+  rtpSubtitlesPort = 0;
+  rtspMaxClients = 1;
+  rtpTTL = 1; 
+#endif
+}
+
 void prepRTSP() {
+  initRTSP();
   useAuth = rtspServer.setCredentials(RTSP_Name, RTSP_Pass); // Set RTSP authentication
   RTSPServer::TransportType transport = determineTransportType();
   rtpIp.fromString(RTP_ip);
@@ -148,20 +170,20 @@ void prepRTSP() {
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s", transportStr);
-      useAuth ? 
-          LOG_INF("Connect to: rtsp://<username>:<password>@%s:%d (credentials not shown for security reasons)", WiFi.localIP().toString().c_str(), rtspServer.rtspPort) :
-          LOG_INF("Connect to: rtsp://%s:%d", WiFi.localIP().toString().c_str(), rtspServer.rtspPort);
+      LOG_INF("Connect to: rtsp://%s%s:%d%s", useAuth ? "<username>:<password>@" : "", WiFi.localIP().toString().c_str(), 
+        rtspServer.rtspPort, useAuth ? " (credentials not shown for security reasons)" : "");
 
       // start RTSP tasks, need bigger stack for video
+#ifdef ISCAM
       if (rtspVideo) xTaskCreate(sendRTSPVideo, "sendRTSPVideo", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[1]); 
       if (rtspAudio) xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[2]);
-      if (rtspSubtitles) xTaskCreate(startRTSPSubtitles, "startRTSPSubtitles", 1024 * 1, NULL, SUSTAIN_PRI, &sustainHandle[3]);  
-    } else { 
-      LOG_ERR("Failed to start RTSP server"); 
-    }
-  } else {
-    LOG_WRN("RTSP server not started, no transport selected");
-  }
+      if (rtspSubtitles) xTaskCreate(startRTSPSubtitles, "startRTSPSubtitles", 1024 * 1, NULL, SUSTAIN_PRI, &sustainHandle[3]);
+#endif
+#ifdef ISVC
+      xTaskCreate(sendRTSPAudio, "sendRTSPAudio", 1024 * 5, NULL, 5, NULL);
+#endif
+    } else LOG_ERR("Failed to start RTSP server"); 
+  } else LOG_WRN("RTSP server not started, no transport selected");
 }
 
 #endif

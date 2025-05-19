@@ -324,7 +324,8 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
       LOG_INF("JPEG: %uB in %ums", alertBufferSize, jpegTime);
       alertBufferSize = 0;
     } else LOG_WRN("Failed to get still");
-  } else if (!strcmp(variable, "svg")) {
+  } 
+  else if (!strcmp(variable, "svg")) {
     // build svg image for use by another app's hub instead of image
     const char* svgHtml = R"~(
         <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
@@ -338,7 +339,11 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
     httpd_resp_sendstr_chunk(req, "MJPE2SD");
     httpd_resp_sendstr_chunk(req, "°C</text></svg>");
     httpd_resp_sendstr_chunk(req, NULL);
-  } else return ESP_FAIL;
+  } 
+  else if (!strcmp(variable, "formatSD")) {
+    if (formatSDcard()) doRestart("user requested format of SD card");
+  } 
+  else return ESP_FAIL;
   return ESP_OK;
 }
 

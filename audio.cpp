@@ -73,7 +73,7 @@ const size_t sampleBytes = DMA_BUFF_LEN * sampleWidth;
 int16_t* sampleBuffer = NULL;
 static uint8_t* wsBuffer = NULL;
 static size_t wsBufferLen = 0;
-uint8_t* audioBuffer = NULL; // VC recording buffer or cam mic input streamed to NVR
+uint8_t* audioBuffer = NULL; // mic input streamed to NVR or RTSP
 size_t audioBytes = 0; 
 
 static const char* micLabels[2] = {"PDM", "I2S"};
@@ -87,7 +87,10 @@ static const char* micLabels[2] = {"PDM", "I2S"};
 bool AudActive = false; // whether to show audio features
 static File wavFile;
 #endif
-
+#ifdef ISVC
+uint8_t* recAudioBuffer = NULL;
+size_t recAudioBytes = 0; 
+#endif
 static uint8_t wavHeader[WAV_HDR_LEN] = { // WAV header template
   0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
   0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x11, 0x2B, 0x00, 0x00, 0x11, 0x2B, 0x00, 0x00,
@@ -175,6 +178,10 @@ size_t updateWavHeader() {
 
 #ifdef ISVC
 
+#if !INCLUDE_RTSP
+bool rtspAudio = false;
+#endif
+
 static size_t micInput() {
   // get input from browser mic or else esp mic
   size_t bytesRead = (micRem) ? wsBufferLen : espMicInput();
@@ -201,10 +208,10 @@ static void ampOutput(size_t bytesRead = sampleBytes) {
   applyFilters();
   if (spkrRem) wsAsyncSendBinary((uint8_t*)sampleBuffer, bytesRead); // browser speaker
   else if (ampUse) I2Sstd.write((uint8_t*)sampleBuffer, bytesRead); // esp amp speaker
-  if (!RTSPAudioBytes) {
+  if (!audioBytes) {
     // fill audio buffer to send to RTSP
-    memcpy(RTSPAudioBuffer, sampleBuffer, bytesRead);
-    RTSPAudioBytes = bytesRead;
+    memcpy(audioBuffer, sampleBuffer, bytesRead);
+    audioBytes = bytesRead;
   }
   displayAudioLed(sampleBuffer[0]);
 }
@@ -218,18 +225,18 @@ static void passThru() {
 static void makeRecording() {
   if (psramFound()) {
     LOG_INF("Recording ...");
-    audioBytes = WAV_HDR_LEN; // leave space for wave header
+    recAudioBytes = WAV_HDR_LEN; // leave space for wave header
     wsBufferLen = 0;
-    while (audioBytes < psramMax) {
+    while (recAudioBytes < psramMax) {
       size_t bytesRead = micInput();
       if (bytesRead) {
-        memcpy(audioBuffer + audioBytes, sampleBuffer, bytesRead);
-        audioBytes += bytesRead;
+        memcpy(recAudioBuffer + recAudioBytes, sampleBuffer, bytesRead);
+        recAudioBytes += bytesRead;
       }
       if (stopAudio) break;
     } // psram full
     if (!stopAudio) wsJsonSend("stopRec", "1");
-    totalSamples = (audioBytes  - WAV_HDR_LEN) / sampleWidth;
+    totalSamples = (recAudioBytes  - WAV_HDR_LEN) / sampleWidth;
     LOG_INF("%s recording of %d samples", stopAudio ? "Stopped" : "Finished",  totalSamples);  
     stopAudio = true;
   } else LOG_WRN("PSRAM needed to record and play");
@@ -239,7 +246,7 @@ static void playRecording() {
   if (psramFound()) {
     LOG_INF("Playing %d samples, initial volume: %d", totalSamples, ampVol); 
     for (int i = WAV_HDR_LEN; i < totalSamples * sampleWidth; i += sampleBytes) { 
-      memcpy(sampleBuffer, audioBuffer+i, sampleBytes);
+      memcpy(sampleBuffer, recAudioBuffer+i, sampleBytes);
       ampOutput();
       if (stopAudio) break;
     }
@@ -263,10 +270,10 @@ static void VCactions() {
     break;
     case PLAY_ACTION:
       // continues till stopped
-      if (ampUse || spkrRem || RTSPAudio) playRecording(); // play previous recording
+      if (ampUse || spkrRem || rtspAudio) playRecording(); // play previous recording
     break;
     case PASS_ACTION:
-      if (ampUse || spkrRem || RTSPAudio) {
+      if (ampUse || spkrRem || rtspAudio) {
         if (micRem) wsAsyncSendText("#M1");
         LOG_INF("Passthru started");
         wsBufferLen = 0;
@@ -433,13 +440,9 @@ void prepAudio() {
 
   if (sampleBuffer == NULL) sampleBuffer = (int16_t*)malloc(sampleBytes);
   if (wsBuffer == NULL) wsBuffer = (uint8_t*)malloc(MAX_PAYLOAD_LEN);
-#ifdef ISVC
-  if (audioBuffer == NULL && psramFound()) audioBuffer = (uint8_t*)ps_malloc(psramMax + (sizeof(int16_t) * DMA_BUFF_LEN));
-#endif
-#ifdef ISCAM
   if (audioBuffer == NULL && psramFound()) audioBuffer = (uint8_t*)ps_malloc(sampleBytes);
-#endif  
 #ifdef ISVC
+  if (recAudioBuffer == NULL && psramFound()) recAudioBuffer = (uint8_t*)ps_malloc(psramMax + (sizeof(int16_t) * DMA_BUFF_LEN));
   // VC can still use audio task without esp mic or amp
   if (!micUse && !ampUse) LOG_WRN("Only browser mic and speaker can be used");
 #endif
