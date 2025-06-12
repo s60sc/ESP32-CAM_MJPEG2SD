@@ -60,7 +60,7 @@ static int getMimeType(const char* path) {
 static void formatTime(time_t t) {
   // format time for XML property values
   tm* timeinfo = gmtime(&t);
-  strftime(formattedTime, sizeof(formattedTime), "%a, %d %b %Y %H:%M:%S %Z", timeinfo);
+  strftime(formattedTime, sizeof(formattedTime), "%a, %d %b %Y %H:%M:%S GMT", timeinfo);
 }
 
 static bool haveResource(bool ignore = false) {
