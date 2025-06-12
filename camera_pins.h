@@ -567,6 +567,47 @@
 #define I2S_WS 33
 #define I2S_SCK 35          // clock
 
+#elif defined(CAMERA_MODEL_DFRobot_ESP32_S3_AI_CAM)
+// https://wiki.dfrobot.com/SKU_DFR1154_ESP32_S3_AI_CAM
+#define CAM_BOARD "CAMERA_MODEL_DFRobot_ESP32_S3_AI_CAM"
+#define PWDN_GPIO_NUM    -1
+#define RESET_GPIO_NUM   -1
+#define XCLK_GPIO_NUM    5
+#define SIOD_GPIO_NUM    8
+#define SIOC_GPIO_NUM    9
+
+#define Y9_GPIO_NUM      4
+#define Y8_GPIO_NUM      6
+#define Y7_GPIO_NUM      7
+#define Y6_GPIO_NUM      14
+#define Y5_GPIO_NUM      17
+#define Y4_GPIO_NUM      21
+#define Y3_GPIO_NUM      18
+#define Y2_GPIO_NUM      16
+#define VSYNC_GPIO_NUM   1
+#define HREF_GPIO_NUM    2
+#define PCLK_GPIO_NUM    15
+
+#define LED_GPIO_NUM 3 
+// IR pin 47
+
+// Define SD Pins
+#define SD_MMC_CLK 12      //
+#define SD_MMC_CMD 13      // CMD/DI/MOSI
+#define SD_MMC_D0  11      // DAT0/D0/MISO
+// Chip select pin is GPIO10
+
+// Define Mic Pins 
+#define I2S_SD 39 // PDM Microphone
+#define I2S_WS 38
+#define I2S_SCK -1
+
+// Define Amp Pins 
+#define I2S_BCLK  45 // I2S amp
+#define I2S_LRCLK 46
+#define I2S_DIN   42
+// Gain pin 41, mode pin 40
+
 
 #elif defined(AUXILIARY)
 #define CAM_BOARD "AUXILIARY"

@@ -27,7 +27,9 @@ static void stopRC();
 bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   // update vars from browser input
   esp_err_t res = ESP_OK; 
+#ifndef CONFIG_IDF_TARGET_ESP32C3
   sensor_t* s = esp_camera_sensor_get();
+#endif
   int intVal = atoi(value);
   float fltVal = atof(value);
   if (!strcmp(variable, "custom")) return res;
@@ -500,6 +502,7 @@ void buildAppJsonString(bool filter) {
 #endif
   p += sprintf(p, "\"sustainId\":\"%u\",", sustainId);     
   // Extend info
+#ifndef CONFIG_IDF_TARGET_ESP32C3
   uint8_t cardType = 99; // not MMC
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) p += sprintf(p, "\"card\":\"%s\",", "NO card");
@@ -516,6 +519,7 @@ void buildAppJsonString(bool filter) {
     p += sprintf(p, "\"total_bytes\":\"%s\",", fmtSize(STORAGE.totalBytes()));
   }
   p += sprintf(p, "\"free_psram\":\"%s\",", fmtSize(ESP.getFreePsram()));     
+#endif
 #if INCLUDE_FTP_HFS
   p += sprintf(p, "\"progressBar\":%d,", percentLoaded);  
   if (percentLoaded == 100) percentLoaded = 0;

@@ -131,8 +131,8 @@ static void pgramTask (void *pvParameter) {
   LOG_INF("Start taking %u photos each %0.1f deg at %0.1f RPM", numberOfPhotos, angle * 360, tRPM);
   do {
     extCam ? takePhoto() : getPhoto();
-    // !clockwise as turntable rotates opp to motor
-    stepperRun(mRPM, angle * gearing, !clockWise); 
+    // assumes turntable rotates in same direction as motor
+    stepperRun(mRPM, angle * gearing, clockWise, BYJ_48); 
     // wait for stepper task to finish
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   } while (++photosDone < numberOfPhotos);

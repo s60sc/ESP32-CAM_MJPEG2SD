@@ -5,10 +5,6 @@
 #pragma once
 #include "globals.h"
 
-#if !CONFIG_IDF_TARGET_ESP32S3 && !CONFIG_IDF_TARGET_ESP32
-#error "Must select ESP32 or ESP32S3 board"
-#endif
-
 /**************************************************************************
  Uncomment one only of the ESP32 or ESP32S3 camera models in the block below
  Selecting wrong model may crash your device due to pin conflict
@@ -43,8 +39,19 @@
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3
 //#define CAMERA_MODEL_XENOIONEX
 //#define CAMERA_MODEL_Waveshare_ESP32_S3_ETH
+//#define CAMERA_MODEL_DFRobot_ESP32_S3_AI_CAM
 //#define AUXILIARY
+
+// User's ESP32C3 board (auxiliary only)
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+#define AUXILIARY
+#define NO_SD
 #endif
+
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32) && !defined(AUXILIARY)
+#error "Must select ESP32 or ESP32S3 board for camera"
+#endif
+
 
 /***************************************************************
   Optional features NOT included by default to reduce heap use 
@@ -100,7 +107,9 @@
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
+#ifndef AUXILIARY
 #include "esp_camera.h"
+#endif
 #include "camera_pins.h"
 
 #define STATIC_IP_OCTAL "133" // dev only
@@ -110,14 +119,14 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.6.1"
+#define APP_VER "10.6.2"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/Auxil" HTML_EXT
 #define USE_UARTTASK
 #elif defined(SIDE_ALARM)
-#define APP_NAME "ESP-CAM-SIDE" // max 15 chars
+#define APP_NAME "ESP-CAM_SIDE" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/SideAl" HTML_EXT
 #define NO_SD
 #else
@@ -230,7 +239,7 @@ struct fnameStruct {
 };
 
 enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
-
+enum stepperModel {BYJ_48, BIPOLAR_8mm};
 // global app specific functions
 
 void applyFilters();
@@ -241,7 +250,6 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = 
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
 void buzzerAlert(bool buzzerOn);
-bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly = false);
 int8_t checkPotVol(int8_t adjVol);
 bool checkSDFiles();
 void currentStackUsage();
@@ -257,10 +265,8 @@ bool haveWavFile(bool isTL = false);
 bool identifyBMx();
 void intercom();
 bool isNight(uint8_t nightSwitch);
-void keepFrame(camera_fb_t* fb);
 void micTaskStatus();
 void motorSpeed(int speedVal, bool leftMotor = true);
-void notifyMotion(camera_fb_t* fb);
 void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
@@ -288,7 +294,7 @@ void startHeartbeat();
 void startSustainTasks();
 bool startTelemetry();
 void stepperDone();
-void stepperRun(float RPM, float revFraction, bool _clockwise);
+void stepperRun(float RPM, float revFraction, bool _clockwise, stepperModel thisStepper);
 void stopPlaying();
 void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
@@ -299,6 +305,12 @@ size_t updateWavHeader();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly = false);
+void keepFrame(camera_fb_t* fb);
+void notifyMotion(camera_fb_t* fb);
+#endif
 
 /******************** Global app declarations *******************/
 
@@ -332,7 +344,6 @@ extern bool forceRecord; // Recording enabled by rec button
 extern bool forcePlayback; // playback enabled by user
 extern uint8_t FPS;
 extern uint8_t fsizePtr; // index to frameData[] for record
-extern framesize_t maxFS;
 extern bool isCapturing;
 extern uint8_t lightLevel;  
 extern uint8_t lampLevel;  
@@ -356,6 +367,10 @@ extern bool streamAud;
 extern bool streamSrt;
 extern uint8_t numStreams;
 extern uint8_t vidStreams;
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+extern framesize_t maxFS;
+#endif
 
 // buffers
 extern uint8_t iSDbuffer[];

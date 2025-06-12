@@ -14,6 +14,7 @@
 #ifdef DEV_ONLY
 // to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic error "-Wformat=2"
+#pragma GCC diagnostic ignored "-Wformat-truncation"
 #pragma GCC diagnostic ignored "-Wformat-y2k"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"

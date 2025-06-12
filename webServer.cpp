@@ -35,8 +35,8 @@ esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {
     httpd_resp_sendstr_chunk(req, NULL);
   }
   if (res != ESP_OK) {
-    snprintf(startupFailure, SF_LEN, "Low memory - failed to send to browser");
-    LOG_WRN("%s: %s, err %s", startupFailure, inFileName, espErrMsg(res));
+    snprintf(startupFailure, SF_LEN, "Failed to send to browser: %s, err %s", inFileName, espErrMsg(res));
+    LOG_WRN("%s", startupFailure);
     OTAprereq(); // free up memory
   } 
   return res;

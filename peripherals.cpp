@@ -7,7 +7,8 @@
 // - lamp LED driver (PWM or WS2812 / SK6812)
 // - 3 pin joystick 
 // - MY9221 based LED Bar, eg 10 segment Grove LED Bar
-// - 4 pin 28BYJ-48 Stepper Motor with ULN2003 Motor Driver
+// - 5 wire 28BYJ-48 Unipolar Stepper Motor with ULN2003 Motor Driver
+// - 4 wire Bipolar Stepper Motor with MX1508 H-Bridge Motor Driver
 //
 // Peripherals can be hosted directly on the client ESP, or on
 // a separate IO Extender ESP if the client ESP has limited free 
@@ -18,11 +19,7 @@
 //
 // Pin numbers must be > 0.
 //
-// The client and extender must be compiled with the same version of 
-// the peripherals.cpp and have compatible configuration settings
-// with respect to pin numbers etc
-//
-// s60sc 2022 - 2024
+// s60sc 2022 - 2025
 //
 
 #include "appGlobals.h"
@@ -102,7 +99,7 @@ bool relayMode;
 int ledBarClock;
 int ledBarData;
 
-// 28BYJ-48 Stepper Motor with ULN2003 Motor Driver
+// Stepper motor driver pins
 #define stepperPins 4 
 uint8_t stepINpins[stepperPins];
 
@@ -282,10 +279,12 @@ float getNTCcelsius (uint16_t resistance, float oldTemp) {
 }
 
 /************ battery monitoring ************/
+
 // Read voltage from battery connected to ADC pin
 // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
 static float currentVoltage = -1.0; // no monitoring
 TaskHandle_t battHandle = NULL;
+
 float readVoltage()  {
   return currentVoltage;
 }
@@ -520,24 +519,52 @@ static void prepJoystick() {
 
 /****************************** stepper motors *************************************/
 
-// 28BYJ-48 Geared Stepper Motor with ULN2003 Motor Driver
+// Unipolar 28BYJ-48 Geared Stepper Motor with ULN2003 Motor Driver
+// Bipolar generic using MX1508 H-Bridge Motor Driver
+// For 4 pin stepper motor drivers in full step mode
 // Uses stickTask & stickTimer
 
-#define stepsPerRevolution (32 * 64) // number of steps in geared 28BYJ-48 rotation
-static uint32_t stepsToDo; // total steps requested
-static uint32_t stepDelay; // delay in usecs between each step for required speed
-static uint8_t seqIndex = 0;
-static bool clockwise = true;
+#define stepPhases 4
+#define modelTypes 2 // must equal enum stepperModel entries
+static bool clockwise = false;
+static const uint16_t stepsPerRevolution[modelTypes] = {32 * 64, 20}; // number of steps in geared 28BYJ-48 unipolar, 8mm bipolar
+static uint32_t stepsToDo = 0; // total steps requested
+static uint8_t modelIndex = 0;
+static uint8_t stepPhase = 0;
+static const uint8_t pinSequence[stepPhases * modelTypes][stepperPins] = {
+  // 28BYJ-48 unipolar full step phases
+  {1, 1, 0, 0}, 
+  {0, 1, 1, 0}, 
+  {0, 0, 1, 1}, 
+  {1, 0, 0, 1},
+  // 8mm bipolar half step phases
+  {1, 0, 1, 0}, 
+  {0, 1, 1, 0}, 
+  {0, 1, 0, 1}, 
+  {1, 0, 0, 1}, 
+};
+
 
 void setStepperPin(uint8_t pinNum, uint8_t pinPos) {
+  // Pin order is IN1, IN2, IN3, IN4 for correct full stepping
+  // 28BYJ-48 wire color order: blue, pink, yellow, orange, red from driver not motor
+  // bipolar wire order: A+, A-, B+, B-
   stepINpins[pinPos] = pinNum;
 }
 
 static void prepStepper() {
   if (stepperUse) {
     if (stepINpins[0] > 0 && stepINpins[1] > 0) {
+      stepPhase = 0;
+      // setup motor driver pins
+      for (int i = 0; i < stepperPins; i++) {
+        pinMode(stepINpins[i], OUTPUT);
+        digitalWrite(stepINpins[i], LOW);
+      }
+      // stickTask provides speed control timer
       if (stickHandle == NULL) xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle);   
       LOG_INF("Stepper motor on pins: %d, %d, %d, %d", stepINpins[0], stepINpins[1], stepINpins[2], stepINpins[3]);
+      // NOTE: very first step after motor power may not occur or be reversed 
     } else {
       stepperUse = false;
       LOG_WRN("Stepper pins not defined");
@@ -545,43 +572,49 @@ static void prepStepper() {
   }
 }
 
-void stepperRun(float RPM, float revFraction, bool _clockwise) {
-  // RPM is stepper motor rotation speed
-  // revFraction is required movement as a fraction of full rotation
-  uint32_t usecsPerRev = 60 * USECS / RPM; // duration of 1 rev
-  stepsToDo = revFraction * stepsPerRevolution;
-  stepDelay = usecsPerRev / stepsPerRevolution;
-  clockwise = _clockwise;
-  seqIndex = clockwise ? 0 : stepperPins - 1;
-  for (int i = 0; i < stepperPins; i++) pinMode(stepINpins[i], OUTPUT);
-  // start stickTimer that calls task
-  setStickTimer(true, stepDelay);
-}
-
-// Pin order is IN1, IN2, IN3, IN4 for correct full stepping
-static const uint8_t pinSequence[stepperPins][stepperPins] = {
-  {1, 1, 0, 0},
-  {0, 1, 1, 0},
-  {0, 0, 1, 1},
-  {1, 0, 0, 1}
-};
-
-static void doStep() {
-  // called from sticktask for single step
-  if (stepsToDo) {
-    for (int i = 0; i < stepperPins; i++) digitalWrite(stepINpins[i], pinSequence[seqIndex][i]);
-    if (!--stepsToDo) {
-      setStickTimer(false, 0);  // stop task timer
-      for (int i = 0; i < stepperPins; i++) pinMode(stepINpins[i], INPUT); // stop unnecessary power use
-#if (INCLUDE_PGRAM && INCLUDE_PERIPH)
-      stepperDone();
-#endif
-    }
-    if (clockwise) seqIndex = (seqIndex == stepperPins - 1) ? 0 : seqIndex + 1;
-    else seqIndex = (seqIndex == 0) ? stepperPins - 1 : seqIndex - 1;
+static void nextPhase(bool changeDir = false) {
+  // identify next phase
+  if (changeDir) clockwise = !clockwise; // amend next phase to account for change in direction
+  if (clockwise) {
+    if (stepPhase-- <= 0) stepPhase = stepPhases - 1;
+  } else {
+    if (++stepPhase >= stepPhases) stepPhase = 0;
   }
 }
 
+void stepperRun(float RPM, float revFraction, bool _clockwise, stepperModel thisStepper) {
+  // RPM is stepper motor rotation speed
+  // revFraction is required movement as a fraction of full rotation
+  // thisStepper is stepper model type to determine steps per revolution
+  stepsToDo = revFraction * stepsPerRevolution[thisStepper];
+  modelIndex = stepPhases * thisStepper;
+  if (clockwise != _clockwise) {
+    // change of direction, modify next phase to be in reversed sequence
+    nextPhase(true);  
+    nextPhase();
+  }
+  uint32_t stepDelay = 60 * USECS / RPM; // duration of 1 rev in microsecs
+  stepDelay /= stepsPerRevolution[thisStepper]; // duration per step
+
+  // start stickTimer that calls task to do sequence of steps
+  setStickTimer(false, 0); // stop previous timer
+  setStickTimer(true, stepDelay);
+}
+
+static void doStep() {
+  // called from sticktask to do single step in sequence
+  if (stepsToDo--) {
+    for (int i = 0; i < stepperPins; i++) digitalWrite(stepINpins[i], pinSequence[modelIndex + stepPhase][i]);
+    nextPhase();
+  } else {
+    // step sequence completed
+    setStickTimer(false, 0);  // stop task timer
+    for (int i = 0; i < stepperPins; i++) digitalWrite(stepINpins[i], LOW); // stop unnecessary power use
+#if (INCLUDE_PGRAM && INCLUDE_PERIPH)
+    stepperDone();
+#endif
+  }
+}
 
 /******************* MY9221 LED Bar ***************************/
 /*
@@ -590,7 +623,7 @@ static void doStep() {
     Black  GND
     Red    3V3
     White  DCKI Clock pin
-    Yellow D1   Data pin
+    Yellow D1 Data pin
     
  Can be used as a gauge, eg display sound level
  */

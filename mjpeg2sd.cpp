@@ -38,7 +38,6 @@ char camModel[10];
 static int siodGpio = SIOD_GPIO_NUM;
 static int siocGpio = SIOC_GPIO_NUM;
 size_t maxFrameBuffSize;
-framesize_t maxFS = FRAMESIZE_SVGA; // default
 
 // header and reporting info
 static uint32_t vidSize; // total video size
@@ -80,6 +79,9 @@ bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
 static bool pirVal = false;
+
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+framesize_t maxFS = FRAMESIZE_SVGA; // default
 
 /**************** timers & ISRs ************************/
 
@@ -1021,3 +1023,12 @@ bool prepCam() {
   debugMemory("prepCam");
   return res;
 }
+
+#else
+
+// dummies
+void appShutdown() {}
+void OTAprereq() {}
+uint8_t setFPSlookup(uint8_t val) {return 0;}
+
+#endif

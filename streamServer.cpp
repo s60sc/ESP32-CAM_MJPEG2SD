@@ -32,6 +32,7 @@ uint8_t numStreams = 1;
 uint8_t vidStreams = 1;
 int srtInterval = 1; // subtitle interval in secs
 
+#ifndef CONFIG_IDF_TARGET_ESP32C3
 
 TaskHandle_t sustainHandle[MAX_STREAMS]; 
 struct httpd_sustain_req_t {
@@ -358,3 +359,10 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
   } 
   return res;
 }
+
+#else
+
+// dummies
+esp_err_t appSpecificSustainHandler(httpd_req_t* req) {return ESP_OK;}
+
+#endif

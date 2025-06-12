@@ -262,7 +262,8 @@ static void VCactions() {
   closeI2S();
   prepAudio();
   setupFilters();
-          
+
+  // enum audioAction defined in appGlobals.h
   switch (THIS_ACTION) {
     case RECORD_ACTION: 
       if (micRem) wsAsyncSendText("#M1");
@@ -385,18 +386,26 @@ void setI2Schan(int whichChan) {
 }
 
 static void predefPins() {
+char audPin[3];
 #if defined(I2S_SD)
-  char micPin[3];
-  sprintf(micPin, "%d", I2S_SD);
-  updateStatus("micSdPin", micPin);
-  sprintf(micPin, "%d", I2S_WS);
-  updateStatus("micSWsPin", micPin);
-  sprintf(micPin, "%d", I2S_SCK);
-  updateStatus("micSckPin", micPin);
+  sprintf(audPin, "%d", I2S_SD);
+  updateStatus("micSdPin", audPin);
+  sprintf(audPin, "%d", I2S_WS);
+  updateStatus("micSWsPin", audPin);
+  sprintf(audPin, "%d", I2S_SCK);
+  updateStatus("micSckPin", audPin);
+#endif
+#if defined(I2S_BCLK)
+  sprintf(audPin, "%d", I2S_BCLK);
+  updateStatus("mampBckIo", audPin);
+  sprintf(audPin, "%d", I2S_LRCLK);
+  updateStatus("mampSwsIo", audPin);
+  sprintf(audPin, "%d", I2S_DIN);
+  updateStatus("mampSdIo", audPin);
 #endif
 
   I2Smic = micSckPin == -1 ? false : true;
-  
+
 #ifdef CONFIG_IDF_TARGET_ESP32S3
   MIC_CHAN = I2S_NUM_0;
 #endif

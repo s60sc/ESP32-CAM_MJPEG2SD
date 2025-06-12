@@ -54,6 +54,8 @@ uint8_t* motionJpeg = NULL;
 size_t motionJpegLen = 0;
 static uint8_t* currBuff = NULL;
 
+#ifndef CONFIG_IDF_TARGET_ESP32C3
+
 /**********************************************************************************/
 
 static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_t scale);
@@ -375,3 +377,10 @@ static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_
   if (res != ESP_OK) LOG_WRN("jpg2rgb failure: %s", espErrMsg(res)); 
   return (res == ESP_OK) ? true : false;
 }
+
+#else
+
+// dummies
+bool isNight(uint8_t nightSwitch) {return false;}
+
+#endif
