@@ -846,12 +846,13 @@
         }
       }
 
-      function refreshAllContainers() {
+      function refreshAllContainers(uniq = false) {
         const containers = document.querySelectorAll('.ipContainer');
         containers.forEach((container) => {
           const ip = container.querySelector('.ipUrl').textContent;
           const hubImg = container.querySelector('img');
           hubImg.src = `http://${ip}`;
+          if (uniq) hubImg.src += Date.now();
         });
       }
 
@@ -860,9 +861,9 @@
         const ipInput = document.getElementById('ipInput');
         const ipAddresses = localStorage.getItem('enteredIPs') ? JSON.parse(localStorage.getItem('enteredIPs')) : [];
 
-        // Add the entered IP to the array
+        // Add the entered IP to the array if not already present
         let newIP = ipInput.value.trim();
-        if (newIP !== '' && !ipAddresses.includes(newIP)) {
+        if (newIP !== '' && !ipAddresses.some(item => item.includes(newIP))) {
           // if only ip address, add app specific URI
           // for any other app, enter full URL
           if (newIP.indexOf('/') == -1) newIP += appHub;

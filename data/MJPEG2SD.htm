@@ -1656,10 +1656,10 @@
       <div id="buttonContainer">
         <!-- Input field for users to enter individual IPs -->
         <label for="ipInput">Enter IP address:&nbsp;</label>
-        <input type="text" id="ipInput">
-        <button id="addIpButton" onclick="addIP()">Add IP</button>
-        <button id="clearStorageButton" onclick="clearLocalStorage()">Delete All</button>
-        <button id="refreshAllButton" onclick="refreshAllContainers()">Refresh</button>
+        <input type="text" id="ipInput" class="local">
+        <button id="addIpButton" class="local" onclick="addIP()">Add IP</button>
+        <button id="clearStorageButton" class="local" onclick="clearLocalStorage()">Delete All</button>
+        <button id="refreshAllButton" class="local" onclick="refreshAllContainers(true)">Refresh</button>
       </div>
       <!-- Container to hold the image elements -->
       <div id="imageContainer"></div>
@@ -1681,7 +1681,7 @@
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
       const appLogInit = 0;
-      const appHub = '/control?still=${Date.now()';
+      const appHub = '/control?still=';
 
       let view;
       let viewContainer;
