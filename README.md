@@ -1,7 +1,9 @@
 
 # ESP32-CAM_MJPEG2SD
 
-Application for ESP32 / ESP32S3 with OV2640 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
+### ***Not yet compatible with latest arduino-esp32 core v3.3.0 as espressif have changed the jpeg decoder - issue [#628](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/628), use v3.2.1***
+
+Application for ESP32 / ESP32S3 with OV2640 / OV3660 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
 * [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
 * Time lapse recording
@@ -256,7 +258,6 @@ QHD | 6
 FHD | 6
 P_FHD | 6
 
-The OV3660 has not been tested.
 
 ## Auxiliary Board
 
