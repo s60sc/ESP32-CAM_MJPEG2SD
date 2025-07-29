@@ -17,7 +17,7 @@
  has occurred by classsifying whether the object in the frame is of a particular
  type of interest, eg a human, animal, vehicle etc. 
  
- s60sc 2020, 2023
+ s60sc 2020, 2023, 2025
 */
 
 #include "appGlobals.h"
@@ -58,7 +58,7 @@ static uint8_t* currBuff = NULL;
 
 /**********************************************************************************/
 
-static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_t scale);
+static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t scale);
 
 bool isNight(uint8_t nightSwitch) {
   // check if night time for suspending recording
@@ -113,6 +113,15 @@ static void rescaleImage(const uint8_t* input, int inputWidth, int inputHeight, 
         output[(i * outputWidth + j) * colorDepth + channel] = (uint8_t)pixel;
       }
     }
+  }
+}
+
+static void rgbToGray(uint8_t* buffer, int width, int height) {
+  // convert rgb buffer to grayscale in place
+  for (int i = 0; i < width * height; ++i) {
+    int index = i * 3;
+    // Calculate grayscale value using luminance formula
+    buffer[i] = (uint8_t)(((77 * buffer[index]) + (150 * buffer[index + 1]) + (29 * buffer[index + 2])) >> 8);
   }
 }
 
@@ -182,9 +191,12 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
   stride = (colorDepth == RGB888_BYTES) ? GRAYSCALE_BYTES : RGB888_BYTES; // stride is inverse of colorDepth
 
-  static uint8_t* rgb_buf = (uint8_t*)ps_malloc(sampleWidth * sampleHeight * RGB888_BYTES);
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgb_buf, (jpg_scale_t)scaling)) return motionStatus;
-  LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
+  static uint8_t* rgb_buf = (uint8_t*)ps_malloc(sampleWidth * sampleHeight * RGB888_BYTES); // no need to free
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgb_buf, scaling)) return motionStatus;
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+  if (colorDepth == GRAYSCALE_BYTES) rgbToGray(rgb_buf, sampleWidth, sampleHeight);
+#endif
+  LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime); 
   
   // allocate buffer space on heap
   size_t resizeDimLen = RESIZE_DIM_SQ * colorDepth; // byte size of bitmap
@@ -312,6 +324,36 @@ void notifyMotion(camera_fb_t* fb) {
 #endif
 }
 
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+
+// based on jpg2rgb888() from esp32-camera/to_bmp.c for access to rescaling
+
+static uint8_t work[3100]; // Default size is 3.1kB for JPEG decoder, or 65kB if JD_FASTDECODE == 2 
+
+static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t scale) {
+  esp_jpeg_image_cfg_t jpeg_cfg = {
+      .indata = (uint8_t *)src,
+      .indata_size = src_len,
+      .outbuf = out,
+      .outbuf_size = UINT32_MAX, // sic @todo: this is very bold assumption, keeping this like this for now, not to break existing code
+      .out_format = JPEG_IMAGE_FORMAT_RGB888,
+      .out_scale = (esp_jpeg_image_scale_t)scale,
+      .flags = {.swap_color_bytes = 0},
+      .advanced = {
+        .working_buffer = work,
+        .working_buffer_size = sizeof(work)
+      }
+  };
+  esp_jpeg_image_output_t output_img = {};
+  esp_err_t res = esp_jpeg_decode(&jpeg_cfg, &output_img);
+  if (res != ESP_OK) LOG_WRN("jpg2rgb failure: %s", espErrMsg(res)); 
+  return (res == ESP_OK) ? true : false;
+}
+
+#else
+
+// for arduino-esp32 versions 3.2.1 or earlier
+
 /************* copied and modified from esp32-camera/to_bmp.c to access jpg_scale_t *****************/
 
 typedef struct {
@@ -366,17 +408,19 @@ static unsigned int _jpg_read(void * arg, size_t index, uint8_t *buf, size_t len
   return len;
 }
 
-static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, jpg_scale_t scale) {
+static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t scale) {
   rgb_jpg_decoder jpeg;
   jpeg.width = 0;
   jpeg.height = 0;
   jpeg.input = src;
   jpeg.output = out;
   jpeg.data_offset = 0;
-  esp_err_t res = esp_jpg_decode(src_len, scale, _jpg_read, _rgb_write, (void*)&jpeg);
+  esp_err_t res = esp_jpg_decode(src_len, (jpg_scale_t)scale, _jpg_read, _rgb_write, (void*)&jpeg);
   if (res != ESP_OK) LOG_WRN("jpg2rgb failure: %s", espErrMsg(res)); 
   return (res == ESP_OK) ? true : false;
 }
+
+#endif
 
 #else
 

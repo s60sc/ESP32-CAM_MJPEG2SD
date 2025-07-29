@@ -18,7 +18,7 @@ bool forceRecord = false; // Recording enabled by rec button
 // motion detection parameters
 int moveStartChecks = 5; // checks per second for start motion 
 int moveStopSecs = 2; // secs between each check for stop, also determines post motion time
-int maxFrames = 20000; // maximum number of frames in video before auto close 
+int maxFrames = MAX_FRAMES; // maximum number of frames in video before auto close 
 
 // record timelapse avi independently of motion capture, file name has same format as avi except ends with T
 int tlSecsBetweenFrames; // too short interval will interfere with other activities
@@ -34,7 +34,7 @@ bool doRecording = true; // whether to capture to SD or not
 uint8_t xclkMhz = 20; // camera clock rate MHz
 bool doKeepFrame = false;
 static bool haveSrt = false;
-char camModel[10];
+char camModel[11];
 static int siodGpio = SIOD_GPIO_NUM;
 static int siocGpio = SIOC_GPIO_NUM;
 size_t maxFrameBuffSize;
@@ -78,6 +78,7 @@ static volatile bool isPlaying = false; // controls playback on app
 bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
+int dashCamOn = 0; // whether to use dashcam style continuous recording
 static bool pirVal = false;
 
 #ifndef CONFIG_IDF_TARGET_ESP32C3
@@ -331,9 +332,9 @@ static bool closeAvi() {
 #endif
   if (vidDurationSecs >= minSeconds) {
     // name file to include actual dateTime, FPS, duration, and frame count
-    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%lu%s%s.%s", 
+    int alen = snprintf(aviFileName, FILE_NAME_LEN - 1, "%s_%s_%u_%lu%s%s%s.%s", 
       partName, frameData[fsizePtr].frameSizeStr, actualFPSint, vidDurationSecs, 
-      haveWav ? "_S" : "", haveSrt ? "_M" : "", AVI_EXT); 
+      haveWav ? "_S" : "", haveSrt ? "_M" : "", dashCamOn ? "_C" : "", AVI_EXT); 
     if (alen > FILE_NAME_LEN - 1) LOG_WRN("file name truncated");
     STORAGE.rename(AVITEMP, aviFileName);
     LOG_VRB("AVI close time %lu ms", millis() - hTime); 
@@ -341,38 +342,41 @@ static bool closeAvi() {
 #if INCLUDE_TELEM
     stopTelemetry(aviFileName);
 #endif
-    // AVI stats
-    LOG_INF("******** AVI recording stats ********");
-    LOG_ALT("Recorded %s", aviFileName);
-    LOG_INF("AVI duration: %u secs", vidDurationSecs);
-    LOG_INF("Number of frames: %u", frameCnt);
-    LOG_INF("Required FPS: %u", FPS);
-    LOG_INF("Actual FPS: %0.1f", actualFPS);
-    LOG_INF("File size: %s", fmtSize(vidSize));
-    if (frameCnt) {
-      LOG_INF("Average frame length: %u bytes", vidSize / frameCnt);
-      LOG_INF("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
-      LOG_INF("Average frame buffering time: %u ms", fTimeTot / frameCnt);
-      LOG_INF("Average frame storage time: %u ms", wTimeTot / frameCnt);
-    }
-    LOG_INF("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
-    LOG_INF("File open / completion times: %u ms / %u ms", oTime, cTime);
-    LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
-    checkMemory();
-    LOG_INF("*************************************");
+    if (dashCamOn) forceRecord = true; // restart continuous recording
+    else {
+      // AVI stats
+      LOG_INF("******** AVI recording stats ********");
+      LOG_ALT("Recorded %s", aviFileName);
+      LOG_INF("AVI duration: %u secs", vidDurationSecs);
+      LOG_INF("Number of frames: %u", frameCnt);
+      LOG_INF("Required FPS: %u", FPS);
+      LOG_INF("Actual FPS: %0.1f", actualFPS);
+      LOG_INF("File size: %s", fmtSize(vidSize));
+      if (frameCnt) {
+        LOG_INF("Average frame length: %u bytes", vidSize / frameCnt);
+        LOG_INF("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
+        LOG_INF("Average frame buffering time: %u ms", fTimeTot / frameCnt);
+        LOG_INF("Average frame storage time: %u ms", wTimeTot / frameCnt);
+      }
+      LOG_INF("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
+      LOG_INF("File open / completion times: %u ms / %u ms", oTime, cTime);
+      LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
+      checkMemory();
+      LOG_INF("*************************************");
 #if INCLUDE_FTP_HFS
-    if (autoUpload) {
-      if (deleteAfter) {
-        // issue #380 - in case other files failed to transfer, do whole parent folder
-        dateFormat(partName, sizeof(partName), true);
-        fsStartTransfer(partName); 
-      } else fsStartTransfer(aviFileName); // transfer this file to remote ftp server 
-    }
+      if (autoUpload) {
+        if (deleteAfter) {
+          // issue #380 - in case other files failed to transfer, do whole parent folder
+          dateFormat(partName, sizeof(partName), true);
+          fsStartTransfer(partName); 
+        } else fsStartTransfer(aviFileName); // transfer this file to remote ftp server 
+      }
 #endif
 #if INCLUDE_TGRAM
-    if (tgramUse) tgramAlert(aviFileName, "");
+      if (tgramUse) tgramAlert(aviFileName, "");
 #endif
-    if (!checkFreeStorage()) doRecording = false; 
+    }
+    if (!checkFreeStorage()) doRecording = forceRecord = false; 
     return true; 
   } else {
     // delete too small files if exist
@@ -432,7 +436,7 @@ static boolean processFrame() {
       // movement has occurred, start recording
       stopPlaying(); // terminate any playback
       stopPlayback = true; // stop any subsequent playback
-      LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
+      if (dashCamOn == 0) LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "",forceRecord ? "Button" : "");
 #if INCLUDE_MQTT
       if (mqtt_active) {
         sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
@@ -455,9 +459,11 @@ static boolean processFrame() {
       if (buzzerUse && frameCnt / FPS >= buzzerDuration) buzzerAlert(false); // switch off after given period 
 #endif
       if (frameCnt >= maxFrames) {
-        logLine();
-        LOG_INF("Auto closed recording after %u frames", maxFrames);
-        forceRecord = false;
+        if (dashCamOn == 0) {
+          logLine();
+          LOG_INF("Auto closed recording after %u frames", maxFrames);
+        }
+        forceRecord = false; 
       }
     }
     if (!isCapturing && wasCapturing) {
@@ -898,9 +904,12 @@ bool prepCam() {
   maxFS = FRAMESIZE_SVGA; // 2M
   if (ESP.getPsramSize() > 5 * ONEMEG) maxFS = FRAMESIZE_QSXGA; // 8M
   else if (ESP.getPsramSize() > 3 * ONEMEG) maxFS = FRAMESIZE_UXGA; // 4M
+#ifdef CAMERA_MODEL_M5STACK_CAMS3_UNIT
+  maxFS = FRAMESIZE_QVGA;
+#endif
   // define buffer size depending on maximum frame size available, esp32-camera/driver/cam_hal.c: cam_obj->recv_size
   maxFrameBuffSize = maxAlertBuffSize = frameData[maxFS].frameWidth * frameData[maxFS].frameHeight / 5; 
-  LOG_INF("Max frame size for %s PSRAM is %s", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr);
+  LOG_INF("Max frame size for %s PSRAM is %s%s", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr, maxFS == FRAMESIZE_QVGA ? " for PY260" : "");
 
   // configure camera
   camera_config_t config;
@@ -973,8 +982,12 @@ bool prepCam() {
         case (OV5640_PID):
           strcpy(camModel, "OV5640");
         break;
+        case (MEGA_CCM_PID):
+          strcpy(camModel, "PY260");
+        break;
         default:
-          strcpy(camModel, "Other");
+          // not recognised
+          sprintf(camModel, "PID=0x%x", s->id.PID);
         break;
       }
   
@@ -1018,6 +1031,23 @@ bool prepCam() {
       fb = NULL;
       res = true;
       LOG_INF("Camera model %s ready @ %uMHz", camModel, xclkMhz); 
+      if (timeLapseOn) dashCamOn = 0;
+      if (dashCamOn) {
+        timeLapseOn = useMotion = false; // disable timeLapse and motion recording
+        maxFrames = FPS * dashCamOn * 60; // maxFrames is not changed if FPS later changed without restart
+        if (maxFrames > MAX_FRAMES) {
+          maxFrames = MAX_FRAMES;
+          LOG_WRN("Max continuous recording time interval is %d mins", maxFrames / FPS / 60);
+        }
+        if (maxFrames) {
+          LOG_INF("Do continuous recording at %d min intervals", dashCamOn);
+          forceRecord = true;
+        } else {
+          // disable as not set up
+          dashCamOn = 0;
+          maxFrames = MAX_FRAMES;
+        }
+      } else maxFrames = MAX_FRAMES;
     }
   }
   debugMemory("prepCam");

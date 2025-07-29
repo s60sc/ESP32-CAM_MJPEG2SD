@@ -40,7 +40,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "motionVal")) motionVal = intVal;
   else if (!strcmp(variable, "moveStartChecks")) moveStartChecks = intVal;
   else if (!strcmp(variable, "moveStopSecs")) moveStopSecs = intVal;
-  else if (!strcmp(variable, "maxFrames")) maxFrames = intVal;
+  else if (!strcmp(variable, "maxFrames")) {if (dashCamOn == 0) maxFrames = intVal;}
   else if (!strcmp(variable, "detectMotionFrames")) detectMotionFrames = intVal;
   else if (!strcmp(variable, "detectNightFrames")) detectNightFrames = intVal;
   else if (!strcmp(variable, "detectNumBands")) detectNumBands = intVal;
@@ -59,6 +59,10 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
   }
   else if (!strcmp(variable, "timeLapseOn")) timeLapseOn = intVal;
+  else if (!strcmp(variable, "dashCamOn")) {
+    dashCamOn = intVal;
+    if (dashCamOn == 0) forceRecord = false;
+  }
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
   else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
   else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal; 
@@ -873,9 +877,10 @@ uartRxdPin~~3~N~UART RX pin
 tlSecsBetweenFrames~600~1~N~Timelapse interval (secs)
 tlDurationMins~720~1~N~Timelapse duration (mins)
 tlPlaybackFPS~1~1~N~Timelapse playback FPS
+maxFrames~20000~1~N~Max frames in recordingg
+dashCamOn~0~98~~na
 moveStartChecks~5~1~N~Checks per second for start motion
 moveStopSecs~2~1~N~Non movement to stop recording (secs)
-maxFrames~20000~1~N~Max frames in recording
 detectMotionFrames~5~1~N~Num changed frames to start motion
 detectNightFrames~10~1~N~Min dark frames to indicate night
 detectNumBands~10~1~N~Total num of detection bands
@@ -986,9 +991,9 @@ I2Csda~-1~3~N~I2C SDA pin if unshared
 I2Cscl~-1~3~N~I2C SCL pin if unshared
 RTSP_Name~~8~T~RTSP Auth Username
 RTSP_Pass~~8~T~RTSP Auth Password
-rtsp00Video~1~8~C~Enable RTSP Video
+rtsp00Video~0~8~C~Enable RTSP Video
 rtsp01Audio~0~8~C~Enable RTSP Audio
-rtsp02Subtitles~1~8~C~Enable RTSP Subtitles
+rtsp02Subtitles~0~8~C~Enable RTSP Subtitles
 rtsp03Port~554~8~N~RTSP ServerPort
 rtsp04VideoPort~5430~8~N~RTSP Video Port
 rtsp05AudioPort~5432~8~N~RTSP Audio Port

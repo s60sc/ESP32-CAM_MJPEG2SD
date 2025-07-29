@@ -525,7 +525,7 @@ static void prepJoystick() {
 // Uses stickTask & stickTimer
 
 #define stepPhases 4
-#define modelTypes 2 // must equal enum stepperModel entries
+#define modelTypes 2 // must equal enum stepperModel entries in appGlobals.h
 static bool clockwise = false;
 static const uint16_t stepsPerRevolution[modelTypes] = {32 * 64, 20}; // number of steps in geared 28BYJ-48 unipolar, 8mm bipolar
 static uint32_t stepsToDo = 0; // total steps requested

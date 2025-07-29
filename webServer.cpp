@@ -115,7 +115,8 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     httpd_resp_sendstr_chunk(req, startupFailure);
     httpd_resp_sendstr_chunk(req, failPageE_html);
     httpd_resp_sendstr_chunk(req, NULL);
-  }
+    return ESP_OK;
+  } 
   // Show wifi wizard if not setup, using access point mode  
   if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
@@ -123,7 +124,6 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     return httpd_resp_send(req, (const char*)setupPage_html_gz, setupPage_html_gz_len);
   } else if (!checkAuth(req)) return ESP_OK; // check if authentication required & passed
-
 
   return fileHandler(req);
 }
@@ -376,7 +376,11 @@ void showHttpHeaders(httpd_req_t *req) {
   // httpd_req_aux struct members hidden so need to access them via offsets
   // to calculate offset any element not on 4 byte boundary has to be packed
   LOG_DBG("HTTP: %s %s", HTTP_METHOD_STRING(req->method), req->uri); 
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+  size_t maxHdrLen = max(CONFIG_HTTPD_MAX_REQ_HDR_LEN, CONFIG_HTTPD_MAX_URI_LEN);
+#else
   size_t maxHdrLen = max(HTTPD_MAX_REQ_HDR_LEN, HTTPD_MAX_URI_LEN);
+#endif
   uint32_t req_hdrs_count = *((uint8_t*)req->aux + 4 + maxHdrLen + 1 + 3 + 4 + 4 + 4 + 1 + 3);
   char* header = (char*)req->aux + 4; // start of scratch buffer containing headers
   // get each header string in turn

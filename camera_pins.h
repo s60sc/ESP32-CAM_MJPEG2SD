@@ -145,6 +145,7 @@
 #define PCLK_GPIO_NUM     21
 
 #elif defined(CAMERA_MODEL_M5STACK_CAMS3_UNIT)
+// supplied with PY260 camera (MEGA_CCM_PID)
 #define CAM_BOARD "CAMERA_MODEL_M5STACK_CAMS3_UNIT"
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM 21
@@ -165,6 +166,11 @@
 #define PCLK_GPIO_NUM  12
 
 #define LED_GPIO_NUM 14
+
+#define SD_MMC_CLK 39
+#define SD_MMC_CMD 38
+#define SD_MMC_D0 40
+// Chip select pin is GPIO9, not required for SD_MMC
 
 #elif defined(CAMERA_MODEL_AI_THINKER) || defined(SIDE_ALARM)
 #define CAM_BOARD "CAMERA_MODEL_AI_THINKER"
@@ -326,7 +332,7 @@
 #elif defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
 #define CAM_BOARD "CAMERA_MODEL_FREENOVE_ESP32S3_CAM"
 #elif defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
-#define CAM_BOARD "CAMERA_MODEL_PCBFUN_ESP32S3_CAM"
+#define CAM_BOARD "CAMERA_MODEL_PCBFUN_ESP32S3_CAM" // AI_THINKER style board
 #endif
 
 #define PWDN_GPIO_NUM -1
@@ -549,7 +555,7 @@
 #define Y4_GPIO_NUM      46 // D2
 #define Y3_GPIO_NUM      45 // D1
 #define Y2_GPIO_NUM      41 // D0
-#define VSYNC_GPIO_NUM   1  // Potentail for GP16, but that's normally NC
+#define VSYNC_GPIO_NUM   1  // Potential for GP16, but that's normally NC
 #define HREF_GPIO_NUM    2  //
 #define PCLK_GPIO_NUM    39 //
 
@@ -560,7 +566,7 @@
 #define SD_MMC_CLK 7        //
 #define SD_MMC_CMD 6        // CMD/DI/MOSI
 #define SD_MMC_D0 5         // DAT0/D0/MISO
-// Chip select pin is GPIO4, this has 10k pull up, so non-configured pin will default to being selected, but beware that pin may be imporant. 
+// Chip select pin is GPIO4, this has 10k pull up, but not required for SD_MMC
 
 // Define Mic Pins (DOES NOT have NATIVE Mic)
 #define I2S_SD 34           // I2S Microphone
@@ -595,7 +601,7 @@
 #define SD_MMC_CLK 12      //
 #define SD_MMC_CMD 13      // CMD/DI/MOSI
 #define SD_MMC_D0  11      // DAT0/D0/MISO
-// Chip select pin is GPIO10
+// Chip select pin is GPIO10, not required for SD_MMC
 
 // Define Mic Pins 
 #define I2S_SD 39 // PDM Microphone

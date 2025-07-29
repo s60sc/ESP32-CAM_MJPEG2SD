@@ -1,12 +1,10 @@
 
 # ESP32-CAM_MJPEG2SD
 
-### ***Not yet compatible with latest arduino-esp32 core v3.3.0 as espressif have changed the jpeg decoder - issue [#628](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/628), use v3.2.1***
-
 Application for ESP32 / ESP32S3 with OV2640 / OV3660 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
 * [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
-* Time lapse recording
+* [Continuous recording](#continuous-recording) - Time lapse or dashcam style
 * [Audio Recording](#audio-recording) from I2S or PDM microphones
 * Camera pan / tilt servos and lamp control
 * [RTSP Server](#rtsp) stream Video, Audio and Subtitles
@@ -30,18 +28,13 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes up to version 10.6:
-* Stream to [NVR](#stream-to-nvr) using integration to RTSPServer library contributed by [@rjsachse](https://github.com/rjsachse). 
-* Frame resolution selection mismatch corrected due to [#10801](https://github.com/espressif/arduino-esp32/issues/10801) in arduino core v3.1.0
-* SD card 4 bit mode configurable (see `utilsFS.cpp`)
-* Shared I2C fixed following code changes in Arduino core v3.1.1
-* 24Mhz camera clock available for faster frame rate on ESP32S3, contributed by [@josef2600](https://github.com/josef2600).
-* RTSP server now has multiple client support as well as user/pass authentication.
-* Limited support added for boards with only 2MB PSRAM
+Changes for version 10.7:
+* Reworked for new jpeg decoder in arduino-esp32 core v3.3.0
+* Added Dashcam style continuous recording
 
 ## Purpose
 
-The application enables video capture of motion detection or timelapse recording. Examples include security cameras, wildlife monitoring, rocket flight monitoring, FPV vehicle control.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
+The application enables video capture of motion detection or continuous recording. Examples include security cameras, wildlife monitoring, rocket flight monitoring, FPV vehicle control.  This [instructable](https://www.instructables.com/How-to-Make-a-WiFi-Security-Camera-ESP32-CAM-DIY-R/) by [Max Imagination](https://www.instructables.com/member/Max+Imagination/) shows how to build a WiFi Security Camera using an earlier version of this code, plus a later video on how to [install and use](https://www.youtube.com/watch?v=k_PJLkfqDuI&t=247s) the app.
 
 Saving a set of JPEGs as a single file is faster than as individual files and is easier to manage, particularly for small image sizes. Actual rate depends on quality and size of SD card and complexity and quality of images. A no-name 4GB SDHC labelled as Class 6 was 3 times slower than a genuine Sandisk 4GB SDHC Class 2. The following recording rates were achieved on a freshly formatted Sandisk 4GB SDHC Class 2 on a AI Thinker OV2640 board, set to maximum JPEG quality and clock rate of 20MHz. With a clock rate of 24Mhz on ESP32S3, the maximum frame rates can increase 50->60, 25->30 but it may be necessary to reduce JPEG quality.
 
@@ -113,7 +106,17 @@ The **Start Stream** button shows a live video only feed from the camera.
 Recordings can then be uploaded to an FTP or HTTPS server or downloaded to the browser for playback on a media application, eg VLC.
 To incorporate FTP or HTTPS server, set `#define INCLUDE_FTP_HFS` to `true`.
 
-A time lapse feature is also available which can run in parallel with motion capture. Time lapse files have the format **20200130_201015_VGA_15_60_T.avi**
+## Continuous Recording
+
+A time lapse feature is available which can run in parallel with motion capture. 
+Select **Time Lapse** button under **Motion Detect & Recording** sidebar button. Time Lapse configuration is under **Motion** button in **Edit Config** tab.
+Time lapse files have the format **20200130_201015_VGA_15_60_T.avi**.
+
+A continuous recording feature generates a sequence of files from power up, similar to dashcam recording style. Use **DashCam** slider in **Motion Detect & Recording** sidebar button to select a value representing the length in minutes of each file. Need to press **Save Settings** button then **Reboot ESP** to commence recording.
+Select slider value 0 to switch off feature. Creates file names with format **20200130_201015_VGA_15_60_C.avi**. 
+Motion detection is disabled while continuous recording is running.
+
+Time Lapse & Dashcam features are mutually exclusive.
 
 
 ## Other Functions and Configuration
@@ -207,7 +210,7 @@ JPEG images of any size are retrieved from the camera and 1 in N images are samp
 
 For movement detection a high sample rate of 1 in 2 is used. When movement has been detected, the rate for checking for movement stop is reduced to 1 in 10 so that the JPEGs can be captured with only a small overhead. The **Detection time ms** table shows typical time in millis to decode and analyse a frame retrieved from the OV2640 camera.
 
-Motion detection by camera is enabled by default, to disable click off **Enable motion detect** in **Motion Detect & Recording** sidebar button. Motion detection is not available for frame sizes > SXGA due to limitations with `esp_jpg_decode()`.
+Motion detection by camera is enabled by default, to disable click off **Enable motion detect** in **Motion Detect & Recording** sidebar button. Motion detection is not available for frame sizes > SXGA due to jpeg decoder limitations.
 
 <img align=right src="extras/motion.png" width="200" height="200">
 

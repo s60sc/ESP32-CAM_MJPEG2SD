@@ -30,7 +30,7 @@
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_PCBFUN_ESP32S3_CAM
-//#define CAMERA_MODEL_XIAO_ESP32S3 
+//#define CAMERA_MODEL_XIAO_ESP32S3
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
 //#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
 //#define CAMERA_MODEL_ESP32S3_EYE 
@@ -104,6 +104,8 @@
 
 #define USE_IP6 false // if true use IPv6 when available, else use IPv4
 
+#define MAX_FRAMES 20000 // max number of frames allowed in single avi file
+
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
@@ -119,7 +121,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.6.2"
+#define APP_VER "10.7"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -160,7 +162,7 @@
 #define ISCAM // cam specific code in generics
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 27
+#define CFG_VER 28
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -240,6 +242,7 @@ struct fnameStruct {
 
 enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
 enum stepperModel {BYJ_48, BIPOLAR_8mm};
+
 // global app specific functions
 
 void applyFilters();
@@ -317,7 +320,6 @@ void notifyMotion(camera_fb_t* fb);
 // motion detection parameters
 extern int moveStartChecks; // checks per second for start motion
 extern int moveStopSecs; // secs between each check for stop, also determines post motion time
-extern int maxFrames; // maximum number of frames in video before auto close 
 
 // motion recording parameters
 extern int detectMotionFrames; // min sequence of changed frames to confirm motion 
@@ -340,7 +342,7 @@ extern bool autoUpload;
 extern bool dbgMotion;
 extern bool doPlayback;
 extern bool doRecording; // whether to capture to SD or not
-extern bool forceRecord; // Recording enabled by rec button
+extern bool forceRecord; // Recording enabled by rec button or dashcam slider
 extern bool forcePlayback; // playback enabled by user
 extern uint8_t FPS;
 extern uint8_t fsizePtr; // index to frameData[] for record
@@ -357,6 +359,7 @@ extern bool stopPlayback;
 extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)  
 extern uint8_t colorDepth;
 extern bool timeLapseOn; // enable time lapse recording
+extern int dashCamOn;  // enable continuous recording, with given interval
 extern int maxFrames;
 extern uint8_t xclkMhz;
 extern char camModel[];
@@ -541,7 +544,7 @@ struct frameStruct {
   const uint16_t frameWidth;
   const uint16_t frameHeight;
   const uint16_t defaultFPS;
-  const uint8_t scaleFactor; // (0..4)
+  const uint8_t scaleFactor; // (0..3) see esp_jpeg_image_scale_t
   const uint8_t sampleRate; // (1..N)
 };
 
@@ -565,13 +568,13 @@ const frameStruct frameData[] = {
   {"HD", 1280, 720, 5, 3, 1}, 
   {"SXGA", 1280, 1024, 5, 3, 1}, 
   {"UXGA", 1600, 1200, 5, 4, 1},  
-  {"FHD", 1920, 1080, 5, 3, 1},    // 3MP Sensors
-  {"P_HD", 720, 1280, 5, 3, 1},
-  {"P_3MP", 864, 1536, 5, 3, 1},
+  {"FHD", 1920, 1080, 5, 3, 1},    // 3MP Sensors only
+  {"P_HD", 720, 1280, 5, 3, 1},    //
+  {"P_3MP", 864, 1536, 5, 3, 1},   //
   {"QXGA", 2048, 1536, 5, 4, 1},
-  {"QHD", 2560, 1440, 5, 4, 1},   // 5MP Sensors
-  {"WQXGA", 2560, 1600, 5, 4, 1},
-  {"P_FHD", 1080, 1920, 5, 4, 1},
-  {"QSXGA", 2560, 1920, 4, 4, 1},
-  {"5MP", 2592, 1944, 4, 4, 1}
+  {"QHD", 2560, 1440, 5, 4, 1},    // 5MP Sensors only
+  {"WQXGA", 2560, 1600, 5, 4, 1},  //
+  {"P_FHD", 1080, 1920, 5, 4, 1},  //
+  {"QSXGA", 2560, 1920, 4, 4, 1},  //
+  {"5MP", 2592, 1944, 4, 4, 1}     //
 };
