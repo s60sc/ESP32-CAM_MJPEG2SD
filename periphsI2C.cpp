@@ -56,7 +56,7 @@ static bool sendTransmission(int clientAddr, bool scanning) {
       5: i2c busy 
       8: unknown pcf8591 status */
       
-  if (!scanning && result > 0) LOG_WRN("Client %s at 0x%x with connection error: %d", clientName[clientAddr], clientAddr, result);
+  if (!scanning && result > 0) LOG_WRN("Client %s at 0x%02X with connection error: %d", clientName[clientAddr], clientAddr, result);
   return (result == 0) ? true : false;
 }
 
@@ -67,7 +67,7 @@ static void scanI2C() {
     Wire.beginTransmission(address);
     // only report error if client device meant to be present
     if (sendTransmission(address, true)) {
-      LOG_INF("I2C device %s present at address: 0x%x", clientName[address], address);
+      LOG_INF("I2C device %s present at address: 0x%02X", clientName[address], address);
       I2Cdevices++;
       deviceStatus[address] = true;
     }
@@ -104,7 +104,7 @@ static bool sendI2Cdata(int clientAddr, uint8_t controlByte, uint8_t numBytes) {
 
 bool shareI2C(int sdaShare, int sclShare) {
   // apply given pins if bus to be shared 
-  /* await cam lib fix */
+  /* needs arduino-esp32 core v3.3.0 or higher */
   if (I2Csda < 0) { 
     // I2C bus shared with another peripheral, eg camera
     I2Csda = sdaShare;

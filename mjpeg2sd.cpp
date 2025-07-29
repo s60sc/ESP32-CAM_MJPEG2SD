@@ -967,7 +967,7 @@ bool prepCam() {
   } 
 
 
-  if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%x:%s on %s", err, espErrMsg(err), CAM_BOARD);
+  if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%X:%s on %s", err, espErrMsg(err), CAM_BOARD);
   else {
     sensor_t* s = esp_camera_sensor_get();
     if (s == NULL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to access camera on %s", CAM_BOARD);
@@ -987,7 +987,7 @@ bool prepCam() {
         break;
         default:
           // not recognised
-          sprintf(camModel, "PID=0x%x", s->id.PID);
+          sprintf(camModel, "PID=0x%X", s->id.PID);
         break;
       }
   
