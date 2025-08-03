@@ -866,6 +866,14 @@ void logLine() {
   logPrint(" \n");
 }
 
+int vprintfRedirect(const char* format, va_list args) {
+  // format esp_log() output for logPrint()
+  char buffer[256];
+  int len = vsnprintf(buffer, sizeof(buffer), format, args);
+  logPrint("%s", buffer);
+  return len;
+}
+
 void logSetup() {
   // prep logging environment
   Serial.begin(115200);
@@ -873,6 +881,7 @@ void logSetup() {
   printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
+  esp_log_set_vprintf(vprintfRedirect); // redirect esp_log output to app log
   if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log %s", (brownoutStatus == 'B' || brownoutStatus == 'R') ? "(brownout)" : " ");
   crashLoop = MAGIC_NUM;
   logSemaphore = xSemaphoreCreateBinary(); // flag that log message formatted
@@ -903,6 +912,7 @@ void formatHex(const char* inData, size_t inLen) {
 
 const char* espErrMsg(esp_err_t errCode) {
   // convert esp error code to text
+  // https://github.com/espressif/esp-idf/blob/master/components/esp_common/include/esp_err.h
   static char errText[100];
   esp_err_to_name_r(errCode, errText, 100);
   return errText;

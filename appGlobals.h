@@ -121,7 +121,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.7"
+#define APP_VER "10.7.1"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -359,7 +359,7 @@ extern bool stopPlayback;
 extern bool useMotion; // whether to use camera for motion detection (with motionDetect.cpp)  
 extern uint8_t colorDepth;
 extern bool timeLapseOn; // enable time lapse recording
-extern int dashCamOn;  // enable continuous recording, with given interval
+extern int dashCamOn; // enable continuous recording, with given interval
 extern int maxFrames;
 extern uint8_t xclkMhz;
 extern char camModel[];
@@ -576,5 +576,5 @@ const frameStruct frameData[] = {
   {"WQXGA", 2560, 1600, 5, 4, 1},  //
   {"P_FHD", 1080, 1920, 5, 4, 1},  //
   {"QSXGA", 2560, 1920, 4, 4, 1},  //
-  {"5MP", 2592, 1944, 4, 4, 1}     //
+  {"5MP", 2592, 1944, 4, 4, 1}     // PY260
 };

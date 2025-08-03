@@ -742,9 +742,9 @@ static bool downloadAvi(const char* userCmd) {
   return (bool)pos;
 }
 
-static void saveRamLog() {
+static void saveRamLog(const char* ramLogName) {
   // save ramlog to storage for upload to telegram
-  File ramFile = STORAGE.open(DATA_DIR "/ramlog" TEXT_EXT, FILE_WRITE);
+  File ramFile = STORAGE.open(ramLogName, FILE_WRITE);
   int startPtr, endPtr;
   startPtr = endPtr = mlogEnd;  
   // write log in chunks
@@ -761,7 +761,7 @@ static void saveRamLog() {
 void appSpecificTelegramTask(void* p) {
 #if INCLUDE_TGRAM
   // process Telegram interactions
-  snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap\n\n/log", hostName); 
+  snprintf(tgramHdr, FILE_NAME_LEN - 1, "%s\n Ver: " APP_VER "\n\n/snap\n\n/log\n\n/extIP", hostName); 
   sendTgramMessage("Rebooted", "", "");
   char userCmd[FILE_NAME_LEN];
   
@@ -774,10 +774,18 @@ void appSpecificTelegramTask(void* p) {
         sprintf(userCmd, "/snap from %s", hostName);
         sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
       } else if (!strcmp(userCmd, "/log")) {
-        saveRamLog();
+        // build unique ram log file name using time 
+        char ramLogName[FILE_NAME_LEN];
+        sprintf(ramLogName, "%s/ramlog_", DATA_DIR);
+        time_t currEpoch = getEpoch();
+        strftime(ramLogName + strlen(ramLogName), FILE_NAME_LEN - strlen(ramLogName), "%H%M%S", localtime(&currEpoch));
+        strcat(ramLogName, TEXT_EXT);
+        saveRamLog(ramLogName);   
         sprintf(userCmd, "/log from %s", hostName);
-        sendTgramFile(DATA_DIR "/ramlog" TEXT_EXT, "text/plain", userCmd);
-        deleteFolderOrFile(DATA_DIR "/ramlog" TEXT_EXT);
+        sendTgramFile(ramLogName, "text/plain", userCmd);
+        deleteFolderOrFile(ramLogName);
+      } else if (!strcmp(userCmd, "/extIP")) {
+        sendTgramMessage("Ext IP: ", extIP, "");
       } else {
         // initially assume it is an avi file download request
         if (!downloadAvi(userCmd)) sendTgramMessage("Request not recognised: ", userCmd, "");

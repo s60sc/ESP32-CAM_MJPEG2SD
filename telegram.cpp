@@ -43,7 +43,7 @@ char tgramToken[MAX_PWD_LEN] = "";
 char tgramChatId[MAX_IP_LEN] = "";
 
 char tgramHdr[FILE_NAME_LEN];
-static char keyValue[60] = ""; // holds value for searched key in JSON response
+static char keyValue[100] = ""; // holds value for searched key in JSON response
 static char* tgramBuff = NULL; // holds sent then received data
 static int32_t lastUpdate = 0;
 

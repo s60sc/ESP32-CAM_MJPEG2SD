@@ -78,11 +78,7 @@ static bool prepSD_MMC() {
   if (res) {
     fp.mkdir(DATA_DIR);
     infoSD();
-    res = true;
-  } else {
-    LOG_WRN("SD card mount failed");
-    res = false;
-  }
+  } else LOG_WRN("SD card mount failed");
 #endif
   return res;
 }

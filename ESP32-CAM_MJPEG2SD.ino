@@ -10,6 +10,8 @@
 void setup() {
   logSetup();
   LOG_INF("Selected board %s", CAM_BOARD);
+  
+  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_ERROR); // show ESP_LOG_ERROR messages during init
   // prep storage
   if (startStorage()) {
     // Load saved user configuration
@@ -25,7 +27,8 @@ void setup() {
 #endif
     }
   }
-  
+  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
+
 #ifdef DEV_ONLY
   devSetup();
 #endif
