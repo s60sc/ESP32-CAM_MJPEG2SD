@@ -8,7 +8,9 @@
 #endif
 
 #if INCLUDE_MQTT
-#define CONFIG_MQTT_PROTOCOL_311
+#ifndef CONFIG_MQTT_PROTOCOL_311
+#define CONFIG_MQTT_PROTOCOL_311 1
+#endif
 #include "mqtt_client.h" 
 
 #if (!INCLUDE_CERTS)
@@ -16,7 +18,6 @@ const char* mqtt_rootCACertificate = "";
 #endif
 #if (INCLUDE_HASIO)
 #define HASIO_AVAILABILITY "homeassistant/status"
-char image_topic[FILE_NAME_LEN] = "";  //Mqtt server topic to publish image payloads.
 void sendMqttHasDiscovery();
 void sendMqttHasState();
 #endif 
@@ -25,6 +26,7 @@ char mqtt_port[5] = "";                      //Mqtt server port to connect.
 char mqtt_user[MAX_HOST_LEN] = "";           //Mqtt server username.  
 char mqtt_user_Pass[MAX_PWD_LEN] = "";       //Mqtt server password.  
 char mqtt_topic_prefix[FILE_NAME_LEN / 2] = "";  //Mqtt server topic to publish payloads.  
+char image_topic[FILE_NAME_LEN] = "";  //Mqtt server topic to publish image payloads.
 
 #define MQTT_LWT_QOS 2
 #define MQTT_LWT_RETAIN 1

@@ -14,32 +14,85 @@
 
  To set app as HTTPS server, a server private key and public certificate are required
  Create keys and certificates using openssl tool
+ On Windows, paste commands below into a Command Prompt (cmd) window
 
- Define app to have static IP address, and use as variable substitution for openssl:
+ Define app to have static IP address, and use this as variable substitution for openssl:
    set APP_IP="192.168.1.135"
+
  Create app server private key and public certificate:
-   openssl req -nodes -x509 -sha256 -newkey rsa:4096 -subj "/CN=%APP_IP%" -addext "subjectAltName = IP:%APP_IP%" -extensions v3_ca -keyout prvtkey.pem -out cacert.pem -days 800
- 
- Paste content of prvtkey.pem and cacert.pem files into prvtkey_pem and cacert_pem constants below.
+   openssl req -nodes -x509 -sha256 -newkey rsa:2048 -subj "/CN=%APP_IP%" -addext "subjectAltName=IP:%APP_IP%" -extensions v3_ca -keyout prvtkey.pem -out servercert.pem -days 3660
+
  View server cert content:
-   openssl x509 -in cacert.pem -noout -text
+   openssl x509 -in servercert.pem -noout -text
+
+ Use app web page OTA Upload tab to copy servercert.pem and prvtkey.pem into ESP storage.
 
  Use of HTTPS is controlled on web page by option 'Use HTTPS' under Access Settings / Authentication settings 
- If the private key or public certificate constants are empty, the Use HTTPS setting is ignored.
+ If the private key or public certificate is not loaded, the Use HTTPS setting is ignored.
  
- Enter `https://static_ip` to access the app from the browser. A security warning will be displayed as the certificate is self signed so untrusted. To trust the certificate it needs to be installed on the device: 
+ Enter `https://static_ip` to access the app from the browser. A security warning will be displayed as the certificate is self signed so untrusted. 
+ To trust the certificate it needs to be installed on the device: 
  - open the Chrome settings page.
  - in the Privacy and security panel, expand the Security section, click on Manage certificates.
+ - in the Certificate Manager panel, press Manage imported certificates from Windows
  - in the Certificates popup, select the Trusted Root Certification Authorities tab, click the Import... button to launch the Import Wizard.
- - click Next, on the next page, select Browse... and locate the cacert.pem file.
- - click Next, then Finish,then in the Security Warning popup, click on Yes and another popup indicates that the import was successful.
+ - click Next, on the next page, select Browse... All Files and locate the servercert.pem file.
+ - click Next, then Finish, then in the Security Warning popup, click on Yes and another popup indicates that the import was successful.
 
- s60sc 2023
+ s60sc 2023, 2025
  */
 
 #include "appGlobals.h"
 
 #if INCLUDE_CERTS
+
+#ifndef CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC
+#define CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC 1
+#endif
+
+#define PRVTKEY DATA_DIR "/prvtkey" ".pem"
+#define SERVERCERT DATA_DIR "/servercert" ".pem"
+
+static fs::FS fp = STORAGE;
+char* serverCerts[2]; // private key, server key
+#define NUM_CERTS 2
+
+void loadCerts() {
+  if (useHttps) {
+#if !INCLUDE_CERTS
+    LOG_WRN("Need to compile with INCLUDE_CERTS true to use HTTPS");
+    useHttps = false;
+    return;
+#endif
+    const char* certFiles[NUM_CERTS] = {PRVTKEY, SERVERCERT};
+    for (int i = 0; i < NUM_CERTS; i++) {
+      File file;
+      if (fp.exists(certFiles[i])) {
+        file = fp.open(certFiles[i], FILE_READ);
+        if (!file || !file.size()) {
+          LOG_WRN("Failed to load file %s", certFiles[i]);
+          useHttps = false;
+        } else {
+          // load contents
+          serverCerts[i] = psramFound() ? (char*)ps_malloc(file.size() + 1) : (char*)malloc(file.size() + 1); 
+          size_t inBytes = file.readBytes(serverCerts[i], file.size());
+          if (inBytes != file.size()) {
+            LOG_WRN("File %s not correctly loaded", certFiles[i]);
+            useHttps = false;
+          }
+        }
+        file.close();
+      } else {
+        LOG_WRN("File %s not found", certFiles[i]);
+        useHttps = false;
+      }
+    }
+    if (!useHttps) LOG_WRN("HTTPS not available as server keys not loaded, using HTTP");
+  }
+}
+
+
+/********* Remote Server Certificates *********/
 
 // GitHub public certificate valid till April 2031
 const char* git_rootCACertificate = R"~(
@@ -72,97 +125,6 @@ chDYABPPTHPbqjc1qCmBaZx2vN4Ye5DUys/vZwP9BFohFrH/6j/f3IL16/RZkiMN
 JCqVJUzKoZHm1Lesh3Sz8W2jmdv51b2EQJ8HmA==
 -----END CERTIFICATE-----
 )~";
-
-// Paste in app server private key
-const char* prvtkey_pem = R"~(
------BEGIN PRIVATE KEY-----
-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
-B5e2Vlm3qrdvy8qCTHRrjxiMEceq
------END PRIVATE KEY-----
-)~";
-
-// Paste in self signed app server public certificate
-const char* cacert_pem = R"~(
------BEGIN CERTIFICATE-----
-MIIFIjCCAwqgAwIBAgIUM5ivBIoTo1Mdi/HXg0OSH0S8ww8wDQYJKoZIhvcNAQEL
-BQAwGDEWMBQGA1UEAwwNMTkyLjE2OC4xLjEzNTAeFw0yMzEyMjIxNzU0MjdaFw0y
-NjAzMDExNzU0MjdaMBgxFjAUBgNVBAMMDTE5Mi4xNjguMS4xMzUwggIiMA0GCSqG
-SIb3DQEBAQUAA4ICDwAwggIKAoICAQDy/QRi/nRv+I1qwoddDXtvGHMkMA8Tznvg
-tVBkh4FBaPQl/0v455/hUVKbyHq9MyH+S9mel0nVuJIQKZPfF/hSttt1C5963Hp8
-c6SvoGBfS6iIVp7DKBupiMXYKn+4k1SK7v9LAPRcGYACZ2juuthhixD+Z1ylsOvI
-Fu5il4cdm7e3HLL0eM5cw52+I+MrcjwVhP37IEdEflhpjZfgZb8PAhSiK/gj+N4U
-eVYSsegvXk0fss4MAenttJ6g9XJJolqfMGI+abYsdg9jgKfaMZJCqx+RpD7VrsQv
-v3NTeXL4v7u4+H8FGVbkvpiVP8QKfk2ptiDQ3FC2yvyZyKgVTHQXo1htxR8dMQW2
-eHoUMCxXEP5tHNBiQoHVudL0eItqHS3Zsv6dWMDpEZb3VShnaGxNqEpiz/cnTOZy
-TtLqItofnmsOOu/GeAwV7FfnKgDhuvBxe+dAuJWs4lk42hgMNvpHm811Gw51ucYC
-+2Kshw1VQmhYQGYnR2ynNf99kcc3NCqsdU3xwOIliilyxbagcyDa11y7L8UIpYmC
-HTzBzUEdyAFNBPnyiSMUVXdG7FTGnyDbkz10zdmFBTysCEsB5tgt5Ul46XXAUkTc
-314dqNi4qMz4oBhv2lBnJLbcn7EgqXJJYh13JCmJcT31vMD232wVMWNPs0NwFKpT
-27cAtIBFTQIDAQABo2QwYjAdBgNVHQ4EFgQULbmd0u6MQvmz8NjD5kSew1jKXg0w
-HwYDVR0jBBgwFoAULbmd0u6MQvmz8NjD5kSew1jKXg0wDwYDVR0TAQH/BAUwAwEB
-/zAPBgNVHREECDAGhwTAqAGHMA0GCSqGSIb3DQEBCwUAA4ICAQByghxxDQ9AGlK0
-t2+HKUnd/+rTn1YsD7uNNYaKK0Nmm9O6Bq0/cARsD0YGwpBGVloWoWoWKIuvJA+9
-p2UmKGAlTWz0+JaVbDEpi1XegIi2ZR8CQNnngpy7lBzCwiKxils/kwTv7Hzakia7
-Ddbd+0qxJcA5MUg45jCamqY/jNChdNe9TPupfWJ9E+6E6d5aIlo50zXBfDlfES+Z
-YS5TL6wxomCaWI33a/I+pZE5wtAy+bGzznSkF8Sx4kn3I6ab60rjG+prqiqHwTt2
-00JZJhe6bQc+shPe7qmuNJeW/uFwPAdE1df6h5A6biSLUCenfZP+7FgL9tl0baMn
-LjpOB9PTJ5sK1S/GrnwmdKXOiluY7Mqd+vumUluOSGaZdDSrnhop+juI4C603QSs
-dBjNKqJJ48QYRTW4qlW9QARcuBq/aX0qLiLTE/rpUaqqhi4qPADb/GVw9e7Iay8r
-0nCPHSAony2uTcDEVYxTp/WSL7fxTCXEvwHkJNAZf3qR0NESwbqYGKYdpxDFEDa5
-aZm1Jd72d2IvFvXUUPq6FFWKu55qf16QMV76+Ls/19idTrVD1JHf0sd0NS1+Bzwt
-R5IfapcWlNOtjpA5AF9AGSor9+rekXtgK1NmXyT9g1zYk/gHlEQNoDAjHP76p7ei
-G8kPCt8uxFlnuaH9HPstmlY3qRj9BA==
------END CERTIFICATE-----
-)~";
-
 
 // Your FTPS Server's root public certificate (not implemented)
 const char* ftps_rootCACertificate = R"~(

@@ -33,7 +33,7 @@
 #define UART_CTS UART_PIN_NO_CHANGE
 
 #define UART_BAUD_RATE 115200
-#define BUFF_LEN (UART_FIFO_LEN * 2)
+#define BUFF_LEN (UART_HW_FIFO_LEN(0) * 2) // 128 * 2
 #define MSG_LEN 8 
 
 // UART connection for Auxiliary

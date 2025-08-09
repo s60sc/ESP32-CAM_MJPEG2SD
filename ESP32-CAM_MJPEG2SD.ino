@@ -83,7 +83,7 @@ void setup() {
  }
 #endif
     checkMemory();
-  } 
+  }
 }
 
 void loop() {

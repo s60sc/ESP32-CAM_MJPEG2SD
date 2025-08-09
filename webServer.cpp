@@ -503,22 +503,18 @@ void startWebServer() {
   esp_err_t res = ESP_FAIL;
   chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
 #if INCLUDE_CERTS
-  size_t prvtkey_len = strlen(prvtkey_pem);
-  size_t cacert_len = strlen(cacert_pem);
-  if (useHttps && (!cacert_len || !prvtkey_len)) {
-    useHttps = false;
-    LOG_ALT("HTTPS not available as server keys not defined, using HTTP");
-  }
+  loadCerts(); // can set useHttps
   if (useHttps) {
     // HTTPS server
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
 #if CONFIG_IDF_TARGET_ESP32S3
     config.httpd.stack_size = SERVER_STACK_SIZE;
 #endif  
-    config.cacert_pem = (const uint8_t*)cacert_pem;
-    config.cacert_len = cacert_len + 1;
-    config.prvtkey_pem = (const uint8_t*)prvtkey_pem;
-    config.prvtkey_len = prvtkey_len + 1;
+    config.prvtkey_pem = (const uint8_t*)serverCerts[0];
+    config.prvtkey_len = strlen(serverCerts[0]) + 1;
+    config.servercert = (const uint8_t*)serverCerts[1];
+    config.servercert_len = strlen(serverCerts[1]) + 1;
+  
     //config.user_cb = https_server_user_callback;
     config.httpd.server_port = HTTPS_PORT;
     config.httpd.ctrl_port = HTTPS_PORT;

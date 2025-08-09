@@ -1,7 +1,7 @@
 
 # ESP32-CAM_MJPEG2SD
 
-Application for ESP32 / ESP32S3 with OV2640 / OV3660 / OV5640 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
+Application for ESP32 / ESP32S3 with OV2640 / OV3660 / OV5640 / PY260 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
 * [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
 * [Continuous recording](#continuous-recording) - Time lapse or dashcam style
@@ -23,14 +23,16 @@ The application supports:
 * Use of [Auxiliary Board](#auxiliary-board) for additional pins.
 * [Intercom](#intercom) feature using mic and speaker on ESP and mic and speaker on user device browser.
 
-The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, but avoid no-name boards marked `ESPS3 RE:1.0`
+The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, ESP32-S3-Cam (AI Thinker style), but avoid no-name boards marked `ESPS3 RE:1.0`
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.7:
+Changes for version 10.7.2:
 * Reworked for new jpeg decoder in arduino-esp32 core v3.3.0
 * Added Dashcam style continuous recording
+* Initial support for [PY260](#py260) camera model
+* [HTTPS](#https) support reworked due to change in Espressif library
 
 ## Purpose
 
@@ -261,6 +263,10 @@ QHD | 6
 FHD | 6
 P_FHD | 6
 
+## PY260
+
+The PY260 is a 5MP camera supplied with the M5Stack Unit CamS3 5MP module (CAMERA_MODEL_M5STACK_CAMS3_UNIT).  
+It has different sensor settings to the Omnivision series cameras, so not all entries in **Picture Settings** will be compatible.
 
 ## Auxiliary Board
 
@@ -284,6 +290,20 @@ The auxiliary board can be used to drive the hardware for:
  The Auxil web page on the auxiliary board is a cut down version of the camera app web page. The configuration details under **RC Config**, **Servo Config** and **PG Config** tabs must be entered on the auxiliary board web page, not the cam web page. If using UART, enter relevant pin numbers on both web pages and wire RX to TX between boards plus a common ground.
  
 To incorporate, set `#define INCLUDE_UART` to `true`.
+
+## HTTPS
+
+By default the app uses a HTTP web interface, but it can be set up to use HTTPS. To incorporate, set `#define INCLUDE_CERTS` to `true`.  
+Due to mbedtls memory use and processor load from app, HTTPS is only useable on ESP32-S3 but can still be unstable due to lack of memory and interrupt watchdog resets.
+Alternatively under **Access Settings** a web user login and password can be defined for a bit more security for HTTP access.
+
+See `certificates.cpp` for how to generate and instal certificates. To prevent browser warning for untrusted site, import the server certificate into the browser as given in `certificates.cpp`.
+
+To switch HTTPS on / off, press **Access Settings** sidebar button and set **Use HTTPS** slider on / off.
+
+Note: if HTTPS is on but the certificates are not correct the web page can not be accessed so the certificate files on the SD card will need to be manually deleted.
+
+Separately from app HTTPS status, to protect against man-in-middle attacks when accessing remote servers, set **Check Certs** slider on. See `certificates.cpp` for how to obtain remote server certificates.
 
 ## MQTT
 

@@ -26,6 +26,7 @@ static void initBrownout(void);
 int wakePin; // if wakeUse is true
 bool wakeUse = false; // true to allow app to sleep and wake
 char* jsonBuff = NULL;
+char portFwd[6] = "";
 
 /************************** Wifi **************************/
 
@@ -76,7 +77,7 @@ static void setupMdnsHost() {
     MDNS.addService("https", "tcp", HTTPS_PORT);
     //MDNS.addService("ws", "udp", 83);
     //MDNS.addService("ftp", "tcp", 21);    
-    LOG_INF("mDNS service: http://%s.local", mdnsName);
+    LOG_INF("mDNS service: http(s)://%s.local", mdnsName);
   } else LOG_WRN("mDNS host: %s Failed", mdnsName);
   debugMemory("setupMdnsHost");
 }
@@ -880,7 +881,8 @@ void logSetup() {
   Serial.setDebugOutput(DBG_ON);
   printf("\n\n");
   if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
-  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
+  if (DBG_ON) esp_log_level_set("*", DBG_LVL);
+  else esp_log_level_set("*", ESP_LOG_NONE); // suppress esp log messages
   esp_log_set_vprintf(vprintfRedirect); // redirect esp_log output to app log
   if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log %s", (brownoutStatus == 'B' || brownoutStatus == 'R') ? "(brownout)" : " ");
   crashLoop = MAGIC_NUM;

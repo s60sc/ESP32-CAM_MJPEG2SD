@@ -32,7 +32,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #endif
   int intVal = atoi(value);
   float fltVal = atof(value);
-  if (!strcmp(variable, "custom")) return res;
+  if (!strcmp(variable, "custom")) return true;
 #ifndef AUXILIARY
   else if (!strcmp(variable, "stopStream")) stopSustainTask(intVal);
   else if (!strcmp(variable, "stopPlaying")) stopPlaying();
@@ -241,11 +241,13 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       if (fsizePtr > FRAMESIZE_SXGA) LOG_WRN("Motion detection not available as frame size %s too large", frameData[fsizePtr].frameSizeStr);
 
       if (s) {
-        if (s->set_framesize(s, (framesize_t)fsizePtr) != ESP_OK) res = false;
-        // update default FPS for this frame size
-        if (playbackHandle != NULL) {
-          setFPSlookup(fsizePtr);
-          updateConfigVect("fps", String(FPS).c_str()); 
+        res = s->set_framesize(s, (framesize_t)fsizePtr);
+        if (res == ESP_OK) {
+          // update default FPS for this frame size
+          if (playbackHandle != NULL) {
+            setFPSlookup(fsizePtr);
+            updateConfigVect("fps", String(FPS).c_str()); 
+          }
         }
       }
     }
@@ -257,7 +259,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (s) {
     if (!strcmp(variable, "quality")) {
       res = s->set_quality(s, intVal);
-      quality = intVal;
+      if (res == ESP_OK) quality = intVal;
     }
     else if (!strcmp(variable, "contrast")) res = s->set_contrast(s, intVal);
     else if (!strcmp(variable, "brightness")) res = s->set_brightness(s, intVal);
@@ -283,10 +285,12 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     else if (!strcmp(variable, "special_effect")) res = s->set_special_effect(s, intVal);
     else if (!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, intVal);
     else if (!strcmp(variable, "ae_level")) res = s->set_ae_level(s, intVal);
-    else res = ESP_FAIL;
+    else return false;
   }
 #endif
-  return res == ESP_OK ? true : false;
+  else return false;
+  if (res != ESP_OK && fromUser) LOG_WRN("Value %d for setting %s not supported for camera type %s", intVal, variable, camModel);
+  return true;
 }
 
 static bool extractKeyVal(const char* wsMsg) {
@@ -785,7 +789,10 @@ void appSpecificTelegramTask(void* p) {
         sendTgramFile(ramLogName, "text/plain", userCmd);
         deleteFolderOrFile(ramLogName);
       } else if (!strcmp(userCmd, "/extIP")) {
-        sendTgramMessage("Ext IP: ", extIP, "");
+        char extIpPt[24];
+        strcpy(extIpPt, extIP);
+        if (strlen(portFwd)) strcat(extIpPt, portFwd);
+        sendTgramMessage("Ext IP: ", extIpPt, "");
       } else {
         // initially assume it is an avi file download request
         if (!downloadAvi(userCmd)) sendTgramMessage("Request not recognised: ", userCmd, "");
@@ -840,7 +847,7 @@ contrast~0~98~~na
 dcw~1~98~~na
 enableMotion~1~98~~na
 fps~20~98~~na
-framesize~11~98~~na
+framesize~10~98~~na
 gainceiling~0~98~~na
 hmirror~0~98~~na
 lampLevel~0~98~~na

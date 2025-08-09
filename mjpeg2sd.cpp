@@ -904,12 +904,9 @@ bool prepCam() {
   maxFS = FRAMESIZE_SVGA; // 2M
   if (ESP.getPsramSize() > 5 * ONEMEG) maxFS = FRAMESIZE_QSXGA; // 8M
   else if (ESP.getPsramSize() > 3 * ONEMEG) maxFS = FRAMESIZE_UXGA; // 4M
-#ifdef CAMERA_MODEL_M5STACK_CAMS3_UNIT
-  maxFS = FRAMESIZE_QVGA;
-#endif
   // define buffer size depending on maximum frame size available, esp32-camera/driver/cam_hal.c: cam_obj->recv_size
   maxFrameBuffSize = maxAlertBuffSize = frameData[maxFS].frameWidth * frameData[maxFS].frameHeight / 5; 
-  LOG_INF("Max frame size for %s PSRAM is %s%s", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr, maxFS == FRAMESIZE_QVGA ? " for PY260" : "");
+  LOG_INF("Max frame size for %s PSRAM is %s ", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr);
 
   // configure camera
   camera_config_t config;
@@ -989,11 +986,10 @@ bool prepCam() {
           sprintf(camModel, "PID=0x%X", s->id.PID);
         break;
       }
-  
       // set frame size to configured value
       char fsizePtr[4];
       if (retrieveConfigVal("framesize", fsizePtr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtr)));
-      else s->set_framesize(s, FRAMESIZE_SVGA);
+      else s->set_framesize(s, FRAMESIZE_VGA);
 
       // model specific corrections
       if (s->id.PID == OV3660_PID) {

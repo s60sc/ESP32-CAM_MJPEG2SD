@@ -151,6 +151,7 @@ void initStatus(int cfgGroup, int delayVal);
 void killSocket(int skt = -99);
 void listBuff(const uint8_t* b, size_t len); 
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension);
+void loadCerts();
 bool loadConfig();
 void logLine();
 void logPrint(const char *fmtStr, ...);
@@ -254,6 +255,7 @@ extern bool wsLog;
 extern uint16_t sustainId;
 extern bool heartBeatDone;
 extern TaskHandle_t heartBeatHandle;
+extern char portFwd[];
 
 // remote file server
 extern char fsServer[];
@@ -300,8 +302,7 @@ extern const char* smtp_rootCACertificate;
 extern const char* mqtt_rootCACertificate;
 extern const char* telegram_rootCACertificate;
 extern const char* hfs_rootCACertificate;
-extern const char* prvtkey_pem; // app https server private key
-extern const char* cacert_pem; // app https server public certificate
+extern char* serverCerts[];
 
 // app status
 extern char timezone[];

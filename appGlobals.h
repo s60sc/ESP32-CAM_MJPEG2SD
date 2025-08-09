@@ -29,7 +29,7 @@
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
-//#define CAMERA_MODEL_PCBFUN_ESP32S3_CAM
+//#define CAMERA_MODEL_ESP32_S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
 //#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
@@ -117,11 +117,12 @@
 #define STATIC_IP_OCTAL "133" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
-#define DBG_ON false // esp debug output (set arduino Core Debug Level accordingly)
+#define DBG_ON false // esp debug output
+#define DBG_LVL ESP_LOG_VERBOSE // level if DBG_ON true: ESP_LOG_ERROR, ESP_LOG_WARN, ESP_LOG_INFO, ESP_LOG_DEBUG, ESP_LOG_VERBOSE
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.7.1"
+#define APP_VER "10.7.2"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -159,10 +160,10 @@
 #define GITHUB_PATH "/s60sc/ESP32-CAM_MJPEG2SD/master"
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
-#define ISCAM // cam specific code in generics
+#define ISCAM // cam specific code in generic cpp files
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 28
+#define CFG_VER 29
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -552,23 +553,23 @@ struct frameStruct {
 // and update corresponding frameSizeData[] entries in avi.cpp 
 // https://github.com/espressif/esp32-camera/blob/master/driver/include/sensor.h
 const frameStruct frameData[] = {
-  {"96X96", 96, 96, 30, 1, 1},   // 2MP sensors
+  {"96X96", 96, 96, 30, 1, 1},   // 2MP sensors // PY260
   {"QQVGA", 160, 120, 30, 1, 1},
-  {"128X128", 128, 128, 30, 1, 1},
+  {"128X128", 128, 128, 30, 1, 1}, // PY260
   {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
   {"240X240", 240, 240, 30, 2, 1}, 
-  {"QVGA", 320, 240, 30, 2, 1}, 
-  {"320X320", 320, 320, 30, 2, 1}, 
+  {"QVGA", 320, 240, 30, 2, 1},  // PY260
+  {"320X320", 320, 320, 30, 2, 1}, // PY260
   {"CIF", 400, 296, 30, 2, 1},  
   {"HVGA", 480, 320, 30, 2, 1}, 
-  {"VGA", 640, 480, 20, 3, 1}, 
+  {"VGA", 640, 480, 20, 3, 1},  // PY260
   {"SVGA", 800, 600, 20, 3, 1}, 
   {"XGA", 1024, 768, 5, 3, 1},   
-  {"HD", 1280, 720, 5, 3, 1}, 
+  {"HD", 1280, 720, 5, 3, 1}, // PY260
   {"SXGA", 1280, 1024, 5, 3, 1}, 
-  {"UXGA", 1600, 1200, 5, 4, 1},  
-  {"FHD", 1920, 1080, 5, 3, 1},    // 3MP Sensors only
+  {"UXGA", 1600, 1200, 5, 4, 1},  // PY260
+  {"FHD", 1920, 1080, 5, 3, 1},    // 3MP Sensors only // PY260
   {"P_HD", 720, 1280, 5, 3, 1},    //
   {"P_3MP", 864, 1536, 5, 3, 1},   //
   {"QXGA", 2048, 1536, 5, 4, 1},

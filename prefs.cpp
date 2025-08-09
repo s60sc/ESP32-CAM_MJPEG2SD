@@ -378,7 +378,10 @@ void updateStatus(const char* variable, const char* _value, bool fromUser) {
   } else {
     res = updateAppStatus(variable, value, fromUser);
     if (!res) {
-      if (fromUser) LOG_WRN("Unable to config %s as required cpp file not included", variable);
+      if (fromUser) {
+        updateConfigVect(variable, value); // in case value previously set in different compilation state
+        LOG_WRN("Unable to use %s as required cpp file not included", variable);
+      }
       else LOG_VRB("Unrecognised config: %s", variable);
     }
   }

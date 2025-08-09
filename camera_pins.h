@@ -167,10 +167,16 @@
 
 #define LED_GPIO_NUM 14
 
+// SD Pins
 #define SD_MMC_CLK 39
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
 // Chip select pin is GPIO9, not required for SD_MMC
+// Mic Pins
+#define I2S_SD 48 // PDM Microphone
+#define I2S_WS 47
+#define I2S_SCK -1 
+
 
 #elif defined(CAMERA_MODEL_AI_THINKER) || defined(SIDE_ALARM)
 #define CAM_BOARD "CAMERA_MODEL_AI_THINKER"
@@ -236,7 +242,7 @@
 #define PCLK_GPIO_NUM     13
 
 #define LED_GPIO_NUM 21
-//  Define SD Pins
+// Define SD Pins
 #define SD_MMC_CLK 7 
 #define SD_MMC_CMD 9
 #define SD_MMC_D0 8
@@ -326,13 +332,13 @@
 #define HREF_GPIO_NUM     4
 #define PCLK_GPIO_NUM     3
 
-#elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM) || defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
+#elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM) || defined(CAMERA_MODEL_ESP32_S3_CAM)
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 #define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE"
 #elif defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
 #define CAM_BOARD "CAMERA_MODEL_FREENOVE_ESP32S3_CAM"
-#elif defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
-#define CAM_BOARD "CAMERA_MODEL_PCBFUN_ESP32S3_CAM" // AI_THINKER style board
+#elif defined(CAMERA_MODEL_ESP32_S3_CAM)
+#define CAM_BOARD "CAMERA_MODEL_ESP32_S3_CAM" // AI_THINKER style board
 #endif
 
 #define PWDN_GPIO_NUM -1
