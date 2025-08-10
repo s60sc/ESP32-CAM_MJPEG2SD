@@ -932,11 +932,11 @@
                 <nav class="quick-nav" id="picSettings" name="picture-settings">📺</nav>
                 <nav class="quick-nav" id="accSettings" name="access-settings">🔧</nav>
                 <div class="micContainer">
-                  <button class="quick-nav audButtons" id="micRem">🎤</button>
+                  <button class="quick-nav audButtons disabled" id="micRem">🎤</button>
                   <canvas id="micLevel"></canvas>
                 </div>
                 <div class="spkrContainer">
-                  <button class="quick-nav audButtons" id="spkrRem">🔈</button>
+                  <button class="quick-nav audButtons disabled" id="spkrRem">🔈</button>
                   <canvas id="spkrLevel"></canvas>
                 </div>
               </nav>
@@ -950,7 +950,7 @@
                     <div class="input-group" id="framesize-group">
                       <label for="framesize">Resolution</label>
                       <select id="framesize" class="selectField">
-                        <option class="OV5640 hidden" value="24">5MP(2592x1944)</option>
+                        <option class="PY260 hidden" value="24">5MP(2592x1944)</option>
                         <option class="OV5640 hidden" value="23">QSXGA(2560x1920)</option>
                         <option class="OV5640 hidden" value="22">P_FHD(1080x1920)</option>
                         <option class="OV5640 hidden" value="21">WQXGA(2560x1600)</option>
@@ -958,23 +958,23 @@
                         <option class="OV3660 OV5640 hidden" value="19">QXGA(2048x1564)</option>
                         <option class="OV3660 hidden" value="18">P_3MP(864x1564)</option>
                         <option class="OV3660 OV5640 hidden" value="17">P_HD(720x1280)</option>
-                        <option class="OV3660 OV5640 hidden" value="16">FHD(1920x1080)</option>
-                        <option value="15">UXGA(1600x1200)</option>
-                        <option value="14">SXGA(1280x1024)</option>
-                        <option value="13">HD(1280x720)</option>
-                        <option value="12">XGA(1024x768)</option>
-                        <option value="11" selected="selected">SVGA(800x600)</option> 
-                        <option value="10">VGA(640x480)</option> 
-                        <option value="9">HVGA(480x320)</option>
-                        <option value="8">CIF(400x296)</option> 
-                        <!--<option value="7">320x320</option> // #10814 Not valid for OV2640-->
-                        <option value="6">QVGA(320x240)</option>
-                        <option value="5">240x240</option> 
-                        <option value="4">HQVGA(240x176)</option> 
-                        <option value="3">QCIF(176x144)</option> 
-                        <option value="2">128x128</option> 
-                        <option value="1">QQVGA(160x120)</option> 
-                        <option value="0">96x96</option>
+                        <option class="OV3660 OV5640 PY260 hidden" value="16">FHD(1920x1080)</option>
+                        <option class="AllOV PY260 hidden" value="15">UXGA(1600x1200)</option>
+                        <option class="AllOV hidden" value="14">SXGA(1280x1024)</option>
+                        <option class="AllOV PY260 hidden" value="13">HD(1280x720)</option>
+                        <option class="AllOV hidden" value="12">XGA(1024x768)</option>
+                        <option class="AllOV hidden" value="11">SVGA(800x600)</option> 
+                        <option class="AllOV PY260 hidden" value="10" selected="selected">VGA(640x480)</option> 
+                        <option class="AllOV hidden" value="9">HVGA(480x320)</option>
+                        <option class="AllOV hidden" value="8">CIF(400x296)</option> 
+                        <option class="PY260 hidden" value="7">320x320</option> 
+                        <option class="AllOV PY260 hidden" value="6">QVGA(320x240)</option>
+                        <option class="AllOV hidden" value="5">240x240</option> 
+                        <option class="AllOV hidden" value="4">HQVGA(240x176)</option> 
+                        <option class="AllOV hidden" value="3">QCIF(176x144)</option> 
+                        <option class="AllOV PY260 hidden" value="2">128x128</option> 
+                        <option class="AllOV hidden" value="1">QQVGA(160x120)</option> 
+                        <option class="AllOV PY260 hidden" value="0">96x96</option>
                       </select>
                     </div>
                   </div>
@@ -1840,6 +1840,9 @@
             changeRange('agc_gain', "0", "30", "5", true);
             $('#gainceiling').parentElement.children.rangeMin.innerHTML = '2x';
             $('#gainceiling').parentElement.children.rangeMax.innerHTML = '128x';
+            $$('#framesize option').forEach(el => {
+              if (el.classList.contains("AllOV")) show(el);
+            });
           } else if (cameraModel == "OV3660" || cameraModel == "OV5640") {
             // change button labels
             $('#aec2_lab').innerHTML = "Night Mode";
@@ -1856,10 +1859,14 @@
             // show additional options
             $$('div.OV3660, div.OV5640').forEach(el => {show(el)});
             $$('#framesize option').forEach(el => {
-              if (el.classList.contains(cameraModel)) show(el);
+              if (el.classList.contains(cameraModel) || el.classList.contains("AllOV")) show(el);
             });
             let avMax = (cameraModel == "OV3660") ? "1536": "1920"; 
             changeRange('aec_value', "0", avMax, "320");
+          } else if (cameraModel == "PY260") {
+            $$('#framesize option').forEach(el => {
+              if (el.classList.contains(cameraModel)) show(el);
+            });
           } else alert("Unhandled camera model: " + cameraModel);
         }
         firstCall = false;

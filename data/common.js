@@ -983,26 +983,29 @@
         const audioWorkletScript = createMicAudioWorkletScript(sampleRateRatio);
         try {
           if (!audioContextMic || audioContextMic.state === 'closed') audioContextMic = new AudioContext({ sampleRate: inSampleRate });
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
-          const source = audioContextMic.createMediaStreamSource(micStream);
-          const delayNode = audioContextMic.createDelay();
-          delayNode.delayTime.value = 1; // 100ms delay
-          await audioContextMic.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
-          Resample = new AudioWorkletNode(audioContextMic, "resample");
-          source.connect(Resample).connect(delayNode).connect(audioContextMic.destination);
-          // send mic data to app
-          if (Resample) Resample.port.onmessage = function(event) {
-            // buffer data into 20ms chunks
-            const inputDataArray = new Int16Array(event.data);
-            audioBuffer.push(...inputDataArray);
-            if (audioBuffer.length >= sendSize) {
-              const bufferToSend = new Int16Array(audioBuffer.splice(0, sendSize));
-              // send audio, but drop if cant send else lag will occur
-              if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) {
-                wsSkt[index].send(bufferToSend);
-                // display average microphone signal level
-                const sum = bufferToSend.reduce((accumulator, currentValue) => accumulator + Math.abs(currentValue), 0);
-                showMicLevel(sum / bufferToSend.length / 0x1000);
+          if (!audioContextSpkr.audioWorklet) alert('Mic: AudioWorklet not supported in this browser/environment');
+          else {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
+            const source = audioContextMic.createMediaStreamSource(micStream);
+            const delayNode = audioContextMic.createDelay();
+            delayNode.delayTime.value = 1; // 100ms delay
+            await audioContextMic.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
+            Resample = new AudioWorkletNode(audioContextMic, "resample");
+            source.connect(Resample).connect(delayNode).connect(audioContextMic.destination);
+            // send mic data to app
+            if (Resample) Resample.port.onmessage = function(event) {
+              // buffer data into 20ms chunks
+              const inputDataArray = new Int16Array(event.data);
+              audioBuffer.push(...inputDataArray);
+              if (audioBuffer.length >= sendSize) {
+                const bufferToSend = new Int16Array(audioBuffer.splice(0, sendSize));
+                // send audio, but drop if cant send else lag will occur
+                if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) {
+                  wsSkt[index].send(bufferToSend);
+                  // display average microphone signal level
+                  const sum = bufferToSend.reduce((accumulator, currentValue) => accumulator + Math.abs(currentValue), 0);
+                  showMicLevel(sum / bufferToSend.length / 0x1000);
+                }
               }
             }
           }
@@ -1083,10 +1086,13 @@
         // start browser speaker output
         if (!audioContextSpkr || audioContextSpkr.state === 'closed') audioContextSpkr = new AudioContext({ sampleRate: outSampleRate });
         const audioWorkletScript = createSpkrAudioWorkletScript();
-        await audioContextSpkr.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
-        pcmNode = new AudioWorkletNode(audioContextSpkr, 'pcmProcessor');
-        pcmNode.connect(audioContextSpkr.destination);
-        initWebSocket(index);
+        if (!audioContextSpkr.audioWorklet) alert('Speaker: AudioWorklet not supported in this browser/environment');
+        else {
+          await audioContextSpkr.audioWorklet.addModule('data:text/javascript;base64,' + btoa(audioWorkletScript));
+          pcmNode = new AudioWorkletNode(audioContextSpkr, 'pcmProcessor');
+          pcmNode.connect(audioContextSpkr.destination);
+          initWebSocket(index);
+        }
       }
 
       async function outputSpkr(audioData) {
