@@ -28,7 +28,7 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.7.2:
+Changes for version 10.7.3:
 * Reworked for new jpeg decoder in arduino-esp32 core v3.3.0
 * Added Dashcam style continuous recording
 * Initial support for [PY260](#py260) camera model
@@ -246,9 +246,9 @@ The web page has a slider for **Amplifier Volume**. The higher the value the hig
 On the left side on the main web page are icons for browser device microphone and speaker. Selecting the icon (if not grayed out) activates the browser microphone or speaker. 
 
 
-## OV5640
+## OV5640 & OV3660
 
-The OV5640 pinout is compatible with boards designed for the OV2640 but the voltage supply is too high for the internal 1.5V regulator, so the camera overheats unless a heat sink is applied.
+The OV5640 and OV3660 pinouts are compatible with boards designed for the OV2640 but the voltage supply is too high for their internal 1.5V regulator, so the camera overheats unless a heat sink is applied.
 
 For recording purposes the OV5640 should only be used with an ESP32S3 board. Frame sizes above `FHD` framesize should only be used for still images due to memory limitations.
 

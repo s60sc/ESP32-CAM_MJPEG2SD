@@ -73,11 +73,10 @@ static void setupMdnsHost() {
   snprintf(mdnsName, MAX_IP_LEN, "%.*s", MAX_IP_LEN - 1, hostName);
   if (MDNS.begin(mdnsName)) {
     // Add service to MDNS
-    MDNS.addService("http", "tcp", HTTP_PORT);
-    MDNS.addService("https", "tcp", HTTPS_PORT);
-    //MDNS.addService("ws", "udp", 83);
-    //MDNS.addService("ftp", "tcp", 21);    
-    LOG_INF("mDNS service: http(s)://%s.local", mdnsName);
+    useHttps ? MDNS.addService("https", "tcp", HTTPS_PORT) : MDNS.addService("http", "tcp", HTTP_PORT);
+    MDNS.addService("ws", "udp", 83);
+    MDNS.addService("ftp", "tcp", 21);    
+    LOG_INF("mDNS service: http%s://%s.local", useHttps ? "s" : "", mdnsName);
   } else LOG_WRN("mDNS host: %s Failed", mdnsName);
   debugMemory("setupMdnsHost");
 }
@@ -119,7 +118,7 @@ static void onWiFiEvent(WiFiEvent_t event) {
     case ARDUINO_EVENT_WIFI_STA_STOP: LOG_INF("Wifi Station stopped %s", ST_SSID); break;
     case ARDUINO_EVENT_WIFI_AP_START: {
       if (strlen(AP_SSID) && !strcmp(WiFi.softAPSSID().c_str(), AP_SSID)) {
-        LOG_INF("Wifi AP SSID: %s started, use '%s://%s' to connect", WiFi.softAPSSID().c_str(), useHttps ? "https" : "http", WiFi.softAPIP().toString().c_str());
+        LOG_INF("Wifi AP SSID: %s started, use 'http%s://%s' to connect", WiFi.softAPSSID().c_str(), useHttps ? "s" : "", WiFi.softAPIP().toString().c_str());
         APstarted = true;
       }
       break;

@@ -12,7 +12,7 @@ static char value[FILE_NAME_LEN];
 static char retainAction[2];
 int refreshVal = 5000; // msecs
 
-static httpd_handle_t httpServer = NULL; // web server port 
+static httpd_handle_t httpServer = NULL; // web server port
 static int fdWs = -1; // websocket sockfd
 bool useHttps = false;
 bool useSecure = false;
@@ -501,9 +501,8 @@ static esp_err_t customOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err)
 
 void startWebServer() {
   esp_err_t res = ESP_FAIL;
-  chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
+  chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE);
 #if INCLUDE_CERTS
-  loadCerts(); // can set useHttps
   if (useHttps) {
     // HTTPS server
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
@@ -517,7 +516,6 @@ void startWebServer() {
   
     //config.user_cb = https_server_user_callback;
     config.httpd.server_port = HTTPS_PORT;
-    config.httpd.ctrl_port = HTTPS_PORT;
     config.httpd.lru_purge_enable = true; // close least used socket 
     config.httpd.max_uri_handlers = MAX_HANDLERS;
     config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
@@ -525,34 +523,32 @@ void startWebServer() {
     //config.httpd.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_ssl_start(&httpServer, &config);
   } else {
+#else
+  if (!useHttps) {
 #endif
     // HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 #if CONFIG_IDF_TARGET_ESP32S3
     config.stack_size = SERVER_STACK_SIZE;
-#endif  
+#endif
     config.server_port = HTTP_PORT;
-    config.ctrl_port = HTTP_PORT;
-    config.lru_purge_enable = true;   
+    config.lru_purge_enable = true;
     config.max_uri_handlers = MAX_HANDLERS;
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     config.task_priority = HTTP_PRI;
     //config.uri_match_fn = httpd_uri_match_wildcard;
     res = httpd_start(&httpServer, &config);
-#if INCLUDE_CERTS
   }
-#endif
-
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
   httpd_uri_t webUri = {.uri = "/web", .method = HTTP_GET, .handler = webHandler, .user_ctx = NULL};
   httpd_uri_t controlUri = {.uri = "/control", .method = HTTP_GET, .handler = controlHandler, .user_ctx = NULL};
   httpd_uri_t updateUri = {.uri = "/update", .method = HTTP_POST, .handler = updateHandler, .user_ctx = NULL};
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
-  httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
   httpd_uri_t uploadUri = {.uri = "/upload", .method = HTTP_POST, .handler = uploadHandler, .user_ctx = NULL};
+  httpd_uri_t wifiUri = {.uri = "/wifi", .method = HTTP_GET, .handler = setupHandler, .user_ctx = NULL};
+  httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
   httpd_uri_t sustainUri = {.uri = "/sustain", .method = HTTP_GET, .handler = appSpecificSustainHandler, .user_ctx = NULL};
   httpd_uri_t checkUri = {.uri = "/sustain", .method = HTTP_HEAD, .handler = appSpecificSustainHandler, .user_ctx = NULL};
-  httpd_uri_t wifiUri = {.uri = "/wifi", .method = HTTP_GET, .handler = setupHandler, .user_ctx = NULL};
 
   if (res == ESP_OK) {
     httpd_register_uri_handler(httpServer, &indexUri);
@@ -560,11 +556,11 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &controlUri);
     httpd_register_uri_handler(httpServer, &updateUri);
     httpd_register_uri_handler(httpServer, &statusUri);
-    httpd_register_uri_handler(httpServer, &wsUri);
     httpd_register_uri_handler(httpServer, &uploadUri);
+    httpd_register_uri_handler(httpServer, &wifiUri);
+    httpd_register_uri_handler(httpServer, &wsUri);
     httpd_register_uri_handler(httpServer, &sustainUri);
     httpd_register_uri_handler(httpServer, &checkUri);
-    httpd_register_uri_handler(httpServer, &wifiUri);
     httpd_register_err_handler(httpServer, HTTPD_404_NOT_FOUND, customOrNotFoundHandler);
 
     LOG_INF("Starting web server on port: %u", useHttps ? HTTPS_PORT : HTTP_PORT);

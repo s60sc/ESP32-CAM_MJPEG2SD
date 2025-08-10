@@ -59,11 +59,6 @@ char* serverCerts[2]; // private key, server key
 
 void loadCerts() {
   if (useHttps) {
-#if !INCLUDE_CERTS
-    LOG_WRN("Need to compile with INCLUDE_CERTS true to use HTTPS");
-    useHttps = false;
-    return;
-#endif
     const char* certFiles[NUM_CERTS] = {PRVTKEY, SERVERCERT};
     for (int i = 0; i < NUM_CERTS; i++) {
       File file;

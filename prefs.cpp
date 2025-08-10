@@ -539,6 +539,14 @@ bool loadConfig() {
     loadPrefs(); // overwrites any corresponding entries in config
     // load variables from stored config vector
     reloadConfigs();
+#if INCLUDE_CERTS
+    loadCerts();
+#else
+  if (useHttps) {
+    LOG_WRN("Need to compile with INCLUDE_CERTS true to use HTTPS");
+    useHttps = false;
+  }
+#endif
     debugMemory("loadConfig");
     return true;
   }
