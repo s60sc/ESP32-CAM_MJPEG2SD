@@ -146,6 +146,7 @@
 
 #elif defined(CAMERA_MODEL_M5STACK_CAMS3_UNIT)
 // supplied with PY260 camera (MEGA_CCM_PID)
+#define USE_PY260 // comment out if not using PY260
 #define CAM_BOARD "CAMERA_MODEL_M5STACK_CAMS3_UNIT"
 #define PWDN_GPIO_NUM  -1
 #define RESET_GPIO_NUM 21
