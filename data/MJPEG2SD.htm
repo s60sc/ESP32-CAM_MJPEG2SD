@@ -1055,20 +1055,6 @@
                       <option value="6">Sepia</option>
                     </select>
                   </div>
-                  <div class="input-group" id="awb-group">
-                      <label for="awb">AWB Enable</label>
-                      <div class="switch">
-                          <input id="awb" type="checkbox" checked="checked">
-                          <label class="slider" for="awb"></label>
-                      </div>
-                  </div>
-                  <div class="input-group" id="awb_gain-group">
-                    <label for="awb_gain" id="awbg_lab">AWB Gain</label>
-                    <div class="switch">
-                      <input id="awb_gain" type="checkbox" checked="checked">
-                      <label class="slider" for="awb_gain"></label>
-                    </div>
-                  </div>
                   <div class="input-group" id="wb_mode-group">
                     <label for="wb_mode">AWB Mode</label>
                     <select id="wb_mode" class="selectField">
@@ -1079,20 +1065,9 @@
                       <option value="4">Home</option>
                     </select>
                   </div>
-                  <div class="input-group" id="aec-group">
-                    <label for="aec">AEC Enable</label>
-                    <div class="switch">
-                      <input id="aec" type="checkbox" checked="checked">
-                      <label class="slider" for="aec"></label>
-                    </div>
-                  </div>
                   <div class="input-group" id="aec_value-group">
-                    <label for="aec_value">Manual Exposure</label>
+                    <label for="aec_value"id="aec_value_lab">Manual Exposure</label>
                     <input type="range" id="aec_value" min="0" max="1200" value="204">
-                  </div>
-                  <div class="input-group" id="ae_level-group">
-                    <label for="ae_level">Exposure Level</label>
-                    <input type="range" id="ae_level" min="-2" max="2" value="0">
                   </div>
                   <div class="input-group" id="aec2-group">
                     <label for="aec2" id="aec2_lab">AEC DSP</label>
@@ -1101,38 +1076,11 @@
                       <label class="slider" for="aec2"></label>
                     </div>
                   </div>
-                  <div class="input-group" id="dcw-group">
-                    <label for="dcw" id="dcw_lab">DCW (Downsize)</label>
-                    <div class="switch">
-                      <input id="dcw" type="checkbox" checked="checked">
-                      <label class="slider" for="dcw"></label>
-                    </div>  
-                  </div>
-                  <div class="input-group" id="agc-group">
-                    <label for="agc">AGC Enable</label>
-                    <div class="switch">
-                      <input id="agc" type="checkbox" checked="checked">
-                      <label class="slider" for="agc"></label>
-                    </div>
-                  </div>
                   <div class="input-group hidden" id="agc_gain-group">
-                    <label for="agc_gain">Gain</label>
+                    <label for="agc_gain" id="agc_gain_lab">Gain</label>
                     <div name="rangeMin">1x</div>
                     <input type="range" id="agc_gain" min="0" max="30" value="5">
                     <div name="rangeMax">31x</div>
-                  </div>
-                  <div class="input-group" id="gainceiling-group">
-                    <label for="gainceiling">Gain Ceiling</label>
-                    <div name="rangeMin">2x</div>
-                    <input type="range" id="gainceiling" min="0" max="6" value="0">
-                    <div name="rangeMax">128x</div>
-                  </div>       
-                  <div class="input-group" id="lenc-group">
-                    <label for="lenc">Lens Correction</label>
-                    <div class="switch">
-                      <input id="lenc" type="checkbox" checked="checked">
-                      <label class="slider" for="lenc"></label>
-                    </div>
                   </div>
                   <div class="input-group" id="hmirror-group">
                     <label for="hmirror">H-Mirror</label>
@@ -1148,32 +1096,86 @@
                       <label class="slider" for="vflip"></label>
                     </div>
                   </div>
-                  <div class="input-group" id="colorbar-group">
-                    <label for="colorbar">Color Bar</label>
-                    <div class="switch">
-                      <input id="colorbar" type="checkbox">
-                      <label class="slider" for="colorbar"></label>
+                  <div class="ALLOV hidden">
+                    <div class="input-group" id="awb-group">
+                        <label for="awb">AWB Enable</label>
+                        <div class="switch">
+                            <input id="awb" type="checkbox" checked="checked">
+                            <label class="slider" for="awb"></label>
+                        </div>
                     </div>
-                  </div>
-                  <div class="input-group" id="bpc-group">
-                    <label for="bpc">BPC</label>
-                    <div class="switch">
-                      <input id="bpc" type="checkbox" checked="checked">
-                      <label class="slider" for="bpc"></label>
+                    <div class="input-group" id="awb_gain-group">
+                      <label for="awb_gain" id="awbg_lab">AWB Gain</label>
+                      <div class="switch">
+                        <input id="awb_gain" type="checkbox" checked="checked">
+                        <label class="slider" for="awb_gain"></label>
+                      </div>
                     </div>
-                  </div>
-                  <div class="input-group" id="wpc-group">
-                    <label for="wpc">WPC</label>
-                    <div class="switch">
-                      <input id="wpc" type="checkbox" checked="checked">
-                      <label class="slider" for="wpc"></label>
+                    <div class="input-group" id="aec-group">
+                      <label for="aec">AEC Enable</label>
+                      <div class="switch">
+                        <input id="aec" type="checkbox" checked="checked">
+                        <label class="slider" for="aec"></label>
+                      </div>
                     </div>
-                  </div>
-                  <div class="input-group" id="raw_gma-group">
-                    <label for="raw_gma">GMA Enable</label>
-                    <div class="switch">
-                      <input id="raw_gma" type="checkbox" checked="checked">
-                      <label class="slider" for="raw_gma"></label>
+                    <div class="input-group" id="ae_level-group">
+                      <label for="ae_level">Exposure Level</label>
+                      <input type="range" id="ae_level" min="-2" max="2" value="0">
+                    </div>
+                    <div class="input-group" id="dcw-group">
+                      <label for="dcw" id="dcw_lab">DCW (Downsize)</label>
+                      <div class="switch">
+                        <input id="dcw" type="checkbox" checked="checked">
+                        <label class="slider" for="dcw"></label>
+                      </div>  
+                    </div>
+                    <div class="input-group" id="agc-group">
+                      <label for="agc">AGC Enable</label>
+                      <div class="switch">
+                        <input id="agc" type="checkbox" checked="checked">
+                        <label class="slider" for="agc"></label>
+                      </div>
+                    </div>
+                    <div class="input-group" id="gainceiling-group">
+                      <label for="gainceiling">Gain Ceiling</label>
+                      <div name="rangeMin">2x</div>
+                      <input type="range" id="gainceiling" min="0" max="6" value="0">
+                      <div name="rangeMax">128x</div>
+                    </div>                  
+                    <div class="input-group" id="lenc-group">
+                      <label for="lenc">Lens Correction</label>
+                      <div class="switch">
+                        <input id="lenc" type="checkbox" checked="checked">
+                        <label class="slider" for="lenc"></label>
+                      </div>
+                    </div>
+                    <div class="input-group" id="colorbar-group">
+                      <label for="colorbar">Color Bar</label>
+                      <div class="switch">
+                        <input id="colorbar" type="checkbox">
+                        <label class="slider" for="colorbar"></label>
+                      </div>
+                    </div>
+                    <div class="input-group" id="bpc-group">
+                      <label for="bpc">BPC</label>
+                      <div class="switch">
+                        <input id="bpc" type="checkbox" checked="checked">
+                        <label class="slider" for="bpc"></label>
+                      </div>
+                    </div>
+                    <div class="input-group" id="wpc-group">
+                      <label for="wpc">WPC</label>
+                      <div class="switch">
+                        <input id="wpc" type="checkbox" checked="checked">
+                        <label class="slider" for="wpc"></label>
+                      </div>
+                    </div>
+                    <div class="input-group" id="raw_gma-group">
+                      <label for="raw_gma">GMA Enable</label>
+                      <div class="switch">
+                        <input id="raw_gma" type="checkbox" checked="checked">
+                        <label class="slider" for="raw_gma"></label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1738,6 +1740,7 @@
       }
 
       async function processStatus(dest, key, value, fromUser = true) {
+await sleep(500);
         // process change to status value
         if (dest == ID) {
           // operation based on ID
@@ -1840,6 +1843,8 @@
             changeRange('agc_gain', "0", "30", "5", true);
             $('#gainceiling').parentElement.children.rangeMin.innerHTML = '2x';
             $('#gainceiling').parentElement.children.rangeMax.innerHTML = '128x';
+            // show additional options
+            $$('div.ALLOV').forEach(el => {show(el)});
             $$('#framesize option').forEach(el => {
               if (el.classList.contains("AllOV")) show(el);
             });
@@ -1857,13 +1862,32 @@
             changeRange('gainceiling', "0", "511", "0");
             changeRange('agc_gain', "0", "63", "5", true);
             // show additional options
-            $$('div.OV3660, div.OV5640').forEach(el => {show(el)});
+            $$('div.OV3660, div.OV5640, div.ALLOV').forEach(el => {show(el)});
             $$('#framesize option').forEach(el => {
               if (el.classList.contains(cameraModel) || el.classList.contains("AllOV")) show(el);
             });
             let avMax = (cameraModel == "OV3660") ? "1536": "1920"; 
             changeRange('aec_value', "0", avMax, "320");
           } else if (cameraModel == "PY260") {
+            // change button labels
+            $('#aec2_lab').innerHTML = "AGC Auto";
+            $('#aec_value_lab').innerHTML = "Exposure";
+            $('#agc_gain_lab').innerHTML = "Analog Gain";
+            // change range slider parameters
+            changeRange('brightness', "-4", "4", "0");
+            changeRange('contrast', "-3", "3", "0");
+            changeRange('saturation', "-3", "3", "0");
+            changeRange('aec_value', "-3", "3", "0");
+            changeRange('agc_gain', "0", "255", "0");
+            changeRange('quality', "0", "2", "1");
+            // change select option order
+            ////const newValues = ['Negative', 'Grayscale', 'Red Tint', 'Green Tint', 'Blue Tint', 'Sepia'];
+            const effects = ['Bluish', 'Redish', 'B & W', 'Sepia', 'Negative', 'Greenish'];
+            for (let i = 1; i < $('#special_effect').options.length; i++) $('#special_effect').options[i].innerHTML = effects[i-1];
+            const modes = ['Sunny', 'Office', 'Cloudy', 'Home'];
+            for (let i = 1; i < $('#wb_mode').options.length; i++) $('#wb_mode').options[i].innerHTML = modes[i-1];
+            // show additional options 
+            $$('div.PY260').forEach(el => {show(el)});
             $$('#framesize option').forEach(el => {
               if (el.classList.contains(cameraModel)) show(el);
             });
@@ -2088,8 +2112,9 @@
         } else sizeStr = $('#framesize option:checked').innerHTML; // get framesize from selected framesize
 
         // determine actual image size using framesize pixels
-        const fwidth =  parseInt(sizeStr.split('x')[0].match(/\d+/));
-        const fheight = parseInt(sizeStr.split('x')[1].match(/\d+/));
+        const sizeData = sizeStr.match(/(\d+)x(\d+)/);
+        const fwidth = sizeData[1];
+        const fheight = sizeData[2];        
         imgSize = {width: fwidth, height: fheight};
         sizeView('maxFit'); // initial view size
       }
