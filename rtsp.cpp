@@ -170,7 +170,7 @@ void prepRTSP() {
   if (transport != RTSPServer::NONE) {
     if (rtspServer.init()) { 
       LOG_INF("RTSP server started successfully with transport%s", transportStr);
-      LOG_INF("Connect to: rtsp://%s%s:%d%s", useAuth ? "<username>:<password>@" : "", WiFi.localIP().toString().c_str(), 
+      LOG_INF("Connect to: rtsp://%s%s:%d%s", useAuth ? "<username>:<password>@" : "", netLocalIP().toString().c_str(), 
         rtspServer.rtspPort, useAuth ? " (credentials not shown for security reasons)" : "");
 
       // start RTSP tasks, need bigger stack for video
