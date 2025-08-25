@@ -117,8 +117,8 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     httpd_resp_sendstr_chunk(req, NULL);
     return ESP_OK;
   } 
-  // Show wifi wizard if not setup, using access point mode  
-  if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
+  // Show wifi wizard if not setup, using access point mode (WiFi mode only)
+  if (!fp.exists(INDEX_PAGE_PATH) && netMode == 0 && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
@@ -353,7 +353,7 @@ esp_err_t uploadHandler(httpd_req_t *req) {
 
 static esp_err_t setupHandler(httpd_req_t *req) {
   // Scan for WiFi networks
-  int w = WiFi.scanNetworks();
+  int w = (netMode == 0) ? WiFi.scanNetworks() : 0;
   // Start building the JSON string
   char* p = jsonBuff;
   p += sprintf(p, "{\"networks\":[");

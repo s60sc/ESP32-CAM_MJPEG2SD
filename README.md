@@ -28,11 +28,10 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.7.3:
-* Reworked for new jpeg decoder in arduino-esp32 core v3.3.0
-* Added Dashcam style continuous recording
-* Initial support for [PY260](#py260) camera model
-* [HTTPS](#https) support reworked due to change in Espressif library
+Changes for version 10.8.0:
+* Addition of Ethernet interface selection
+    * Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
+* Ethernet only turns off radios (quite mode)
 
 ## Purpose
 
@@ -126,9 +125,10 @@ Time Lapse & Dashcam features are mutually exclusive.
 The operation of the application can be modified dynamically as below, by using the main web page, which should mostly be self explanatory.
 
 Connections:
-* The FTP / HTTPS, Wifi, SMTP, and time zone parameters can be defined in **Access Settings** sidebar button. 
+* The FTP / HTTPS, Interface, Wifi, SMTP, and time zone parameters can be defined in **Access Settings** sidebar button. 
   - for **Time Zone** use dropdown, or paste in values from second column [here](https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv)
 * To make the changes persistent, press the **Save** button
+    * For interface changes, ESP must be rebooted.
 * mdns name services in order to use `http://[Host Name]` instead of ip address.
 
 To change the recording parameters:
@@ -155,8 +155,17 @@ View application log via web page, displayed using **Show Log** tab:
 
 More configuration details accessed via **Edit Config** tab, which displays further buttons:
 
-**Wifi**:
-Additional WiFi and webserver settings.
+**Network**:
+* New setting: Network interface selection (WiFi or Ethernet). In the web UI under Settings → Network settings, set "Network interface" to Ethernet to run in quiet mode (Wi‑Fi and BLE off).
+* All existing services automatically use the selected interface.
+
+#### Using Ethernet mode
+
+* First boot still prepares the SD `/data` folder and UI.
+* To switch to Ethernet: open the web UI (using Wi‑Fi AP or prior Wi‑Fi setup), go to Access Settings → Network settings, set Network interface to Ethernet, Save, then the device will reboot into Ethernet mode. DHCP is used by default.
+* In Ethernet mode, Wi‑Fi AP wizard is suppressed; access the device by its DHCP IP or mDNS `http(s)://<hostname>.local` if your network supports it.
+
+PoE variants are supported at the hardware level; power delivery is handled by the board. Networking is unchanged.
 
 **Motion**: 
 See [**Motion detection by Camera**](#motion-detection-by-camera) section.

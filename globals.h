@@ -41,6 +41,8 @@
 #include <sstream>
 #include <Update.h>
 #include <WiFi.h>
+#include <ETH.h>
+#include <esp_bt.h>
 #include <HTTPClient.h>
 #include <NetworkClient.h> 
 #include <NetworkClientSecure.h> 
@@ -203,6 +205,14 @@ uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSendBinary(uint8_t* data, size_t len);
 bool wsAsyncSendText(const char* wsData);
+// unified networking helpers (WiFi or Ethernet)
+bool startNetwork(bool firstcall = true);
+IPAddress netLocalIP();
+IPAddress netGatewayIP();
+String netMacAddress();
+int netRSSI();
+bool netIsConnected();
+extern int netMode; // 0=WiFi, 1=Ethernet
 // mqtt.cpp
 void startMqttClient();  
 void stopMqttClient();  

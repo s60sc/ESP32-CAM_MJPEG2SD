@@ -267,6 +267,7 @@ void updateStatus(const char* variable, const char* _value, bool fromUser) {
   else if (!strcmp(variable, "useHttps")) useHttps = (bool)intVal;
   else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
   else if (!strcmp(variable, "doGetExtIP")) doGetExtIP = (bool)intVal;  
+  else if (!strcmp(variable, "netMode")) netMode = intVal;
   else if (!strcmp(variable, "extIP")) strncpy(extIP, value, MAX_IP_LEN-1);
 #if INCLUDE_TGRAM
   else if (!strcmp(variable, "tgramUse")) {
@@ -408,13 +409,14 @@ void buildJsonString(uint8_t filter) {
     formatElapsedTime(timeBuff, millis()); // rolls over after 49.7 days due to max uint32
     p += sprintf(p, "\"up_time\":\"%s\",", timeBuff);   
     p += sprintf(p, "\"free_heap\":\"%s\",", fmtSize(ESP.getFreeHeap()));    
-    p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", WiFi.RSSI() );  
+    p += sprintf(p, "\"wifi_rssi\":\"%i dBm\",", netRSSI() );  
     p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
     p += sprintf(p, "\"macAddressEfuse\":\"%012llX\",", ESP.getEfuseMac() ); 
-    p += sprintf(p, "\"macAddressWiFi\":\"%s\",", WiFi.macAddress().c_str() ); 
+    p += sprintf(p, "\"macAddressWiFi\":\"%s\",", netMacAddress().c_str() ); 
     p += sprintf(p, "\"extIP\":\"%s\",", extIP); 
     p += sprintf(p, "\"httpPort\":\"%u\",", HTTP_PORT); 
     p += sprintf(p, "\"httpsPort\":\"%u\",", HTTPS_PORT); 
+    p += sprintf(p, "\"ip\":\"%s\",", netLocalIP().toString().c_str());
     if (!filter) {
       // populate first part of json string from config vect
       for (const auto& row : configs) 

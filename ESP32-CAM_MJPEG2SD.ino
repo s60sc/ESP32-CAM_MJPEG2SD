@@ -33,8 +33,8 @@ void setup() {
   devSetup();
 #endif
 
-  // connect wifi or start config AP if router details not available
-  startWifi();
+  // connect network (WiFi or Ethernet per config)
+  startNetwork();
 
   startWebServer();
   if (strlen(startupFailure)) LOG_WRN("%s", startupFailure);
