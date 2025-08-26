@@ -29,9 +29,8 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 To suggest an improvement or enhancement use Discussions.*** 
 
 Changes for version 10.8.0:
-* Addition of Ethernet interface selection
-    * Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
-* Ethernet only turns off radios (quite mode)
+* Addition of [Ethernet](#configuration-web-page) network selection instead of Wifi
+* Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
 
 ## Purpose
 
@@ -125,10 +124,10 @@ Time Lapse & Dashcam features are mutually exclusive.
 The operation of the application can be modified dynamically as below, by using the main web page, which should mostly be self explanatory.
 
 Connections:
-* The FTP / HTTPS, Interface, Wifi, SMTP, and time zone parameters can be defined in **Access Settings** sidebar button. 
+* The Wifi/Ethernet choice, Time zone, FTP/HTTPS, SMTP, and authentication parameters can be defined in **Access Settings** sidebar button. 
   - for **Time Zone** use dropdown, or paste in values from second column [here](https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv)
 * To make the changes persistent, press the **Save** button
-    * For interface changes, ESP must be rebooted.
+    * For network changes, ESP must be rebooted.
 * mdns name services in order to use `http://[Host Name]` instead of ip address.
 
 To change the recording parameters:
@@ -156,16 +155,14 @@ View application log via web page, displayed using **Show Log** tab:
 More configuration details accessed via **Edit Config** tab, which displays further buttons:
 
 **Network**:
-* New setting: Network interface selection (WiFi or Ethernet). In the web UI under Settings → Network settings, set "Network interface" to Ethernet to run in quiet mode (Wi‑Fi and BLE off).
-* All existing services automatically use the selected interface.
-
-#### Using Ethernet mode
-
-* First boot still prepares the SD `/data` folder and UI.
-* To switch to Ethernet: open the web UI (using Wi‑Fi AP or prior Wi‑Fi setup), go to Access Settings → Network settings, set Network interface to Ethernet, Save, then the device will reboot into Ethernet mode. DHCP is used by default.
-* In Ethernet mode, Wi‑Fi AP wizard is suppressed; access the device by its DHCP IP or mDNS `http(s)://<hostname>.local` if your network supports it.
-
-PoE variants are supported at the hardware level; power delivery is handled by the board. Networking is unchanged.
+* Default network interface is Wifi, but Ethernet can be used instead with suitable boards, eg: [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH).
+* All existing services automatically use the selected network interface after reboot.
+* If Network interface in **Access Settings** side tab was previously set to Ethernet:
+  * App runs in quiet mode (WiFi and BLE off).
+  * First boot still prepares the SD `/data` folder and UI.
+  * WiFi AP wizard is suppressed; access the device by its DHCP IP or mDNS `http(s)://<hostname>.local` if your network supports it.
+  * PoE variants are supported at the hardware level; power delivery is handled by the board.
+  * Contributed by [@RedCanti](https://github.com/RedCanti)
 
 **Motion**: 
 See [**Motion detection by Camera**](#motion-detection-by-camera) section.
@@ -275,7 +272,7 @@ P_FHD | 6
 ## PY260
 
 The PY260 is a 5MP camera supplied with the M5Stack Unit CamS3 5MP module (CAMERA_MODEL_M5STACK_CAMS3_UNIT).  
-It has different sensor settings to the Omnivision series cameras, so not all entries in **Picture Settings** will be compatible.
+It has different sensor settings to the Omnivision series cameras, defined in side tab **Picture Settings**
 
 ## Auxiliary Board
 

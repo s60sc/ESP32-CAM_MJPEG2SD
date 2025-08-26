@@ -813,7 +813,7 @@ void appSpecificTelegramTask(void* p) {
 /************** default app configuration **************/
 const char* appConfig = R"~(
 ST_SSID~~99~~na
-netMode~0~0~S:WiFi:Ethernet~Network interface selection
+netMode~0~99~S:WiFi:Ethernet~Network interface selection
 fsPort~21~99~~na
 fsServer~~99~~na
 ftpUser~~99~~na
@@ -863,7 +863,7 @@ raw_gma~1~98~~na
 record~1~98~~na
 saturation~0~98~~na
 sharpness~0~98~~na
-denoise~4~98~~na
+denoise~0~98~~na
 special_effect~0~98~~na
 timeLapseOn~0~98~~na
 timezone~GMT0~98~~na

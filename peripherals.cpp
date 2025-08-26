@@ -429,7 +429,7 @@ static void prepPIR() {
 
 // HW-504 Joystick
 // Use X axis  for steering, Y axis for motor, push button for lights toggle
-// Requires 2 analog pins and 1 digital pin. Ideally supply voltage should be 3.1V
+// Requires 2 analog pins and 1 digital pin. Ideally supply voltage should be 3.3V
 // X axis is longer edge of board
 
 static const int sRate = 1; // samples per analog reading

@@ -42,7 +42,9 @@
 #include <Update.h>
 #include <WiFi.h>
 #include <ETH.h>
+#ifdef APP_BT_ENABLED
 #include <esp_bt.h>
+#endif
 #include <HTTPClient.h>
 #include <NetworkClient.h> 
 #include <NetworkClientSecure.h> 
@@ -178,7 +180,7 @@ void remoteServerReset();
 void removeChar(char* s, char c);
 void replaceChar(char* s, char c, char r);
 void reset_log();
-void resetWatchDog();
+void resetWatchDog(int wdIndex, uint32_t wdTimeout = 1);
 bool retrieveConfigVal(const char* variable, char* value);
 void runTaskStats();
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking = true);
@@ -212,7 +214,6 @@ IPAddress netGatewayIP();
 String netMacAddress();
 int netRSSI();
 bool netIsConnected();
-extern int netMode; // 0=WiFi, 1=Ethernet
 // mqtt.cpp
 void startMqttClient();  
 void stopMqttClient();  
@@ -235,6 +236,7 @@ extern char AP_ip[];
 extern char AP_sn[];
 extern char AP_gw[];
 
+extern int netMode; // 0=WiFi, 1=Ethernet
 extern char hostName[]; //Host name for ddns
 extern char ST_SSID[]; //Router ssid
 extern char ST_Pass[]; //Router passd

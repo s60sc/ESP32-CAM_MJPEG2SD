@@ -279,20 +279,19 @@ bool startWifi(bool firstcall) {
 bool startNetwork(bool firstcall) {
   // choose WiFi or Ethernet by config
   if (netMode == 1) {
-    bool ok = startEth(firstcall);
-    if (ok) {
+    if (startEth(firstcall)) {
       // Quiet mode: stop WiFi/BLE radios for RF silence
       WiFi.mode(WIFI_OFF);
-#if defined(CONFIG_BT_ENABLED)
+#ifdef APP_BT_ENABLED
       if (btStarted()) btStop();
 #endif
       return true;
+    } else {
+      LOG_WRN("Ethernet start failed, falling back to WiFi");
+      netMode = 0;
     }
-    LOG_WRN("Ethernet start failed, falling back to WiFi");
-    return startWifi(firstcall);
-  } else {
-    return startWifi(firstcall);
   }
+  return startWifi(firstcall);
 }
 
 IPAddress netLocalIP() { return (netMode == 1) ? ETH.localIP() : WiFi.localIP(); }
@@ -301,25 +300,26 @@ String netMacAddress() { return (netMode == 1) ? ETH.macAddress().c_str() : WiFi
 int netRSSI() { return (netMode == 1) ? 0 : WiFi.RSSI(); }
 bool netIsConnected() { return (netMode == 1) ? (ETH.linkUp() && ETH.localIP()) : (WiFi.status() == WL_CONNECTED); }
 
-void resetWatchDog() {
-  // use ping task as watchdog in case of freeze
-  static bool watchDogStarted = false;
-  if (watchDogStarted) esp_task_wdt_reset();
+void resetWatchDog(int wdIndex, uint32_t wdTimeout) {
+  // customised watchdogs for particular tasks
+  // ping task (0) used as watchdog in case of esp freeze
+  static bool watchDogStarted[4] = {false, false, false, false};
+  if (watchDogStarted[wdIndex]) esp_task_wdt_reset();
   else {
     // setup watchdog on first call
     esp_task_wdt_deinit(); 
     esp_task_wdt_config_t twdt_config = {
-      .timeout_ms = (wifiTimeoutSecs * 1000 * 2),
+      .timeout_ms = wdTimeout,
       .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
       .trigger_panic = true, // panic abort on watchdog alert (contains wdt_isr)
     };
     esp_task_wdt_init(&twdt_config);
     esp_task_wdt_add(NULL);
     if (esp_task_wdt_status(NULL) == ESP_OK) {
-      watchDogStarted = true;
+      watchDogStarted[wdIndex] = true;
       esp_task_wdt_reset();
-      LOG_INF("WatchDog started using task: %s", pcTaskGetName(NULL));
-    } else LOG_ERR("WatchDog failed to start");
+      LOG_INF("WatchDog started for task: %s", pcTaskGetName(NULL));
+    } else LOG_ERR("WatchDog failed to start for task: %s ", pcTaskGetName(NULL));
   }
 }
 
@@ -349,7 +349,7 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
       else LOG_INF("Task ping stack space reduced to: %u", freeStack);
     }
   }
-  resetWatchDog();
+  resetWatchDog(0, wifiTimeoutSecs * 1000 * 2);
   if (dataFilesChecked) resetCrashLoop();
   statusCheck();
 }
@@ -358,7 +358,7 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
   // a ping check is used because esp may maintain a connection to gateway which may be unuseable, which is detected by ping failure
   // but some routers may not respond to ping - https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
   // so setting usePing to false ignores ping failure if connection still present
-  resetWatchDog();
+  resetWatchDog(0, wifiTimeoutSecs * 1000 * 2);
   if (netMode == 1) {
     if (usePing) {
       LOG_WRN("Failed to ping gateway, restart ethernet ...");

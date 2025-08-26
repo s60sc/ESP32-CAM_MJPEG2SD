@@ -239,7 +239,7 @@ function Config(){
 <br>
 <center>
   <table border="0">
-    <tr><th colspan="3">Network setup..</th></tr>
+    <tr><th colspan="3">Wifi setup..</th></tr>
     <tr><td colspan="3"></td></tr>
     <tr>
     <td>SSID</td>
