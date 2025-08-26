@@ -805,15 +805,22 @@
                 <div class='addButtons'></div>
                 <div>
                   <div class="subheader">Network settings</div>
+                  <div class="input-group" id="wifi-group" style="margin-top:0">
+                    <label for="netMode">Network Type</label>
+                    <select id="netMode" class="selectField">
+                      <option value="0">WiFi</option>
+                      <option value="1">Ethernet</option>
+                    </select>
+                  </div>
                   <div class="input-group" id="wifi-group">
                     <label for="hostName">Host Name</label>
                     <input id="hostName" name="hostName" length=32 placeholder="Host name">
                   </div>
-                  <div class="input-group" id="wifi-group">
+                  <div class="input-group wifi-only" id="wifi-group">
                     <label for="ST_SSID">SSID</label>
                     <input id="ST_SSID" name="ST_SSID" length=32 placeholder="Router SSID">
                   </div>
-                  <div class="input-group" id="wifi-group">
+                  <div class="input-group wifi-only" id="wifi-group">
                     <label for="ST_Pass">Password</label>
                     <input id="ST_Pass" name="ST_Pass" length=64 placeholder="Router password">
                   </div>
@@ -1101,16 +1108,6 @@
           <div class="subheader">Press a button to view or modify settings (changed values are not validated)</div>
           <div class="subheader">Press Save button to make changes permanent</div>
           <br>
-        </div>
-        <div>
-          <div class="subheader">Network settings</div>
-          <div class="input-group" id="wifi-group">
-            <label for="netMode">Network Interface</label>
-            <select id="netMode" class="selectField">
-              <option value="0">WiFi</option>
-              <option value="1">Ethernet</option>
-            </select>
-          </div>
         </div>
         <div>
           <svg>
