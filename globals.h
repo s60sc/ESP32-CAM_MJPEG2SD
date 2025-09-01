@@ -236,7 +236,7 @@ extern char AP_ip[];
 extern char AP_sn[];
 extern char AP_gw[];
 
-extern int netMode; // 0=WiFi, 1=Ethernet
+extern int netMode; // 0=WiFi, 1=Ethernet, 2=Eth+AP
 extern char hostName[]; //Host name for ddns
 extern char ST_SSID[]; //Router ssid
 extern char ST_Pass[]; //Router passd
@@ -250,6 +250,13 @@ extern char ST_gw[];
 extern char ST_ns1[];
 extern char ST_ns2[];
 extern char extIP[];
+
+extern int ethCS;   // chip select
+extern int ethInt;  // interrupt
+extern int ethRst;  // reset
+extern int ethSclk; // SPI clock
+extern int ethMiso; // SPI data pin
+extern int ethMosi; // SPI data pin
 
 extern char Auth_Name[]; 
 extern char Auth_Pass[];

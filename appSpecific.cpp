@@ -813,7 +813,7 @@ void appSpecificTelegramTask(void* p) {
 /************** default app configuration **************/
 const char* appConfig = R"~(
 ST_SSID~~99~~na
-netMode~0~99~S:WiFi:Ethernet~Network interface selection
+netMode~0~99~S:WiFi:Ethernet:Eth+AP~Network interface selection
 fsPort~21~99~~na
 fsServer~~99~~na
 ftpUser~~99~~na
@@ -1017,4 +1017,10 @@ rtsp06SubtitlesPort~5434~8~N~RTSP Subtitles Port
 rtsp07Ip~239.255.0.1~8~T~RTSP Multicast IP
 rtsp08MaxC~3~8~N~RTSP Multicast Max Connections
 rtsp09TTL~1~8~N~RTSP Multicast Time-to-Live
+ethCS~-1~9~N~Ethernet CS pin
+ethInt~-1~9~N~Ethernet Interrupt pin
+ethRst~-1~9~N~Ethernet Reset pin
+ethSclk~-1~9~N~Ethernet SPI clock pin
+ethMiso~-1~9~N~Ethernet SPI MISO pin
+ethMosi~-1~9~N~Ethernet SPI MOSI pin
 )~";

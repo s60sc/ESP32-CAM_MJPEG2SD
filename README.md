@@ -22,15 +22,17 @@ The application supports:
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
 * Use of [Auxiliary Board](#auxiliary-board) for additional pins.
 * [Intercom](#intercom) feature using mic and speaker on ESP and mic and speaker on user device browser.
+* Option of [Ethernet](#configuration-web-page) network selection instead of Wifi
 
 The ESP32 cannot support all of the features as it will run out of heap space. For better functionality and performance, use one of the new ESP32S3 camera boards, eg Freenove ESP32S3 Cam, ESP32S3 XIAO Sense, ESP32-S3-Cam (AI Thinker style), but avoid no-name boards marked `ESPS3 RE:1.0`
 
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.8.0:
+Changes for version 10.8.1:
 * Addition of [Ethernet](#configuration-web-page) network selection instead of Wifi
 * Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
+* Define pins for external W5500 Ethernet controller
 
 ## Purpose
 
@@ -96,7 +98,7 @@ Browser functions only fully tested on Chrome.
 
 ## Main Function
 
-A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using an active high motion sensor such as PIR or RCWL-0516 microwave radar.
+A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using an active high motion sensor such as a PIR (HC-SR501) or microwave radar (CWL-0516), or a non motion detector such as a sound sensor (KY-037).
 In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
 To play back a recording, select the file using **Playback & File Transfers** sidebar button to select the day folder then the required AVI file.
@@ -155,7 +157,8 @@ View application log via web page, displayed using **Show Log** tab:
 More configuration details accessed via **Edit Config** tab, which displays further buttons:
 
 **Network**:
-* Default network interface is Wifi, but Ethernet can be used instead with suitable boards, eg: [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH).
+* Default network interface is Wifi, but Ethernet can be used instead using boards with built in Ethernet, eg: [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH), or by connecting an external W5500 Ethernet controller.
+* Feature only available for ESP32S3 boards.
 * All existing services automatically use the selected network interface after reboot.
 * If Network interface in **Access Settings** side tab was previously set to Ethernet:
   * App runs in quiet mode (WiFi and BLE off).
@@ -163,6 +166,10 @@ More configuration details accessed via **Edit Config** tab, which displays furt
   * WiFi AP wizard is suppressed; access the device by its DHCP IP or mDNS `http(s)://<hostname>.local` if your network supports it.
   * PoE variants are supported at the hardware level; power delivery is handled by the board.
   * Contributed by [@RedCanti](https://github.com/RedCanti)
+* If Network interface in **Access Settings** side tab was previously set to Eth+AP:
+  * Wifi AP is available concurrently with Ethernet, but uses a separate network.
+  * Do not open web pages on each network concurrently.
+* To use an external W5500 Ethernet controller, after selecting Ethernet or Eth+AP, an additional tab **Ethernet** is present in the **Edit Config** tab for entering the SPI pins numbers used to connect to the W5500 Ethernet controller.
 
 **Motion**: 
 See [**Motion detection by Camera**](#motion-detection-by-camera) section.
