@@ -236,7 +236,7 @@ static bool startEth(bool firstcall) {
 #if CONFIG_IDF_TARGET_ESP32S3
   if (ethCS != -1) {
     if (!ETH.begin(ETH_PHY_W5500,
-                   -1,
+                   ETH_PHY_ADDR_AUTO,
                    ethCS,
                    ethInt,
                    ethRst,
@@ -244,7 +244,7 @@ static bool startEth(bool firstcall) {
                    ethSclk,
                    ethMiso,
                    ethMosi,
-                   1)) {
+                   ETH_PHY_SPI_FREQ_MHZ)) {
       LOG_WRN("Ethernet W5500 init failed");
       return false;
     }

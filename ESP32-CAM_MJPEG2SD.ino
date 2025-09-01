@@ -27,7 +27,6 @@ void setup() {
 #endif
     }
   }
-  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
 
 #ifdef DEV_ONLY
   devSetup();
@@ -35,8 +34,9 @@ void setup() {
 
   // connect network (WiFi or Ethernet per config)
   startNetwork();
-
   startWebServer();
+
+  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   if (strlen(startupFailure)) LOG_WRN("%s", startupFailure);
   else {
     // start rest of services
