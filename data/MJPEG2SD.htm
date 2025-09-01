@@ -1297,6 +1297,7 @@
                     <select id="netMode" class="selectField">
                       <option value="0">WiFi</option>
                       <option value="1">Ethernet</option>
+                      <option value="2">Eth+AP</option>
                     </select>
                   </div>
                   <div class="input-group" id="wifi-group">
@@ -1641,6 +1642,12 @@
             <text class="local midText" id="Audconfig">Audio</text>
           </svg>
         </div>
+        <div id="EthconfigBtn" class="hidden">
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text class="local midText" id="Ethconfig">Ethernet</text>
+          </svg>
+        </div>
         <div id="RCconfigBtn" class="hidden">
           <svg>
             <rect class="buttonRect" tabindex="0"/>
@@ -1772,6 +1779,7 @@
           else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
           else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
           else if (key == "Audconfig") { doLoadStatus = false; getConfig("01234567"); }
+          else if (key == "Ethconfig") { doLoadStatus = false; getConfig("0123456789"); }
           else if (key == "camModel") customButtons(key, value);
           else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
           else if (key == 'timezoneSel') fromUser = setTz(value);
@@ -1802,6 +1810,7 @@
           else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
           else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
           else if (key == "AudActive") Number(value) ? show($('#AudconfigBtn')) : hide($('#AudconfigBtn'));
+          else if (key == "netMode") Number(value) > 0 ? show($('#EthconfigBtn')) : hide($('#EthconfigBtn'));
           else if (key == "waitTime") waitTime = value;
           else if (key == "camTilt") { wsAuxSend("T" + value, wsInd); }
           else if (key == "camPan") { wsAuxSend("P" + value, wsInd); }
@@ -1887,7 +1896,6 @@
             changeRange('agc_gain', "0", "255", "0");
             changeRange('quality', "0", "2", "1");
             // change select option order
-            ////const newValues = ['Negative', 'Grayscale', 'Red Tint', 'Green Tint', 'Blue Tint', 'Sepia'];
             const effects = ['Bluish', 'Redish', 'B & W', 'Sepia', 'Negative', 'Greenish'];
             for (let i = 1; i < $('#special_effect').options.length; i++) $('#special_effect').options[i].innerHTML = effects[i-1];
             const modes = ['Sunny', 'Office', 'Cloudy', 'Home'];
