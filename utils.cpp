@@ -232,7 +232,7 @@ static void predefEthPins() {
 
 static bool startEth(bool firstcall) {
   // Initialize Ethernet (W5500) via SPI, only viable on ESP32-S3 board
-  // Internal on WS5500ESP32-S3-ETH board, or separate external board
+  // Internal on ESP32-S3-ETH board, or use separate external board
 #if CONFIG_IDF_TARGET_ESP32S3
   if (ethCS != -1) {
     if (!ETH.begin(ETH_PHY_W5500,

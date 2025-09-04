@@ -40,7 +40,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "motionVal")) motionVal = intVal;
   else if (!strcmp(variable, "moveStartChecks")) moveStartChecks = intVal;
   else if (!strcmp(variable, "moveStopSecs")) moveStopSecs = intVal;
-  else if (!strcmp(variable, "maxFrames")) {if (dashCamOn == 0) maxFrames = intVal;}
+  else if (!strcmp(variable, "maxFrames")) maxFrames = intVal > 0 ? intVal : maxFrames;
   else if (!strcmp(variable, "detectMotionFrames")) detectMotionFrames = intVal;
   else if (!strcmp(variable, "detectNightFrames")) detectNightFrames = intVal;
   else if (!strcmp(variable, "detectNumBands")) detectNumBands = intVal;
@@ -893,7 +893,7 @@ uartRxdPin~~3~N~UART RX pin
 tlSecsBetweenFrames~600~1~N~Timelapse interval (secs)
 tlDurationMins~720~1~N~Timelapse duration (mins)
 tlPlaybackFPS~1~1~N~Timelapse playback FPS
-maxFrames~20000~1~N~Max frames in recordingg
+maxFrames~20000~1~N~Max frames in recording
 dashCamOn~0~98~~na
 moveStartChecks~5~1~N~Checks per second for start motion
 moveStopSecs~2~1~N~Non movement to stop recording (secs)

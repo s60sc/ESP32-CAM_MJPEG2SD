@@ -388,6 +388,7 @@
 #define I2S_SCK 41
 #endif
 
+
 #elif defined(CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3) || defined(CAMERA_MODEL_DFRobot_Romeo_ESP32S3)
 #define CAM_BOARD "CAMERA_MODEL_DFRobot_ESP32S3"
 #define PWDN_GPIO_NUM     -1
@@ -587,6 +588,7 @@
 #define ETH_CS   14
 #define ETH_RST  9
 #define ETH_INT  10
+
 
 #elif defined(CAMERA_MODEL_DFRobot_ESP32_S3_AI_CAM)
 // https://wiki.dfrobot.com/SKU_DFR1154_ESP32_S3_AI_CAM

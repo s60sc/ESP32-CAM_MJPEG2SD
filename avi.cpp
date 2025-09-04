@@ -110,10 +110,9 @@ static size_t indexLen[2];
 static File wavFile;
 bool haveSoundFile = false;
 
-
 void prepAviIndex(bool isTL) {
   // prep buffer to store index data, gets appended to end of file
-  if (idxBuf[isTL] == NULL) idxBuf[isTL] = (uint8_t*)ps_malloc((MAX_FRAMES+1)*IDX_ENTRY); // include some space for audio index
+  if (idxBuf[isTL] == NULL) idxBuf[isTL] = (uint8_t*)ps_malloc((maxFrames+2)*IDX_ENTRY); // include space for header & audio index 
   memcpy(idxBuf[isTL], idx1Buf, 4); // index header
   idxPtr[isTL] = CHUNK_HDR;  // leave 4 bytes for index size
   moviSize[isTL] = indexLen[isTL] = 0;
@@ -165,6 +164,7 @@ void buildAviIdx(size_t dataSize, bool isVid, bool isTL) {
   // build AVI video index into buffer - 16 bytes per frame
   // called from saveFrame() for each frame
   moviSize[isTL] += dataSize;
+  if (idxPtr[isTL] + IDX_ENTRY > (maxFrames+2)*IDX_ENTRY) doRestart("Need to reboot if max frames changed");
   if (isVid) memcpy(idxBuf[isTL]+idxPtr[isTL], dcBuf, 4);
   else memcpy(idxBuf[isTL]+idxPtr[isTL], wbBuf, 4);
   memcpy(idxBuf[isTL]+idxPtr[isTL]+4, zeroBuf, 4);

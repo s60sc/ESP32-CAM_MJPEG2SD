@@ -104,7 +104,6 @@
 
 #define USE_IP6 false // if true use IPv6 when available, else use IPv4
 
-#define MAX_FRAMES 20000 // max number of frames allowed in single avi file
 
 /*********************** Fixed defines leave as is ***********************/ 
 /** Do not change anything below here unless you know what you are doing **/
@@ -118,11 +117,11 @@
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
-#define DBG_LVL ESP_LOG_ERROR // level if DBG_ON true: ESP_LOG_ERROR, ESP_LOG_WARN, ESP_LOG_INFO, ESP_LOG_DEBUG, ESP_LOG_VERBOSE
+#define DBG_LVL ESP_LOG_ERROR // level to use if DBG_ON true: ESP_LOG_ERROR, ESP_LOG_WARN, ESP_LOG_INFO, ESP_LOG_DEBUG, ESP_LOG_VERBOSE
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.8.1"
+#define APP_VER "10.8.2"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars

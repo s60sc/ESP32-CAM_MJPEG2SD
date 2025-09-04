@@ -29,10 +29,11 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.8.1:
+Changes for version 10.8.2:
 * Addition of [Ethernet](#configuration-web-page) network selection instead of Wifi
 * Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
 * Define pins for external W5500 Ethernet controller
+* Fix for issue [#650](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/650)
 
 ## Purpose
 
