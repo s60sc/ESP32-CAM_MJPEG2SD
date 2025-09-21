@@ -1763,7 +1763,6 @@
             document.title = value;
             if (fromUser) sendControl(key, value);
           } 
-          else if (key == "alertMsg") showAlert(value); 
           else if (key == "clearLog") clearLog();
           else if (key == "refreshLog") getLog();
           else if (key == "logType") { logType = value; sendControl(key, value); return; }

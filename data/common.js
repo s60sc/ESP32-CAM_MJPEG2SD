@@ -42,6 +42,7 @@
             if (doCustomInit) customInit();
             setListeners();
             doLoadStatus ? loadStatus("") : configStatus(false); 
+            startEventSource();
             if (doRefreshTimer && refreshTimer == null) refreshStatus();
             if (doInitWebSocket) initWebSocket(0);
           } catch (error) {
@@ -50,7 +51,7 @@
           } 
         }
 
-        /*********** websocket functions ***********/
+        /*********** websocket and SSE functions ***********/
 
         // define websocket handling
         function initWebSocket(index) {
@@ -136,6 +137,35 @@
               if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) sendWsMsg('H', index);
             });
           }, heartbeatInterval);
+        }
+        
+        // handle Server Sent Events
+        function startEventSource() {
+          // Create a new EventSource instance, pointing to the server's endpoint
+          console.log("sse "+webServer+'/sse');
+          let eventSource = new EventSource(webServer+'/sse');
+
+          // Listen for the 'open' event when the connection is established
+          eventSource.addEventListener('open', function(event) {
+            console.log('SSE connection opened.');
+          });
+
+          // Listen for unspecified events from the server (no 'event' string)
+          eventSource.addEventListener('message', (event) => {
+            console.log("No event specified: " + event.data);
+          });
+
+          // listen for specific event
+          eventSource.addEventListener('alert', (event) => {
+            // event containing alert message
+            showAlert(event.data);
+          });
+
+          // Listen for 'error' events
+          eventSource.addEventListener("error", (event) => {
+            console.error("SSE Error: " + event.data);
+            eventSource.close();
+          });
         }
 
         /*********** page layout functions ***********/
