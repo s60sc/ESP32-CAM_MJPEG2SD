@@ -28,8 +28,8 @@
 
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
-//#define CAMERA_MODEL_ESP32_S3_CAM
+#define CAMERA_MODEL_ESP32_S3_CAM
+//#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
 //#define CAMERA_MODEL_M5STACK_CAMS3_UNIT
@@ -105,7 +105,7 @@
 #define USE_IP6 false // if true use IPv6 when available, else use IPv4
 
 
-/*********************** Fixed defines leave as is ***********************/ 
+/*********************** Fixed defines leave as is ************************/ 
 /** Do not change anything below here unless you know what you are doing **/
 
 #ifndef AUXILIARY
@@ -121,7 +121,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.8.2"
+#define APP_VER "10.8.3"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -162,7 +162,7 @@
 #define ISCAM // cam specific code in generic cpp files
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 32
+#define CFG_VER 33
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"

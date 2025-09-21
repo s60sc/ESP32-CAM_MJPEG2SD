@@ -97,6 +97,8 @@
 #define USECS 1000000
 #define MAGIC_NUM 987654321
 #define MAX_FAIL 5
+#define SSESEP "\r\n\r\n" // SSE event separator
+#define PANIC_DELAY 5 // seconds before restart after panic
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
@@ -108,7 +110,8 @@ void appSpecificTelegramTask(void* p);
 void buildAppJsonString(bool filter);
 bool updateAppStatus(const char* variable, const char* value, bool fromUser = true);
 
-// global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp    
+// global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp etc
+void appPanicHandler(arduino_panic_info_t *info, void *arg);
 void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
@@ -184,6 +187,7 @@ void resetWatchDog(int wdIndex, uint32_t wdTimeout = 1);
 bool retrieveConfigVal(const char* variable, char* value);
 void runTaskStats();
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking = true);
+void sendSSE(const char* statusData);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
@@ -330,7 +334,6 @@ extern uint8_t alarmHour;
 extern char* jsonBuff; 
 extern bool dbgVerbose;
 extern bool sdLog;
-extern char alertMsg[];
 extern int logType;
 extern char messageLog[];
 extern uint16_t mlogEnd;

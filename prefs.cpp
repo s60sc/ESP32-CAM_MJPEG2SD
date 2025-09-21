@@ -412,8 +412,6 @@ void buildJsonString(uint8_t filter) {
     buildAppJsonString((bool)filter);
     p += strlen(jsonBuff) - 1;
     p += sprintf(p, "\"cfgGroup\":\"-1\",");
-    p += sprintf(p, "\"alertMsg\":\"%s\",", alertMsg); 
-    alertMsg[0] = 0;
     // generic footer
     currEpoch = getEpoch(); 
     p += sprintf(p, "\"clockUTC\":\"%lu\",", (uint32_t)currEpoch); 

@@ -903,6 +903,11 @@ static uint32_t counter_write = 0;
 // RAM memory based logging in RTC slow memory (cannot init)
 RTC_NOINIT_ATTR char messageLog[RAM_LOG_LEN];
 RTC_NOINIT_ATTR uint16_t mlogEnd;
+static RTC_NOINIT_ATTR uint32_t backtrace[60]; // backtrace addresses array
+static RTC_NOINIT_ATTR size_t btLen;
+static RTC_NOINIT_ATTR char btReason[50];
+static RTC_NOINIT_ATTR int btCore;
+static RTC_NOINIT_ATTR uint32_t haveTrace;
 
 static void ramLogClear() {
   mlogEnd = 0;
@@ -990,10 +995,11 @@ void logPrint(const char *format, ...) {
     // output to monitor console if attached
     size_t msgLen = strlen(outBuf);
     if (outBuf[msgLen - 2] == '~') {
-      // set up alert message for browser
-      outBuf[msgLen - 2] = ' ';
-      strncpy(alertMsg, outBuf, MAX_OUT - 1);
-      alertMsg[msgLen - 2] = 0;
+      // set up alert message for browser using SSE
+      outBuf[msgLen - 2] = ' '; // remove '~'
+      snprintf(alertMsg, MAX_OUT - 1, "event: alert\ndata: %s%s", outBuf, SSESEP); 
+      sendSSE(alertMsg);
+      alertMsg[0] = 0;
     }
     ramLogStore(msgLen); // store in rtc ram 
     if (monitorOpen) Serial.print(outBuf); 
@@ -1029,6 +1035,7 @@ int vprintfRedirect(const char* format, va_list args) {
 
 void logSetup() {
   // prep logging environment
+  set_arduino_panic_handler(appPanicHandler, NULL);
   Serial.begin(115200);
   Serial.setDebugOutput(DBG_ON);
   printf("\n\n");
@@ -1044,8 +1051,8 @@ void logSetup() {
   xSemaphoreGive(logMutex);
   xTaskCreate(logTask, "logTask", LOG_STACK_SIZE, NULL, LOG_PRI, &logHandle);
   if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
-  LOG_INF("Setup RAM based log, size %u, starting from %u\n\n", RAM_LOG_LEN, mlogEnd);
-  LOG_INF("=============== %s %s ===============", APP_NAME, APP_VER);
+  logPrint("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
+  LOG_INF("Setup RAM based log, size %u, starting from %u", RAM_LOG_LEN, mlogEnd);
   initBrownout();
   prepInternalTemp();
   boardInfo();
@@ -1261,7 +1268,7 @@ static void printGpioInfo() {
 }
 
 
-/****************** send device to sleep (light or deep) & watchdog ******************/
+/****************** send device to sleep (light or deep), watchdog, panics ******************/
 
 #include <esp_wifi.h>
 #include <driver/gpio.h>
@@ -1281,6 +1288,32 @@ static esp_sleep_wakeup_cause_t printWakeupReason() {
   return wakeup_reason;
 }
 
+void appPanicHandler(arduino_panic_info_t *info, void *arg) {
+  // store crash backtrace and delay reboot to avoid thrashing
+  // https://github.com/espressif/arduino-esp32/blob/master/cores/esp32/esp32-hal-misc.c
+  strncpy(btReason, info->reason, sizeof(btReason) - 1);
+  btCore = info->core;
+  btLen = info->backtrace_len;
+  for (int i = 0; i < info->backtrace_len; i++) backtrace[i] = info->backtrace[i];
+  haveTrace = MAGIC_NUM; // flag that backtrace available
+  esp_rom_delay_us(PANIC_DELAY * 1000 * 1000);
+}
+
+static void showBacktrace() {
+  // display backtrace following a panic
+  if (haveTrace == MAGIC_NUM) {
+    haveTrace = 0;
+    char bt[220];
+    sprintf(bt, "%s on core %d", btReason, btCore);
+    LOG_WRN("%s", bt);
+    bt[0] = 0;
+    for (int i = 0; i < btLen; i++) { 
+      snprintf(bt + strlen(bt), sizeof(bt) - strlen(bt) - 11, "0x%08x ", (unsigned int)backtrace[i]); // 11 is size of new trace hex
+    }
+    LOG_WRN("Paste backtrace below into Arduino Exception Decoder:\n");
+    logPrint("Backtrace: %s\n\n", bt);
+  }
+}
 
 static esp_reset_reason_t printResetReason() {
   esp_reset_reason_t bootReason = esp_reset_reason();
@@ -1303,6 +1336,7 @@ static esp_reset_reason_t printResetReason() {
     case ESP_RST_SDIO: LOG_INF("Reset over SDIO"); break;
     default: LOG_WRN("Unhandled reset reason"); break;
   }
+  showBacktrace();
   return bootReason;
 }
 

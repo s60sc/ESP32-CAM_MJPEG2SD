@@ -374,7 +374,7 @@
 #define SD_MMC_CLK 39 
 #define SD_MMC_CMD 38
 #define SD_MMC_D0 40
-#if defined(CAMERA_MODEL_PCBFUN_ESP32S3_CAM)
+#if defined(CAMERA_MODEL_ESP32_S3_CAM)
 // uncomment following pins for SD MMC 4 bit mode
 //#define SD_MMC_D1 41
 //#define SD_MMC_D2 14

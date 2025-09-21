@@ -14,6 +14,8 @@ int refreshVal = 5000; // msecs
 
 static httpd_handle_t httpServer = NULL; // web server port
 static int fdWs = -1; // websocket sockfd
+static httpd_handle_t sseSocketHD; // SSE support
+static int sseSocketFD;
 bool useHttps = false;
 bool useSecure = false;
 bool heartBeatDone = false;
@@ -37,6 +39,7 @@ esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {
   if (res != ESP_OK) {
     snprintf(startupFailure, SF_LEN, "Failed to send to browser: %s, err %s", inFileName, espErrMsg(res));
     LOG_WRN("%s", startupFailure);
+    checkMemory();
     OTAprereq(); // free up memory
   } 
   return res;
@@ -110,7 +113,7 @@ static esp_err_t indexHandler(httpd_req_t* req) {
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   // first check if a startup failure needs to be reported
   if (strlen(startupFailure)) {
-    httpd_resp_set_type(req, "text/html");                   
+    httpd_resp_set_type(req, "text/html");
     httpd_resp_sendstr_chunk(req, failPageS_html);
     httpd_resp_sendstr_chunk(req, startupFailure);
     httpd_resp_sendstr_chunk(req, failPageE_html);
@@ -255,6 +258,28 @@ bool parseJson(int rxSize) {
     } else updateStatus(variable, value);
   } while (ptr + itemLen - jsonBuff < rxSize);
   return retAction;
+}
+
+static esp_err_t sseHandler(httpd_req_t *req) {
+  // enable Server Sent Events
+  const char* sseHeader = "HTTP/1.1 200 OK\r\n"
+                          "Cache-Control: no-store\r\n"
+                          "Connection: keep-alive\r\n"
+                          "Content-Type: text/event-stream\r\n\r\n";
+  sseSocketHD = req->handle;
+  sseSocketFD = httpd_req_to_sockfd(req);
+  httpd_socket_send(sseSocketHD, sseSocketFD, sseHeader, strlen(sseHeader), 0); 
+  sendSSE("event: open\ndata: opened" SSESEP);
+  return ESP_OK;
+}
+
+void sendSSE(const char* statusData) {
+  // send statusData to browser
+  if (sseSocketFD > 0) {
+    int res = httpd_socket_send(sseSocketHD, sseSocketFD, statusData, strlen(statusData), 0);
+    if (res == HTTPD_SOCK_ERR_TIMEOUT) LOG_WRN("Timeout/interrupted while using socket");
+    if (res == HTTPD_SOCK_ERR_FAIL) LOG_WRN("Unrecoverable error while using socket");
+  } else LOG_WRN("SSE not initiated");
 }
 
 static esp_err_t updateHandler(httpd_req_t *req) {
@@ -546,6 +571,7 @@ void startWebServer() {
   httpd_uri_t statusUri = {.uri = "/status", .method = HTTP_GET, .handler = statusHandler, .user_ctx = NULL};
   httpd_uri_t uploadUri = {.uri = "/upload", .method = HTTP_POST, .handler = uploadHandler, .user_ctx = NULL};
   httpd_uri_t wifiUri = {.uri = "/wifi", .method = HTTP_GET, .handler = setupHandler, .user_ctx = NULL};
+  httpd_uri_t sseUri = {.uri = "/sse", .method = HTTP_GET, .handler = sseHandler, .user_ctx = NULL};
   httpd_uri_t wsUri = {.uri = "/ws", .method = HTTP_GET, .handler = wsHandler, .user_ctx = NULL, .is_websocket = true};
   httpd_uri_t sustainUri = {.uri = "/sustain", .method = HTTP_GET, .handler = appSpecificSustainHandler, .user_ctx = NULL};
   httpd_uri_t checkUri = {.uri = "/sustain", .method = HTTP_HEAD, .handler = appSpecificSustainHandler, .user_ctx = NULL};
@@ -557,6 +583,7 @@ void startWebServer() {
     httpd_register_uri_handler(httpServer, &updateUri);
     httpd_register_uri_handler(httpServer, &statusUri);
     httpd_register_uri_handler(httpServer, &uploadUri);
+    httpd_register_uri_handler(httpServer, &sseUri);
     httpd_register_uri_handler(httpServer, &wifiUri);
     httpd_register_uri_handler(httpServer, &wsUri);
     httpd_register_uri_handler(httpServer, &sustainUri);
