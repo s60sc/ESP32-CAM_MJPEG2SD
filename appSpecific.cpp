@@ -158,6 +158,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "teleInterval")) srtInterval = intVal;
   else if (!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
   else if (!strcmp(variable, "wakePin")) wakePin = intVal;
+  else if (!strcmp(variable, "wakeLevel")) wakeLevel = intVal;
 #if INCLUDE_MCPWM
   else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
   else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
@@ -699,7 +700,7 @@ void doAppPing() {
 #ifndef AUXILIARY
       digitalWrite(PWDN_GPIO_NUM, 1); // power down camera
 #endif
-      goToSleep(wakePin, true);
+      goToSleep(true);
     }
 #if INCLUDE_PERIPH
     if (relayPin && relayMode && !atNight) {
@@ -940,7 +941,8 @@ voltLow~3~3~N~Warning level for low voltage
 voltInterval~5~3~N~Voltage check interval (mins)
 voltPin~~3~N~ADC Pin used for battery voltage
 voltUse~0~3~C~Use Voltage check
-wakePin~~3~N~Pin used for to wake app from sleep
+wakePin~~3~N~Pin used to wake app from sleep
+wakeLevel~1~3~N~Pin level (0,1) to wake app from sleep
 wakeUse~0~3~C~Deep sleep app during night
 mqtt_active~0~2~C~Mqtt enabled
 mqtt_broker~~2~T~Mqtt server ip to connect

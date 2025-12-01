@@ -2,7 +2,7 @@
 /* 
  Detect movement in sequential images using background subtraction.
  
- Very small (98x98) bitmaps are used both to provide image smoothing to reduce spurious motion changes 
+ Very small (96x96) bitmaps are used both to provide image smoothing to reduce spurious motion changes 
  and to enable rapid processing
  Bitmaps can either be color or grayscale. Color requires triple memory
  of grayscale and more processing.
@@ -25,8 +25,6 @@
 #if INCLUDE_TINYML
 #include TINY_ML_LIB
 #endif
-
-using namespace std;
 
 #define RESIZE_DIM 96  // dimensions of resized motion bitmap
 #define RESIZE_DIM_SQ (RESIZE_DIM * RESIZE_DIM) // pixels in bitmap
@@ -56,9 +54,31 @@ static uint8_t* currBuff = NULL;
 
 #ifndef CONFIG_IDF_TARGET_ESP32C3
 
+#if INCLUDE_NEW_JPG
+// use esp_new_jpeg library instead of built in
+#include <esp_jpeg_dec.h>
+#include <esp_jpeg_enc.h>
+
+struct esp_jpeg_stream {
+    jpeg_dec_handle_t       jpeg_dec;
+    jpeg_dec_io_t*          jpeg_io;
+    jpeg_dec_header_info_t* out_info;
+    jpeg_pixel_format_t     output_type;
+};
+typedef struct esp_jpeg_stream* esp_jpeg_stream_handle_t;
+
+static void jpgReduce(int inWidth, int inHeight, uint8_t downsize, int* outWidth, int* outHeight);
+static bool jpg2rgbOpen(esp_jpeg_stream_handle_t jpegHandle, uint16_t width, uint16_t height);
+static bool jpg2rgb(esp_jpeg_stream_handle_t jpegHandle, uint8_t* inputBuf, int inputLen, uint8_t* outputBuf);
+static bool jpg2rgbClose(esp_jpeg_stream_handle_t jpegHandle);
+static size_t rgb2jpg(uint8_t* rgb888, int width, int height, int qual, uint8_t* outputBuf);
+#else
+// built in
+static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t scale);
+#endif
+
 /**********************************************************************************/
 
-static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t scale);
 
 bool isNight(uint8_t nightSwitch) {
   // check if night time for suspending recording
@@ -182,21 +202,41 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   uint32_t dTime = millis();
   uint32_t lux = 0;
   static uint32_t motionCnt = 0;
-  uint8_t* jpg_buf = NULL;
-  // calculate parameters for sample size
-  uint8_t scaling = frameData[fsizePtr].scaleFactor; 
-  uint16_t reducer = frameData[fsizePtr].sampleRate;
-  uint8_t downsize = pow(2, scaling) * reducer;
-  int sampleWidth = frameData[fsizePtr].frameWidth / downsize;
-  int sampleHeight = frameData[fsizePtr].frameHeight / downsize;
-  stride = (colorDepth == RGB888_BYTES) ? GRAYSCALE_BYTES : RGB888_BYTES; // stride is inverse of colorDepth
+  static uint8_t fsizePtrPrev = 255; // initially invalid
+  static uint8_t scaling, downsize;
+  static uint16_t reducer;
+  static int sampleWidth = 0, sampleHeight = 0;
+  static uint8_t* rgbBuf = (uint8_t*)heap_caps_aligned_calloc(16, 1, frameData[FRAMESIZE_SXGA].frameWidth * frameData[FRAMESIZE_SXGA].frameHeight * RGB888_BYTES / 8, MALLOC_CAP_SPIRAM); // must be 16 byte aligned. Max size, no need to free
+ #if INCLUDE_NEW_JPG
+  static struct esp_jpeg_stream jpegHandle = {0};
+  static uint8_t* jpgBuf = (uint8_t*)ps_malloc(RESIZE_DIM_SQ * RGB888_BYTES);
+#endif  
 
-  static uint8_t* rgb_buf = (uint8_t*)ps_malloc(sampleWidth * sampleHeight * RGB888_BYTES); // no need to free
-  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgb_buf, scaling)) return motionStatus;
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-  if (colorDepth == GRAYSCALE_BYTES) rgbToGray(rgb_buf, sampleWidth, sampleHeight);
+  // calculate parameters for sample size when resolution changes
+  if (fsizePtr != fsizePtrPrev) {
+    fsizePtrPrev = fsizePtr;
+    scaling = frameData[fsizePtr].scaleFactor; 
+    reducer = frameData[fsizePtr].sampleRate;
+    downsize = pow(2, scaling) * reducer;
+    stride = (colorDepth == RGB888_BYTES) ? GRAYSCALE_BYTES : RGB888_BYTES; // stride is inverse of colorDepth
+    sampleWidth = frameData[fsizePtr].frameWidth / downsize;
+    sampleHeight = frameData[fsizePtr].frameHeight / downsize;
+#if INCLUDE_NEW_JPG
+    jpg2rgbClose(&jpegHandle);
+    jpgReduce(fb->width, fb->height, downsize, &sampleWidth, &sampleHeight);
+    if (!jpg2rgbOpen(&jpegHandle, sampleWidth, sampleHeight)) return motionStatus;
 #endif
-  LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime); 
+  }
+#if INCLUDE_NEW_JPG
+  if (!jpg2rgb(&jpegHandle, fb->buf, fb->len, rgbBuf)) return motionStatus;
+#else
+  if (!jpg2rgb((uint8_t*)fb->buf, fb->len, rgbBuf, scaling)) return motionStatus;
+#endif
+
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
+  if (colorDepth == GRAYSCALE_BYTES) rgbToGray(rgbBuf, sampleWidth, sampleHeight);
+#endif
+  LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", colorDepth == RGB888_BYTES ? "color" : "grayscale", sampleWidth * sampleHeight * colorDepth, millis() - dTime);
   
   // allocate buffer space on heap
   size_t resizeDimLen = RESIZE_DIM_SQ * colorDepth; // byte size of bitmap
@@ -206,9 +246,8 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   static uint8_t* changeMap = (uint8_t*)ps_malloc(RESIZE_DIM_SQ * RGB888_BYTES);
   
   dTime = millis();
-  rescaleImage(rgb_buf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM);
+  rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM);
   LOG_VRB("Bitmap rescale to %u bytes in %lums", resizeDimLen, millis() - dTime);
- 
   // compare each pixel in current frame with previous frame 
   dTime = millis();
   int changeCount = 0;
@@ -243,18 +282,24 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   memcpy(prevBuff, currBuff, resizeDimLen); // save image for next comparison 
   LOG_VRB("Detected %u changes, threshold %u, light level %u, in %lums", changeCount, moveThreshold, lightLevel, millis() - dTime);
   if (lightLevelOnly) return false; // no motion checking, only calc of light level
-
   if (dbgMotion) {
     // show motion detection during streaming for tuning
     if (!motionJpegLen) {
       // ready to setup next movement map for streaming
       dTime = millis();
       // build jpeg of changeMap for debug streaming
+#if INCLUDE_NEW_JPG
+      motionJpegLen = rgb2jpg(changeMap, RESIZE_DIM, RESIZE_DIM, JPEG_QUAL, jpgBuf);
+      if (motionJpegLen == 0) LOG_WRN("motionDetect: encode() failed"); 
+      memcpy(motionJpeg, jpgBuf, motionJpegLen); 
+#else
+      uint8_t* jpg_buf = NULL;
       if (!fmt2jpg(changeMap, resizeDimLen, RESIZE_DIM, RESIZE_DIM, PIXFORMAT_RGB888, JPEG_QUAL, &jpg_buf, &motionJpegLen))
         LOG_WRN("motionDetect: fmt2jpg() failed"); 
       memcpy(motionJpeg, jpg_buf, motionJpegLen); 
       free(jpg_buf); // releases 128kB in to_jpg.cpp
       jpg_buf = NULL;
+#endif
       xSemaphoreGive(motionSemaphore);
       LOG_VRB("Created changeMap JPEG %d bytes in %lums", motionJpegLen, millis() - dTime);
     }
@@ -323,6 +368,154 @@ void notifyMotion(camera_fb_t* fb) {
   if (tgramUse) keepFrame(fb); // for telegram, wait till filename available
 #endif
 }
+
+/*****************************************************************************************************/
+
+#if INCLUDE_NEW_JPG
+
+// Need to have installed espressif__esp_new_jpeg library
+
+static void jpgReduce(int inWidth, int inHeight, uint8_t downsize, int* outWidth, int* outHeight) {
+  // downsize then round width and height up to the nearest multiple of 8 while preserving the aspect ratio
+  uint8_t roundTo8 = 8; // new width and height must be multiples of 8
+  // Calculate the original aspect ratio 
+  inWidth /= downsize;
+  inHeight /= downsize;
+  float aspectRatio = (float)(inWidth) / inHeight;
+
+  auto roundUpToMultiple = [](int n, int m) {
+    // round n up to the nearest multiple of m
+    return ((n + m - 1) / m) * m;
+  };
+
+  // determine larger dimension
+  int newLarger = inWidth;
+  int newSmaller = inHeight;   
+  if (inWidth < inHeight) {
+    newLarger = inHeight;
+    newSmaller = inWidth;
+  }
+
+  // Round the larger dimension up to the nearest multiple of 8.
+  newLarger = roundUpToMultiple(inWidth, roundTo8);
+  
+  // Calculate the new smaller based on the new larger and original aspect ratio, then round up.
+  newSmaller = (int)(ceil((float)newLarger / aspectRatio));
+  newSmaller = roundUpToMultiple(newSmaller, roundTo8);
+
+  // update the values to return
+  *outWidth = newLarger;
+  *outHeight = newSmaller;
+  if (inWidth < inHeight) {
+    *outWidth = newSmaller;
+    *outHeight = newLarger;
+  }
+}
+
+static bool jpg2rgbOpen(esp_jpeg_stream_handle_t jpegHandle, uint16_t width, uint16_t height) {
+  // configure jpeg handler
+  jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
+  config.output_type = JPEG_PIXEL_FORMAT_RGB888;
+  config.rotate = JPEG_ROTATE_0D;
+  config.scale.width = width;
+  config.scale.height = height;
+  jpegHandle->output_type = JPEG_PIXEL_FORMAT_RGB888;
+
+  // Create jpeg_dec handle
+  jpeg_error_t ret = jpeg_dec_open(&config, &jpegHandle->jpeg_dec);
+  if (ret != JPEG_ERR_OK) {
+    LOG_ERR("Unable to create jpeg decoder handle: %d", ret);
+    return false;
+  }
+
+  // Create io_callback handle
+  jpegHandle->jpeg_io = (jpeg_dec_io_t*)calloc(1, sizeof(jpeg_dec_io_t));
+  if (jpegHandle->jpeg_io == NULL) {
+    LOG_ERR("Insufficient memory to create input handle");
+    jpg2rgbClose(jpegHandle);
+    return false;
+  }
+
+  // Create out_info handle
+  jpegHandle->out_info = (jpeg_dec_header_info_t*)calloc(1, sizeof(jpeg_dec_header_info_t));
+  if (jpegHandle->out_info == NULL) {
+    LOG_ERR("Insufficient memory to create output handle");
+    jpg2rgbClose(jpegHandle);
+    return false;
+  }
+  return true;
+}
+
+static bool jpg2rgb(esp_jpeg_stream_handle_t jpegHandle, uint8_t* inputBuf, int inputLen, uint8_t* outputBuf) {
+  // decode jpeg to rgb888
+  // Set input buffer and buffer len to io_callback
+  jpegHandle->jpeg_io->inbuf = inputBuf;
+  jpegHandle->jpeg_io->inbuf_len = inputLen;
+
+  // Parse jpeg header and get image for decoder
+  jpeg_error_t ret = jpeg_dec_parse_header(jpegHandle->jpeg_dec, jpegHandle->jpeg_io, jpegHandle->out_info);
+  if (ret != JPEG_ERR_OK) {
+    LOG_ERR("Failed to parse jpeg header: %d", ret);
+    return false;
+  }
+
+  // decode jpeg into outputBuf
+  jpegHandle->jpeg_io->outbuf = outputBuf;
+  ret = jpeg_dec_process(jpegHandle->jpeg_dec, jpegHandle->jpeg_io);
+  if (ret != JPEG_ERR_OK) {
+    LOG_ERR("Failed to decode jpeg: %d", ret);
+    return false;
+  }
+  return true;
+}
+
+static bool jpg2rgbClose(esp_jpeg_stream_handle_t jpegHandle) {
+   // remove old stream handles when resolution changes
+  jpeg_error_t ret = jpeg_dec_close(jpegHandle->jpeg_dec);
+  if (jpegHandle->jpeg_io) free(jpegHandle->jpeg_io);
+  if (jpegHandle->out_info) free(jpegHandle->out_info);
+  return ret == JPEG_ERR_OK ? true : false;
+}
+
+size_t rgb2jpg(uint8_t* rgb888, int width, int height, int qual, uint8_t* outputBuf) {
+  // encode rgb888 to jpeg
+  static bool firstCall = true;
+  static jpeg_enc_handle_t jpeg_enc = NULL;
+  static int bufLen = width * height * RGB888_BYTES;
+  jpeg_error_t ret = JPEG_ERR_OK;
+
+  if (firstCall) {
+    firstCall = false;
+    // configure encoder
+    jpeg_enc_config_t jpeg_enc_cfg = DEFAULT_JPEG_ENC_CONFIG();
+    jpeg_enc_cfg.width = width;
+    jpeg_enc_cfg.height = height;
+    jpeg_enc_cfg.src_type = JPEG_PIXEL_FORMAT_RGB888;
+    jpeg_enc_cfg.subsampling = JPEG_SUBSAMPLE_420;
+    jpeg_enc_cfg.quality = qual;
+    jpeg_enc_cfg.rotate = JPEG_ROTATE_0D;
+    jpeg_enc_cfg.task_enable = false;
+    jpeg_enc_cfg.hfm_task_priority = 13;
+    jpeg_enc_cfg.hfm_task_core = 1;
+
+    // open encoder
+    ret = jpeg_enc_open(&jpeg_enc_cfg, &jpeg_enc);
+    if (ret != JPEG_ERR_OK) {
+      LOG_ERR("Failed to open decoder: %d");
+      return 0;
+    }
+  }
+
+  // encoding
+  int jpgLen = 0;
+  ret = jpeg_enc_process(jpeg_enc, rgb888, bufLen, outputBuf, bufLen, &jpgLen);
+  if (ret != JPEG_ERR_OK) LOG_ERR("Failed to encode: %d", ret);
+
+  //jpeg_enc_close(jpeg_enc); // keep open
+  return (size_t)jpgLen;
+}
+
+#else
 
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
 
@@ -420,11 +613,13 @@ static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t sc
   return (res == ESP_OK) ? true : false;
 }
 
-#endif
+#endif // ESP_ARDUINO_VERSION
 
-#else
+#endif // INCLUDE_NEW_JPG
 
+#else 
 // dummies
 bool isNight(uint8_t nightSwitch) {return false;}
 
-#endif
+#endif // CONFIG_IDF_TARGET_ESP32C3
+

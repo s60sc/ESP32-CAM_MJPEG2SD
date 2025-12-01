@@ -120,8 +120,8 @@ static esp_err_t indexHandler(httpd_req_t* req) {
     httpd_resp_sendstr_chunk(req, NULL);
     return ESP_OK;
   } 
-  // Show wifi wizard if not setup, using access point mode (WiFi mode only)
-  if (!fp.exists(INDEX_PAGE_PATH) && netMode == 0 && WiFi.status() != WL_CONNECTED) {
+  // Show wifi wizard if not setup, using access point mode
+  if (!fp.exists(INDEX_PAGE_PATH) && WiFi.status() != WL_CONNECTED) {
     // Open a basic wifi setup page
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
@@ -524,7 +524,7 @@ static esp_err_t customOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err)
   return ESP_FAIL;
 }
 
-void startWebServer() {
+bool startWebServer() {
   esp_err_t res = ESP_FAIL;
   chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE);
 #if INCLUDE_CERTS
@@ -596,6 +596,12 @@ void startWebServer() {
       uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
       LOG_INF("Task httpServer stack space %u", freeStack);
     }
-  } else LOG_WRN("Failed to start web server");
+  } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to start webserver %s",espErrMsg(res));
+  if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   debugMemory("startWebserver");
+  if (strlen(startupFailure)) {
+    LOG_WRN("%s", startupFailure);
+    return false;
+  }
+  return true;
 }

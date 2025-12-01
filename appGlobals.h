@@ -74,6 +74,7 @@
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 #define INCLUDE_RTSP false    // rtsp.cpp (RTSP Streaming). Requires additional library: ESP32-RTSPServer
 #define INCLUDE_DS18B20 false // if true, requires INCLUDE_PERIPH and additional libraries: OneWire and DallasTemperature
+#define INCLUDE_NEW_JPG false // true to use esp_new_jpg library, which must be installed first. Faster but uses more memory
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
 
 // if INCLUDE_I2C true, set each I2C device used to true 
@@ -121,7 +122,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.8.3"
+#define APP_VER "10.8.4"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -162,7 +163,7 @@
 #define ISCAM // cam specific code in generic cpp files
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 33
+#define CFG_VER 34
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -412,7 +413,6 @@ extern bool relayMode;
 // sensors 
 extern int pirPin; // if usePir is true
 extern int lampPin; // if useLamp is true
-extern int wakePin; // if wakeUse is true
 extern int lightsPin;
 extern bool teleUse;
 extern int srtInterval;
@@ -552,22 +552,22 @@ struct frameStruct {
 // and update corresponding frameSizeData[] entries in avi.cpp 
 // https://github.com/espressif/esp32-camera/blob/master/driver/include/sensor.h
 const frameStruct frameData[] = {
-  {"96X96", 96, 96, 30, 1, 1},   // 2MP sensors // PY260
+  {"96X96", 96, 96, 30, 1, 1},     // 2MP sensors // PY260
   {"QQVGA", 160, 120, 30, 1, 1},
   {"128X128", 128, 128, 30, 1, 1}, // PY260
   {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
   {"240X240", 240, 240, 30, 2, 1}, 
-  {"QVGA", 320, 240, 30, 2, 1},  // PY260
-  {"320X320", 320, 320, 30, 2, 1}, // PY260
+  {"QVGA", 320, 240, 30, 2, 1},    // PY260
+  {"320X320", 320, 320, 30, 2, 1}, // PY260 only
   {"CIF", 400, 296, 30, 2, 1},  
   {"HVGA", 480, 320, 30, 2, 1}, 
-  {"VGA", 640, 480, 20, 3, 1},  // PY260
+  {"VGA", 640, 480, 20, 3, 1},     // PY260
   {"SVGA", 800, 600, 20, 3, 1}, 
   {"XGA", 1024, 768, 5, 3, 1},   
-  {"HD", 1280, 720, 5, 3, 1}, // PY260
+  {"HD", 1280, 720, 5, 3, 1},      // PY260
   {"SXGA", 1280, 1024, 5, 3, 1}, 
-  {"UXGA", 1600, 1200, 5, 4, 1},  // PY260
+  {"UXGA", 1600, 1200, 5, 4, 1},   // PY260
   {"FHD", 1920, 1080, 5, 3, 1},    // 3MP Sensors only // PY260
   {"P_HD", 720, 1280, 5, 3, 1},    //
   {"P_3MP", 864, 1536, 5, 3, 1},   //
@@ -576,5 +576,5 @@ const frameStruct frameData[] = {
   {"WQXGA", 2560, 1600, 5, 4, 1},  //
   {"P_FHD", 1080, 1920, 5, 4, 1},  //
   {"QSXGA", 2560, 1920, 4, 4, 1},  //
-  {"5MP", 2592, 1944, 4, 4, 1}     // PY260
+  {"5MP", 2592, 1944, 4, 4, 1}     // PY260 only
 };

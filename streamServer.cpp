@@ -145,7 +145,7 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, hdrBuf);
       if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
       frameCnt++;
-    } 
+    }
     mjpegLen += jpgLen;
     jpgLen = streamBufferSize[taskNum] = 0;
     if (dbgMotion && !taskNum) motionJpegLen = 0;

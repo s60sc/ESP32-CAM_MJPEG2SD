@@ -152,7 +152,7 @@ size_t getFreeStorage();
 uint32_t getFrequency();
 bool getLocalNTP();
 float getNTCcelsius(uint16_t resistance, float oldTemp);
-void goToSleep(int wakeupPin, bool deepSleep);
+void goToSleep(bool deepSleep);
 bool handleWebDav(httpd_req_t* rreq);
 void initStatus(int cfgGroup, int delayVal);
 void killSocket(int skt = -99);
@@ -198,8 +198,7 @@ float smoothSensor(float latestVal, float smoothedVal, float alpha);
 void startOTAtask();
 void startSecTimer(bool startTimer);
 bool startStorage();
-void startWebServer();
-bool startWifi(bool firstcall = true);
+bool startWebServer();
 void stopPing();
 void syncToBrowser(uint32_t browserUTC);
 bool updateConfigVect(const char* variable, const char* value);
@@ -347,6 +346,8 @@ extern const char* failPageE_html;
 extern char startupFailure[];
 extern time_t currEpoch;
 extern bool RCactive;
+extern int wakePin;
+extern int wakeLevel;
 
 extern UBaseType_t uxHighWaterMarkArr[];
 

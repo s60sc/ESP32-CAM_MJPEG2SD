@@ -83,7 +83,7 @@ static void mqtt_connected_handler(void *handler_args, esp_event_base_t base, in
   id = esp_mqtt_client_subscribe(mqtt_client, HASIO_AVAILABILITY, 1);
   if (id == -1){
     LOG_WRN("Mqtt failed to subscribe: %s", HASIO_AVAILABILITY );
-  }else LOG_VRB("Mqtt subscribed: %s", HASIO_AVAILABILITY );
+  } else LOG_VRB("Mqtt subscribed: %s", HASIO_AVAILABILITY );
 #endif 
 }
 
@@ -135,7 +135,7 @@ void sendMqttImage(){
      int id = esp_mqtt_client_publish(mqtt_client, image_topic, picBuff, alertBufferSize, MQTT_QOS, 0);
      LOG_VRB("Sent pic, size: %lu", alertBufferSize );
   }else{
-    LOG_INF("Fail to send image");
+    LOG_WRN("Fail to send image");
   }
 }
 
@@ -200,13 +200,13 @@ static void mqttTask(void* parameter) {
       checkForRemoteQuery();
       if (mqttTaskDelay > 0 ) vTaskDelay(mqttTaskDelay / portTICK_RATE_MS);
     } else { //Disconnected      
-      LOG_WRN("Disconnected wait..");
+      LOG_WRN("Disconnected, wait..");
       vTaskDelay(2000 / portTICK_RATE_MS);
-    }        
-    //xTaskNotifyGive(mqttTaskHandle);    
+    }
   }
   mqttRunning = false;
   LOG_VRB("Mqtt Task exiting..");  
+  mqttTaskHandle = NULL;
   vTaskDelete(NULL);
 }
 
@@ -243,7 +243,7 @@ void startMqttClient(void){
     
   if (!netIsConnected()) {
     mqttConnected = false;
-    LOG_VRB("Wifi disconnected.. Retry mqtt on connect");
+    LOG_VRB("Network disconnected.. Retry mqtt on connect");
     return;
   }
   
@@ -276,10 +276,15 @@ void startMqttClient(void){
   LOG_INF("Mqtt connect to %s...", mqtt_uri);
   //LOG_INF("Mqtt connect pass: %s...", mqtt_user_Pass);
   if (mqtt_client != NULL) {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_CONNECTED, mqtt_connected_handler, NULL));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DISCONNECTED, mqtt_disconnected_handler, NULL));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DATA, mqtt_data_handler, mqtt_client));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_ERROR, mqtt_error_handler, mqtt_client));
+    if ( mqttTaskHandle == NULL ) {
+      ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_CONNECTED, mqtt_connected_handler, NULL));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DISCONNECTED, mqtt_disconnected_handler, NULL));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_DATA, mqtt_data_handler, mqtt_client));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, esp_mqtt_event_id_t::MQTT_EVENT_ERROR, mqtt_error_handler, mqtt_client));
+    } else {
+      vTaskDelete(mqttTaskHandle);
+      mqttTaskHandle = NULL;
+    }
     if (ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_start(mqtt_client)) != ESP_OK) {
       LOG_WRN("Mqtt start failed");
     } else {
