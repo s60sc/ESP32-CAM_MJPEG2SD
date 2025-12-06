@@ -223,7 +223,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "external_heartbeat_domain")) snprintf(external_heartbeat_domain, MAX_HOST_LEN, "%s", value);
   else if (!strcmp(variable, "external_heartbeat_uri")) snprintf(external_heartbeat_uri, FILE_NAME_LEN, "%s", value);
   else if (!strcmp(variable, "external_heartbeat_port")) external_heartbeat_port = intVal;
-  else if (!strcmp(variable, "external_heartbeat_token")) snprintf(external_heartbeat_token, MAX_HOST_LEN, "%s", value);
+  else if (!strcmp(variable, "external_heartbeat_token")) snprintf(external_heartbeat_token, EXTHB_LEN, "%s", value);
 #endif
 
   else if (!strcmp(variable, "useUart")) useUart = (bool)intVal;

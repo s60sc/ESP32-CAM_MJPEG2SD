@@ -6,10 +6,10 @@
 #if INCLUDE_EXTHB
 
 // External Heartbeat
-char external_heartbeat_domain[32] = "";  //External Heartbeat domain/IP  
+char external_heartbeat_domain[MAX_HOST_LEN] = "";  //External Heartbeat domain/IP  
 char external_heartbeat_uri[64] = "";     //External Heartbeat uri (i.e. /myesp32-cam-hub/index.php)
 int external_heartbeat_port;              //External Heartbeat server port to connect.  
-char external_heartbeat_token[32] = "";   //External Heartbeat server username.  
+char external_heartbeat_token[EXTHB_LEN] = "";   //External Heartbeat server username.  
 
 bool external_heartbeat_active = false;
 
@@ -22,7 +22,7 @@ void sendExternalHeartbeat() {
   // external_heartbeat_token~~2~T~Heartbeat receiver auth token
   
   // POST to external heartbeat address
-  char uri[104] = "";
+  char uri[64 + 10 + EXTHB_LEN] = "";
   strcpy(uri, external_heartbeat_uri);
   strcat(uri, "?token=");
   strcat(uri, external_heartbeat_token);

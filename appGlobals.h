@@ -122,7 +122,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.8.4"
+#define APP_VER "10.8.5"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -151,6 +151,7 @@
 #define MAX_FRAME_WAIT 1200
 #define RGB888_BYTES 3 // number of bytes per pixel
 #define GRAYSCALE_BYTES 1 // number of bytes per pixel 
+#define EXTHB_LEN 64
 
 #ifdef NO_SD
 #define STORAGE LittleFS
