@@ -144,9 +144,9 @@ static void openAvi() {
 
 static inline bool doMonitor(bool capturing) {
   // monitor incoming frames for motion
-  static uint8_t motionCnt = 0;
+  static uint16_t motionCnt = 0;
   // ratio for monitoring stop during capture / movement prior to capture
-  uint8_t checkRate = (capturing) ? FPS * moveStopSecs : FPS / moveStartChecks;
+  uint16_t checkRate = (capturing) ? FPS * moveStopSecs : FPS / moveStartChecks;
   if (!checkRate) checkRate = 1;
   if (++motionCnt / checkRate) motionCnt = 0; // time to check for motion
   return !(bool)motionCnt;
