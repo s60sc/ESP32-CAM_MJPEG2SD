@@ -1,7 +1,7 @@
 
 <!DOCTYPE html>
 <!-- 
-  s60sc 2022, 2023
+  s60sc 2022, 2023, 2025
   with ideas from @marekful
 -->
 <html>
@@ -59,7 +59,7 @@
       }
 
       .hidden {
-        display: none;
+        display: none !important;
       }
 
       progress {
@@ -251,7 +251,7 @@
         font-weight:bold;
         color: var(--inputText);
         background: var(--inputBackground);
-        min-width: calc(var(--buttonSize) * 10);       
+        min-width: calc(var(--buttonSize) * 10);
       }
 
       input[type="radio"], input[type="checkbox"], progress {
@@ -300,6 +300,7 @@
         border:2px solid var(--itemBorder);
         overflow:auto;
         background: var(--inputBackground);
+        white-space: pre-wrap;   /* preserves spaces, tabs, and newlines */
       }
 
       select {
@@ -908,7 +909,7 @@
       <section id="main">
         <nav id="maintoolbar">
           <ul class="navtop">
-            <li><span id="recording-indicator" style="float: right; display: none;"></span></li>
+            <li><span id="recording-indicator" class="hidden" style="float: right; display: none;"></span></li>
             <li><button id="forceRecord" style="float:right;">➤&nbsp;Start Recording</button></li>   
             <li><div class="sep"></div></li>
             <li><button id="forceStream" class="local" style="float:right;">➤&nbsp;Start Stream</button></li>
@@ -1508,16 +1509,15 @@
     <div id="ShowLog" class="tabcontent">
       <br>
       <div class="grid-cols4">
-        <div class="input-group" style="grid-column: span 2; grid-row: span 2">
+        <div class="input-group" style="grid-column: span 1; grid-row: span 3">
           <fieldset> 
           <legend id="selectLog">Select Log</legend> 
           <div>
             <label title="Display RTC RAM log" for="rtcram">RTC RAM</label>
             <input class="local" id="rtcram" type="radio" name="logType" value="0" checked>
-            <label title="Display Websocket log" for="websock">&nbsp;Websocket</label>
-            <input class="local" id="websock" type="radio" name="logType" value="1">
+            <br>
             <label title="Display SD Card log" for="sdcard">&nbsp;SD Card</label>
-            <input class="local" id="sdcard" type="radio" name="logType" value="2">
+            <input class="local" id="sdcard" type="radio" name="logType" value="1">
           </div>
           </fieldset>
         </div>
@@ -1530,6 +1530,7 @@
             <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
           </div>
         </div>
+        <br>
         <div class="input-group" id="dbg-group" style="text-align: left">
           <label for="sdLog" class="header" title="Enable logging to sd card">Log to SD:</label>
         </div> 
@@ -1538,6 +1539,12 @@
             <input id="sdLog" type="checkbox">
             <label title="Outputs log to SD card" class="slider" for="sdLog"></label>
           </div> 
+        </div>
+        <div>
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text id="showsys" class="midText">System</text>
+          </svg>
         </div>
         <div style="grid-column: span 4"><br></div>
         <div>
@@ -1700,8 +1707,6 @@
       let firstCall = true;
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
-      const appLogInit = 0;
-      const appHub = '/control?still=';
 
       let view;
       let viewContainer;
@@ -1787,7 +1792,7 @@
           else if (key == "download" && $("#download").value.includes('.')) doDownload();
           else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
           else if (key == "devHub") {value == "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]')); }
-          else if (key == "AuxIP") { wsAux(value); return; }
+          else if (key == "AuxIP") wsAux(value);
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
           else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
           else if (key == "agc") setAgc(key, value);
@@ -2314,7 +2319,6 @@
           // start rc control
           show($('#RCdisplay')) 
           RCmode = true;
-          loggingOn = false;
           await sleep(50); // allow websocket to start
           doLoadStatus = false;
         } else stopRC();
@@ -2336,7 +2340,6 @@
           } catch(error) { alert("No connection to " + wsServers[wsInd]); }
           RCmode = false; 
         }
-        if (logType == 1) loggingOn = true;
       }
 
       function resetButton(buttonId) {
@@ -2553,6 +2556,7 @@
       const doRefreshTimer = true;
       const doCustomSync = false;
       const doHeartbeat = true;
+      const doInitSSE = false;
 
       const scriptFiles = ['/web?common.js', '../../CommonMaster/Latest/common.js']; 
       for (let i = 0; i < scriptFiles.length; i++) {

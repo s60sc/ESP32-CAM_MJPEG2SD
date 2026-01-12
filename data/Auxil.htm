@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <!-- 
   s60sc 2022
+                           
 -->
 <html>
   <head>
@@ -298,6 +299,7 @@
         border:2px solid var(--itemBorder);
         overflow:auto;
         background: var(--inputBackground);
+        white-space: pre-wrap;   /* preserves spaces, tabs, and newlines */
       }
       
       select {
@@ -832,48 +834,22 @@
                   <br>
                   <div class="subheader">Clock settings</div>
                   <div class="input-group" id="time-group">
-                    <label for="timezone">Time zone</label>
+                    <label for="timezone">Time Zone</label>
                     <input id="timezone" name="timezone" length=64 placeholder="Time zone string">
                   </div>
                   <div class="input-group" id="time-group">
-                    <label for="timezoneSel">Time zone select</label>
-                    <select id="timezoneSel" name="timezoneSel" class="selectField">
-                      <option value="" selected>&nbsp;-- Select --</option>
-                      <option value="EET-2EEST-3,M3.5.0/03:00:00,M10.5.0/04:00:00">Europe/Athens</option>
-                      <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/Belfast</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin</option>
-                      <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Paris</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Rome</option>
-                      <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Zurich</option>
-                      <option value="<-12>12">GMT-12:00</option>
-                      <option value="<-11>11">GMT-11:00</option>
-                      <option value="<-10>10">GMT-10:00</option>
-                      <option value="<-09>9">GMT-9:00</option>
-                      <option value="<-08>8">GMT-8:00</option>
-                      <option value="<-07>7">GMT-7:00</option>
-                      <option value="<-06>6">GMT-6:00</option>
-                      <option value="<-05>5">GMT-5:00</option>
-                      <option value="<-04>4">GMT-4:00</option>
-                      <option value="<-03>3">GMT-3:00</option>
-                      <option value="<-02>2">GMT-2:00</option>
-                      <option value="<-01>1">GMT-1:00</option>
-                      <option value="GMT0">GMT+0:00</option>
-                      <option value="<+01>-1">GMT+1:00</option>
-                      <option value="<+02>-2">GMT+2:00</option>
-                      <option value="<+03>-3">GMT+3:00</option>
-                      <option value="<+04>-4">GMT+4:00</option>
-                      <option value="<+05>-5">GMT+5:00</option>
-                      <option value="<+06>-6">GMT+6:00</option>
-                      <option value="<+07>-7">GMT+7:00</option>
-                      <option value="<+08>-8">GMT+8:00</option>
-                      <option value="<+09>-9">GMT+9:00</option>
-                      <option value="<+10>-10">GMT+10:00</option>
-                      <option value="<+11>-11">GMT+11:00</option>
-                      <option value="<+12>-12">GMT+12:00</option>                                  
+                    <label for="regionSel">Select Region</label>
+                    <select id="regionSel" name="regionSel" class="selectField local">
+                      <option value="" selected>Loading...</option>
                     </select>
                   </div>
-                  <br>                          
+                  <div class="input-group" id="time-group">
+                    <label for="timezoneSel">Select Location</label>
+                    <select id="timezoneSel" name="timezoneSel" class="selectField">
+                      <option value="" selected>Loading...</option>
+                    </select>
+                  </div>
+                  <br>
                   <div class="subheader">FTP / HTTPS settings</div>
                   <div class="input-group" id="ftp-group">
                     <label for="fsServer">File Server</label>
@@ -1012,19 +988,6 @@
     <div id="ShowLog" class="tabcontent">
       <br>
       <div class="grid-cols4">
-        <div class="input-group" style="grid-column: span 2; grid-row: span 2">
-          <fieldset> 
-          <legend id="selectLog">Select Log</legend> 
-          <div>
-            <label title="Display RTC RAM log" for="rtcram">RTC RAM</label>
-            <input class="local" id="rtcram" type="radio" name="logType" value="0" checked>
-            <label title="Display Websocket log" for="websock">&nbsp;Websocket</label>
-            <input class="local" id="websock" type="radio" name="logType" value="1">
-            <label title="Display SD Card log" for="sdcard">&nbsp;SD Card</label>
-            <input class="local" id="sdcard" type="radio" name="logType" value="2">
-          </div>
-          </fieldset>
-        </div>
         <div class="input-group" id="dbg-group" style="text-align: left">
           <label for="dbgVerbose" class="header" title="Set verbose logging">Verbose:</label>
         </div>
@@ -1034,14 +997,12 @@
             <label title="Outputs additional information to log" class="slider" for="dbgVerbose"></label>
           </div>
         </div>
-        <div class="input-group" id="dbg-group" style="text-align: left">
-          <label for="sdLog" class="header" title="Enable logging to sd card">Log to SD:</label>
-        </div> 
-        <div class="input-group" id="dbg-group" style="text-align: right">
-          <div class="switch">
-            <input id="sdLog" type="checkbox">
-            <label title="Outputs log to SD card" class="slider" for="sdLog"></label>
-          </div> 
+        <br>
+        <div>
+          <svg>
+            <rect class="buttonRect" tabindex="0"/>
+            <text id="showsys" class="midText">System</text>
+          </svg>
         </div>
         <div style="grid-column: span 4"><br></div>
         <div>
@@ -1159,7 +1120,6 @@
       let firstCall = true;
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
-      const appLogInit = 0;
       let RCmode = false;
       let showRC = false;  
       let wsInd = 0;
@@ -1210,8 +1170,9 @@
           else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
           else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
           else if (key == "waitTime") waitTime = value;
-          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend(wsInd, "G1"); }
-          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend(wsInd, "G0"); }
+          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend("G1", wsInd); }
+          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); }
+          else if (key == "AuxIP") return; // ignored
           else if (key == 'save') await sleep(600); // allow last input to debounce
           if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
         } 
@@ -1223,7 +1184,7 @@
       }
 
       /************** menu functions ****************/
-      
+
       function changeRange(id, min, max, val, isX = false) {
         // set parameters for range slider
         const range = $('#'+id);
@@ -1284,6 +1245,7 @@
       function closedTab(isClosed) {}
       
       /************** RC ****************/
+      
       function updateMaxSteerAngle(val) {
         if (maxSteerAngle != val) maxSteerAngle = val;
       }
@@ -1292,7 +1254,7 @@
         if (maxDutyCycle != val || force) maxDutyCycle = val;
       }
       
-      function wsAuxSend(index, msg) {
+      function wsAuxSend(msg, index) {
         if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[wsInd].send(msg);
         else alert("Lost connection to " + wsServers[wsInd]);
       }
@@ -1301,13 +1263,14 @@
       
       // config for common script - leave as is
       const doCustomInit = false;
-      const doInitWebSocket = true;
+      const doInitWebSocket = false;
       let doLoadStatus = true;
       const doRefreshTimer = false;
       const doCustomSync = false;
       const doHeartbeat = false;
+      const doInitSSE = true;
 
-      const scriptFiles = ['/web?common.js', 'C:/MyStuff/Arduino/CommonMaster/Latest/common.js']; 
+      const scriptFiles = ['/web?common.js', '../../CommonMaster/Latest/common.js'];
       for (let i = 0; i < scriptFiles.length; i++) {
         const scriptElement = document.createElement('script');
         scriptElement.src = scriptFiles[i];
