@@ -27,7 +27,7 @@ static void stopRC();
 bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   // update vars from browser input
   esp_err_t res = ESP_OK; 
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
   sensor_t* s = esp_camera_sensor_get();
 #endif
   int intVal = atoi(value);
@@ -56,7 +56,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "enableMotion")) {
     // Turn on/off motion detection 
     useMotion = (intVal) ? true : false; 
-    LOG_INF("%s motion detection", useMotion ? "Enabling" : "Disabling");
+    LOG_INF("%s motion detection by camera", useMotion ? "Enabling" : "Disabling");
   }
   else if (!strcmp(variable, "timeLapseOn")) timeLapseOn = intVal;
   else if (!strcmp(variable, "dashCamOn")) {
@@ -72,7 +72,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
 #endif
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
-#endif
+#endif // AUXILIARY
 #if INCLUDE_FTP_HFS
   else if (!strcmp(variable, "upload")) fsStartTransfer(value); 
 #endif
@@ -98,7 +98,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "lampType")) {
     lampType = intVal;
     lampAuto = lampNight = false;
-    if (lampType == 1) lampAuto = true; // lamp activated by PIR
+    if (lampType == 1) lampAuto = true; // lamp activated by motion detector device
     if (!lampType) setLamp(lampLevel); 
     else setLamp(0); 
   }
@@ -130,6 +130,8 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #if INCLUDE_I2C
   else if (!strcmp(variable, "I2Csda")) I2Csda = intVal;
   else if (!strcmp(variable, "I2Cscl")) I2Cscl = intVal;
+  else if (!strcmp(variable, "accelUse")) accelUse = (bool)intVal;
+  else if (!strcmp(variable, "accelDeg")) accelDeg = intVal;
 #endif
 #if INCLUDE_AUDIO
   else if (!strcmp(variable, "micRem")) {
@@ -196,7 +198,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
   else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
   else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
-#endif
+#endif // INCLUDE_PERIPH
 #if (INCLUDE_PGRAM && INCLUDE_PERIPH)
   else if (!strcmp(variable, "stepIN1pin")) setStepperPin((uint8_t)intVal, 0);
   else if (!strcmp(variable, "stepIN2pin")) setStepperPin((uint8_t)intVal, 1);
@@ -288,7 +290,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
     else if (!strcmp(variable, "ae_level")) res = s->set_ae_level(s, intVal);
     else return false;
   }
-#endif
+#endif // AUXILIARY
   else return false;
   if (res != ESP_OK && fromUser) LOG_WRN("Value %d for setting %s not supported for camera type %s", intVal, variable, camModel);
   return true;
@@ -322,34 +324,19 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, jsonBuff);
   } 
-  else if (!strcmp(variable, "still")) {
-    // send single jpeg to browser
+  else if (!strcmp(variable, "still") || !strcmp(variable, "hub")) {
+    // send single jpeg to browser (local or hub)
     uint32_t startTime = millis();
     doKeepFrame = true;
     while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) delay(100);
     if (!doKeepFrame && alertBufferSize) {
       httpd_resp_set_type(req, "image/jpeg");
       httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-      httpd_resp_send(req, (const char*)alertBuffer, alertBufferSize);   
+      httpd_resp_send(req, (const char*)alertBuffer, alertBufferSize);
       uint32_t jpegTime = millis() - startTime;
       LOG_INF("JPEG: %uB in %ums", alertBufferSize, jpegTime);
       alertBufferSize = 0;
     } else LOG_WRN("Failed to get still");
-  } 
-  else if (!strcmp(variable, "svg")) {
-    // build svg image for use by another app's hub instead of image
-    const char* svgHtml = R"~(
-        <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-          <rect width="100%" height="100%" fill="lightgray"/>
-          <text x="50%" y="50%" text-anchor="middle" alignment-baseline="middle" font-size="30">
-    )~";
-    
-    httpd_resp_set_type(req, "image/svg+xml");
-    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.svg");
-    httpd_resp_sendstr_chunk(req, svgHtml);
-    httpd_resp_sendstr_chunk(req, "MJPE2SD");
-    httpd_resp_sendstr_chunk(req, "°C</text></svg>");
-    httpd_resp_sendstr_chunk(req, NULL);
   } 
   else if (!strcmp(variable, "formatSD")) {
     if (formatSDcard()) doRestart("user requested format of SD card");
@@ -477,12 +464,6 @@ void buildAppJsonString(bool filter) {
   float currentVoltage = readVoltage();
   if (currentVoltage < 0) p += sprintf(p, "\"battv\":\"n/a\",");
   else p += sprintf(p, "\"battv\":\"%0.1fV\",", currentVoltage); 
-  if (forcePlayback && !doPlayback) {
-    // switch off playback 
-    forcePlayback = false;
-    p += sprintf(p, "\"forcePlayback\":0,");  
-  }
-  p += sprintf(p, "\"showRecord\":%u,", (uint8_t)((isCapturing && doRecording) || forceRecord));
   p += sprintf(p, "\"camModel\":\"%s\",", camModel);
 #if INCLUDE_PERIPH
   p += sprintf(p, "\"SVactive\":\"%d\",", SVactive); 
@@ -511,7 +492,7 @@ void buildAppJsonString(bool filter) {
 #endif
   p += sprintf(p, "\"sustainId\":\"%u\",", sustainId);     
   // Extend info
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
   uint8_t cardType = 99; // not MMC
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) cardType = SD_MMC.cardType();
   if (cardType == CARD_NONE) p += sprintf(p, "\"card\":\"%s\",", "NO card");
@@ -607,7 +588,9 @@ void currentStackUsage() {
 #if INCLUDE_SMTP
   checkStackUse(emailHandle, 2);
 #endif
+#if INCLUDE_FTP
   checkStackUse(fsHandle, 3);
+#endif
   checkStackUse(logHandle, 4);
 #if INCLUDE_AUDIO
   checkStackUse(audioHandle, 5);
@@ -663,7 +646,7 @@ static void heartBeatTask (void *pvParameter) {
 void startHeartbeat() {
   // start heartbeat to check websocket and / or uart connectivity for RC control
   if (RCactive || useUart) {
-    if (heartBeatHandle == NULL) xTaskCreate(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle);
+    if (heartBeatHandle == NULL) xTaskCreateWithCaps(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle, HEAP_MEM);
   }
 }
 #endif 
@@ -916,7 +899,9 @@ sdMinCardFreeSpace~100~2~N~Min free MBytes on SD before action
 sdFreeSpaceMode~1~2~S:No Check:Delete oldest:Ftp then delete~Action mode on SD min free
 formatIfMountFailed~0~2~C~Format file system on failure
 pirUse~0~3~C~Use PIR for detection
-lampType~0~3~S:Manual:PIR~How lamp activated
+accelUse~0~3~C~Use I2C accelerometer for detection
+accelDeg~5~3~N~Min accelerometer degrees movement
+lampType~0~3~S:Manual:Auto~How lamp activated
 SVactive~0~3~C~Enable servo use
 pirPin~~3~N~Pin used for PIR
 lampPin~~3~N~Pin used for Lamp
@@ -966,7 +951,7 @@ motorRevPinR~~4~N~Pin used for right track reverse
 motorFwdPinR~~4~N~Pin used for right track forward
 lightsRCpin~~4~N~Pin used for RC lights output
 heartbeatRC~5~4~N~RC connection heartbeat time (secs)
-AuxIP~~3~T~Send RC / Servo / PG commands to auxiliary IP
+AuxIP~~3~T~Send RC / Servo / PG commands to Auxiliary IP
 stickXpin~~4~N~Pin used for joystick steering
 stickYpin~~4~N~Pin used for joystick motor
 stickzPushPin~~4~N~Pin used for joystick lights

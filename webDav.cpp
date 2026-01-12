@@ -1,5 +1,5 @@
 
-/*  
+/*
   Using the WebDAV server:
     Windows 10:
     - Windows file explorer, in address bar enter: <ip_address>/webdav

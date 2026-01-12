@@ -6,7 +6,7 @@
 // - base64 encoding
 // - device sleep
 //
-// s60sc 2021, 2023
+// s60sc 2021, 2023, 2025
 // some functions based on code contributed by gemi254
 
 #include "appGlobals.h"
@@ -29,6 +29,7 @@ int wakeLevel; // if wakeUse is true
 bool wakeUse = false; // true to allow app to sleep and wake
 char* jsonBuff = NULL;
 char portFwd[6] = "";
+UBaseType_t HEAP_MEM; // allow some task stacks to use psram if available
 
 /************************** Network (WiFi/Ethernet) **************************/
 
@@ -280,12 +281,13 @@ static bool startEth() {
 
     // Apply static IP to Ethernet if configured in existing fields
     if (strlen(ST_ip) > 1) {
-      IPAddress _ip, _gw, _sn, _ns1;
+      IPAddress _ip, _gw, _sn, _ns1, _ns2;
       if (_ip.fromString(ST_ip)) {
         _gw.fromString(ST_gw);
         _sn.fromString(ST_sn);
         _ns1.fromString(ST_ns1);
-        ETH.config(_ip, _gw, _sn, _ns1);
+        _ns2.fromString(ST_ns2);
+        ETH.config(_ip, _gw, _sn, _ns1, _ns2);
         LOG_INF("Ethernet set static IP");
       } else LOG_WRN("Failed to parse Ethernet static IP: %s", ST_ip);
     }
@@ -710,7 +712,7 @@ void showProgress(const char* marker) {
   logPrint(marker); // progress marker
   if (++dotCnt >= DOT_MAX) {
     dotCnt = 0;
-    logLine();
+    logPrint("\n");
   }
 }
 
@@ -816,6 +818,27 @@ char* fmtSize (uint64_t sizeVal) {
   return returnStr;
 }
 
+char* trim(char* str) {
+  // trim whitespace around string
+    char* start = str;
+    char* end;
+    // Trim leading whitespace
+    while (*start && isspace((unsigned char)*start)) start++;
+    if (*start == '\0') {
+        *str = '\0';
+        return str;
+    }
+    // Trim trailing whitespace
+    end = start + strlen(start) - 1;
+    while (end > start && isspace((unsigned char)*end)) end--;
+    *(end + 1) = '\0';
+    // Shift string back to original buffer if needed
+    if (start != str) memmove(str, start, end - start + 2);
+    return str;
+}
+
+/********************** analog functions ************************/
+
 uint16_t smoothAnalog(int analogPin, int samples) {
   // get averaged analog pin value 
   uint32_t level = 0; 
@@ -881,18 +904,16 @@ float readInternalTemp() {
 static va_list arglist;
 static char fmtBuf[MAX_OUT];
 static char outBuf[MAX_OUT];
-char alertMsg[MAX_OUT];
 TaskHandle_t logHandle = NULL;
 static SemaphoreHandle_t logSemaphore = NULL;
 static SemaphoreHandle_t logMutex = NULL;
 static int logWait = 100; // ms
 bool useLogColors = false;  // true to colorise log messages (eg if using idf.py, but not arduino)
-bool wsLog = false;
 
 #define WRITE_CACHE_CYCLE 5
 
 bool sdLog = false; // log to SD
-int logType = 0; // which log contents to display (0 : ram, 1 : sd, 2 : ws)
+int logType = 0; // which log contents to display (0 : ram, 1 : sd)
 static FILE* log_remote_fp = NULL;
 static uint32_t counter_write = 0;
 
@@ -951,12 +972,12 @@ static void remote_log_init_SD() {
 
 void reset_log() {
   if (logType == 0) ramLogClear();
-  if (logType == 2) {
+  if (logType == 1) {
     if (log_remote_fp != NULL) flush_log(true); // Close log file
     STORAGE.remove(LOG_FILE_PATH);
     remote_log_init_SD();
   }
-  if (logType != 1) LOG_INF("Cleared %s log file", logType == 0 ? "RAM" : "SD"); 
+  LOG_INF("Cleared %s log file", logType == 0 ? "RAM" : "SD"); 
 }
 
 void remote_log_init() {
@@ -988,30 +1009,29 @@ void logPrint(const char *format, ...) {
     outBuf[MAX_OUT - 2] = '\n'; 
     outBuf[MAX_OUT - 1] = 0; // ensure always have ending newline
     xSemaphoreTake(logSemaphore, portMAX_DELAY); // wait for logTask to complete
-    // output to monitor console if attached
+
+    // output message to various recipients
     size_t msgLen = strlen(outBuf);
-    if (outBuf[msgLen - 2] == '~') {
-      // set up alert message for browser using SSE
-      outBuf[msgLen - 2] = ' '; // remove '~'
-      snprintf(alertMsg, MAX_OUT - 1, "event: alert\ndata: %s%s", outBuf, SSESEP);
-      sendSSE(alertMsg);
-      alertMsg[0] = 0;
-    }
-    ramLogStore(msgLen); // store in rtc ram 
-    if (monitorOpen) Serial.print(outBuf); 
-    else delay(10); // allow time for other tasks
-    if (sdLog) {
-      if (log_remote_fp != NULL) {
-        // output to SD if file opened
-        fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
-        // periodic sync to SD
-        if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
-      } 
-    }
-    // output to web socket if open
     if (msgLen > 1) {
-      outBuf[msgLen - 1] = 0; // lose final '/n'
-      if (wsLog) wsAsyncSendText(outBuf);
+#ifdef AUXILIARY
+      sendSSE("log", outBuf);
+#else
+      wsAsyncSendText(outBuf); // output to browser over web socket
+#endif
+      if (outBuf[msgLen - 2] == '~') outBuf[msgLen - 2] = ' '; // remove '~' if present
+    }
+    if (monitorOpen) Serial.print(outBuf); // output to monitor console if attached
+    else delay(10); // allow time for other tasks
+    if (msgLen > 1) {
+      ramLogStore(msgLen); // store in rtc ram 
+      if (sdLog) {
+        if (log_remote_fp != NULL) {
+          // output to SD if file opened
+          fwrite(outBuf, sizeof(char), msgLen, log_remote_fp); // log.txt
+          // periodic sync to SD
+          if (counter_write++ % WRITE_CACHE_CYCLE == 0) fsync(fileno(log_remote_fp));
+        } 
+      }
     }
     xSemaphoreGive(logMutex);
   } 
@@ -1032,13 +1052,13 @@ int vprintfRedirect(const char* format, va_list args) {
 void logSetup() {
   // prep logging environment
   if (logMutex == NULL) {
+    HEAP_MEM = psramFound() ? MALLOC_CAP_SPIRAM : MALLOC_CAP_DMA;
     set_arduino_panic_handler(appPanicHandler, NULL);
     Serial.begin(115200);
     Serial.setDebugOutput(DBG_ON);
     printf("\n\n");
     if (DEBUG_MEM) printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
-    if (DBG_ON) esp_log_level_set("*", DBG_LVL);
-    else esp_log_level_set("*", ESP_LOG_NONE); // suppress esp log messages
+    (DBG_ON) ? esp_log_level_set("*", DBG_LVL) : esp_log_level_set("*", ESP_LOG_NONE); // suppress esp log m+essages
     esp_log_set_vprintf(vprintfRedirect); // redirect esp_log output to app log
     if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log %s", (brownoutStatus == 'B' || brownoutStatus == 'R') ? "(brownout)" : " ");
     crashLoop = MAGIC_NUM;
@@ -1046,18 +1066,16 @@ void logSetup() {
     logMutex = xSemaphoreCreateMutex(); // control access to log formatter
     xSemaphoreGive(logSemaphore);
     xSemaphoreGive(logMutex);
-    xTaskCreate(logTask, "logTask", LOG_STACK_SIZE, NULL, LOG_PRI, &logHandle);
+    xTaskCreateWithCaps(logTask, "logTask", LOG_STACK_SIZE, NULL, LOG_PRI, &logHandle, HEAP_MEM);
     if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
     logPrint("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
     LOG_INF("Setup RAM based log, size %u, starting from %u", RAM_LOG_LEN, mlogEnd);
     initBrownout();
     prepInternalTemp();
     boardInfo();
-    if (DBG_ON) printPartitionTable();
     LOG_INF("Compiled with arduino-esp32 v%s", ESP_ARDUINO_VERSION_STR);
     wakeupResetReason();
-    if (alertBuffer == NULL) alertBuffer = psramFound() ? (byte*)ps_malloc(maxAlertBuffSize) : (byte*)malloc(maxAlertBuffSize); 
-    if (jsonBuff == NULL) jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
+     if (jsonBuff == NULL) jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN); 
     if (!DBG_ON) esp_log_level_set("*", ESP_LOG_ERROR); // show ESP_LOG_ERROR messages during init
     debugMemory("logSetup");
   }
@@ -1135,13 +1153,14 @@ static void statsTask(void *arg) {
   #define STATS_INTERVAL      30000 // ms
   #define ARRAY_SIZE_OFFSET   40   // Increase this if ESP_ERR_INVALID_SIZE
 
+  bool onceOnly = *(bool*)arg; 
   static configRUN_TIME_COUNTER_TYPE prevRunCounter = 0;
   esp_err_t ret = ESP_OK;  
   TaskStatus_t *statsArray = NULL;
   UBaseType_t statsArraySize;
   configRUN_TIME_COUNTER_TYPE runCounter;
-      
-  while (true) {
+  
+  do {
     delay(STATS_INTERVAL);
 
     do { // fake loop for breaks
@@ -1181,15 +1200,17 @@ static void statsTask(void *arg) {
     prevRunCounter = runCounter;
     free(statsArray);
     if (ret != ESP_OK) LOG_WRN("Failed to start task monitoring %s", espErrMsg(ret));
-  }
+  } while (!onceOnly);
+  vTaskDelete(NULL);
 }
 
-void runTaskStats() {
+void runTaskStats(bool _onceOnly) {
   // invoke task stats monitoring
+  static bool onceOnly = _onceOnly;
   // Allow other core to finish initialization
   vTaskDelay(pdMS_TO_TICKS(100));
   // Create and start stats task
-  xTaskCreatePinnedToCore(statsTask, "statsTask", 4096, NULL, STATS_TASK_PRIO, NULL, tskNO_AFFINITY);
+  xTaskCreatePinnedToCore(statsTask, "statsTask", 4096, &onceOnly, STATS_TASK_PRIO, NULL, tskNO_AFFINITY);
 }
 #endif
 
@@ -1197,10 +1218,7 @@ void checkMemory(const char* source) {
   LOG_INF("%s Free: heap %u, block: %u, min: %u, pSRAM %u", strlen(source) ? source : "Setup", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
   if (ESP.getFreeHeap() < WARN_HEAP) LOG_WRN("Free heap only %u, min %u", ESP.getFreeHeap(), ESP.getMinFreeHeap());
   if (ESP.getMaxAllocHeap() < WARN_ALLOC) LOG_WRN("Max allocatable heap block is only %u", ESP.getMaxAllocHeap());
-  if (!strlen(source) && DEBUG_MEM) {
-    printGpioInfo();
-    runTaskStats();
-  }
+  if (!strlen(source) && DEBUG_MEM) runTaskStats();
 }
 
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx) {
@@ -1428,26 +1446,27 @@ static void printGpioInfo() {
     peripheral_bus_type_t type = perimanGetPinBusType(i);
     if (type == ESP32_BUS_TYPE_INIT) continue;  //unused pin
 
+    char gpioInf[100];
+    char* p = gpioInf;
 #if defined(BOARD_HAS_PIN_REMAP)
     int dpin = gpioNumberToDigitalPin(i);
     if (dpin < 0) continue;  //pin is not exported
-    else logPrint("  D%-3d|%4u : ", dpin, i);
+    else p+= sprintf(p, "  D%-3d|%4u : ", dpin, i);
 #else
-    logPrint("  %4u : ", i);
+    p+= sprintf(p, "  %4u : ", i);
 #endif
     const char *extra_type = perimanGetPinBusExtraType(i);
-    if (extra_type) logPrint("%s", extra_type);
-    else logPrint("%s", perimanGetTypeName(type));
+    if (extra_type) p+= sprintf(p, "%s", extra_type);
+    else p+= sprintf(p, "%s", perimanGetTypeName(type));
     int8_t bus_number = perimanGetPinBusNum(i);
-    if (bus_number != -1) logPrint("[%u]", bus_number);
+    if (bus_number != -1) p+= sprintf(p, "[%u]", bus_number);
 
     int8_t bus_channel = perimanGetPinBusChannel(i);
-    if (bus_channel != -1) logPrint("[%u]", bus_channel);
-    logLine();
+    if (bus_channel != -1) p+= sprintf(p, "[%u]", bus_channel);
+    *p = 0;
+    logPrint("%s\n", gpioInf);
   }
-  logLine();
 }
-
 
 // display partition map
 const char* partitionTypeToStr(uint8_t type) {
@@ -1488,8 +1507,8 @@ const char* partitionSubtypeToStr(uint8_t type, uint8_t subtype) {
 
 static void printPartitionTable() {
   // print all partitions
-  LOG_INF("%-12s %-6s %-12s %-10s %-12s %-10s", "Partition", "Type", "Subtype", "Address", "Size", "Encrypted");
-  LOG_INF("-----------------------------------------------------------------");
+  logPrint("%-12s %-6s %-12s %-10s %-12s %-10s", "Partition", "Type", "Subtype", "Address", "Size", "Encrypted\n");
+  logPrint("-----------------------------------------------------------------\n");
 
   // Get iterator for all partitions
   esp_partition_iterator_t iter = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
@@ -1505,11 +1524,26 @@ static void printPartitionTable() {
     const char* typeStr = partitionTypeToStr(part->type);
     const char* subtypeStr = partitionSubtypeToStr(part->type, part->subtype);
     const char* label = part->label;
-    LOG_INF("%-12s %-6s %-12s 0x%08lX %-12s %-10s",
+    logPrint("%-12s %-6s %-12s 0x%08lX %-12s %-10s\n",
       label, typeStr, subtypeStr, part->address, fmtSize(part->size), part->encrypted ? "Yes" : "No");
     iter = esp_partition_next(iter);
   } while (iter != NULL);
 
   // Free iterator
   esp_partition_iterator_release(iter);
+}
+
+void showSys() {
+  // output system details to web log
+  logLine();
+  boardInfo();
+  logPrint("\n%s v%s, arduino-esp32 v%s\n", APP_NAME, APP_VER, ESP_ARDUINO_VERSION_STR);
+  logLine();
+  printPartitionTable();
+  logLine();
+  printGpioInfo();
+  logLine();
+  runTaskStats(true);
+  logLine();
+  //gpio_dump_io_configuration(stdout, SOC_GPIO_VALID_GPIO_MASK);
 }

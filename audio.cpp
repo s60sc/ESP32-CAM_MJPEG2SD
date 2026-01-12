@@ -265,7 +265,7 @@ static void VCactions() {
 
   // enum audioAction defined in appGlobals.h
   switch (THIS_ACTION) {
-    case RECORD_ACTION: 
+    case RECORD_ACTION:
       if (micRem) wsAsyncSendText("#M1");
       if (micUse || micRem) makeRecording();
     break;
@@ -460,7 +460,7 @@ void prepAudio() {
   // Audio task only needed for esp microphone
   if (!micUse) return;
 #endif
-  if (audioHandle == NULL) xTaskCreate(audioTask, "audioTask", AUDIO_STACK_SIZE, NULL, AUDIO_PRI, &audioHandle);
+  if (audioHandle == NULL) xTaskCreateWithCaps(audioTask, "audioTask", AUDIO_STACK_SIZE, NULL, AUDIO_PRI, &audioHandle, HEAP_MEM);
 #ifdef ISCAM
   xTaskNotifyGive(audioHandle);
 #endif

@@ -27,7 +27,7 @@
 
  Use app web page OTA Upload tab to copy servercert.pem and prvtkey.pem into ESP storage.
 
- Use of HTTPS is controlled on web page by option 'Use HTTPS' under Access Settings / Authentication settings 
+ Use of HTTPS is controlled on web page by option 'Use HTTPS' under Access Settings / Authentication settings or Edit Config / Network settings
  If the private key or public certificate is not loaded, the Use HTTPS setting is ignored.
  
  Enter `https://static_ip` to access the app from the browser. A security warning will be displayed as the certificate is self signed so untrusted. 
@@ -53,7 +53,6 @@
 #define PRVTKEY DATA_DIR "/prvtkey" ".pem"
 #define SERVERCERT DATA_DIR "/servercert" ".pem"
 
-static fs::FS fp = STORAGE;
 char* serverCerts[2]; // private key, server key
 #define NUM_CERTS 2
 
@@ -62,8 +61,8 @@ void loadCerts() {
     const char* certFiles[NUM_CERTS] = {PRVTKEY, SERVERCERT};
     for (int i = 0; i < NUM_CERTS; i++) {
       File file;
-      if (fp.exists(certFiles[i])) {
-        file = fp.open(certFiles[i], FILE_READ);
+      if (STORAGE.exists(certFiles[i])) {
+        file = STORAGE.open(certFiles[i], FILE_READ);
         if (!file || !file.size()) {
           LOG_WRN("Failed to load file %s", certFiles[i]);
           useHttps = false;

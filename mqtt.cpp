@@ -154,9 +154,11 @@ void checkForRemoteQuery() {
             
         } else {  
 #ifdef ISCAM
+#ifndef AUXILIARY
           //Block other tasks from accessing the camera
           if (!strcmp(query, "fps")) setFPS(atoi(value));
           else if (!strcmp(query, "framesize"))  setFPSlookup(fsizePtr);
+#endif
 #endif
           updateStatus(query, value);
         }          
@@ -290,7 +292,7 @@ void startMqttClient(void){
     } else {
       LOG_VRB("Mqtt started");        
       // Create a mqtt task
-      BaseType_t xReturned = xTaskCreate(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, MQTT_PRI, &mqttTaskHandle);
+      BaseType_t xReturned = xTaskCreateWithCaps(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, MQTT_PRI, &mqttTaskHandle, HEAP_MEM);
       LOG_INF("Created mqtt task: %u", xReturned );
       mqttRunning = true;
     }
@@ -387,7 +389,6 @@ void sendMqttHasDiscovery(){
   //Home Asssistant Camera
   sendHasEntities (hostName, "cam", "", "mdi:video", "camera", "still");
   mqttPublishPath("cmd", "still");
-    
   if (isCapturing) mqttPublishPath("record", "on");
   else mqttPublishPath("record", "off");
   mqttPublishPath("motion", "off"); 
@@ -415,5 +416,5 @@ void sendMqttHasState(){
   sprintf(p, "%s", fmtSize(STORAGE.totalBytes() - STORAGE.usedBytes()) );
   mqttPublishPath("free_bytes", p);
 }
-#endif
-#endif
+#endif // INCLUDE_HASIO
+#endif // INCLUDE_MQTT

@@ -9,7 +9,6 @@
 
 #include "appGlobals.h"
 
-#define AUX_STRUCT_SIZE 2048 // size of http request aux data - sizeof(struct httpd_req_aux) = 1108 in esp_http_server
 // stream separator
 #define STREAM_CONTENT_TYPE "multipart/x-mixed-replace;boundary=" BOUNDARY_VAL
 #define JPEG_BOUNDARY "\r\n--" BOUNDARY_VAL "\r\n"
@@ -17,8 +16,7 @@
 #define HDR_BUF_LEN 64
 #define END_WAIT 100
 
-static fs::FS fpv = STORAGE;
-bool forcePlayback = false; // browser playback status
+static bool forcePlayback = false; // browser playback status
 bool streamVid = false;
 bool streamAud = false;
 bool streamSrt = false;
@@ -32,7 +30,7 @@ uint8_t numStreams = 1;
 uint8_t vidStreams = 1;
 int srtInterval = 1; // subtitle interval in secs
 
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
 
 TaskHandle_t sustainHandle[MAX_STREAMS]; 
 struct httpd_sustain_req_t {
@@ -54,7 +52,7 @@ static void showPlayback(httpd_req_t* req) {
   esp_err_t res = ESP_OK; 
   stopPlaying();
   forcePlayback = true;
-  if (fpv.exists(inFileName)) {
+  if (STORAGE.exists(inFileName)) {
     if (stopPlayback) LOG_WRN("Playback refused - capture in progress");
     else {
       LOG_INF("Playback enabled (SD file selected)");
@@ -99,6 +97,11 @@ static void showPlayback(httpd_req_t* req) {
     }
     if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
     sustainId = currEpoch;
+  } 
+  if (!doPlayback && forcePlayback) {
+    // switch off playback on browser
+    forcePlayback = false;
+    wsAsyncSendJson("ustatus", "\"forcePlayback\":0");
   }
 }
 
@@ -246,12 +249,7 @@ static void sustainTask(void* p) {
     else if (i == 2) audioStream(sustainReq[i].req, i);
     else if (i == 3) srtStream(sustainReq[i].req, i);
     // cleanup as request now complete on return
-    killSocket(httpd_req_to_sockfd(sustainReq[i].req));
-    delay(END_WAIT);
-    free(sustainReq[i].req->aux);
-    sustainReq[i].req->~httpd_req_t();
-    free(sustainReq[i].req);
-    sustainReq[i].req = NULL;
+    if (httpd_req_async_handler_complete(sustainReq[i].req) != ESP_OK) LOG_ERR("Failed to free req for sustain task: %i", i);
     sustainReq[i].inUse = false; 
   }
   vTaskDelete(NULL);
@@ -277,7 +275,7 @@ void startSustainTasks() {
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
     if (includeRTSP && i > 0) continue; // as RTSP tasks created in rtsp.cpp
-    xTaskCreate(sustainTask, "sustainTask", SUSTAIN_STACK_SIZE, &sustainReq[i].taskNum, SUSTAIN_PRI, &sustainHandle[i]); 
+    xTaskCreateWithCaps(sustainTask, "sustainTask", SUSTAIN_STACK_SIZE, &sustainReq[i].taskNum, SUSTAIN_PRI, &sustainHandle[i], HEAP_MEM); 
   }
   
   LOG_INF("Started %d sustain tasks", numStreams);
@@ -340,10 +338,12 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
           // make copy of request data and pass request to task indexed by request
           uint8_t i = taskNum;
           sustainReq[i].inUse = true;
-          sustainReq[i].req = static_cast<httpd_req_t*>(malloc(sizeof(httpd_req_t)));
-          new (sustainReq[i].req) httpd_req_t(*req);
-          sustainReq[i].req->aux = psramFound() ? ps_malloc(AUX_STRUCT_SIZE) : malloc(AUX_STRUCT_SIZE); 
-          memcpy(sustainReq[i].req->aux, req->aux, AUX_STRUCT_SIZE);
+          httpd_req_t* copy = NULL;
+          if ((res = httpd_req_async_handler_begin(req, &copy)) != ESP_OK) {
+            LOG_ERR("Failed to copy req for sustain task: %i", i);
+            return res;
+          }
+          sustainReq[i].req = copy;
           strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
           // activate relevant task
           xTaskNotifyGive(sustainHandle[i]);

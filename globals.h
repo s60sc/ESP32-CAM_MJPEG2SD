@@ -78,7 +78,6 @@
 #define COMMON_JS_PATH DATA_DIR "/common" JS_EXT 
 #define WEBDAV "/webdav"
 #define GITHUB_HOST "raw.githubusercontent.com"
-
 #define FILLSTAR "****************************************************************"
 #define DELIM '~'
 #define ONEMEG (1024 * 1024)
@@ -97,7 +96,6 @@
 #define USECS 1000000
 #define MAGIC_NUM 987654321
 #define MAX_FAIL 5
-#define SSESEP "\r\n\r\n" // SSE event separator
 #define PANIC_DELAY 5 // seconds before restart after panic
 
 // global mandatory app specific functions, in appSpecific.cpp 
@@ -185,14 +183,15 @@ void replaceChar(char* s, char c, char r);
 void reset_log();
 void resetWatchDog(int wdIndex, uint32_t wdTimeout = 1);
 bool retrieveConfigVal(const char* variable, char* value);
-void runTaskStats();
+void runTaskStats(bool _onceOnly = false);
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking = true);
-void sendSSE(const char* statusData);
+void sendSSE(const char* eventType, const char* eventData);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
-void showProgress(const char* marker = ".");
 void showHttpHeaders(httpd_req_t *req);
+void showProgress(const char* marker = ".");
+void showSys();
 uint16_t smoothAnalog(int analogPin, int samples = ADC_SAMPLES);
 float smoothSensor(float latestVal, float smoothedVal, float alpha);
 void startOTAtask();
@@ -201,6 +200,7 @@ bool startStorage();
 bool startWebServer();
 void stopPing();
 void syncToBrowser(uint32_t browserUTC);
+char* trim(char* str);
 bool updateConfigVect(const char* variable, const char* value);
 void updateStatus(const char* variable, const char* _value, bool fromUser = true);
 esp_err_t uploadHandler(httpd_req_t *req);
@@ -209,6 +209,7 @@ bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSendBinary(uint8_t* data, size_t len);
+bool wsAsyncSendJson(const char* dataType, const char* wsData);
 bool wsAsyncSendText(const char* wsData);
 // unified networking helpers (WiFi or Ethernet)
 bool startNetwork(bool firstcall = true);
@@ -273,7 +274,6 @@ extern bool dataFilesChecked;
 extern char ipExtAddr[];
 extern bool doGetExtIP;
 extern bool usePing; // set to false if problems related to this issue occur: https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/221
-extern bool wsLog;
 extern uint16_t sustainId;
 extern bool heartBeatDone;
 extern TaskHandle_t heartBeatHandle;
@@ -309,6 +309,7 @@ extern char mqtt_topic_prefix[];
 
 // control sending alerts 
 extern size_t alertBufferSize;
+extern size_t maxAlertBuffSize;
 extern byte* alertBuffer;
 
 // Telegram
@@ -338,8 +339,7 @@ extern char messageLog[];
 extern uint16_t mlogEnd;
 extern bool timeSynchronized;
 extern bool monitorOpen; 
-extern const uint8_t setupPage_html_gz[];
-extern const size_t setupPage_html_gz_len;
+extern const char* setupPage_html;
 extern const char* otaPage_html;
 extern const char* failPageS_html;
 extern const char* failPageE_html;
@@ -350,6 +350,7 @@ extern int wakePin;
 extern int wakeLevel;
 
 extern UBaseType_t uxHighWaterMarkArr[];
+extern UBaseType_t HEAP_MEM;
 
 // SD storage
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled

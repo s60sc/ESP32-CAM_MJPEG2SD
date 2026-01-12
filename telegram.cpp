@@ -195,7 +195,7 @@ bool prepTelegram() {
         // response loaded into tgramBuff
         if (searchJsonResponse("username:")) {      
           LOG_INF("Connected to Telegram Bot Handle: %s", keyValue);
-          xTaskCreate(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle); 
+          xTaskCreateWithCaps(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle, HEAP_MEM); 
           debugMemory("setupTelegramTask");
           return true;
         } else LOG_WRN("getMe response not parsed %s", tgramBuff);
@@ -255,8 +255,7 @@ bool sendTgramPhoto(uint8_t* photoData, size_t photoSize, const char* caption) {
 bool sendTgramFile(const char* fileName, const char* contentType, const char* caption) {
   // retrieve identified file from selected storage and send to Telegram
   if (connectTelegram()) {
-    fs::FS fp = STORAGE;
-    File df = fp.open(fileName);
+    File df = STORAGE.open(fileName);
     char errMsg[100] = "";
     if (df) {
       if (df.size() < MAX_TGRAM_SIZE) {

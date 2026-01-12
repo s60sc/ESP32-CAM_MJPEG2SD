@@ -3,7 +3,7 @@
 
 Application for ESP32 / ESP32S3 with OV2640 / OV3660 / OV5640 / PY260 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
-* [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor
+* [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor / accelerometer
 * [Continuous recording](#continuous-recording) - Time lapse or dashcam style
 * [Audio Recording](#audio-recording) from I2S or PDM microphones
 * Camera pan / tilt servos and lamp control
@@ -16,7 +16,7 @@ The application supports:
 * [MQTT](#mqtt) control with Home Assistant integration.
 * [External Heartbeat](#external-heartbeat) support.
 * Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led
-* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9350, SSD1306, LCD1602, etc.
+* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9250, SSD1306, LCD1602, etc.
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
@@ -29,11 +29,14 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.8.4:
+Changes for version up to 10.9:
 * Addition of [Ethernet](#configuration-web-page) network selection instead of Wifi
 * Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
 * Define pins for external W5500 Ethernet controller
 * Fix for issue [#650](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/650)
+* Motion detection by MPU6050 or MPU9250 accelerometer
+* Support for OV5640 auto focus
+* Logging and memory usage improvements
 
 ## Purpose
 
@@ -99,7 +102,7 @@ Browser functions only fully tested on Chrome.
 
 ## Main Function
 
-A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using an active high motion sensor such as a PIR (HC-SR501) or microwave radar (CWL-0516), or a non motion detector such as a sound sensor (KY-037).
+A recording is generated either by the camera itself detecting motion, or by holding a given pin high (kept low by internal pulldown when released), eg by using an active high motion sensor such as a PIR (HC-SR501) or microwave radar (CWL-0516), or an I2C accelerometer (MPU6050), or a non motion detector such as a sound sensor (KY-037).
 In addition a recording can be requested manually using the **Start Recording** button on the web page.
 
 To play back a recording, select the file using **Playback & File Transfers** sidebar button to select the day folder then the required AVI file.
@@ -276,6 +279,8 @@ QXGA | 5
 QHD | 6
 FHD | 6
 P_FHD | 6
+
+To use the Auto Focus feature on suitably equipped modules, instal `ESP32_OV5640_AF` library and in `appConfigs.h` set `#define INCLUDE_AF true`
 
 ## PY260
 

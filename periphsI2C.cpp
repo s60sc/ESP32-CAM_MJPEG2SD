@@ -11,7 +11,7 @@
 //
 // To enable a device, set the appropriate USE_* define in appGlobals.h
 //
-// s60sc 2023, 2024
+// s60sc 2023, 2024, 2025
 // incorporates contributions from rjsachse
 
 #include "appGlobals.h"
@@ -34,7 +34,7 @@ static bool isShared = false;
 static bool deviceStatus[128] = {false}; // whether device present
 static const char* clientName[128] = {
   "", "", "", "", "", "", "", "", "", "", "", "", "AK8963", "", "", "",
-  "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PY260",
   "", "", "", "", "", "", "", "LCD1602", "", "", "", "", "", "", "", "",
   "OV2640", "", "", "", "", "", "", "", "", "", "", "", "OV5640/SSD1306", "SSD1306", "", "",
   "", "", "", "", "", "", "", "", "PCF8591", "", "", "", "", "", "", "",
@@ -43,6 +43,7 @@ static const char* clientName[128] = {
   "", "", "", "", "", "", "BMx280", "BMx280", "OV5640", "OV5640", "", "", "", "", "", ""};
 
 static bool prepI2Cdevices();
+static void startPollTask();
 
 /********************* Generic I2C Utilities ***********************/
 
@@ -236,6 +237,7 @@ byte* getPCF8591() { // analog channels
 
 #define BMx280_Def 0x76 // BMX280 default address
 #define BMx280_Alt 0x77 // BMX280 alternative address
+
 #if USE_BMx280
 #define STD_PRESSURE 1013.25 // reference pressure in mB/hPa at sea level
 #define DEGREE_SYMBOL "\xC2\xB0"
@@ -295,10 +297,12 @@ bool identifyBMx() {
 }
 #endif
 
-/********************************** MPU6050 ************************************/
+/**************************** MPU6050 / MPU9250 ******************************/
+static float mpuData[4] = {0};
 
 #define MPUxx50_HIGH 0x69 // MPU6050 / MPU9250 I2C address if AD0 pulled high
 #define MPUxx50_LOW 0x68  // MPU6050 / MPU9250 I2C address if AD0 grounded
+
 #if USE_MPU6050
 // MPU6050 definitions - not gyroscope
 #define SENS_2G (32768.0/2.0) // divider for 2G sensitivity reading
@@ -336,37 +340,37 @@ static bool setupMPU6050() {
   return MPU6050ok;
 }
 
-float* getMPU6050() {
+static void getMPU6050() {
   // get data from MPU6050 and return as array
-  static float Gforce[4] = {0};
   if (MPU6050ok) {
     if (getI2Cdata(MPU6050addr, ACCEL_XOUT_H, ACCEL_BYTES+2)) { 
       // read 3 axis accelerometer & temperature
       int16_t raw[4]; // X, Y, Z, Temp
+      float axes[4];
       for (int i=0; i<4; i++) raw[i] = I2CDATA[i*2] << 8 | I2CDATA[(i*2)+1]; 
       // each axis G force value, straight down is 1.0 if stationary
-      for (int i=0; i<3; i++) Gforce[i] = raw[i] / SENS_2G;
+      for (int i=0; i<3; i++) axes[i] = (float)raw[i] / SENS_2G;
       // determine gravity from all 3 axes (no linear velocity)
-      float gXYZ = sqrt(pow(Gforce[0],2)+pow(Gforce[1],2)+pow(Gforce[2],2));
+      float gXYZ = sqrt(pow(axes[0],2)+pow(axes[1],2)+pow(axes[2],2));
       LOG_VRB("gXYZ should be close to 1, is: %0.2f", gXYZ);
       // pitch in degrees - X axis
-      float ratio = Gforce[0] / gXYZ;
-      Gforce[0] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
-      // yaw in degrees - Y axis
-      ratio = Gforce[1] / gXYZ;
-      Gforce[1] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
-      // roll in degrees - Z axis
-      ratio = Gforce[2] / gXYZ;
-      Gforce[2] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
+      float ratio = axes[0] / gXYZ;
+      mpuData[0] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
+      // roll in degrees - Y axis 
+      ratio = axes[1] / gXYZ;
+      mpuData[1] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
+      // yaw in degrees - Z axis (inaccurate as gravity is constant)
+      ratio = axes[2] / gXYZ;
+      mpuData[2] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
       // temperature in degrees celsius
-      Gforce[3] = ((float)raw[3] / 340.0) + 36.53; 
+      mpuData[3] = ((float)raw[3] / 340.0) + 36.53; 
     }
   }
-  return Gforce;
 }
 #endif
 
-/********************************** MPU9250 ************************************/
+/*------------------------------------------------------------------*/
+
 /*
 MPU9250 on GY-91
 VIN: Voltage Supply Pin
@@ -380,7 +384,7 @@ CSB: I2C Address selection BMP280
 */
 #if USE_MPU9250
 #include "MPU9250.h" // https://github.com/hideakitai/MPU9250
-// accel axis orientation on GY-91:                      
+// accel axis orientation on GY-91:
 // - X : short side (pitch)
 // - Y : long side (roll)
 // - Z : up (yaw from true N)
@@ -414,22 +418,33 @@ static bool setupMPU9250() {
   return MPU9250ok;
 }
 
-float* getMPU9250() {
+static void getMPU9250() {
   // get data from MPU9250 and return as array
   // only some functions obtained
-  static float Gforce[4] = {0};
   if (MPU9250ok) {
     uint32_t mpuWait = millis();
     while (!mpu9250.update() && millis() - mpuWait < SENSOR_TIMEOUT) delay(10);
     if (mpu9250.update()) {
-      Gforce[0] = mpu9250.getYaw();
-      Gforce[1] = mpu9250.getPitch();
-      Gforce[2] = mpu9250.getRoll();
+      // read 3 axis accelerometer & temperature
+      // angle in degrees using airplane coordinate standard
+      mpuData[0] = mpu9250.getPitch(); // X
+      mpuData[1] = mpu9250.getRoll();  // Y
+      mpuData[2] = mpu9250.getYaw();   // Z
+      mpuData[3] = mpu9250.getTemperature(); // celsius
     }
   }
-  return Gforce;
 }
 #endif
+
+float* getMPUdata() {
+#if USE_MPU6050
+  getMPU6050();
+#endif
+#if USE_MPU9250
+  getMPU9250();
+#endif
+  return mpuData;
+}
 
 /********************************* DS3231 RTC ************************************/
 
@@ -575,6 +590,7 @@ void RTCdatetime(char* datestring, int datestringLen) {
   }
 }
 #endif
+
 
 /**************************** LCD1602 ******************************/
 // I2C LCD display: 2 lines, 16 cols 
@@ -810,9 +826,7 @@ bool checkI2Cdevice(const char* devName) {
 
 static bool prepI2Cdevices() {
   // setup available I2C devices 
-  // Note: only called externally by cam
-  if (I2Cdevices < 0) LOG_ERR("prepI2C() not called");
-  else if (I2Cdevices == 0) LOG_WRN("No I2C devices connected");
+  if (I2Cdevices == 0) LOG_WRN("No I2C devices connected");
   else {
 #if USE_SSD1306
     setupOled();
@@ -826,6 +840,9 @@ static bool prepI2Cdevices() {
 #if USE_MPU9250
     setupMPU9250();
 #endif
+#ifdef ISCAM
+    if (accelUse) startPollTask();
+#endif
 #if USE_DS3231
     setupRTC();
 #endif
@@ -837,4 +854,46 @@ static bool prepI2Cdevices() {
   return false;
 }
 
-#endif
+/************** Poll accelerometers for motion ***************/
+
+// used by MJPEG2SD app
+#ifdef ISCAM
+
+static TaskHandle_t sensorPollHandle = NULL;
+bool accelUse = false;
+int accelDeg = 2;
+static bool haveMovement = false;
+
+static void getAccelMove() {
+  // determine if sufficient accelerometer movement has occurred
+  haveMovement = false;
+  static int posData[2][3];
+  int currMove = 0;
+  for (int i = 0; i < 3; i++) {
+    posData[0][i] = (int)mpuData[i];
+    currMove += abs(posData[0][i] - posData[1][i]);
+    posData[1][i] = posData[0][i];
+  }
+  if (currMove > accelDeg) haveMovement = true;
+}
+
+bool checkAccelMove() {
+  return haveMovement;
+}
+
+static void sensorPollTask(void* p) {
+  while (true) {
+    getMPUdata();
+    getAccelMove();
+    delay(1000);
+  }
+}
+
+static void startPollTask() {
+  // poll input sensors for data
+  if (sensorPollHandle == NULL) xTaskCreateWithCaps(sensorPollTask, "sensorPollTask", SENSOR_STACK_SIZE, NULL, SENSOR_PRI, &sensorPollHandle, HEAP_MEM); 
+}
+
+#endif // ISCAM
+
+#endif // INCLUDE_I2C

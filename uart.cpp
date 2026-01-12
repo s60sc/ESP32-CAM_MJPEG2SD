@@ -165,7 +165,7 @@ void prepUart() {
       if (configureUart()) {
 #ifdef USE_UARTTASK
         xSemaphoreTake(responseMutex, portMAX_DELAY);
-        xTaskCreate(uartRxTask, "uartRxTask", UART_STACK_SIZE, NULL, UART_PRI, &uartRxHandle);
+        xTaskCreateWithCaps(uartRxTask, "uartRxTask", UART_STACK_SIZE, NULL, UART_PRI, &uartRxHandle, HEAP_MEM);
 #endif
         xSemaphoreGive(responseMutex);
         xSemaphoreGive(writeMutex);

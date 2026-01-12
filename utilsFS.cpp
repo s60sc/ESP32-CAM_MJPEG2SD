@@ -23,7 +23,6 @@ int sdMinCardFreeSpace = 100; // Minimum amount of card free Megabytes before sd
 int sdFreeSpaceMode = 1; // 0 - No Check, 1 - Delete oldest dir, 2 - Upload oldest dir to FTP/HFS and then delete on SD 
 bool formatIfMountFailed = true; // Auto format the file system if mount failed. Set to false to not auto format.
 static bool use1bitMode = true;
-static fs::FS fp = STORAGE;
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
 static int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
 #endif
@@ -76,7 +75,7 @@ static bool prepSD_MMC() {
   digitalWrite(4, 0); // set lamp pin fully off as sd_mmc library still initialises pin 4 in 1 line mode
 #endif 
   if (res) {
-    fp.mkdir(DATA_DIR);
+    STORAGE.mkdir(DATA_DIR);
     infoSD();
   } else LOG_WRN("SD card mount failed");
 #endif
@@ -86,7 +85,7 @@ static bool prepSD_MMC() {
 static void listFolder(const char* rootDir) { 
   // list contents of folder
   LOG_INF("Sketch size %s", fmtSize(ESP.getSketchSize()));    
-  File root = fp.open(rootDir);
+  File root = STORAGE.open(rootDir);
   File file = root.openNextFile();
   while (file) {
     LOG_INF("File: %s, size: %s", file.path(), fmtSize(file.size()));
@@ -141,7 +140,7 @@ bool startStorage() {
 
 static void getOldestDir(char* oldestDir) {
   // get oldest folder by its date name
-  File root = fp.open("/");
+  File root = STORAGE.open("/");
   File file = root.openNextFile();
   if (file) strcpy(oldestDir, file.path()); // initialise oldestDir
   while (file) {
@@ -225,7 +224,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     // ignore leading '/' if not the only character
     bool returnDirs = strlen(fileName) > 1 ? (strchr(fileName+1, '/') == NULL ? false : true) : true; 
     // open relevant folder to list contents
-    File root = fp.open(fileName);
+    File root = STORAGE.open(fileName);
     if (strlen(fileName)) {
       if (!root) LOG_WRN("Failed to open directory %s", fileName);
       else if (!root.isDirectory()) LOG_WRN("Not a directory %s", fileName);
@@ -289,7 +288,7 @@ void deleteFolderOrFile(const char* deleteThis) {
   // delete supplied file or folder, unless it is a reserved folder
   char fileName[FILE_NAME_LEN];
   setFolderName(deleteThis, fileName);
-  File df = fp.open(fileName);
+  File df = STORAGE.open(fileName);
   if (!df) {
     LOG_WRN("Failed to open %s", fileName);
     return;

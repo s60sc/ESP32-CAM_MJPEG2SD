@@ -69,7 +69,6 @@ static bool sendSmtpCommand(NetworkClientSecure& client, const char* cmd, const 
 }
 
 static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = ATTACH_NAME) {
-
   // send email to defined smtp server
   char content[100];
   
@@ -122,7 +121,8 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
       sprintf(content, "Content-Type: %s", mimeType); 
       client.println(content);
       client.println("Content-Transfer-Encoding: base64");
-      sprintf(content, "Content-Disposition: attachment; filename=\"%s\"", fileName); 
+      sprintf(content, "Content-Disposition: attachment; filename=\"%s\"; size=%d;", fileName, alertBufferSize); 
+      
       client.println(content); 
       // base64 encode attachment and send out in chunks
       size_t chunkSize = 3;
@@ -163,7 +163,7 @@ void emailAlert(const char* _subject, const char* _message) {
         strncpy(subject, _subject, sizeof(subject)-1);
         snprintf(subject+strlen(subject), sizeof(subject)-strlen(subject), " from %s", hostName);
         strncpy(message, _message, sizeof(message)-1);
-        xTaskCreate(&emailTask, "emailTask", EMAIL_STACK_SIZE, NULL, EMAIL_PRI, &emailHandle);
+        xTaskCreateWithCaps(&emailTask, "emailTask", EMAIL_STACK_SIZE, NULL, EMAIL_PRI, &emailHandle, HEAP_MEM);
         debugMemory("emailAlert");
       } else LOG_WRN("Email alert already in progress");
     } else LOG_WRN("Need to restart to setup email");
@@ -173,8 +173,8 @@ void emailAlert(const char* _subject, const char* _message) {
 void prepSMTP() {
   if (smtpUse) {
     emailCount = 0;
-    if (alertBuffer == NULL) alertBuffer = (byte*)ps_malloc(maxFrameBuffSize); 
-    LOG_INF("Email alerts active");
+    if (alertBuffer == NULL) alertBuffer = psramFound() ? (byte*)ps_malloc(maxAlertBuffSize) : (byte*)malloc(maxAlertBuffSize);
+   LOG_INF("Email alerts active");
   } 
 }
 

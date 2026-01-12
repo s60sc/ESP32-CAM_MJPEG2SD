@@ -31,7 +31,7 @@
 bool pirUse; // true to use PIR for motion detection
 bool ledBarUse; // true to use led bar
 uint8_t lampLevel; // brightness of on board lamp led 
-bool lampAuto = false; // if true in conjunction with pirUse, switch on lamp when PIR activated at night
+bool lampAuto = false; // if true in conjunction with pirUse and accelUse, switch on lamp when PIR or accelerometer activated at night
 bool lampNight; // if true, lamp comes on at night (not used)
 int lampType; // how lamp is used
 bool voltUse; // true to report on ADC pin eg for for battery
@@ -197,7 +197,7 @@ static void prepServos() {
   oldPanVal = oldTiltVal = oldSteerVal = servoCenter + 1;
 
   if (SVactive || (RCactive && servoSteerPin)) {
-    xTaskCreate(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, SERVO_PRI, &servoHandle); 
+    xTaskCreateWithCaps(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, SERVO_PRI, &servoHandle, HEAP_MEM); 
     // initial angle
     if (servoPanPin) setCamPan(servoCenter);
     if (servoTiltPin) setCamTilt(servoCenter);
@@ -217,8 +217,12 @@ static void prepServos() {
 */
 
 #if INCLUDE_DS18B20
+#if __has_include("../libraries/DallasTemperature/DallasTemperature.h") 
 #include <OneWire.h> // https://github.com/PaulStoffregen/OneWire
 #include <DallasTemperature.h> // https://github.com/milesburton/Arduino-Temperature-Control-Library
+#else
+#error "Need to install DallasTemperature and OneWire libraries"
+#endif
 #endif
 
 // configuration
@@ -256,7 +260,7 @@ static void DS18B20task(void* pvParameters) {
 void prepTemperature() {
 #if INCLUDE_DS18B20
   if (ds18b20Pin) {
-    xTaskCreate(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle); 
+    xTaskCreateWithCaps(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle, HEAP_MEM); 
     haveDS18B20 = true;
     LOG_INF("Using DS18B20 sensor");
   } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
@@ -310,7 +314,7 @@ static void battTask(void* parameter) {
 static void setupBatt() {
   if (voltUse) {
   	if (voltPin) {
-      xTaskCreate(&battTask, "battTask", BATT_STACK_SIZE, NULL, BATT_PRI, &battHandle);
+      xTaskCreateWithCaps(&battTask, "battTask", BATT_STACK_SIZE, NULL, BATT_PRI, &battHandle, HEAP_MEM);
       LOG_INF("Monitor batt voltage");
       debugMemory("setupBatt");
     } else LOG_WRN("No voltage pin defined");
@@ -507,7 +511,7 @@ static void prepJoystick() {
         pinMode(stickzPushPin, INPUT_PULLUP);
         attachInterrupt(digitalPinToInterrupt(stickzPushPin), buttonISR, FALLING); 
       }
-      if (stickHandle == NULL) xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle);
+      if (stickHandle == NULL) xTaskCreateWithCaps(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle, HEAP_MEM);
       setStickTimer(true, waitTime * 1000);
       LOG_INF("Joystick available");
     } else {
@@ -562,7 +566,7 @@ static void prepStepper() {
         digitalWrite(stepINpins[i], LOW);
       }
       // stickTask provides speed control timer
-      if (stickHandle == NULL) xTaskCreate(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle);   
+      if (stickHandle == NULL) xTaskCreateWithCaps(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle, HEAP_MEM);   
       LOG_INF("Stepper motor on pins: %d, %d, %d, %d", stepINpins[0], stepINpins[1], stepINpins[2], stepINpins[3]);
       // NOTE: very first step after motor power may not occur or be reversed 
     } else {

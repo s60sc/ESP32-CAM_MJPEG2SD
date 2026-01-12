@@ -32,6 +32,7 @@
 #define JPEG_QUAL 80 // % quality for generated motion detect jpeg
   
 // motion recording parameters
+bool dbgMotion = false;
 int detectMotionFrames = 5; // min sequence of changed frames to confirm motion 
 int detectNightFrames = 10; // frames of sequential darkness to avoid spurious day / night switching
 // define region of interest, ie exclude top and bottom of image from movement detection if required
@@ -52,7 +53,7 @@ uint8_t* motionJpeg = NULL;
 size_t motionJpegLen = 0;
 static uint8_t* currBuff = NULL;
 
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
 
 #if INCLUDE_NEW_JPG
 // use esp_new_jpeg library instead of built in
@@ -297,7 +298,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
       if (!fmt2jpg(changeMap, resizeDimLen, RESIZE_DIM, RESIZE_DIM, PIXFORMAT_RGB888, JPEG_QUAL, &jpg_buf, &motionJpegLen))
         LOG_WRN("motionDetect: fmt2jpg() failed"); 
       memcpy(motionJpeg, jpg_buf, motionJpegLen); 
-      free(jpg_buf); // releases 128kB in to_jpg.cpp
+      free(jpg_buf);
       jpg_buf = NULL;
 #endif
       xSemaphoreGive(motionSemaphore);
@@ -317,7 +318,6 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         // pass image to TinyML for classification
         if (mlUse) if (!tinyMLclassify()) motionCnt = 0; // not classified, so cancel motion
 #endif
-        if (motionCnt) notifyMotion(fb);
         dTime = millis();
 #if INCLUDE_MQTT
         if (mqtt_active && motionCnt) {
@@ -351,22 +351,6 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   LOG_VRB("============================");
   // motionStatus indicates whether motion previously ongoing or not
   return nightTime ? false : motionStatus;
-}
-
-void notifyMotion(camera_fb_t* fb) {
-  // send out notification of motion if requested
-#if INCLUDE_SMTP
-  if (smtpUse) {
-    // send email with movement image
-    keepFrame(fb);
-    char subjectMsg[50];
-    snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s", hostName);
-    emailAlert("Motion Alert", subjectMsg);
-  } 
-#endif
-#if INCLUDE_TGRAM
-  if (tgramUse) keepFrame(fb); // for telegram, wait till filename available
-#endif
 }
 
 /*****************************************************************************************************/
@@ -521,7 +505,7 @@ size_t rgb2jpg(uint8_t* rgb888, int width, int height, int qual, uint8_t* output
 
 // based on jpg2rgb888() from esp32-camera/to_bmp.c for access to rescaling
 
-static uint8_t work[3100]; // Default size is 3.1kB for JPEG decoder, or 65kB if JD_FASTDECODE == 2 
+static uint8_t work[3100]; // Default size is 3.1kB for JPEG decoder
 
 static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t scale) {
   esp_jpeg_image_cfg_t jpeg_cfg = {
@@ -621,5 +605,5 @@ static bool jpg2rgb(const uint8_t* src, size_t src_len, uint8_t* out, uint8_t sc
 // dummies
 bool isNight(uint8_t nightSwitch) {return false;}
 
-#endif // CONFIG_IDF_TARGET_ESP32C3
+#endif // AUXILIARY
 

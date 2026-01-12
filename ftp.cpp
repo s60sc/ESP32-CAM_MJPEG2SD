@@ -126,7 +126,6 @@ bool useFtps = false;
 char ftpUser[MAX_HOST_LEN];
 static char rspBuf[256]; // Ftp response buffer
 static char respCodeRx[4]; // ftp response code
-static fs::FS fp = STORAGE;
 #define NO_CHECK "999"
 
 // WiFi Clients
@@ -302,7 +301,7 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
   res = false;
   const int saveRefreshVal = refreshVal;
   refreshVal = 1;
-  File root = fp.open(fileOrFolder);
+  File root = STORAGE.open(fileOrFolder);
   if (!root.isDirectory()) {
     // Upload a single file 
     char fsSaveName[FILE_NAME_LEN];
@@ -312,14 +311,14 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
     // upload corresponding csv and srt files if exist
     if (res) {
       changeExtension(fsSaveName, CSV_EXT);
-      if (fp.exists(fsSaveName)) {
-        File csv = fp.open(fsSaveName);
+      if (STORAGE.exists(fsSaveName)) {
+        File csv = STORAGE.open(fsSaveName);
         res = fsUse ? hfsStoreFile(csv) : ftpStoreFile(csv);
         csv.close();
       }
       changeExtension(fsSaveName, SRT_EXT);
-      if (fp.exists(fsSaveName)) {
-        File srt = fp.open(fsSaveName);
+      if (STORAGE.exists(fsSaveName)) {
+        File srt = STORAGE.open(fsSaveName);
         res = fsUse ? hfsStoreFile(srt) : ftpStoreFile(srt);
         srt.close();
       }
@@ -357,7 +356,7 @@ static void fileServerTask(void* parameter) {
 #endif
   fsChunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE); 
   if (strlen(storedPathName) >= 2) {
-    File root = fp.open(storedPathName);
+    File root = STORAGE.open(storedPathName);
     if (!root) LOG_WRN("Failed to open: %s", storedPathName);
     else { 
       bool res = uploadFolderOrFileFs(storedPathName);
@@ -375,7 +374,7 @@ bool fsStartTransfer(const char* fileFolder) {
   setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
-    if (fsHandle == NULL) xTaskCreate(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle);    
+    if (fsHandle == NULL) xTaskCreateWithCaps(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle, HEAP_MEM);    
     debugMemory("fsStartTransfer");
     return true;
   } else LOG_WRN("Unable to transfer %s as another transfer in progress", storedPathName);

@@ -3,16 +3,23 @@
   matches file writes to the SD card sector size.
   AVI files stored on the SD card can also be selected and streamed to a browser.
 
-  s60sc 2020, 2022, 2024
+  s60sc 2020, 2022, 2024, 2025
 */
 
 #include "appGlobals.h"
+#if INCLUDE_AF
+#if __has_include("../libraries/OV5640_Auto_Focus_for_ESP32_Camera/src/ESP32_OV5640_AF.h") 
+#include <ESP32_OV5640_AF.h>
+OV5640 ov5640AF = OV5640();
+#else
+#error "Need to install OV5640_Auto_Focus_for_ESP32_Camera library"
+#endif
+#endif
 
 #define FB_CNT 4 // number of frame buffers
 
 // user parameters set from web
-bool useMotion  = true; // whether to use camera for motion detection (with motionDetect.cpp)
-bool dbgMotion  = false;
+bool useMotion = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool forceRecord = false; // Recording enabled by rec button
 
 // motion detection parameters
@@ -80,9 +87,8 @@ bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
 bool timeLapseOn = false;
 int dashCamOn = 0; // whether to use / duration of dashcam style continuous recording
-static bool pirVal = false;
 
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
 framesize_t maxFS = FRAMESIZE_SVGA; // default
 
 /**************** timers & ISRs ************************/
@@ -239,7 +245,7 @@ static void timeLapse(camera_fb_t* fb, bool tlStop = false) {
 
 void keepFrame(camera_fb_t* fb) {
   // keep required frame for external server alert
-  if (fb->len < maxFrameBuffSize && alertBuffer != NULL) {
+  if (fb->len < maxAlertBuffSize && alertBuffer != NULL) {
     memcpy(alertBuffer, fb->buf, fb->len);
     alertBufferSize = fb->len;
   }
@@ -368,6 +374,18 @@ static bool closeAvi() {
       LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
       checkMemory();
       LOG_INF("*************************************");
+      // send out notification of motion if requested
+#if INCLUDE_SMTP
+      if (smtpUse) {
+        // send email with movement image
+        char subjectMsg[50];
+        snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s, in %s", hostName, aviFileName);
+        emailAlert("Motion Alert", subjectMsg);
+      } 
+#endif
+#if INCLUDE_TGRAM
+      tgramAlert(aviFileName, "");
+#endif
 #if INCLUDE_FTP_HFS
       if (autoUpload) {
         if (deleteAfter) {
@@ -376,9 +394,6 @@ static bool closeAvi() {
           fsStartTransfer(partName);
         } else fsStartTransfer(aviFileName); // transfer this file to remote ftp server
       }
-#endif
-#if INCLUDE_TGRAM
-      if (tgramUse) tgramAlert(aviFileName, "");
 #endif
     }
     if (!checkFreeStorage()) doRecording = forceRecord = false;
@@ -393,12 +408,9 @@ static bool closeAvi() {
 
 static boolean processFrame() {
   // get camera frame
-  static bool wasCapturing = false;
-  static bool wasRecording = false;
-  static bool captureMotion = false;
+  static bool haveMotion = false;
   bool res = true;
   uint32_t dTime = millis();
-  bool finishRecording = false;
 
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb == NULL || !fb->len || fb->len > maxFrameBuffSize) return false;
@@ -416,81 +428,82 @@ static boolean processFrame() {
     doKeepFrame = false;
   }
 
-  // determine if time to monitor
-  if (useMotion && doMonitor(isCapturing)) captureMotion = checkMotion(fb, isCapturing); // check 1 in N frames
-  if (!useMotion && doMonitor(true)) checkMotion(fb, false, true); // calc light level only
-
+  // determine if time to check for motion change
+  int reasonId = 0;
+  bool prevMotion = haveMotion;
+  if (doMonitor(doRecording ? isCapturing : dbgMotion ? false : true)) {
+    if (useMotion && checkMotion(fb, isCapturing)) reasonId = 1; // check 1 in N frames
+    if (!useMotion) checkMotion(fb, false, true); // calc light level only
 #if INCLUDE_PERIPH
-  if (pirUse) {
-    pirVal = getPIRval();
-    if (pirVal && !isCapturing) {
-      // start of PIR detection, switch on lamp if requested
-      if (lampAuto && nightTime) setLamp(lampLevel);
-      notifyMotion(fb);
-    }
+    if (pirUse && getPIRval()) reasonId = 2;
+#endif
+#if INCLUDE_I2C && (USE_MPU6050 || USE_MPU9250)
+    if (accelUse && checkAccelMove()) reasonId = 3;
+#endif
+    haveMotion = (reasonId) ? true : false;
   }
-#endif
-  // either active PIR, Motion, or force start button will start capture, neither active will stop capture
-  isCapturing = forceRecord | captureMotion | pirVal;
-  if (forceRecord || wasRecording || doRecording) {
-    if (forceRecord && !wasRecording) wasRecording = true;
-    else if (!forceRecord && wasRecording) wasRecording = false;
 
-    if (isCapturing && !wasCapturing) {
-      // movement has occurred, start recording
-      stopPlaying(); // terminate any playback
-      stopPlayback = true; // stop any subsequent playback
-      if (dashCamOn == 0) LOG_ALT("Capture started by %s%s%s", captureMotion ? "Motion " : "", pirVal ? "PIR" : "", forceRecord ? "Button" : "");
-#if INCLUDE_MQTT
-      if (mqtt_active) {
-        sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
-        mqttPublish(jsonBuff);
-        mqttPublishPath("record", "on");
-      }
-#endif
+  // process motion status
+  if (haveMotion && !prevMotion) {
+    // start of movement detection
+    keepFrame(fb);
 #if INCLUDE_PERIPH
-      buzzerAlert(true); // sound buzzer if enabled
+    buzzerAlert(true); // sound buzzer if enabled
+    if (lampAuto && nightTime) setLamp(lampLevel);  // switch on lamp if requested
 #endif
-      openAvi();
-      wasCapturing = true;
-    }
+  }
+  if (!haveMotion) {
+#if INCLUDE_PERIPH
+    if (lampAuto) setLamp(0); // switch off lamp
+    buzzerAlert(false); // switch off buzzer if still on
+#endif
+  }
 
-    if (isCapturing && wasCapturing) {
-      // capture is ongoing
-      showProgress();
-      if (frameCnt < frameLimit) {
-        dTimeTot += millis() - dTime;
-        saveFrame(fb);
-        if (frameCnt == frameLimit) {
-          // stop saving frames for this avi as limit reached
-          forceRecord = finishRecording = false;
-          if (dashCamOn == 0) {
-            logLine();
-            LOG_WRN("Auto closed recording after %u frames", frameLimit);
-          }
+  // recording status
+  bool prevCapture = isCapturing;
+  isCapturing = haveMotion | forceRecord;
+  if (isCapturing && !prevCapture) {
+    // new movement has occurred or record button pressed, start recording
+    stopPlaying(); // terminate any playback
+    stopPlayback = true; // stop any subsequent playback
+    if (!dashCamOn) LOG_ALT("Capture started by %s%s%s%s", reasonId == 0 ? "Button" : "", reasonId == 1 ? "Camera " : "", reasonId == 2 ? "PIR" : "", reasonId == 3 ? "Accelerometer" : "");
+#if INCLUDE_MQTT
+    if (mqtt_active) {
+      sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
+      mqttPublish(jsonBuff);
+      mqttPublishPath("record", "on");
+    }
+#endif
+    wsAsyncSendJson("ustatus", "\"showRecord\":1");
+    openAvi();
+  }
+
+  if (isCapturing) {
+    // capture is ongoing
+    showProgress();
+    if (frameCnt < frameLimit) {
+      dTimeTot += millis() - dTime;
+      saveFrame(fb);
+      if (frameCnt == frameLimit) {
+        // stop saving frames for this avi as limit reached
+        isCapturing = forceRecord = false;
+        if (!dashCamOn) {
+          logLine();
+          LOG_WRN("Auto closed recording after %u frames", frameLimit);
         }
       }
-#if INCLUDE_PERIPH
-      if (buzzerUse && frameCnt / FPS >= buzzerDuration) buzzerAlert(false); // switch off after given period
-#endif
     }
-
-    if (!isCapturing && wasCapturing) {
-      // movement stopped
-      finishRecording = true;
 #if INCLUDE_PERIPH
-      if (lampAuto) setLamp(0); // switch off lamp
-      buzzerAlert(false); // switch off buzzer
+    if (buzzerUse && frameCnt / FPS >= buzzerDuration) buzzerAlert(false); // switch off after given period
 #endif
-    }
-    wasCapturing = isCapturing;
   }
 
   esp_camera_fb_return(fb);
-  if (finishRecording) {
-    // cleanly finish recording (normal or forced)
-    if (stopPlayback) closeAvi();
-    finishRecording = isCapturing = wasCapturing = stopPlayback = false; // allow for playbacks
+  if (!isCapturing && prevCapture) {
+    // finish recording (normal or forced)
+    closeAvi();
+    wsAsyncSendJson("ustatus", "\"showRecord\":0");
+    stopPlayback = false; // allow for playbacks
   }
   return res;
 }
@@ -584,7 +597,7 @@ mjpegStruct getNextFrame(bool firstCall) {
   // get next cluster on demand when ready for opened avi
   mjpegStruct mjpegData;
   static bool remainingBuff;
-  static bool completedPlayback;
+  static bool completedPlayback; // indicates that playback completed 
   static size_t buffOffset;
   static uint32_t hTimeTot;
   static uint32_t tTimeTot;
@@ -724,7 +737,7 @@ static void playbackTask(void* parameter) {
 
 static bool startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreate(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, PLAY_PRI, &playbackHandle);
+  xTaskCreateWithCaps(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, PLAY_PRI, &playbackHandle, HEAP_MEM);
   xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, CAPTURE_PRI, &captureHandle);
   if (captureHandle == NULL) {
     // Usually insufficient memory
@@ -759,7 +772,6 @@ bool prepRecording() {
     doRecording = false;
     sdLog = false;
     useMotion = false;
-    doRecording = false;
     LOG_WRN("Recording disabled as no SD card");
   } else {
     LOG_INF("To record new AVI, do one of:");
@@ -769,6 +781,9 @@ bool prepRecording() {
       LOG_INF("- attach PIR to pin %u", pirPin);
       LOG_INF("- raise pin %u to 3.3V", pirPin);
     }
+#endif
+#if INCLUDE_I2C
+    if (accelUse) LOG_INF("- accelerometer movement");
 #endif
     if (useMotion) LOG_INF("- move in front of camera");
   }
@@ -920,6 +935,7 @@ bool prepCam() {
 #endif
   // define buffer size depending on maximum frame size available, esp32-camera/driver/cam_hal.c: cam_obj->recv_size
   maxFrameBuffSize = maxAlertBuffSize = frameData[maxFS].frameWidth * frameData[maxFS].frameHeight / 5;
+  if (alertBuffer == NULL) alertBuffer = psramFound() ? (byte*)ps_malloc(maxAlertBuffSize) : (byte*)malloc(maxAlertBuffSize);
   LOG_INF("Max frame size for %s PSRAM is %s ", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr);
 
   // configure camera
@@ -976,22 +992,31 @@ bool prepCam() {
       retries--;
     }
   }
-
+  uint16_t PID = 0;
   if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%X:%s on %s", err, espErrMsg(err), CAM_BOARD);
   else {
     sensor_t* s = esp_camera_sensor_get();
     if (s == NULL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to access camera data on %s", CAM_BOARD);
     else {
-      switch (s->id.PID) {
+      PID = s->id.PID;
+      switch (PID) {
         case (OV2640_PID):
           strcpy(camModel, "OV2640");
           break;
         case (OV3660_PID):
           strcpy(camModel, "OV3660");
           break;
-        case (OV5640_PID):
+        case (OV5640_PID): {
           strcpy(camModel, "OV5640");
+#if INCLUDE_AF
+          // enable autofocus for OV5640 if equipped - see https://github.com/0015/ESP32-OV5640-AF
+          ov5640AF.start(s);
+          uint8_t res = ov5640AF.focusInit();
+          if (res == 0) res = ov5640AF.autoFocusMode();
+          res == 0 ? LOG_INF("OV5640 Auto Focus available") : LOG_WRN("OV5640 Auto Focus fail: %d", res);
+#endif
           break;
+        }
         case (MEGA_CCM_PID):
           strcpy(camModel, "PY260");
           break;
@@ -1006,7 +1031,7 @@ bool prepCam() {
       else s->set_framesize(s, FRAMESIZE_VGA);
 
       // model specific corrections
-      if (s->id.PID == OV3660_PID) {
+      if (PID == OV3660_PID) {
         // initial sensors are flipped vertically and colors are a bit saturated
         s->set_vflip(s, 1);//flip it back
         s->set_brightness(s, 1);//up the brightness just a bit

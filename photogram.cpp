@@ -41,8 +41,8 @@ uint8_t timeForFocus; // time for DSLR auto focus in secs
 uint8_t timeForPhoto; 
 int pinShutter; // pin used for RS-60E3 shutter control
 int pinFocus; // pin used for RS-60E3 shutter control
-uint8_t photosDone; // read only count of number of photos taken so far
-float gearing; // number of rotation of stepper motor for one rotation of turntable
+uint8_t photosDone = 0; // read only count of number of photos taken so far
+float gearing = 1; // number of rotation of stepper motor gear for one rotation of turntable
 bool extCam = false; // whether to use external DSLR camera (true) or built in ESP Cam (false)
 bool PGactive = false; 
 
@@ -58,7 +58,7 @@ static void prepPgram() {
     pinMode(pinShutter, OUTPUT); 
     if (pinFocus) pinMode(pinFocus, OUTPUT); 
     LOG_INF("External cam, shutter pin %d", pinShutter);
-#ifdef AUXILIARY
+#ifndef AUXILIARY
   } else {
      // use built in cam
      lampAuto = true;
@@ -73,14 +73,12 @@ static void prepPgram() {
   }
 }
 
-#ifdef AUXILIARY
 static void getPhoto() {
+#ifdef AUXILIARY
   LOG_WRN("Internal camera not available on auxiliary board");
   photosDone = numberOfPhotos;
   stepperDone();
-}
-#else 
-static void getPhoto() {
+#else
   // use built in esp cam
   setLamp(lampLevel); // turn on lamp led as flash if required
   if (timeForPhoto * 1000 > MAX_FRAME_WAIT) delay((timeForPhoto * 1000) - MAX_FRAME_WAIT); // allow time for turntable to stabilise
@@ -102,8 +100,8 @@ static void getPhoto() {
     alertBufferSize = 0;
   } else LOG_WRN("Failed to get photo");
   setLamp(0);
-}
 #endif
+}
 
 static void takePhoto() {
   // control external camera
@@ -125,21 +123,29 @@ static void takePhoto() {
 static void pgramTask (void *pvParameter) {
   // take sequence of photos in one revolution of turntable
   // turntable rotation requires gearing number of shutter motor rotations
-  float angle = 1.0 / (float)numberOfPhotos; // ie angular fraction of one revolution
-  photosDone = 0;
-  prepPgram();
-  LOG_INF("Start taking %u photos each %0.1f deg at %0.1f RPM", numberOfPhotos, angle * 360, tRPM);
-  do {
-    extCam ? takePhoto() : getPhoto();
-    // assumes turntable rotates in same direction as motor
-    stepperRun(mRPM, angle * gearing, clockWise, BYJ_48); 
-    // wait for stepper task to finish
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-  } while (++photosDone < numberOfPhotos);
-  LOG_INF("Completed taking photos");
-  if (extCam) {
-    pinMode(pinShutter, INPUT); // stop unneccessary power use
-    if (pinFocus) pinMode(pinFocus, INPUT); // stop unneccessary power use
+  if (numberOfPhotos == 0) {
+#ifdef DEV_ONLY
+    laserLevel();
+#else
+    LOG_WRN("Number of photos needs to be non zero");
+#endif
+  } else {
+    float revFraction = 1.0 / (float)numberOfPhotos; // ie angular fraction of one revolution
+    photosDone = 0;
+    prepPgram();
+    LOG_INF("Start taking %u photos each %0.1f deg at %0.1f RPM", numberOfPhotos, revFraction * 360, tRPM);
+    do {
+      extCam ? takePhoto() : getPhoto();
+      // assumes turntable rotates in same direction as motor (motor gear inside)
+      stepperRun(mRPM, revFraction * gearing, clockWise, BYJ_48); 
+      // wait for stepper task to finish
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    } while (++photosDone < numberOfPhotos);
+    LOG_INF("Completed taking photos");
+    if (extCam) {
+      pinMode(pinShutter, INPUT); // stop unneccessary power use
+      if (pinFocus) pinMode(pinFocus, INPUT); // stop unneccessary power use
+    }
   }
   pgramHandle = NULL;
   vTaskDelete(NULL);
@@ -152,7 +158,7 @@ void takePhotos(bool startPhotos) {
       mRPM = tRPM * gearing;
       if (mRPM > MAX_RPM) LOG_WRN("Requested stepper RPM %0.1f is too high", mRPM);
       else {
-        if (pgramHandle == NULL) xTaskCreate(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle);
+        if (pgramHandle == NULL) xTaskCreateWithCaps(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle, HEAP_MEM);
         else LOG_WRN("pgramTask still running");
       }
     } else {

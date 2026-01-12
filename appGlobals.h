@@ -52,7 +52,6 @@
 #error "Must select ESP32 or ESP32S3 board for camera"
 #endif
 
-
 /***************************************************************
   Optional features NOT included by default to reduce heap use 
   To include a particular feature, change false to true
@@ -74,16 +73,20 @@
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 #define INCLUDE_RTSP false    // rtsp.cpp (RTSP Streaming). Requires additional library: ESP32-RTSPServer
 #define INCLUDE_DS18B20 false // if true, requires INCLUDE_PERIPH and additional libraries: OneWire and DallasTemperature
+#define INCLUDE_AF false      // for auto focused equipped OV5640. Requires additional library: OV5640_Auto_Focus_for_ESP32_Camera
 #define INCLUDE_NEW_JPG false // true to use esp_new_jpg library, which must be installed first. Faster but uses more memory
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
 
-// if INCLUDE_I2C true, set each I2C device used to true 
-#define USE_SSD1306 false
-#define USE_BMx280 false
-#define USE_MPU6050 false
-#define USE_MPU9250 false
-#define USE_DS3231 false
-#define USE_LCD1602 false
+// if INCLUDE_I2C true, set each I2C device used to true and instal additional library if required
+#define USE_SSD1306 false  // esp8266-oled-ssd1306 library
+#define USE_BMx280 false   // BMx280MI library
+#define USE_MPU6050 false  // none
+#define USE_MPU9250 false  // hideakitai MPU9250 library
+#define USE_DS3231 false   // Makuna Rtc library
+#define USE_LCD1602 false  // none
+#if (USE_MPU6050 && USE_MPU9250)
+#error "Cannot use MPU6050 and MPU9250 simultaneously"
+#endif
 
 // To include Edge Impulse arduino library for additional motion detect filtering
 // Use Edge Impulse Studio to create model:
@@ -122,7 +125,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.8.5"
+#define APP_VER "10.9"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -164,7 +167,7 @@
 #define ISCAM // cam specific code in generic cpp files
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 34
+#define CFG_VER 35
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -206,6 +209,7 @@
 #define HB_STACK_SIZE (1024 * 2)
 #define UART_STACK_SIZE (1024 * 2)
 #define INTERCOM_STACK_SIZE (1024 * 2)
+#define SENSOR_STACK_SIZE (1024 * 2)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -227,6 +231,7 @@
 #define UART_PRI 1
 #define DS18B20_PRI 1
 #define BATT_PRI 1
+#define SENSOR_PRI 1
 
 /******************** Function declarations *******************/
 
@@ -255,6 +260,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL = 
 void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
 void buzzerAlert(bool buzzerOn);
+bool checkAccelMove();
 int8_t checkPotVol(int8_t adjVol);
 bool checkSDFiles();
 void currentStackUsage();
@@ -262,7 +268,7 @@ void displayAudioLed(int16_t audioSample);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudioRecord(bool isValid);
 float* getBMx280();
-float* getMPU9250();
+float* getMPUdata();
 mjpegStruct getNextFrame(bool firstCall = false);
 int getInputPeripheral(uint8_t cmd);
 bool getPIRval();
@@ -270,6 +276,7 @@ bool haveWavFile(bool isTL = false);
 bool identifyBMx();
 void intercom();
 bool isNight(uint8_t nightSwitch);
+void laserLevel() ;
 void micTaskStatus();
 void motorSpeed(int speedVal, bool leftMotor = true);
 void openSDfile(const char* streamFile);
@@ -311,10 +318,9 @@ size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
 bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly = false);
 void keepFrame(camera_fb_t* fb);
-void notifyMotion(camera_fb_t* fb);
 #endif
 
 /******************** Global app declarations *******************/
@@ -345,7 +351,6 @@ extern bool dbgMotion;
 extern bool doPlayback;
 extern bool doRecording; // whether to capture to SD or not
 extern bool forceRecord; // Recording enabled by rec button or dashcam slider
-extern bool forcePlayback; // playback enabled by user
 extern uint8_t FPS;
 extern uint8_t fsizePtr; // index to frameData[] for record
 extern bool isCapturing;
@@ -373,7 +378,7 @@ extern bool streamSrt;
 extern uint8_t numStreams;
 extern uint8_t vidStreams;
 
-#ifndef CONFIG_IDF_TARGET_ESP32C3
+#ifndef AUXILIARY
 extern framesize_t maxFS;
 #endif
 
@@ -391,7 +396,7 @@ extern size_t audioBytes;
 extern char srtBuffer[];
 extern size_t srtBytes;
 extern size_t maxFrameBuffSize;
-extern size_t maxAlertBuffSize;
+
 
 // Auxiliary use
 extern bool useUart;
@@ -400,6 +405,8 @@ extern int uartRxdPin;
 
 // peripherals used
 extern bool pirUse; // true to use PIR or radar sensor (RCWL-0516) for motion detection
+extern bool accelUse; // true to use MPU6050 or MPU9250 accelerometer for motion detection
+extern int accelDeg; // minimum accelerometer movement for motion detection
 extern bool lampAuto; // if true in conjunction with usePir, switch on lamp when PIR activated
 extern bool lampNight;
 extern int lampType;
