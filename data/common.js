@@ -361,10 +361,12 @@
 
         // Function to validate AP password
         function validateApPassword(password) {
+          password = password.trim();
+          if (/^\*+$/.test(password)) return ''; // ignore if asterisks
           const minLength = 8;
           const maxLength = 63;
           const validAscii = /^[\x20-\x7E]*$/; // Printable ASCII characters only
-          const strongPassword = /^(?=.*[A-Za-z])(?=.*\d).+$/; // At least one letter and one number
+          const strongPassword = /^(?=.*[A-Za-z])(?=.*\d)[\x20-\x7E]+$/; // At least one letter and one number
 
           if (password.length == 0) return ''; // clear password
           if (password.length < minLength) {
