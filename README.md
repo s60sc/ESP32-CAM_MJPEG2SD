@@ -1,6 +1,8 @@
 
 # ESP32-CAM_MJPEG2SD
 
+**v10.9 only working for ESP32S3 modules, use earlier release for ESP32 until fixed**
+
 Application for ESP32 / ESP32S3 with OV2640 / OV3660 / OV5640 / PY260 camera to record JPEGs to SD card as AVI files and playback to browser as an MJPEG stream. The AVI format allows recordings to replay at correct frame rate on media players. If a microphone is installed then a WAV file is also created and stored in the AVI file.  
 The application supports:
 * [Motion detection by camera](#motion-detection-by-camera) or PIR / radar sensor / accelerometer
