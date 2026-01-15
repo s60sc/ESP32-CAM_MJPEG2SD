@@ -2560,9 +2560,11 @@
 
       const scriptFiles = ['/web?common.js', '../../CommonMaster/Latest/common.js']; 
       for (let i = 0; i < scriptFiles.length; i++) {
-        const scriptElement = document.createElement('script');
-        scriptElement.src = scriptFiles[i];
-        document.body.appendChild(scriptElement);
+        try {
+          const scriptElement = document.createElement('script');
+          scriptElement.src = scriptFiles[i];
+          document.body.appendChild(scriptElement);
+        } catch (error) {}
       }
 
       window.addEventListener('load', function() {
