@@ -837,6 +837,12 @@ char* trim(char* str) {
     return str;
 }
 
+char* toCase(char *s, bool toLower) {
+  // convert supplied string to lower or upper case
+  for (char *p = s; *p; ++p) *p = toLower ? (char)tolower((unsigned char)*p) : (char)toupper((unsigned char)*p);
+  return s;
+}
+
 /********************** analog functions ************************/
 
 uint16_t smoothAnalog(int analogPin, int samples) {
@@ -1052,8 +1058,13 @@ int vprintfRedirect(const char* format, va_list args) {
 void logSetup() {
   // prep logging environment
   if (logMutex == NULL) {
-    HEAP_MEM = psramFound() ? MALLOC_CAP_SPIRAM : MALLOC_CAP_DMA;
     set_arduino_panic_handler(appPanicHandler, NULL);
+#if CONFIG_IDF_TARGET_ESP32S3
+   HEAP_MEM = psramFound() ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
+#else
+    // Original ESP32 must use internal memory for stacks
+    HEAP_MEM = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+#endif
     Serial.begin(115200);
     Serial.setDebugOutput(DBG_ON);
     printf("\n\n");
@@ -1154,10 +1165,10 @@ static void statsTask(void *arg) {
   #define ARRAY_SIZE_OFFSET   40   // Increase this if ESP_ERR_INVALID_SIZE
 
   bool onceOnly = *(bool*)arg; 
-  static configRUN_TIME_COUNTER_TYPE prevRunCounter = 0;
   esp_err_t ret = ESP_OK;  
   TaskStatus_t *statsArray = NULL;
   UBaseType_t statsArraySize;
+  static configRUN_TIME_COUNTER_TYPE prevRunCounter = 0;
   configRUN_TIME_COUNTER_TYPE runCounter;
   
   do {
@@ -1185,14 +1196,15 @@ static void statsTask(void *arg) {
         break;
       }
 
-      logPrint("\nTask stats interval %lums on %u cores\n", (runCounter - prevRunCounter) / 1000, CONFIG_FREERTOS_NUMBER_OF_CORES);
+      logPrint("\nTask stats interval %lus on %u cores\n", STATS_INTERVAL / 1000, CONFIG_FREERTOS_NUMBER_OF_CORES);
       logPrint("\n| %-16s | %-10s | %-3s | %-4s | %-6s |\n", "Task name", "State", "Pri", "Core", "Core%");
       logPrint("|------------------|------------|-----|------|--------|\n"); 
       // Match each task in start_array to those in the end_array
       for (int i = 0; i < statsArraySize; i++) {
         float percentage_time = ((float)statsArray[i].ulRunTimeCounter * 100.0) / runCounter;
-        logPrint("| %-16s | %-10s | %*u | %*s | %*.1f%% |\n", 
-          statsArray[i].pcTaskName, getTaskStateString(statsArray[i].eCurrentState), 3, (int)statsArray[i].uxCurrentPriority, 4, "tbd", 5, percentage_time);
+        UBaseType_t coreId = statsArray[i].xCoreID;
+        logPrint("| %-16s | %-10s | %3u | %4c | %5.1f%% |\n", 
+          statsArray[i].pcTaskName, getTaskStateString(statsArray[i].eCurrentState), (int)statsArray[i].uxCurrentPriority, coreId == tskNO_AFFINITY ? '*' : '0' + (int)coreId, percentage_time);
       }
       logPrint("|------------------|------------|-----|------|--------|\n"); 
     } while (false);
@@ -1537,7 +1549,8 @@ void showSys() {
   // output system details to web log
   logLine();
   boardInfo();
-  logPrint("\n%s v%s, arduino-esp32 v%s\n", APP_NAME, APP_VER, ESP_ARDUINO_VERSION_STR);
+  logLine();
+  logPrint("%s v%s, arduino-esp32 v%s\n", APP_NAME, APP_VER, ESP_ARDUINO_VERSION_STR);
   logLine();
   printPartitionTable();
   logLine();

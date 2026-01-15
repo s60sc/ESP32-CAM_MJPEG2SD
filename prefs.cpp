@@ -131,6 +131,7 @@ static void loadVectItem(const std::string keyValGrpLabel) {
 static void saveConfigVect() {
   File file = STORAGE.open(CONFIG_FILE_PATH, FILE_WRITE);
   char configLine[FILE_NAME_LEN + 101];
+  int cfgCnt = 0;
   if (!file) LOG_WRN("Failed to save to configs file");
   else {
     sort(configs.begin(), configs.end());
@@ -142,8 +143,9 @@ static void saveConfigVect() {
         snprintf(configLine, FILE_NAME_LEN + 100, "%s%c%.*s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, strlen(row[1].c_str()), FILLSTAR, DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
       else snprintf(configLine, FILE_NAME_LEN + 100, "%s%c%s%c%s%c%s%c%s\n", row[0].c_str(), DELIM, row[1].c_str(), DELIM, row[2].c_str(), DELIM, row[3].c_str(), DELIM, row[4].c_str());
       file.write((uint8_t*)configLine, strlen(configLine));
+      cfgCnt++;
     }
-    LOG_ALT("Config file saved");
+    LOG_ALT("Config file saved %d entries", cfgCnt);
   }
   file.close();
 }
@@ -485,7 +487,14 @@ static bool checkConfigFile() {
     file = STORAGE.open(CONFIG_FILE_PATH, FILE_WRITE);
     if (file) {
       // apply initial defaults
-      file.write((uint8_t*)appConfig, strlen(appConfig));
+      uint8_t* p = (uint8_t*)appConfig;
+      int cfgLen = strlen(appConfig);
+      while (cfgLen > 0) {
+        int toWrite = min(512, cfgLen);
+        file.write(p, toWrite);
+        p += toWrite;
+        cfgLen -= toWrite;
+      }
       sprintf(hostName, "%s_%012llX", APP_NAME, ESP.getEfuseMac());
       char cfg[100];
       sprintf(cfg, "appId~%s~99~~na\n", APP_NAME);

@@ -27,11 +27,16 @@ static bool use1bitMode = true;
 static int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
 #endif
 
+enum fsInd {SDMMC, LITTLEFS, SPIFFSS, NONE};
+static fsInd thisFS = NONE; 
+static const char* fsTypes[] = {"SD_MMC", "LittleFS", "SPIFFS"};
+static const char* fsPaths[] = {"/sdcard", "/littlefs", "/spiffs"};
+
 // hold sorted list of filenames/folders names in order of newest first
 static std::vector<std::string> fileVec;
 static auto currentDir = "/~current";
 static auto previousDir = "/~previous";
-static char fsType[10] = {0};
+
 
 static void infoSD() {
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
@@ -82,18 +87,33 @@ static bool prepSD_MMC() {
   return res;
 }
 
+static void fileModifiedDate(const char* fileName, char* timebuf, size_t buflen) {
+  // return file last modified date
+  timebuf[0] = 0;
+  struct stat st;
+  if (stat(fileName, &st) == 0) {
+    struct tm tm;
+    gmtime_r(&st.st_mtime, &tm);
+    strftime(timebuf, buflen, "%d %b %Y %H:%M:%S", &tm);
+  } else LOG_WRN("%s not found\n", fileName);
+}
+
 static void listFolder(const char* rootDir) { 
   // list contents of folder
   LOG_INF("Sketch size %s", fmtSize(ESP.getSketchSize()));    
   File root = STORAGE.open(rootDir);
   File file = root.openNextFile();
+  char fPath[FILE_NAME_LEN];
+  char timebuf[30] = {0};
   while (file) {
-    LOG_INF("File: %s, size: %s", file.path(), fmtSize(file.size()));
+    sprintf(fPath, "%s%s", fsPaths[thisFS], file.path());
+    fileModifiedDate(fPath, timebuf, sizeof(timebuf));
+    LOG_INF("File: %s, size: %s, date %s", file.path(), fmtSize(file.size()), timebuf);
     file = root.openNextFile();
   }
   char totalBytes[20];
   strcpy(totalBytes, fmtSize(STORAGE.totalBytes()));
-  LOG_INF("%s: %s used of %s", fsType, fmtSize(STORAGE.usedBytes()), totalBytes);
+  LOG_INF("%s: %s used of %s", fsTypes[thisFS], fmtSize(STORAGE.usedBytes()), totalBytes);
 }
 
 bool startStorage() {
@@ -101,7 +121,7 @@ bool startStorage() {
   bool res = false;
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
   if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
-    strcpy(fsType, "SD_MMC");
+    thisFS = SDMMC;
     res = prepSD_MMC();
     if (res) listFolder(DATA_DIR);
     else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
@@ -110,16 +130,16 @@ bool startStorage() {
   }
 #endif
   // One of SPIFFS or LittleFS
-  if (!strlen(fsType)) {
+  if (thisFS == NONE) {
 #ifdef _SPIFFS_H_
     if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
-      strcpy(fsType, "SPIFFS");
+      thisFS = SPIFFSS;
       res = SPIFFS.begin(formatIfMountFailed);
     }
 #endif
 #ifdef _LITTLEFS_H_
     if ((fs::LittleFSFS*)&STORAGE == &LittleFS) {
-      strcpy(fsType, "LittleFS");
+      thisFS = LITTLEFS;
       res = LittleFS.begin(formatIfMountFailed);
       // create data folder if not present
       if (res) LittleFS.mkdir(DATA_DIR);
@@ -127,11 +147,11 @@ bool startStorage() {
 #endif
     if (res) {  
       // list details of files on file system
-      const char* rootDir = !strcmp(fsType, "LittleFS") ? DATA_DIR : "/";
+      const char* rootDir = thisFS == LITTLEFS ? DATA_DIR : "/";
       listFolder(rootDir);
     }
   } else {
-    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsType);  
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsTypes[thisFS]);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
   debugMemory("startStorage");
@@ -302,7 +322,7 @@ void deleteFolderOrFile(const char* deleteThis) {
   }  
   LOG_INF("Deleting : %s", fileName);
   // Empty named folder first
-  if (df.isDirectory() || ((!strcmp(fsType, "SPIFFS")) && strstr("/", fileName) != NULL)) {
+  if (df.isDirectory() || (thisFS == SPIFFSS && strstr("/", fileName) != NULL)) {
     LOG_INF("Folder %s contents", fileName);
     File file = df.openNextFile();
     while (file) {

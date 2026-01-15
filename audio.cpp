@@ -5,9 +5,10 @@
 // I2S and PDM microphones are supported.
 // I2S amplifiers are supported.
 //
-// If using I2S mic and I2S amp, then the following pins should be set to same values:
+// If using I2S mic and I2S amp, then the following pins should be set to same shared values:
 // - micSckPin = mampBckIo
 // - micSWsPin = mampSwsIo
+// PDM mic must use separate pins to I2S amp
 //
 // A browser microphone and on a PC or phone can be used:
 // - for VoiceChanger app, this is used instead of local mic
@@ -45,6 +46,8 @@ static bool micRecording = false;
 // I2S devices
 bool I2Smic; // true if I2S, false if PDM
 // I2S SCK and I2S BCLK can share same pin
+// I2S WS and I2S LRCLK can share same pin
+
 // I2S external Microphone pins
 // INMP441 I2S microphone pinout, connect L/R to GND for left channel
 // MP34DT01 PDM microphone pinout, connect SEL to GND for left channel
@@ -116,12 +119,17 @@ void applyVolume() {
 
 static bool setupMic() {
   bool res;
+  if (micSckPin < 0 && I2Smic) {
+    LOG_WRN("Switching to PDM mic setup as I2S SCK pin not defined");
+    I2Smic = false;
+    updateConfigVect("mtype", "0");
+  }
   if (I2Smic) {
     // I2S mic and I2S amp can share same I2S channel
     I2Sstd.setPins(micSckPin, micSWsPin, mampSdIo, micSdPin, -1); // BCLK/SCK, LRCLK/WS, SDOUT, SDIN, MCLK
     res = I2Sstd.begin(I2S_MODE_STD, SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
   } else {
-    // PDM mic need separate channel to I2S
+    // PDM mic needs separate channel to I2S
     I2Spdm.setPinsPdmRx(micSWsPin, micSdPin);
     res = I2Spdm.begin(I2S_MODE_PDM_RX, SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
   }

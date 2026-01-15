@@ -125,7 +125,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.9"
+#define APP_VER "10.9.1"
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -167,7 +167,7 @@
 #define ISCAM // cam specific code in generic cpp files
 
 // to determine if newer data files need to be loaded
-#define CFG_VER 35
+#define CFG_VER 36
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"
@@ -200,7 +200,7 @@
 #define AUDIO_STACK_SIZE (1024 * 4)
 #define MICREM_STACK_SIZE (1024 * 2)
 #define MQTT_STACK_SIZE (1024 * 4)
-#define PING_STACK_SIZE (1024 * 5)
+#define PING_STACK_SIZE (1024 * 6)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
 #define SERVO_STACK_SIZE (1024)
 #define SUSTAIN_STACK_SIZE (1024 * 4)

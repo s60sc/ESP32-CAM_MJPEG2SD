@@ -200,6 +200,7 @@ bool startStorage();
 bool startWebServer();
 void stopPing();
 void syncToBrowser(uint32_t browserUTC);
+char* toCase(char *s, bool toLower = true);
 char* trim(char* str);
 bool updateConfigVect(const char* variable, const char* value);
 void updateStatus(const char* variable, const char* _value, bool fromUser = true);
