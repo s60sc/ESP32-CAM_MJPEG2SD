@@ -970,7 +970,7 @@ static void remote_log_init_SD() {
   log_remote_fp = fopen("/sdcard" LOG_FILE_PATH, "a");
   if (log_remote_fp == NULL) {LOG_WRN("Failed to open SD log file %s", LOG_FILE_PATH);}
   else {
-    logPrint(" \n");
+    logLine();
     LOG_INF("Opened SD file for logging");
   }
 #endif

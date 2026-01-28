@@ -98,7 +98,7 @@ static void IRAM_ATTR frameISR() {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   if (isPlaying) xSemaphoreGiveFromISR (playbackSemaphore, &xHigherPriorityTaskWoken ); // notify playback to send frame
   if (captureHandle != NULL) vTaskNotifyGiveFromISR(captureHandle, &xHigherPriorityTaskWoken); // wake capture task to process frame
-  if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void controlFrameTimer(bool restartTimer) {

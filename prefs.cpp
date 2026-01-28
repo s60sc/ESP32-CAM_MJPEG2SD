@@ -452,7 +452,7 @@ void buildJsonString(uint8_t filter) {
     updateAppStatus("custom", "");
     uint8_t cfgGroup = filter - 10; // filter number is length of url query string, config group number is length of string - 10
     p += sprintf(p, "\"cfgGroup\":\"%u\",", cfgGroup);
-    char pwdHide[MAX_PWD_LEN] = {0, };  // used to replace password value with asterisks
+    char pwdHide[MAX_PWD_LEN] = {0};  // used to replace password value with asterisks
     for (const auto& row : configs) {
       if (atoi(row[2].c_str()) == cfgGroup) {
         int valSize = strlen(row[1].c_str());

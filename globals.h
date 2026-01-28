@@ -10,7 +10,9 @@
 
 #pragma once
 
-//#define DEV_ONLY // leave commented out
+#if __has_include("./devUtilities.cpp") 
+#define DEV_ONLY 
+#endif
 #ifdef DEV_ONLY
 // to compile with -Wall -Werror=all -Wextra
 #pragma GCC diagnostic error "-Wformat=2"
@@ -328,9 +330,16 @@ extern const char* telegram_rootCACertificate;
 extern const char* hfs_rootCACertificate;
 extern char* serverCerts[];
 
-// app status
+// web serve
 extern char timezone[];
 extern char ntpServer[];
+extern const char* setupPage_html;
+extern const char* otaPage_html;
+extern const char* failPageS_html;
+extern const char* failPageE_html;
+extern char startupFailure[];
+
+// app status
 extern uint8_t alarmHour;
 extern char* jsonBuff; 
 extern bool dbgVerbose;
@@ -340,16 +349,10 @@ extern char messageLog[];
 extern uint16_t mlogEnd;
 extern bool timeSynchronized;
 extern bool monitorOpen; 
-extern const char* setupPage_html;
-extern const char* otaPage_html;
-extern const char* failPageS_html;
-extern const char* failPageE_html;
-extern char startupFailure[];
 extern time_t currEpoch;
 extern bool RCactive;
 extern int wakePin;
 extern int wakeLevel;
-
 extern UBaseType_t uxHighWaterMarkArr[];
 extern UBaseType_t HEAP_MEM;
 

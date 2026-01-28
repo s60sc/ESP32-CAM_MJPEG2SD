@@ -460,7 +460,7 @@ static volatile bool RTCalarmFlag = false;
 static void IRAM_ATTR RTCalarmISR() {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   RTCalarmFlag = true;
-  if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 static bool setupRTC() {

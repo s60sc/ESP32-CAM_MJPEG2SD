@@ -125,7 +125,9 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.9.1"
+#define APP_VER "10.9.2"
+// to determine if newer data files need to be loaded
+#define CFG_VER 37
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -165,9 +167,6 @@
 #define RAMSIZE (1024 * 8) // set this to multiple of SD card sector size (512 or 1024 bytes)
 #define CHUNKSIZE (1024 * 4)
 #define ISCAM // cam specific code in generic cpp files
-
-// to determine if newer data files need to be loaded
-#define CFG_VER 36
 
 #define AVI_EXT "avi"
 #define CSV_EXT "csv"

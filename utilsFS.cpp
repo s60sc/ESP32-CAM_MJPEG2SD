@@ -27,8 +27,8 @@ static bool use1bitMode = true;
 static int sdmmcFreq = BOARD_MAX_SDMMC_FREQ; // board specific default SD_MMC speed
 #endif
 
-enum fsInd {SDMMC, LITTLEFS, SPIFFSS, NONE};
-static fsInd thisFS = NONE; 
+enum fsInd {SDMMC, LITTLEFS, SPIFFSS, TBD};
+static fsInd thisFS = TBD; 
 static const char* fsTypes[] = {"SD_MMC", "LittleFS", "SPIFFS"};
 static const char* fsPaths[] = {"/sdcard", "/littlefs", "/spiffs"};
 
@@ -108,7 +108,7 @@ static void listFolder(const char* rootDir) {
   while (file) {
     sprintf(fPath, "%s%s", fsPaths[thisFS], file.path());
     fileModifiedDate(fPath, timebuf, sizeof(timebuf));
-    LOG_INF("File: %s, size: %s, date %s", file.path(), fmtSize(file.size()), timebuf);
+    LOG_INF("File: %s, size: %s, Date: %s", file.path(), fmtSize(file.size()), timebuf);
     file = root.openNextFile();
   }
   char totalBytes[20];
@@ -130,7 +130,7 @@ bool startStorage() {
   }
 #endif
   // One of SPIFFS or LittleFS
-  if (thisFS == NONE) {
+  if (thisFS == TBD) {
 #ifdef _SPIFFS_H_
     if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
       thisFS = SPIFFSS;

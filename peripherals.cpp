@@ -452,7 +452,7 @@ static void IRAM_ATTR stickISR() {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   if (stickHandle) {
     vTaskNotifyGiveFromISR(stickHandle, &xHigherPriorityTaskWoken); 
-    if (xHigherPriorityTaskWoken == pdTRUE) portYIELD_FROM_ISR();
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
   }
 }
 
