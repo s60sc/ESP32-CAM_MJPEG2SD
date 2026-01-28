@@ -716,6 +716,12 @@
             if (!response.ok) alert("sendControl - " + response.status + ": " + response.statusText);
           }
         }
+        
+        async function sendControlSave(key, value, resetMsg) {
+          // send and save 
+          sendControl(key, value);
+          saveChanges(resetMsg);
+        }
 
         async function sendControlResp(key, value) {
           // send and apply response
@@ -786,40 +792,8 @@
                   let inputHtml;
                   let valCntr = 0;
                   switch (value.charAt(0)) {
-                    case 'T': // text input
-                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
-                    break;
-                    case 'X': // text input field not updated by app
-                      inputHtml = '<input type="text" class="configItem nochange" id="' + saveKey + '" value="'+ saveVal +'" >';
-                    break;
-                    case 'N': // number input
-                      inputHtml = '<input type="number" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
-                    break;
-                    case 'S': 
-                      // drop down select
-                      valCntr = 0;
-                      inputHtml = '<select id="' + saveKey + '" class="selectField">';
-                      value.substring(2).split(":").forEach(opt => {
-                        inputHtml += '<option value="' + valCntr + '" ' + (saveVal == valCntr ? 'selected="selected"' : '') + '>' + opt + '</option>';
-                        valCntr++;
-                      });
-                      inputHtml += '</select>';
-                    break;
-                    case 'C':
-                      // format checkbox as slider
-                      inputHtml = '<div class="switch"><input type="checkbox" class="configItem" id="' + saveKey;
-                      inputHtml += '" value="'+ saveVal +'"' + (saveVal == 1 ? ' checked' : '') + '>';
-                      inputHtml += '<label class="slider" for="' + saveKey + '"></label></div>';
-                    break;
-                    case 'D': // display only
-                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" readonly style="background-color: var(--menuBackground);">';
-                    break;
-                    case 'R': // R:min:max:step
-                      // format number as range slider 
-                      const range = value.substring(2).split(":");
-                      inputHtml = '<div class="input-group">';
-                      inputHtml += '<input type="range" class="configItem" id="' + saveKey + '" min="' + range[0] + '" max="' + range[1];
-                      inputHtml += '" step="' + range[2] + '" value="' + saveVal + '"><div name="rangeVal">' + saveVal + '</div></div>';
+                    case 'A': // action button
+                      inputHtml = '<svg class="svgCols nochange"><rect class="buttonRect" tabindex="0"/><text id="' + saveKey + '" class="midText" text-anchor="middle" dominant-baseline="middle">' + saveVal + '</text></svg>';
                     break;
                     case 'B': // B:lab1:lab2:etc
                       // radio button group
@@ -831,8 +805,43 @@
                         valCntr++;
                       });
                     break;
-                    case 'A': // action button
-                      inputHtml = '<svg class="svgCols nochange"><rect class="buttonRect" tabindex="0"/><text id="' + saveKey + '" class="midText" text-anchor="middle" dominant-baseline="middle">' + saveVal + '</text></svg>';
+                    case 'C':
+                      // format checkbox as slider
+                      inputHtml = '<div class="switch"><input type="checkbox" class="configItem" id="' + saveKey;
+                      inputHtml += '" value="'+ saveVal +'"' + (saveVal == 1 ? ' checked' : '') + '>';
+                      inputHtml += '<label class="slider" for="' + saveKey + '"></label></div>';
+                    break;
+                    case 'D': // display only
+                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" readonly style="background-color: var(--menuBackground);">';
+                    break;
+                    case 'L': // binary string input
+                      inputHtml = `<input type="text" oninput="this.value = this.value.replace(/[^01]/g, '')" placeholder="0101..." class="configItem" id="` + saveKey + `" value="`+ saveVal +`" >`;
+                    break;
+                    case 'N': // number input
+                      inputHtml = '<input type="number" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
+                    break;
+                    case 'R': // R:min:max:step
+                      // format number as range slider 
+                      const range = value.substring(2).split(":");
+                      inputHtml = '<div class="input-group">';
+                      inputHtml += '<input type="range" class="configItem" id="' + saveKey + '" min="' + range[0] + '" max="' + range[1];
+                      inputHtml += '" step="' + range[2] + '" value="' + saveVal + '"><div name="rangeVal">' + saveVal + '</div></div>';
+                    break;
+                    case 'S': 
+                      // drop down select
+                      valCntr = 0;
+                      inputHtml = '<select id="' + saveKey + '" class="selectField">';
+                      value.substring(2).split(":").forEach(opt => {
+                        inputHtml += '<option value="' + valCntr + '" ' + (saveVal == valCntr ? 'selected="selected"' : '') + '>' + opt + '</option>';
+                        valCntr++;
+                      });
+                      inputHtml += '</select>';
+                    break;
+                    case 'T': // text input
+                      inputHtml = '<input type="text" class="configItem" id="' + saveKey + '" value="'+ saveVal +'" >';
+                    break;
+                    case 'X': // text input field not updated by app
+                      inputHtml = '<input type="text" class="configItem nochange" id="' + saveKey + '" value="'+ saveVal +'" >';
                     break;
                     default:
                       alert("Unhandled config input type " + value);
