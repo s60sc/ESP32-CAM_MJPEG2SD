@@ -31,11 +31,10 @@ void sendExternalHeartbeat() {
   
   buildJsonString(false);
 
-  //hclient.setInsecure();
   if (remoteServerConnect(hclient, external_heartbeat_domain, external_heartbeat_port, "", EXTERNALHB)) {
     HTTPClient https;
     int httpCode = HTTP_CODE_NOT_FOUND;
-    if (https.begin(hclient, external_heartbeat_domain, external_heartbeat_port, uri, true)) {
+    if (https.begin(hclient, external_heartbeat_domain, external_heartbeat_port, uri)) {
 
       https.addHeader("Content-Type", "application/json");
       
@@ -43,8 +42,7 @@ void sendExternalHeartbeat() {
       //httpCode = https.GET();
       if (httpCode == HTTP_CODE_OK) {
         LOG_INF("External Heartbeat sent to: %s%s", external_heartbeat_domain, uri);
-      } else LOG_WRN("External Heartbeat request failed, error: %s", https.errorToString(httpCode).c_str());    
-      //if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
+      } else LOG_WRN("External Heartbeat request failed, error: %s", https.errorToString(httpCode).c_str());
       https.end();     
     }
     remoteServerClose(hclient);

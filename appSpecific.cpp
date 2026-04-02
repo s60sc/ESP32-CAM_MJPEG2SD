@@ -249,7 +249,9 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
           // update default FPS for this frame size
           if (playbackHandle != NULL) {
             setFPSlookup(fsizePtr);
-            updateConfigVect("fps", String(FPS).c_str()); 
+            char fpsStr[8];
+            snprintf(fpsStr, sizeof(fpsStr), "%u", FPS);
+            updateConfigVect("fps", fpsStr);
           }
         }
       }
@@ -302,7 +304,7 @@ static bool extractKeyVal(const char* wsMsg) {
   char* endPtr = strchr(variable, '=');
   if (endPtr != NULL) {
     *endPtr = 0; // split variable into 2 strings, first is key name
-    strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
+    strcpy(value, endPtr + 1); // value is now second part of string
     return true;
   } else LOG_ERR("Invalid query string: %s", wsMsg);
   return false;
@@ -334,7 +336,7 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
       httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
       httpd_resp_send(req, (const char*)alertBuffer, alertBufferSize);
       uint32_t jpegTime = millis() - startTime;
-      LOG_INF("JPEG: %uB in %ums", alertBufferSize, jpegTime);
+      LOG_INF("%s JPEG: %uB in %lums", frameData[fsizePtr].frameSizeStr, alertBufferSize, jpegTime);
       alertBufferSize = 0;
     } else LOG_WRN("Failed to get still");
   } 
@@ -424,7 +426,7 @@ void appSpecificWsHandler(const char* wsMsg) {
         case 'S': 
           // status request
           buildJsonString(wsLen); // required config number 
-          logPrint("%s\n", jsonBuff);
+          LOG_SEND("%s\n", jsonBuff);
         break;   
         case 'U': 
           // update or control request
@@ -482,12 +484,6 @@ void buildAppJsonString(bool filter) {
   p += sprintf(p, "\"autoControl\":\"%d\",", autoControl);
   p += sprintf(p, "\"waitTime\":\"%d\",", waitTime); 
   p += sprintf(p, "\"RCactive\":\"%d\",", RCactive); 
-  p += sprintf(p, "\"maxSteerAngle\":\"%d\",", maxSteerAngle); 
-  p += sprintf(p, "\"maxDutyCycle\":\"%d\",", maxDutyCycle);
-  p += sprintf(p, "\"minDutyCycle\":\"%d\",", minDutyCycle);  
-  p += sprintf(p, "\"allowReverse\":\"%d\",", allowReverse);   
-  p += sprintf(p, "\"autoControl\":\"%d\",", autoControl);
-  p += sprintf(p, "\"waitTime\":\"%d\",", waitTime); 
   p += sprintf(p, "\"heartbeatRC\":\"%d\",", heartbeatRC); 
 #endif
   p += sprintf(p, "\"sustainId\":\"%u\",", sustainId);     
@@ -562,7 +558,7 @@ void setInputPeripheral(uint8_t cmd, uint32_t controlVal) {
 int getInputPeripheral(uint8_t cmd) {
   // auxiliary get data from input peripheral, for return to client
   // not used
-  uint32_t inputVal = -1;
+  int inputVal = -1;
   if ((char)cmd == 'I') {
      // get PIR status
     bool pirVal = getPIRval();
@@ -646,7 +642,7 @@ static void heartBeatTask (void *pvParameter) {
 void startHeartbeat() {
   // start heartbeat to check websocket and / or uart connectivity for RC control
   if (RCactive || useUart) {
-    if (heartBeatHandle == NULL) xTaskCreateWithCaps(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle, HEAP_MEM);
+    if (heartBeatHandle == NULL) xTaskCreateWithCaps(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle, STACK_MEM);
   }
 }
 #endif 
@@ -723,27 +719,11 @@ static bool downloadAvi(const char* userCmd) {
     strncpy(fileName, userCmd, FILE_NAME_LEN - 1);
     pos = strchr(fileName, '_');
     memmove(pos, fileName, sizeof(fileName) - (pos - fileName));
-    strncat(fileName, ".avi", sizeof(fileName - 1) - strlen(fileName)); 
+    strncat(fileName, ".avi", sizeof(fileName) - 1 - strlen(fileName)); 
     if (STORAGE.exists(fileName)) sendTgramFile(fileName, "video/x-msvideo", "");
     else sendTgramMessage("AVI file not found: ", fileName, "");
   }
   return (bool)pos;
-}
-
-static void saveRamLog(const char* ramLogName) {
-  // save ramlog to storage for upload to telegram
-  File ramFile = STORAGE.open(ramLogName, FILE_WRITE);
-  int startPtr, endPtr;
-  startPtr = endPtr = mlogEnd;  
-  // write log in chunks
-  do {
-    int maxChunk = startPtr < endPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr;
-    size_t chunkSize = std::min(CHUNKSIZE, maxChunk);    
-    if (chunkSize > 0) ramFile.write((uint8_t*)messageLog + startPtr, chunkSize);
-    startPtr += chunkSize;
-    if (startPtr >= RAM_LOG_LEN) startPtr = 0;
-  } while (startPtr != endPtr);
-  ramFile.close();
 }
 
 void appSpecificTelegramTask(void* p) {
@@ -757,10 +737,13 @@ void appSpecificTelegramTask(void* p) {
     // service requests from Telegram
     if (getTgramUpdate(userCmd)) {     
       if (!strcmp(userCmd, "/snap")) {
+        uint32_t startTime = millis();
         doKeepFrame = true;
-        delay(1000); // time to get frame
-        sprintf(userCmd, "/snap from %s", hostName);
-        sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
+        while (doKeepFrame && (millis() - startTime < MAX_FRAME_WAIT)) delay(100);
+        if (!doKeepFrame && alertBufferSize) {
+          sprintf(userCmd, "/snap from %s", hostName);
+          sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
+        }
       } else if (!strcmp(userCmd, "/log")) {
         // build unique ram log file name using time 
         char ramLogName[FILE_NAME_LEN];
@@ -941,7 +924,7 @@ external_heartbeat_uri~~2~T~Heartbeat receiver URI (eg. /heartbeat/)
 external_heartbeat_port~443~2~N~Heartbeat receiver port
 external_heartbeat_token~~2~T~Heartbeat receiver auth token
 usePing~1~0~C~Use ping
-teleUse~0~3~C~Use telemetry recording
+teleUse~0~3~C~Enable telemetry recording
 teleInterval~1~3~N~Telemetry collection interval (secs)
 RCactive~0~3~C~Enable remote control
 servoSteerPin~~4~N~Pin used for steering servo

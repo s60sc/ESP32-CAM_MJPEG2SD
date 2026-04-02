@@ -115,7 +115,7 @@ void controlFrameTimer(bool restartTimer) {
     frameTimer = timerBegin(OneMHz);
     if (frameTimer) {
       frameInterval = OneMHz / FPS; // in units of us
-      LOG_VRB("Frame timer interval %ums for FPS %u", frameInterval / 1000, FPS);
+      LOG_VRB("Frame timer interval %lums for FPS %u", frameInterval / 1000, FPS);
       timerAttachInterrupt(frameTimer, &frameISR);
       timerAlarm(frameTimer, frameInterval, true, 0); // micro seconds
     } else LOG_ERR("Failed to setup frameTimer");
@@ -134,7 +134,7 @@ static void openAvi() {
   // open avi file with temporary name
   aviFile = STORAGE.open(AVITEMP, FILE_WRITE);
   oTime = millis() - oTime;
-  LOG_VRB("File opening time: %ums", oTime);
+  LOG_VRB("File opening time: %lums", oTime);
 #if INCLUDE_AUDIO
   startAudioRecord();
 #endif
@@ -280,7 +280,7 @@ static void saveFrame(camera_fb_t* fb) {
   }
   wTime = millis() - wTime;
   wTimeTot += wTime;
-  LOG_VRB("SD storage time %u ms", wTime);
+  LOG_VRB("SD storage time %lu ms", wTime);
   // whats left or small frame
   memcpy(iSDbuffer + highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
@@ -290,7 +290,7 @@ static void saveFrame(camera_fb_t* fb) {
   frameCnt++;
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
-  LOG_VRB("Frame processing time %u ms", fTime);
+  LOG_VRB("Frame processing time %lu ms", fTime);
   LOG_VRB("============================");
 }
 
@@ -299,7 +299,7 @@ static bool closeAvi() {
   uint32_t vidDuration = millis() - startTime;
   uint32_t vidDurationSecs = lround(vidDuration / 1000.0);
   logLine();
-  LOG_VRB("Capture time %u, min seconds: %u ", vidDurationSecs, minSeconds);
+  LOG_VRB("Capture time %lu, min seconds: %u ", vidDurationSecs, minSeconds);
 
   cTime = millis();
   // write remaining frame content to SD
@@ -358,20 +358,20 @@ static bool closeAvi() {
       // AVI stats
       LOG_INF("******** AVI recording stats ********");
       LOG_ALT("Recorded %s", aviFileName);
-      LOG_INF("AVI duration: %u secs", vidDurationSecs);
+      LOG_INF("AVI duration: %lu secs", vidDurationSecs);
       LOG_INF("Number of frames: %u", frameCnt);
       LOG_INF("Required FPS: %u", FPS);
       LOG_INF("Actual FPS: %0.1f", actualFPS);
       LOG_INF("File size: %s", fmtSize(vidSize));
       if (frameCnt) {
-        LOG_INF("Average frame length: %u bytes", vidSize / frameCnt);
-        LOG_INF("Average frame monitoring time: %u ms", dTimeTot / frameCnt);
-        LOG_INF("Average frame buffering time: %u ms", fTimeTot / frameCnt);
-        LOG_INF("Average frame storage time: %u ms", wTimeTot / frameCnt);
+        LOG_INF("Average frame length: %lu bytes", vidSize / frameCnt);
+        LOG_INF("Average frame monitoring time: %lu ms", dTimeTot / frameCnt);
+        LOG_INF("Average frame buffering time: %lu ms", fTimeTot / frameCnt);
+        LOG_INF("Average frame storage time: %lu ms", wTimeTot / frameCnt);
       }
-      LOG_INF("Average SD write speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
-      LOG_INF("File open / completion times: %u ms / %u ms", oTime, cTime);
-      LOG_INF("Busy: %u%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
+      LOG_INF("Average SD write speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
+      LOG_INF("File open / completion times: %lu ms / %lu ms", oTime, cTime);
+      LOG_INF("Busy: %lu%%", std::min(100 * (wTimeTot + fTimeTot + dTimeTot + oTime + cTime) / vidDuration, (uint32_t)100));
       checkMemory();
       LOG_INF("*************************************");
       // send out notification of motion if requested
@@ -401,7 +401,7 @@ static bool closeAvi() {
   } else {
     // delete too small files if exist
     STORAGE.remove(AVITEMP);
-    LOG_INF("Insufficient capture duration: %u secs", vidDurationSecs);
+    LOG_INF("Insufficient capture duration: %lu secs", vidDurationSecs);
     return false;
   }
 }
@@ -437,7 +437,7 @@ static boolean processFrame() {
 #if INCLUDE_PERIPH
     if (pirUse && getPIRval()) reasonId = 2;
 #endif
-#if INCLUDE_I2C && (USE_MPU6050 || USE_MPU9250)
+#if INCLUDE_I2C && USE_MPU
     if (accelUse && checkAccelMove()) reasonId = 3;
 #endif
     haveMotion = (reasonId) ? true : false;
@@ -484,7 +484,7 @@ static boolean processFrame() {
     if (frameCnt < frameLimit) {
       dTimeTot += millis() - dTime;
       saveFrame(fb);
-      if (frameCnt == frameLimit) {
+      if (frameCnt >= frameLimit) {
         // stop saving frames for this avi as limit reached
         isCapturing = forceRecord = false;
         if (!dashCamOn) {
@@ -541,7 +541,7 @@ uint8_t setFPSlookup(uint8_t val) {
 
 static fnameStruct extractMeta(const char* fname) {
   // extract FPS, duration, and frame count from avi filename
-  fnameStruct fnameMeta;
+  fnameStruct fnameMeta = {0, 0, 0};
   char fnameStr[FILE_NAME_LEN];
   strcpy(fnameStr, fname);
   // replace all '_' with space for sscanf
@@ -595,7 +595,7 @@ void openSDfile(const char* streamFile) {
 
 mjpegStruct getNextFrame(bool firstCall) {
   // get next cluster on demand when ready for opened avi
-  mjpegStruct mjpegData;
+  mjpegStruct mjpegData = {0, 0, 0};
   static bool remainingBuff;
   static bool completedPlayback; // indicates that playback completed 
   static size_t buffOffset;
@@ -681,16 +681,16 @@ mjpegStruct getNextFrame(bool firstCall) {
     uint32_t totBusy = wTimeTot + fTimeTot + hTimeTot;
     LOG_INF("******** AVI playback stats ********");
     LOG_INF("Playback %s", aviFileName);
-    LOG_INF("Recorded FPS %u, duration %u secs", recFPS, recDuration);
-    LOG_INF("Playback FPS %0.1f, duration %u secs", (float)frameCnt / playDuration, playDuration);
+    LOG_INF("Recorded FPS %u, duration %lu secs", recFPS, recDuration);
+    LOG_INF("Playback FPS %0.1f, duration %lu secs", (float)frameCnt / playDuration, playDuration);
     LOG_INF("Number of frames: %u", frameCnt);
     if (frameCnt) {
-      LOG_INF("Average SD read speed: %u kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
-      LOG_INF("Average frame SD read time: %u ms", wTimeTot / frameCnt);
-      LOG_INF("Average frame processing time: %u ms", fTimeTot / frameCnt);
-      LOG_INF("Average frame delay time: %u ms", tTimeTot / frameCnt);
-      LOG_INF("Average http send time: %u ms", hTimeTot / frameCnt);
-      LOG_INF("Busy: %u%%", min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
+      LOG_INF("Average SD read speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
+      LOG_INF("Average frame SD read time: %lu ms", wTimeTot / frameCnt);
+      LOG_INF("Average frame processing time: %lu ms", fTimeTot / frameCnt);
+      LOG_INF("Average frame delay time: %lu ms", tTimeTot / frameCnt);
+      LOG_INF("Average http send time: %lu ms", hTimeTot / frameCnt);
+      LOG_INF("Busy: %lu%%", min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
     }
     checkMemory();
     LOG_INF("*************************************\n");
@@ -737,7 +737,7 @@ static void playbackTask(void* parameter) {
 
 static bool startSDtasks() {
   // tasks to manage SD card operation
-  xTaskCreateWithCaps(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, PLAY_PRI, &playbackHandle, HEAP_MEM);
+  xTaskCreateWithCaps(&playbackTask, "playbackTask", PLAYBACK_STACK_SIZE, NULL, PLAY_PRI, &playbackHandle, STACK_MEM);
   xTaskCreate(&captureTask, "captureTask", CAPTURE_STACK_SIZE, NULL, CAPTURE_PRI, &captureHandle);
   if (captureHandle == NULL) {
     // Usually insufficient memory
@@ -796,7 +796,7 @@ void appShutdown() {
   timeLapse(NULL, true);
 }
 
-static void deleteTask(TaskHandle_t thisTaskHandle) {
+static void deleteTask(TaskHandle_t& thisTaskHandle) {
   // hangs if try deleting null thisTaskHandle
   if (thisTaskHandle != NULL) vTaskDelete(thisTaskHandle);
   thisTaskHandle = NULL;
@@ -849,14 +849,11 @@ DFRobot_AXP313A axp;
 
 static bool camPower() {
   int pwrRetry = 5;
-  while (pwrRetry) {
+  while (pwrRetry--) {
     if (axp.begin() == 0) {
       axp.enableCameraPower(axp.eOV2640);
       return true;
-    } else {
-      delay(1000);
-      pwrRetry--;
-    }
+    } else delay(1000);
   }
   LOG_ERR("Failed to power up camera");
   return false;
@@ -1013,7 +1010,8 @@ bool prepCam() {
           ov5640AF.start(s);
           uint8_t res = ov5640AF.focusInit();
           if (res == 0) res = ov5640AF.autoFocusMode();
-          res == 0 ? LOG_INF("OV5640 Auto Focus available") : LOG_WRN("OV5640 Auto Focus fail: %d", res);
+          if (res == 0) LOG_INF("OV5640 Auto Focus available");
+          else LOG_WRN("OV5640 Auto Focus fail: %u", res);
 #endif
           break;
         }
@@ -1026,8 +1024,8 @@ bool prepCam() {
           break;
       }
       // set frame size to configured value
-      char fsizePtr[4];
-      if (retrieveConfigVal("framesize", fsizePtr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtr)));
+      char fsizePtrStr[4];
+      if (retrieveConfigVal("framesize", fsizePtrStr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtrStr)));
       else s->set_framesize(s, FRAMESIZE_VGA);
 
       // model specific corrections
@@ -1037,11 +1035,6 @@ bool prepCam() {
         s->set_brightness(s, 1);//up the brightness just a bit
         s->set_saturation(s, -2);//lower the saturation
       }
-
-#if defined(CAMERA_MODEL_M5STACK_WIDE)
-      s->set_vflip(s, 1);
-      s->set_hmirror(s, 1);
-#endif
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
       s->set_vflip(s, 1);

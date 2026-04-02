@@ -96,7 +96,7 @@ static void getPhoto() {
     // save file to SD
     pFile.write((uint8_t*)alertBuffer, alertBufferSize);
     pFile.close();
-    LOG_INF("Photo %u of % u saved in %s", photosDone + 1, numberOfPhotos, pName);
+    LOG_INF("Photo %u of %u saved in %s", photosDone + 1, numberOfPhotos, pName);
     alertBufferSize = 0;
   } else LOG_WRN("Failed to get photo");
   setLamp(0);
@@ -158,7 +158,7 @@ void takePhotos(bool startPhotos) {
       mRPM = tRPM * gearing;
       if (mRPM > MAX_RPM) LOG_WRN("Requested stepper RPM %0.1f is too high", mRPM);
       else {
-        if (pgramHandle == NULL) xTaskCreateWithCaps(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle, HEAP_MEM);
+        if (pgramHandle == NULL) xTaskCreateWithCaps(&pgramTask, "pgramTask", STICK_STACK_SIZE , NULL, STICK_PRI, &pgramHandle, STACK_MEM);
         else LOG_WRN("pgramTask still running");
       }
     } else {

@@ -152,10 +152,26 @@ void closeI2S() {
 }
 
 static void applyMicGain(size_t bytesRead) {
-  // change esp mic gain by required factor
-  uint8_t gainFactor = pow(2, micGain - MIC_GAIN_CENTER);
-  for (int i = 0; i < bytesRead / sampleWidth; i++) {
-    sampleBuffer[i] = constrain(sampleBuffer[i] * gainFactor, SHRT_MIN, SHRT_MAX);
+  // change esp mic gain by required factor using integer math
+  int samples = bytesRead / sampleWidth;
+  int gainSteps = micGain - MIC_GAIN_CENTER;
+  if (gainSteps == 0 || samples <= 0) return;
+
+  if (gainSteps > 0) {
+    // multiply by (1 << gainSteps), but guard against huge shifts
+    int shift = gainSteps;
+    if (shift > 8) shift = 8; // limit maximum amplification (adjust as appropriate)
+    for (int i = 0; i < samples; i++) {
+      int32_t v = (int32_t)sampleBuffer[i] << shift;
+      sampleBuffer[i] = (int16_t)constrain(v, SHRT_MIN, SHRT_MAX);
+    }
+  } else {
+    // negative steps -> divide
+    int rshift = -gainSteps;
+    if (rshift > 8) rshift = 8;
+    for (int i = 0; i < samples; i++) {
+      sampleBuffer[i] = (int16_t)((int32_t)sampleBuffer[i] >> rshift);
+    }
   }
 }
 
@@ -171,14 +187,14 @@ static size_t espMicInput() {
 
 size_t updateWavHeader() {
   // update wav header
-  uint32_t dataBytes = totalSamples * sampleWidth;
+  uint32_t dataBytes = (uint32_t)totalSamples * (uint32_t)sampleWidth;
   uint32_t wavFileSize = dataBytes ? dataBytes + WAV_HDR_LEN - 8 : 0; // wav file size excluding chunk header
   memcpy(wavHeader+4, &wavFileSize, 4);
   memcpy(wavHeader+24, &SAMPLE_RATE, 4); // sample rate
   uint32_t byteRate = SAMPLE_RATE * sampleWidth; // byte rate (SampleRate * NumChannels * BitsPerSample/8)
   memcpy(wavHeader+28, &byteRate, 4); 
   memcpy(wavHeader+WAV_HDR_LEN-4, &dataBytes, 4); // wav data size
-  memcpy(audioBuffer, wavHeader, WAV_HDR_LEN);
+  if (audioBuffer) memcpy(audioBuffer, wavHeader, WAV_HDR_LEN);
   return dataBytes;
 }
 
@@ -195,19 +211,22 @@ static size_t micInput() {
   size_t bytesRead = (micRem) ? wsBufferLen : espMicInput();
   if (bytesRead && micRem) {
     // double buffer browser mic input
-    memcpy(sampleBuffer, wsBuffer, bytesRead);
+    size_t copyLen = bytesRead;
+    if (copyLen > MAX_PAYLOAD_LEN) copyLen = MAX_PAYLOAD_LEN;
+    memcpy(sampleBuffer, wsBuffer, copyLen);
     wsBufferLen = 0;
-    applyMicGain(bytesRead);
+    applyMicGain(copyLen);
   } else if (micRem) delay(20);
   return bytesRead;
 }
 
 void browserMicInput(uint8_t* wsMsg, size_t wsMsgLen) {
   // input from browser mic via websocket
-  if (micRem && !wsBufferLen) {
+  if (!micRem || wsMsgLen == 0 || wsMsgLen > MAX_PAYLOAD_LEN) return;
+  if (wsBufferLen == 0) {
     // copy browser mic input into sampleBuffer for amp
-    wsBufferLen = wsMsgLen;
     memcpy(wsBuffer, wsMsg, wsMsgLen);
+    wsBufferLen = wsMsgLen;
   }
 }
 
@@ -216,7 +235,7 @@ static void ampOutput(size_t bytesRead = sampleBytes) {
   applyFilters();
   if (spkrRem) wsAsyncSendBinary((uint8_t*)sampleBuffer, bytesRead); // browser speaker
   else if (ampUse) I2Sstd.write((uint8_t*)sampleBuffer, bytesRead); // esp amp speaker
-  if (!audioBytes) {
+  if (!audioBytes && audioBuffer) {
     // fill audio buffer to send to RTSP
     memcpy(audioBuffer, sampleBuffer, bytesRead);
     audioBytes = bytesRead;
@@ -238,8 +257,15 @@ static void makeRecording() {
     while (recAudioBytes < psramMax) {
       size_t bytesRead = micInput();
       if (bytesRead) {
-        memcpy(recAudioBuffer + recAudioBytes, sampleBuffer, bytesRead);
-        recAudioBytes += bytesRead;
+        // prevent overflow recAudioBuffer
+        size_t remaining = psramMax - recAudioBytes;
+        size_t toCopy = bytesRead <= remaining ? bytesRead : remaining;
+        memcpy(recAudioBuffer + recAudioBytes, sampleBuffer, toCopy);
+        recAudioBytes += toCopy;
+        if (toCopy < bytesRead) {
+          LOG_WRN("PSRAM full while recording, truncating");
+          break;
+        }
       }
       if (stopAudio) break;
     } // psram full
@@ -251,7 +277,7 @@ static void makeRecording() {
 }
 
 static void playRecording() {
-  if (psramFound()) {
+  if (psramFound() && recAudioBuffer) {
     LOG_INF("Playing %d samples, initial volume: %d", totalSamples, ampVol); 
     for (int i = WAV_HDR_LEN; i < totalSamples * sampleWidth; i += sampleBytes) { 
       memcpy(sampleBuffer, recAudioBuffer+i, sampleBytes);
@@ -305,21 +331,22 @@ static void VCactions() {
 
 void browserMicInput(uint8_t* wsMsg, size_t wsMsgLen) {
   // input from browser mic via websocket, send to esp amp
-  if (micRem && !wsBufferLen) {
-    wsBufferLen = wsMsgLen;
-    memcpy(wsBuffer, wsMsg, wsMsgLen);
+  if (!micRem || wsMsgLen == 0 || wsMsgLen > MAX_PAYLOAD_LEN) return;
+  if (wsBufferLen == 0) {
+    size_t copyLen = wsMsgLen <= MAX_PAYLOAD_LEN ? wsMsgLen : MAX_PAYLOAD_LEN;
+    memcpy(wsBuffer, wsMsg, copyLen);
     int8_t adjVol = ampVol * 2; // use web page setting
     if (adjVol) {
       // increase or reduce volume, 6 is unity eg midpoint of web slider
       adjVol = adjVol > 5 ? adjVol - 5 : adjVol - 7; 
       // apply volume control to samples
       int16_t* wsPtr = (int16_t*) wsBuffer;
-      for (int i = 0; i < wsBufferLen / sizeof(int16_t); i++) {   
+      for (int i = 0; i < (int)(copyLen / sizeof(int16_t)); i++) {
         // apply volume control 
         wsPtr[i] = adjVol < 0 ? wsPtr[i] / abs(adjVol) : constrain((int32_t)wsPtr[i] * adjVol, SHRT_MIN, SHRT_MAX);
       }
     }
-    I2Sstd.write(wsBuffer, wsBufferLen);
+    I2Sstd.write(wsBuffer, copyLen);
     wsBufferLen = 0;
   }
 }    
@@ -367,7 +394,7 @@ static void camActions() {
         wavFile.write((uint8_t*)sampleBuffer, bytesRead);
         totalSamples += bytesRead / sampleWidth; 
       }
-      if (!audioBytes) {
+      if (!audioBytes && audioBuffer) {
         // fill audioBuffer to send to NVR
         memcpy(audioBuffer, sampleBuffer, bytesRead);
         audioBytes = bytesRead;
@@ -468,7 +495,7 @@ void prepAudio() {
   // Audio task only needed for esp microphone
   if (!micUse) return;
 #endif
-  if (audioHandle == NULL) xTaskCreateWithCaps(audioTask, "audioTask", AUDIO_STACK_SIZE, NULL, AUDIO_PRI, &audioHandle, HEAP_MEM);
+  if (audioHandle == NULL) xTaskCreateWithCaps(audioTask, "audioTask", AUDIO_STACK_SIZE, NULL, AUDIO_PRI, &audioHandle, STACK_MEM);
 #ifdef ISCAM
   xTaskNotifyGive(audioHandle);
 #endif

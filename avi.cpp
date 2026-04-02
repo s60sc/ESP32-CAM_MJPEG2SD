@@ -187,7 +187,7 @@ size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL) {
       size_t final = indexLen[isTL]-idxPtr[isTL];
       memcpy(clientBuf, idxBuf[isTL]+idxPtr[isTL], final);
       idxPtr[isTL] = indexLen[isTL];
-      return final;    
+      return final;
     }
   }
   return idxPtr[isTL] = 0;
@@ -207,7 +207,7 @@ bool haveWavFile(bool isTL) {
 #if INCLUDE_AUDIO
   if (isTL) return false;
   // check if wave file exists
-  if (!STORAGE.exists(WAVTEMP)) return 0; 
+  if (!STORAGE.exists(WAVTEMP)) return false; 
   // open it and get its size
   wavFile = STORAGE.open(WAVTEMP, FILE_READ);
   if (wavFile) {
@@ -227,8 +227,8 @@ size_t writeWavFile(byte* clientBuf, size_t buffSize) {
   // called repeatedly from closeAvi() until return 0
   static size_t offsetWav = CHUNK_HDR;
   if (offsetWav) {
-    // add sound file header         
-    memcpy(clientBuf, wbBuf, 4);     
+    // add sound file header
+    memcpy(clientBuf, wbBuf, 4);
     memcpy(clientBuf+4, &audSize, 4); 
   } 
   size_t readLen = wavFile.read(clientBuf+offsetWav, buffSize-offsetWav) + offsetWav; 

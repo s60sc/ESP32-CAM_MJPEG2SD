@@ -151,7 +151,7 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   rclient.read((uint8_t*)respCodeRx, 3); 
   respCodeRx[3] = 0; // terminator
   int readLen = rclient.read((uint8_t*)rspBuf, 255);
-  rspBuf[readLen] = 0;
+  if (readLen >= 0) rspBuf[readLen] = 0;
   while (rclient.available()) rclient.read(); // bin the rest of response
 
   // check response code with expected
@@ -232,7 +232,7 @@ static bool openDataPort() {
 
 static bool ftpStoreFile(File &fh) {
   // Upload individual file to current folder, overwrite any existing file 
-  // reject if folder, or not valid file type    
+  // reject if folder, or not valid file type
 #ifdef ISCAM
   if (!strstr(fh.name(), AVI_EXT) && !strstr(fh.name(), CSV_EXT) && !strstr(fh.name(), SRT_EXT)) return false; 
 #else
@@ -266,7 +266,7 @@ static bool ftpStoreFile(File &fh) {
   percentLoaded = 100;
   bool res = sendFtpCommand("", "", "226");
   if (res) {
-    LOG_ALT("Uploaded %s in %u sec", fmtSize(writeBytes), (millis() - uploadStart) / 1000);
+    LOG_ALT("Uploaded %s in %lu sec", fmtSize(writeBytes), (millis() - uploadStart) / 1000);
     //sendFtpCommand("SITE CHMOD 644 ", ftpSaveName, "200", "550"); // unix only
   } else LOG_WRN("File transfer not successful");
   return res;
@@ -327,21 +327,19 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
 #endif
   } else {  
     // Upload a whole folder, file by file
-    LOG_INF("Uploading folder: ", root.name()); 
+    LOG_INF("Uploading folder: %s", root.name()); 
     strncpy(folderPath, root.name(), FILE_NAME_LEN - 1);
     res = fsUse ? true : ftpCreateFolder(root.name());
-    if (!res) {
-      refreshVal = saveRefreshVal;
-      return false;
+    if (res) {
+      File fh = root.openNextFile();
+      while (fh) {
+        res = fsUse ? hfsStoreFile(fh) : ftpStoreFile(fh);
+        if (!res) break; // abandon rest of files
+        fh.close();
+        fh = root.openNextFile();
+      }
+      if (fh) fh.close();
     }
-    File fh = root.openNextFile();
-    while (fh) {
-      res = fsUse ? hfsStoreFile(fh) : ftpStoreFile(fh);
-      if (!res) break; // abandon rest of files
-      fh.close();
-      fh = root.openNextFile();
-    }
-    if (fh) fh.close();
   }
   refreshVal = saveRefreshVal;
   root.close();
@@ -374,7 +372,7 @@ bool fsStartTransfer(const char* fileFolder) {
   setFolderName(fileFolder, storedPathName);
   if (!uploadInProgress) {
     uploadInProgress = true;
-    if (fsHandle == NULL) xTaskCreateWithCaps(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle, HEAP_MEM);    
+    if (fsHandle == NULL) xTaskCreateWithCaps(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle, STACK_MEM);    
     debugMemory("fsStartTransfer");
     return true;
   } else LOG_WRN("Unable to transfer %s as another transfer in progress", storedPathName);

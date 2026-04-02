@@ -18,13 +18,13 @@
     MacOS:
     - Finder: command-K > http://<ip_address>/webdav (do not select anonymous to have write access)
     - cmdline: mkdir -p /tmp/esp; mount_webdav -S -i -v esp32 <ip_address>/webdav /tmp/esp && echo OK
- 
+
     linux:
     - mount -t davs2 http://<ip_address>/webdav /mnt/
     - gio/gvfs/nautilus/YourFileExplorer http://<ip_address>/webdav
 
   Uses ideas from https://github.com/d-a-v/ESPWebDAV
-   
+
   s60sc 2024
 */
 
@@ -56,7 +56,7 @@ static int getMimeType(const char* path) {
   }
   return 0; // default mime type
 }
-  
+
 static void formatTime(time_t t) {
   // format time for XML property values
   tm* timeinfo = gmtime(&t);
@@ -66,9 +66,9 @@ static void formatTime(time_t t) {
 static bool haveResource(bool ignore = false) {
   // check if file or folder exists
   if (STORAGE.exists(pathName)) return true;
-  else if (!ignore) httpd_resp_send_404(req); 
+  else if (!ignore) httpd_resp_send_404(req);
   return false;
-} 
+}
 
 static bool isFolder() {
   // identify if resource is file of folder
@@ -94,7 +94,7 @@ static void sendPropResponse(File& file, const char* payload) {
   snprintf(resp, maxLen, "%s%s%s", XML2, file.path(), XML3);
   httpd_resp_sendstr_chunk(req, resp);
   LOG_VRB("resp xml: %s", resp);
-  
+
   formatTime(file.getLastWrite());
   sendContentProp("getlastmodified", formattedTime);
   sendContentProp("creationdate", formattedTime);
@@ -108,7 +108,7 @@ static void sendPropResponse(File& file, const char* payload) {
     httpd_resp_sendstr_chunk(req, "<resourcetype/>");
   }
   sendContentProp("displayname", file.name());
-  
+
   if (strlen(payload)) {
     // return quota data if requested
     if (strstr(payload, "quota-available-bytes") != NULL || strstr(payload, "quota-used-bytes") != NULL) {
@@ -130,7 +130,7 @@ static bool getPayload(char* payload) {
   if (psize) {
     do {
       bytesRead = httpd_req_recv(req, payload + offset, psize - offset);
-      if (bytesRead < 0) {  
+      if (bytesRead < 0) {
         if (bytesRead == HTTPD_SOCK_ERR_TIMEOUT) {
           delay(10);
           continue;
@@ -141,7 +141,7 @@ static bool getPayload(char* payload) {
         }
       } else offset += bytesRead;
     } while (bytesRead > 0);
-    payload[psize] = 0;  
+    payload[psize] = 0;
     LOG_VRB("payload: %s\n", payload);
   }
   return bytesRead < 0 ? false : true;
@@ -157,13 +157,13 @@ static bool handleProp() {
 
   // get request payload content if present
   char payload[req->content_len + 1] = {0};
-  if (req->content_len) getPayload(payload); 
-  
+  if (req->content_len) getPayload(payload);
+
   // common header
   httpd_resp_set_status(req, "207 Multi-Status");
   httpd_resp_set_type(req, "application/xml;charset=utf-8");
   httpd_resp_sendstr_chunk(req, XML1);
-  
+
   // return details of selected folder
   File root = STORAGE.open(pathName);
   sendPropResponse(root, payload);
@@ -183,7 +183,7 @@ static bool handleProp() {
 }
 
 static bool handleOptions() {
-  httpd_resp_sendstr(req, NULL); 
+  httpd_resp_sendstr(req, NULL);
   return true;
 }
 
@@ -217,7 +217,7 @@ static bool handleLock() {
   httpd_resp_set_type(req, "application/xml;charset=utf-8");
   httpd_resp_sendstr(req, resp);
   return true;
-} 
+}
 
 static bool handleUnlock() {
   // unlock file when closed
@@ -230,7 +230,7 @@ static bool handlePut() {
   // transfer file from PC
   if (isFolder()) return false;
   if (!haveResource(true) || !req->content_len) {
-    // if no content, create file entry only 
+    // if no content, create file entry only
     File file = STORAGE.open(pathName, FILE_WRITE);
     file.close();
     httpd_resp_set_status(req, "201 Created");
@@ -241,7 +241,7 @@ static bool handlePut() {
     strcpy(inFileName, pathName);
     esp_err_t res = uploadHandler(req);
     return res == ESP_OK ? true : false;
-  } 
+  }
   return true;
 }
 
@@ -261,18 +261,22 @@ static bool handleMkdir() {
   if (res) httpd_resp_set_status(req, "201 Created");
   else httpd_resp_set_status(req, "500 Internal Server Error");
   httpd_resp_sendstr(req, NULL);
-  return res; 
+  return res;
 }
 
 static bool checkSamePath(const char *source_path, const char *dest_path) {
-  // Compare paths, excluding filenames 
-  char source_dir[strlen(source_path) + 1];
-  char dest_dir[strlen(dest_path) + 1];
-  strncpy(source_dir, source_path, strrchr(source_path, '/') - source_path);
-  source_dir[strrchr(source_path, '/') - source_path] = 0;
-  strncpy(dest_dir, dest_path, strrchr(dest_path, '/') - dest_path);
-  dest_dir[strrchr(dest_path, '/') - dest_path] = 0;
-  return strcmp(source_dir, dest_dir) == 0;
+  // Compare paths, excluding filenames
+  const char* src_slash = strrchr(source_path, '/');
+  const char* dest_slash = strrchr(dest_path, '/');
+
+  if (!src_slash && !dest_slash) return true;
+  if (!src_slash || !dest_slash) return false;
+
+  size_t src_len = src_slash - source_path;
+  size_t dest_len = dest_slash - dest_path;
+  if (src_len != dest_len) return false;
+  
+  return strncmp(source_path, dest_path, src_len) == 0;
 }
 
 static bool handleMove() {
@@ -284,8 +288,12 @@ static bool handleMove() {
     res = true;
     urlDecode(dest);
     char* pos = strstr(dest, WEBDAV);
+    if (!pos) {
+      httpd_resp_send_404(req);
+      return false;
+    }
     memmove(dest, pos + strlen(WEBDAV), strlen(dest));
-  
+
     // only allow renaming if a folder
     if (isFolder()) res = checkSamePath(pathName, dest);
     if (res) {
@@ -294,8 +302,8 @@ static bool handleMove() {
       else httpd_resp_set_status(req, "500 Internal Server Error");
       httpd_resp_sendstr(req, NULL);
       return true;
-    } 
-  } 
+    }
+  }
   httpd_resp_send_404(req);
   return false;
 }
@@ -309,7 +317,6 @@ static bool handleCopy() {
 
 bool handleWebDav(httpd_req_t* rreq) {
   // extract method to determine which WebDAV action to take
-  //showHttpHeaders(rreq);
   req = rreq;
   sprintf(pathName, "%s", req->uri + strlen(WEBDAV)); // strip out "/webdav"
   if (pathName[strlen(pathName) - 1] == '/') pathName[strlen(pathName) - 1] = 0; // remove final / if present
@@ -329,7 +336,7 @@ bool handleWebDav(httpd_req_t* rreq) {
     case HTTP_LOCK: return handleLock(); // open file lock
     case HTTP_UNLOCK: return handleUnlock(); // close file lock
     case HTTP_MKCOL: return handleMkdir(); // folder creation
-    case HTTP_MOVE: return handleMove(); // rename or move file or directory 
+    case HTTP_MOVE: return handleMove(); // rename or move file or directory
     case HTTP_DELETE: return handleDelete(); // delete a file or directory
     case HTTP_COPY: return handleCopy(); // copy a file or directory
     default: {

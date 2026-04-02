@@ -79,14 +79,10 @@
 
 // if INCLUDE_I2C true, set each I2C device used to true and instal additional library if required
 #define USE_SSD1306 false  // esp8266-oled-ssd1306 library
-#define USE_BMx280 false   // BMx280MI library
-#define USE_MPU6050 false  // none
-#define USE_MPU9250 false  // hideakitai MPU9250 library
+#define USE_BMx280 false   // NMP280, BME280. Needs BMx280MI library
+#define USE_MPU false      // MPU6050, MPU9250, MPU9255. MPU9250 needs hideakitai MPU9250 library
 #define USE_DS3231 false   // Makuna Rtc library
 #define USE_LCD1602 false  // none
-#if (USE_MPU6050 && USE_MPU9250)
-#error "Cannot use MPU6050 and MPU9250 simultaneously"
-#endif
 
 // To include Edge Impulse arduino library for additional motion detect filtering
 // Use Edge Impulse Studio to create model:
@@ -117,7 +113,7 @@
 #endif
 #include "camera_pins.h"
 
-#define STATIC_IP_OCTAL "133" // dev only
+#define STATIC_IP_OCTAL "130" // dev only
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
@@ -125,7 +121,7 @@
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
  
-#define APP_VER "10.9.2"
+#define APP_VER "10.9.3"
 // to determine if newer data files need to be loaded
 #define CFG_VER 37
 
@@ -140,6 +136,8 @@
 #else
 #define APP_NAME "ESP-CAM_MJPEG" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/MJPEG2SD" HTML_EXT
+#define NEED_PSRAM true
+#define MIN_PSRAM 2
 #endif
 
 #define HTTP_CLIENTS 2 // http(s), ws(s)
@@ -201,7 +199,7 @@
 #define MQTT_STACK_SIZE (1024 * 4)
 #define PING_STACK_SIZE (1024 * 6)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
-#define SERVO_STACK_SIZE (1024)
+#define SERVO_STACK_SIZE (1024 * 1)
 #define SUSTAIN_STACK_SIZE (1024 * 4)
 #define TGRAM_STACK_SIZE (1024 * 6)
 #define TELEM_STACK_SIZE (1024 * 4)
@@ -217,12 +215,12 @@
 #define STICK_PRI 5
 #define AUDIO_PRI 5
 #define INTERCOM_PRI 5
+#define LOG_PRI 5
 #define PLAY_PRI 4
 #define TELEM_PRI 3
 #define TGRAM_PRI 1
 #define EMAIL_PRI 1
 #define FTP_PRI 1
-#define LOG_PRI 1
 #define MQTT_PRI 1
 #define LED_PRI 1
 #define SERVO_PRI 1
@@ -268,11 +266,13 @@ void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudioRecord(bool isValid);
 float* getBMx280();
 float* getMPUdata();
-mjpegStruct getNextFrame(bool firstCall = false);
 int getInputPeripheral(uint8_t cmd);
+mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
+
 bool haveWavFile(bool isTL = false);
 bool identifyBMx();
+bool identifyMPU(char* _mpuModel);
 void intercom();
 bool isNight(uint8_t nightSwitch);
 void laserLevel() ;
@@ -395,7 +395,6 @@ extern size_t audioBytes;
 extern char srtBuffer[];
 extern size_t srtBytes;
 extern size_t maxFrameBuffSize;
-
 
 // Auxiliary use
 extern bool useUart;

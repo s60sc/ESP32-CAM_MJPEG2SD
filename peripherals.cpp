@@ -150,10 +150,12 @@ static int dutyCycle (int angle) {
 
 static int changeAngle(uint8_t servoPin, int newVal, int oldVal, bool useDelay = true) {
   // change angle of given servo
-  int incr = newVal - oldVal > 0 ? 1 : -1;
-  for (int angle = oldVal; angle != newVal + incr; angle += incr) {
-    ledcWrite(servoPin, dutyCycle(angle));
-    if (useDelay) delay(servoDelay); // set rate of change
+  if (newVal != oldVal) {
+    int incr = newVal - oldVal > 0 ? 1 : -1;
+    for (int angle = oldVal; angle != newVal + incr; angle += incr) {
+      ledcWrite(servoPin, dutyCycle(angle));
+      if (useDelay) delay(servoDelay); // set rate of change
+    }
   }
   return newVal;
 }
@@ -188,20 +190,26 @@ void setSteering(int steerVal) {
 
 static void prepServos() {
   if (SVactive) {
-    if (servoPanPin) ledcAttach(servoPanPin, PWM_FREQ, DUTY_BIT_DEPTH); 
-    else LOG_WRN("No servo pan pin defined");
-    if (servoTiltPin) ledcAttach(servoTiltPin, PWM_FREQ, DUTY_BIT_DEPTH);
-    else LOG_WRN("No servo tilt pin defined");
+    if (servoPanPin) {
+      ledcAttach(servoPanPin, PWM_FREQ, DUTY_BIT_DEPTH);
+      ledcWrite(servoPanPin, dutyCycle(servoCenter)); // write center directly
+    } else LOG_WRN("No servo pan pin defined");
+    if (servoTiltPin) {
+      ledcAttach(servoTiltPin, PWM_FREQ, DUTY_BIT_DEPTH);
+      ledcWrite(servoTiltPin, dutyCycle(servoCenter));
+    } else LOG_WRN("No servo tilt pin defined");
   }
-  if (RCactive && servoSteerPin) ledcAttach(servoSteerPin, PWM_FREQ, DUTY_BIT_DEPTH);
-  oldPanVal = oldTiltVal = oldSteerVal = servoCenter + 1;
+  if (RCactive && servoSteerPin) {
+    ledcAttach(servoSteerPin, PWM_FREQ, DUTY_BIT_DEPTH);
+    ledcWrite(servoSteerPin, dutyCycle(servoCenter));
+  }
+  // initialise old values to match the physical position just written
+  oldPanVal = oldTiltVal = oldSteerVal = servoCenter;
 
   if (SVactive || (RCactive && servoSteerPin)) {
-    xTaskCreateWithCaps(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, SERVO_PRI, &servoHandle, HEAP_MEM); 
-    // initial angle
-    if (servoPanPin) setCamPan(servoCenter);
-    if (servoTiltPin) setCamTilt(servoCenter);
-    if (servoSteerPin) setSteering(servoCenter);
+    xTaskCreateWithCaps(&servoTask, "servoTask", SERVO_STACK_SIZE, NULL, SERVO_PRI, &servoHandle, STACK_MEM);
+    newPanVal = newTiltVal = newSteerVal = servoCenter;
+    LOG_INF("Servo pin usage: %d, %d, %d", servoPanPin, servoTiltPin, servoSteerPin);
   }
 }
 
@@ -260,7 +268,7 @@ static void DS18B20task(void* pvParameters) {
 void prepTemperature() {
 #if INCLUDE_DS18B20
   if (ds18b20Pin) {
-    xTaskCreateWithCaps(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle, HEAP_MEM); 
+    xTaskCreateWithCaps(&DS18B20task, "DS18B20task", DS18B20_STACK_SIZE, NULL, DS18B20_PRI, &DS18B20handle, STACK_MEM); 
     haveDS18B20 = true;
     LOG_INF("Using DS18B20 sensor");
   } else LOG_WRN("No DS18B20 pin defined, using chip sensor if present");
@@ -314,7 +322,7 @@ static void battTask(void* parameter) {
 static void setupBatt() {
   if (voltUse) {
   	if (voltPin) {
-      xTaskCreateWithCaps(&battTask, "battTask", BATT_STACK_SIZE, NULL, BATT_PRI, &battHandle, HEAP_MEM);
+      xTaskCreateWithCaps(&battTask, "battTask", BATT_STACK_SIZE, NULL, BATT_PRI, &battHandle, STACK_MEM);
       LOG_INF("Monitor batt voltage");
       debugMemory("setupBatt");
     } else LOG_WRN("No voltage pin defined");
@@ -439,7 +447,7 @@ static void prepPIR() {
 static const int sRate = 1; // samples per analog reading
 static int xOffset = 0; // x zero offset
 static int yOffset = 0; // y zero offset
-static bool lightsChanged = false;
+static volatile bool lightsChanged = false;
 TaskHandle_t stickHandle = NULL;
 
 static void IRAM_ATTR buttonISR() {
@@ -511,7 +519,7 @@ static void prepJoystick() {
         pinMode(stickzPushPin, INPUT_PULLUP);
         attachInterrupt(digitalPinToInterrupt(stickzPushPin), buttonISR, FALLING); 
       }
-      if (stickHandle == NULL) xTaskCreateWithCaps(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle, HEAP_MEM);
+      if (stickHandle == NULL) xTaskCreateWithCaps(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle, STACK_MEM);
       setStickTimer(true, waitTime * 1000);
       LOG_INF("Joystick available");
     } else {
@@ -566,7 +574,7 @@ static void prepStepper() {
         digitalWrite(stepINpins[i], LOW);
       }
       // stickTask provides speed control timer
-      if (stickHandle == NULL) xTaskCreateWithCaps(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle, HEAP_MEM);   
+      if (stickHandle == NULL) xTaskCreateWithCaps(&stickTask, "stickTask", STICK_STACK_SIZE , NULL, STICK_PRI, &stickHandle, STACK_MEM);   
       LOG_INF("Stepper motor on pins: %d, %d, %d, %d", stepINpins[0], stepINpins[1], stepINpins[2], stepINpins[3]);
       // NOTE: very first step after motor power may not occur or be reversed 
     } else {
@@ -579,11 +587,8 @@ static void prepStepper() {
 static void nextPhase(bool changeDir = false) {
   // identify next phase
   if (changeDir) clockwise = !clockwise; // amend next phase to account for change in direction
-  if (clockwise) {
-    if (stepPhase-- <= 0) stepPhase = stepPhases - 1;
-  } else {
-    if (++stepPhase >= stepPhases) stepPhase = 0;
-  }
+  if (clockwise) stepPhase = (stepPhase == 0) ? stepPhase = stepPhases - 1 : stepPhase - 1;
+  else if (++stepPhase >= stepPhases) stepPhase = 0;
 }
 
 void stepperRun(float RPM, float revFraction, bool _clockwise, stepperModel thisStepper) {
@@ -594,7 +599,7 @@ void stepperRun(float RPM, float revFraction, bool _clockwise, stepperModel this
   modelIndex = stepPhases * thisStepper;
   if (clockwise != _clockwise) {
     // change of direction, modify next phase to be in reversed sequence
-    nextPhase(true);  
+    nextPhase(true);
     nextPhase();
   }
   uint32_t stepDelay = 60 * USECS / RPM; // duration of 1 rev in microsecs
@@ -607,7 +612,8 @@ void stepperRun(float RPM, float revFraction, bool _clockwise, stepperModel this
 
 static void doStep() {
   // called from sticktask to do single step in sequence
-  if (stepsToDo--) {
+  if (stepsToDo > 0) { 
+    stepsToDo--;
     for (int i = 0; i < stepperPins; i++) digitalWrite(stepINpins[i], pinSequence[modelIndex + stepPhase][i]);
     nextPhase();
   } else {
@@ -688,10 +694,10 @@ void ledBarGauge(float level) {
   // as a proportion of level between 0.0 and 1.0
   // least significant leds are full brightness and most significant led
   // has a proportional brightness
-  level = abs(level);
+  level = fabsf(level);
   if (ledBarUse) {
     ledBarClear();
-    uint8_t fullLedCnt = (uint8_t)(level * LEDBAR_COUNT);
+    uint8_t fullLedCnt = min((uint8_t)(level * LEDBAR_COUNT), (uint8_t)(LEDBAR_COUNT - 1));
     for (uint8_t i = 0; i < fullLedCnt; i++) ledLevel[i] = LED_FULL;
     // set brightness for most significant lit led
     ledBrightness(fullLedCnt, (LEDBAR_COUNT * level) - fullLedCnt); 

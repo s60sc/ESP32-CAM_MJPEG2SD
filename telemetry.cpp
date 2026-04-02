@@ -26,8 +26,8 @@ TaskHandle_t telemetryHandle = NULL;
 bool teleUse = false;
 static int teleInterval = 1;
 static char* teleBuf[NUM_BUFF]; // csv and srt telemetry data buffers
-size_t highPoint[NUM_BUFF]; // indexes to buffers
-static bool capturing = false;
+static size_t highPoint[NUM_BUFF]; // indexes to buffers
+static volatile bool capturing = false;
 static char teleFileName[FILE_NAME_LEN];
 char srtBuffer[MAX_LINE_LEN]; // store each srt entry, for subtitle streaming
 char csvHeader[MAX_LINE_LEN]; // column headers for CSV file
@@ -41,13 +41,14 @@ size_t srtBytes = 0;
 // GY-91 best powered via 5V to VIN (using internal LDO) than direct 3V3
 
 // user defined CSV header row per device used, must start with a comma
-#define BME_CSV ",Temperature (C),Humidity (%),Pressure (mb),Altitude (m)"
 #define BMP_CSV ",Temperature (C),Pressure (mb),Altitude (m)"
-#define MPU_CSV ",Pitch,Roll,Heading"
+#define BME_CSV ",Humidity (%)"
+#define MPU_CSV ",Pitch°,Roll°,Heading°"
 // user defined SRT content line per device used, must start with 2 spaces
-#define BME_SRT "  %0.1fC  %0.1fRH  %0.1fmb  %0.1fm"
 #define BMP_SRT "  %0.1fC  %0.1fmb  %0.1fm"
-#define MPU_SRT "  %0.1f  %0.1f  %0.1f"
+#define BME_SRT "  %0.1fRH "
+#define MPU_SRT "  P:%0.1f° R:%0.1f° Y:%0.1f°"
+
 
 static bool isBME = false;
 static bool haveBMX = false;
@@ -58,27 +59,20 @@ static bool setupSensors() {
   bool res = false;
 #if USE_BMx280  
   if (checkI2Cdevice("BMx280")) {
-    bool isBME = identifyBMx();
-    LOG_INF("%s available", isBME ? "BME280" : "BMP280");
+    isBME = identifyBMx();
+    strncat(csvHeader, BMP_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
     if (isBME) strncat(csvHeader, BME_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
-    else strncat(csvHeader, BMP_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
     haveBMX = res = true;
-  } else LOG_WRN("%s not available", isBME ? "BME280" : "BMP280");
+  }
 #endif
 
-#if USE_MPU9250
-  const char* whichMPU = "MPU9250";
-#endif
-#if USE_MPU6050
-  const char* whichMPU = "MPU6050";
-#endif
-#if (USE_MPU6050 || USE_MPU9250)
-  if (checkI2Cdevice(whichMPU)) {
-    LOG_INF("%s available", whichMPU);
+#if USE_MPU
+  if (checkI2Cdevice("MPUxxxx")) {
     strncat(csvHeader, MPU_CSV, MAX_LINE_LEN - strlen(csvHeader) - 1);
     haveMPU = res = true;
-  } else LOG_WRN("%s not available", whichMPU);
+  }
 #endif
+
   return res; 
 }
 
@@ -87,45 +81,46 @@ static void getSensorData() {
 #if USE_BMx280
   if (haveBMX) {
     float* bmxData = getBMx280();
+    highPoint[0] += snprintf(teleBuf[0] + highPoint[0], MAX_LINE_LEN, ",%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[1], bmxData[2]);
+    highPoint[1] += snprintf(teleBuf[1] + highPoint[1], MAX_LINE_LEN, BMP_SRT, bmxData[0], bmxData[1], bmxData[2]);
     if (isBME) {
-      highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
-      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BME_SRT, bmxData[0], bmxData[3], bmxData[1], bmxData[2]);
+      highPoint[0] += snprintf(teleBuf[0] + highPoint[0], MAX_LINE_LEN, ",%0.1f", bmxData[3]);
+      highPoint[1] += snprintf(teleBuf[1] + highPoint[1], MAX_LINE_LEN, BME_SRT, bmxData[3]);
     } else {
-      highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", bmxData[0], bmxData[1], bmxData[2]);
-      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], BMP_SRT, bmxData[0], bmxData[1], bmxData[2]);
     }
   #if INCLUDE_MQTT
     if (mqtt_active) {
       sprintf(jsonBuff, "{\"Temp\":\"%0.1f\", \"TIME\":\"%s\"}", bmxData[0], esp_log_system_timestamp());
       mqttPublish(jsonBuff);
     }
-#endif
+  #endif
   }
 #endif
 
-#if (USE_MPU9250 || USE_MPU6050)
+#if (USE_MPU)
   if (haveMPU) {
     float* mpuData = getMPUdata();
-    highPoint[0] += sprintf(teleBuf[0] + highPoint[0], ",%0.1f,%0.1f,%0.1f", mpuData[0], mpuData[1], mpuData[2]); 
-    highPoint[1] += sprintf(teleBuf[1] + highPoint[1], MPU_SRT, mpuData[0], mpuData[1], mpuData[2]);  
+    highPoint[0] += snprintf(teleBuf[0] + highPoint[0], MAX_LINE_LEN, ",%0.1f,%0.1f,%0.1f", mpuData[0], mpuData[1], mpuData[2]); 
+    highPoint[1] += snprintf(teleBuf[1] + highPoint[1], MAX_LINE_LEN, MPU_SRT, mpuData[0], mpuData[1], mpuData[2]);  
   }
 #endif
 }
 
-/*************** LEAVE CODE BELOW AS IS UNLESS YOU KNOW WHAT YOUR DOING ******************/
+/*************** LEAVE CODE BELOW AS IS UNLESS YOU KNOW WHAT YOURE DOING ******************/
 
 void storeSensorData(bool fromStream) {
   // can be called from telemetry task or streaming task
   if (fromStream) {
-    // called fron streaming task
+    // called from streaming task
     if (capturing) return; // as being stored by telemetry task
     else highPoint[0] = highPoint[1] = 0;
   }
   size_t startData = highPoint[1];
   getSensorData();
   if (!srtBytes) { 
-    srtBytes = min(highPoint[1] - startData, (size_t)MAX_LINE_LEN);
+    srtBytes = min(highPoint[1] - startData, (size_t)(MAX_LINE_LEN - 1));
     memcpy(srtBuffer, teleBuf[1] + startData, srtBytes);
+    srtBuffer[srtBytes] = 0;
   }
 }
 
@@ -137,7 +132,7 @@ static void telemetryTask(void* pvParameters) {
     uint32_t srtTime = 0;
     char timeStr[10];
     uint32_t sampleInterval = 1000 * (teleInterval < 1 ? 1 : teleInterval);
-    // open storage file
+    // open storage files
     if (STORAGE.exists(TELETEMP)) STORAGE.remove(TELETEMP);
     if (STORAGE.exists(SRTTEMP)) STORAGE.remove(SRTTEMP);
     File teleFile = STORAGE.open(TELETEMP, FILE_WRITE);
@@ -151,10 +146,10 @@ static void telemetryTask(void* pvParameters) {
       uint32_t startTime = millis();
       // write header for this subtitle
       formatElapsedTime(timeStr, srtTime, true);
-      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%d\n%s,000 --> ", srtSeqNo++, timeStr);
+      highPoint[1] += snprintf(teleBuf[1] + highPoint[1], MAX_LINE_LEN, "%d\n%s,000 --> ", srtSeqNo++, timeStr);
       srtTime += sampleInterval;
       formatElapsedTime(timeStr, srtTime, true);
-      highPoint[1] += sprintf(teleBuf[1] + highPoint[1], "%s,000\n", timeStr);
+      highPoint[1] += snprintf(teleBuf[1] + highPoint[1], MAX_LINE_LEN,"%s,000\n", timeStr);
       // write current time for csv row and srt entry
       time_t currEpoch = getEpoch();
       for (int i = 0; i < NUM_BUFF; i++) highPoint[i] += strftime(teleBuf[i] + highPoint[i], 10, "%H:%M:%S", localtime(&currEpoch));
@@ -175,7 +170,8 @@ static void telemetryTask(void* pvParameters) {
         }
       }
       // wait for next collection interval
-      while (millis() - sampleInterval < startTime) delay(10);
+     uint32_t elapsedTime = millis() - startTime;
+     if (elapsedTime < sampleInterval) vTaskDelay(pdMS_TO_TICKS(sampleInterval - elapsedTime));
     }
     
     // capture finished, write remaining buff to storage 
@@ -197,7 +193,7 @@ void prepTelemetry() {
   if (teleUse) {
     teleInterval = srtInterval;
     for (int i=0; i < NUM_BUFF; i++) teleBuf[i] = psramFound() ? (char*)ps_malloc(RAMSIZE + MAX_LINE_LEN) : (char*)malloc(RAMSIZE + MAX_LINE_LEN);
-    if (setupSensors()) xTaskCreateWithCaps(&telemetryTask, "telemetryTask", TELEM_STACK_SIZE, NULL, TELEM_PRI, &telemetryHandle, HEAP_MEM);
+    if (setupSensors()) xTaskCreateWithCaps(&telemetryTask, "telemetryTask", TELEM_STACK_SIZE, NULL, TELEM_PRI, &telemetryHandle, STACK_MEM);
     else teleUse = false;
     LOG_INF("Telemetry recording %s available", teleUse ? "is" : "NOT");
     debugMemory("prepTelemetry");

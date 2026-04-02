@@ -10,7 +10,7 @@
 
 #pragma once
 
-#if __has_include("./devUtilities.cpp") 
+#if __has_include("./devUtilities.cpp")
 #define DEV_ONLY 
 #endif
 #ifdef DEV_ONLY
@@ -35,7 +35,6 @@
 #include <vector>
 #include "ping/ping_sock.h"
 #include <Preferences.h>
-#include <regex>
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
 #include <SD_MMC.h>
 #endif
@@ -50,6 +49,7 @@
 #include <HTTPClient.h>
 #include <NetworkClient.h> 
 #include <NetworkClientSecure.h> 
+#include <WiFiClientSecure.h>
 #include <esp_http_server.h>
 #include <esp_https_server.h>
 
@@ -111,7 +111,6 @@ void buildAppJsonString(bool filter);
 bool updateAppStatus(const char* variable, const char* value, bool fromUser = true);
 
 // global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp etc
-void appPanicHandler(arduino_panic_info_t *info, void *arg);
 void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
@@ -125,6 +124,7 @@ uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx);
 void debugMemory(const char* caller);
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
 void deleteFolderOrFile(const char* deleteThis);
+void devCheck();
 void devSetup();
 void doAppPing();
 void doRestart(const char* restartStr);
@@ -140,9 +140,9 @@ esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value);
 esp_err_t fileHandler(httpd_req_t* req, bool download = false);
 void flush_log(bool andClose = false);
 char* fmtSize (uint64_t sizeVal);
-void forceCrash();
 void formatElapsedTime(char* timeStr, uint32_t timeVal, bool noDays = false);
 void formatHex(const char* inData, size_t inLen);
+const char* formatIPstr(bool getAP = false);
 bool formatSDcard();
 bool fsStartTransfer(const char* fileFolder);
 const char* getEncType(int ssidIndex);
@@ -150,18 +150,17 @@ void getExtIP();
 time_t getEpoch();
 size_t getFreeStorage();
 uint32_t getFrequency();
-bool getLocalNTP();
 float getNTCcelsius(uint16_t resistance, float oldTemp);
 void goToSleep(bool deepSleep);
 bool handleWebDav(httpd_req_t* rreq);
 void initStatus(int cfgGroup, int delayVal);
 void killSocket(int skt = -99);
+bool getJsonValue(const char* json, const char* key, char* value, const char* nestedKey = nullptr, int occurrence = 1);
 void listBuff(const uint8_t* b, size_t len); 
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension);
 void loadCerts();
 bool loadConfig();
 void logLine();
-void logPrint(const char *fmtStr, ...);
 void logSetup();
 void OTAprereq();
 bool parseJson(int rxSize);
@@ -177,21 +176,23 @@ float readInternalTemp();
 float readTemperature(bool isCelsius, bool onlyDS18 = false);
 float readVoltage();
 void remote_log_init();
-void remoteServerClose(NetworkClientSecure& sclient);
-bool remoteServerConnect(NetworkClientSecure& sclient, const char* serverName, uint16_t serverPort, const char* serverCert, uint8_t connIdx);
+void remoteServerClose(Client& client);
+bool remoteServerConnect(Client& client, const char* host, uint16_t port, uint8_t idx);
+bool remoteServerConnect(NetworkClientSecure& client, const char* host, uint16_t port, const char* cert, uint8_t idx);
 void remoteServerReset();
 void removeChar(char* s, char c);
 void replaceChar(char* s, char c, char r);
+void resetCrashLoop();
 void reset_log();
 void resetWatchDog(int wdIndex, uint32_t wdTimeout = 1);
 bool retrieveConfigVal(const char* variable, char* value);
 void runTaskStats(bool _onceOnly = false);
+void saveRamLog(const char* ramLogName);
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking = true);
 void sendSSE(const char* eventType, const char* eventData);
 void setFolderName(const char* fname, char* fileName);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
-void showHttpHeaders(httpd_req_t *req);
 void showProgress(const char* marker = ".");
 void showSys();
 uint16_t smoothAnalog(int analogPin, int samples = ADC_SAMPLES);
@@ -210,14 +211,13 @@ esp_err_t uploadHandler(httpd_req_t *req);
 void urlDecode(char* inVal);
 bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
+bool utilsStartup();
 esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSendBinary(uint8_t* data, size_t len);
 bool wsAsyncSendJson(const char* dataType, const char* wsData);
 bool wsAsyncSendText(const char* wsData);
 // unified networking helpers (WiFi or Ethernet)
 bool startNetwork(bool firstcall = true);
-IPAddress netLocalIP();
-IPAddress netGatewayIP();
 String netMacAddress();
 int netRSSI();
 bool netIsConnected();
@@ -281,6 +281,7 @@ extern uint16_t sustainId;
 extern bool heartBeatDone;
 extern TaskHandle_t heartBeatHandle;
 extern char portFwd[];
+extern float latLon[];
 
 // remote file server
 extern char fsServer[];
@@ -354,7 +355,7 @@ extern bool RCactive;
 extern int wakePin;
 extern int wakeLevel;
 extern UBaseType_t uxHighWaterMarkArr[];
-extern UBaseType_t HEAP_MEM;
+extern UBaseType_t STACK_MEM;
 
 // SD storage
 extern int sdMinCardFreeSpace; // Minimum amount of card free Megabytes before freeSpaceMode action is enabled
@@ -401,9 +402,15 @@ extern int I2Cscl;
   (method == HTTP_UNLINK) ? "UNLINK" : \
   "UNKNOWN"
 
-enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, BLOCKLIST, REMFAILCNT}; // REMFAILCNT always last
+enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, BLOCKLIST, GETEXTMSL, GETEXTMAG, REMFAILCNT}; // REMFAILCNT always last
 
 /*********************** Log formatting ************************/
+
+#define MAX_OUT 200
+#define LOG_QUEUE_TIMEOUT_TICKS pdMS_TO_TICKS(50) // 50ms
+extern QueueHandle_t logFreePool;
+extern QueueHandle_t logQueue;
+void logIncrementDropCount();
 
 //#define USE_LOG_COLORS  // uncomment to colorise log messages (eg if using idf.py, but not arduino)
 #ifdef USE_LOG_COLORS 
@@ -421,15 +428,36 @@ enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, B
 #define LOG_NO_COLOR
 #endif 
 
-#define INF_FORMAT(format) "[%s %s] " format "\n", esp_log_system_timestamp(), __FUNCTION__
-#define LOG_INF(format, ...) logPrint(INF_FORMAT(format), ##__VA_ARGS__)
-#define LOG_ALT(format, ...) logPrint(INF_FORMAT(format "~"), ##__VA_ARGS__)
-#define WRN_FORMAT(format) LOG_COLOR_WRN "[%s WARN %s] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), __FUNCTION__
-#define LOG_WRN(format, ...) logPrint(WRN_FORMAT(format "~"), ##__VA_ARGS__)
-#define ERR_FORMAT(format) LOG_COLOR_ERR "[%s ERROR @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
-#define LOG_ERR(format, ...) logPrint(ERR_FORMAT(format "~"), ##__VA_ARGS__)
-#define VRB_FORMAT(format) LOG_COLOR_VRB "[%s VERBOSE @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
-#define LOG_VRB(format, ...) if (dbgVerbose) logPrint(VRB_FORMAT(format), ##__VA_ARGS__)
-#define DBG_FORMAT(format) LOG_COLOR_DBG "[%s ### DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__
-#define LOG_DBG(format, ...) do { logPrint(DBG_FORMAT(format), ##__VA_ARGS__); delay(FLUSH_DELAY); } while (0)
+#define LOG_SEND(formatted_str, ...) do { \
+  char *_buf; \
+  if (xQueueReceive(logFreePool, &_buf, LOG_QUEUE_TIMEOUT_TICKS) == pdTRUE) { \
+    snprintf(_buf, MAX_OUT, formatted_str, ##__VA_ARGS__); \
+    if (xQueueSend(logQueue, &_buf, LOG_QUEUE_TIMEOUT_TICKS) != pdTRUE) { \
+      xQueueSend(logFreePool, &_buf, LOG_QUEUE_TIMEOUT_TICKS); \
+      logIncrementDropCount(); \
+    } \
+  } else logIncrementDropCount(); \
+} while(0)
+
+#define LOG_INF(format, ...) \
+  LOG_SEND("[%s %s] " format "\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+
+#define LOG_ALT(format, ...) \
+  LOG_SEND("[%s %s] " format "~\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+
+#define LOG_WRN(format, ...) \
+  LOG_SEND(LOG_COLOR_W "[%s WARN %s] " format LOG_NO_COLOR "~\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+
+#define LOG_ERR(format, ...) \
+  LOG_SEND(LOG_COLOR_ERR "[%s ERROR @ %s:%u] " format LOG_NO_COLOR "~\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__, ##__VA_ARGS__)
+
+#define LOG_VRB(format, ...) \
+  if (dbgVerbose) LOG_SEND(LOG_COLOR_VRB "[%s VERBOSE %s] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+
+#define LOG_DBG(format, ...) do { \
+  LOG_SEND(LOG_COLOR_DBG "[%s ### DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", \
+    esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__, ##__VA_ARGS__); \
+  delay(FLUSH_DELAY); \
+} while(0)
+
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)

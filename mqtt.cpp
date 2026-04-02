@@ -114,7 +114,7 @@ static void mqtt_data_handler(void *handler_args, esp_event_base_t base, int32_t
 }
 
 static void mqtt_error_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-  LOG_VRB("Event base=%s, event_id=%d", base, event_id);
+  LOG_VRB("Event base=%s, event_id=%ld", base, event_id);
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   LOG_VRB("Mqtt event error %i", event->msg_id);    
   if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
@@ -133,7 +133,7 @@ void sendMqttImage(){
   if (!doKeepFrame && alertBufferSize) {
      const char* picBuff = (const char*)(alertBuffer);
      int id = esp_mqtt_client_publish(mqtt_client, image_topic, picBuff, alertBufferSize, MQTT_QOS, 0);
-     LOG_VRB("Sent pic, size: %lu", alertBufferSize );
+     LOG_VRB("Sent pic, size: %u", alertBufferSize);
   }else{
     LOG_WRN("Fail to send image");
   }
@@ -220,7 +220,7 @@ void stopMqttClient() {
   }
   ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_stop(mqtt_client));
   ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_destroy(mqtt_client));    
-  LOG_VRB("Checking task..%u", mqttTaskHandle);
+  LOG_VRB("Checking mqtt task");
   if ( mqttTaskHandle != NULL ) {
     LOG_VRB("Unlock task..");
     xTaskNotifyGive(mqttTaskHandle); //Unblock task
@@ -292,7 +292,7 @@ void startMqttClient(void){
     } else {
       LOG_VRB("Mqtt started");        
       // Create a mqtt task
-      BaseType_t xReturned = xTaskCreateWithCaps(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, MQTT_PRI, &mqttTaskHandle, HEAP_MEM);
+      BaseType_t xReturned = xTaskCreateWithCaps(&mqttTask, "mqttTask", MQTT_STACK_SIZE, NULL, MQTT_PRI, &mqttTaskHandle, STACK_MEM);
       LOG_INF("Created mqtt task: %u", xReturned );
       mqttRunning = true;
     }
@@ -347,7 +347,7 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
       p += sprintf(p, "\"sw\":\"%s\",", APP_VER);
       p += sprintf(p, "\"cns\":[[ \"mac\",\"%s\"]],", netMacAddress().c_str() );
       p += sprintf(p, "\"mdl\":\"%s-%i\",", ESP.getChipModel(), ESP.getChipRevision());
-      p += sprintf(p, "\"cu\":\"http://%s/\",", netLocalIP().toString().c_str());
+      p += sprintf(p, "\"cu\":\"http://%s/\",", formatIPstr());
       p += sprintf(p, "\"mf\":\"%s\"", "esp32cam");
     *p++ = '}';
   *p++ = '}';
@@ -407,7 +407,7 @@ void sendMqttHasState(){
   }
   sprintf(p, "%i", netRSSI());
   mqttPublishPath("wifi_rssi", p);
-  sprintf(p, "%s", netLocalIP().toString().c_str());
+  sprintf(p, "%s", formatIPstr());
   mqttPublishPath("wifi_ip", p);
   sprintf(p, "%s", fmtSize(ESP.getFreeHeap()) );
   mqttPublishPath("free_heap", p);

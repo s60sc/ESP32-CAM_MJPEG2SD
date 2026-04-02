@@ -30,8 +30,7 @@ MX1508 DC Motor Driver with PWM Control
 #error "Need INCLUDE_PERIPH true"
 #endif
 
-// Includes code from github.com/espressif/idf-extra-components/blob/master/bdc_motor
-//  modified to compile with c++:
+// Includes code from github.com/espressif/idf-extra-components/blob/master/bdc_motor, modified to compile with c++:
 // - github.com/espressif/idf-extra-components/blob/master/bdc_motor/include/bdc_motor.h
 // - github.com/espressif/idf-extra-components/blob/master/bdc_motor/interface/bdc_motor_interface.h
 // - github.com/espressif/idf-extra-components/blob/master/bdc_motor/src/bdc_motor.c
@@ -50,6 +49,8 @@ MX1508 DC Motor Driver with PWM Control
 #include "esp_check.h"
 #include "driver/mcpwm_prelude.h"
 
+// github.com/espressif/idf-extra-components/blob/master/bdc_motor/include/bdc_motor.h (partial)
+
  /**
  * @brief BDC Motor Configuration
  */
@@ -67,7 +68,6 @@ typedef struct {
     uint32_t resolution_hz; /*!< MCPWM timer resolution */
 } bdc_motor_mcpwm_config_t;
 
-
 /**
  * @brief Brushed DC Motor handle
  */
@@ -81,6 +81,8 @@ struct bdc_motor_t {
     esp_err_t (*brake)(bdc_motor_t *motor);
     esp_err_t (*del)(bdc_motor_t *motor);
 };
+
+// github.com/espressif/idf-extra-components/tree/master/bdc_motor/src/bdc_motor_mcpwm_impl.c
 
 typedef struct {
     bdc_motor_t base;
@@ -215,18 +217,14 @@ static esp_err_t bdc_motor_new_mcpwm_device(const bdc_motor_config_t *motor_conf
     generator_config.gen_gpio_num = motor_config->pwmb_gpio_num;
     ESP_GOTO_ON_ERROR(mcpwm_new_generator(mcpwm_motor->oper, &generator_config, &mcpwm_motor->genb), err, TAG, "create generator failed");
 
-    mcpwm_generator_set_actions_on_timer_event(mcpwm_motor->gena,
-            MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH),
-            MCPWM_GEN_TIMER_EVENT_ACTION_END());
-    mcpwm_generator_set_actions_on_compare_event(mcpwm_motor->gena,
-            MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, mcpwm_motor->cmpa, MCPWM_GEN_ACTION_LOW),
-            MCPWM_GEN_COMPARE_EVENT_ACTION_END());
-    mcpwm_generator_set_actions_on_timer_event(mcpwm_motor->genb,
-            MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH),
-            MCPWM_GEN_TIMER_EVENT_ACTION_END());
-    mcpwm_generator_set_actions_on_compare_event(mcpwm_motor->genb,
-            MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, mcpwm_motor->cmpb, MCPWM_GEN_ACTION_LOW),
-            MCPWM_GEN_COMPARE_EVENT_ACTION_END());
+    mcpwm_generator_set_action_on_timer_event(mcpwm_motor->gena,
+      MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH));
+    mcpwm_generator_set_action_on_compare_event(mcpwm_motor->gena,
+      MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, mcpwm_motor->cmpa, MCPWM_GEN_ACTION_LOW));
+    mcpwm_generator_set_action_on_timer_event(mcpwm_motor->genb,
+      MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH));
+    mcpwm_generator_set_action_on_compare_event(mcpwm_motor->genb,
+      MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, mcpwm_motor->cmpb, MCPWM_GEN_ACTION_LOW));
 
     mcpwm_motor->base.enable = bdc_motor_mcpwm_enable;
     mcpwm_motor->base.disable = bdc_motor_mcpwm_disable;
@@ -263,6 +261,9 @@ err:
     }
     return ret;
 }
+
+
+// https://github.com/espressif/idf-extra-components/blob/master/bdc_motor/src/bdc_motor.c
 
 static esp_err_t bdc_motor_enable(bdc_motor_handle_t motor)
 {

@@ -43,7 +43,7 @@ char tgramToken[MAX_PWD_LEN] = "";
 char tgramChatId[MAX_IP_LEN] = "";
 
 char tgramHdr[FILE_NAME_LEN];
-static char keyValue[100] = ""; // holds value for searched key in JSON response
+static char keyValue[100] = {0}; // holds value for searched key in JSON response
 static char* tgramBuff = NULL; // holds sent then received data
 static int32_t lastUpdate = 0;
 
@@ -64,7 +64,7 @@ static bool searchJsonResponse(const char* keyName) {
   int valSize = endItem - startItem;
   if (valSize > sizeof(keyValue) - 1) {
     LOG_WRN("Telegram JSON value too long %d", valSize); 
-    valSize = sizeof(keyValue - 1);
+    valSize = sizeof(keyValue) - 1;
   }
   strncpy(keyValue, startItem, valSize);
   keyValue[valSize] = 0;
@@ -78,22 +78,20 @@ size_t getResponseHeader(NetworkClientSecure& sclient, const char* host, int wai
   size_t contentLen = 0;
   int httpCode = 0;
   uint32_t startTime = millis();
-  if (sclient.available()) {
-    while (!endOfHeader && millis() - startTime < waitSecs * 1000) {
-      if (sclient.available()) { 
-        String tline = sclient.readStringUntil('\n');
-        //printf("Res: %s\n", tline.c_str());
-        endOfHeader = tline.length() > 1 ? false : true; // blank line ends header
-        if (!httpCode) sscanf(tline.c_str(), HTTP_CODE, &httpCode);  
-        // get contentLength from header
-        if (!contentLen) sscanf(tline.c_str(), "Content-Length: %d\r", &contentLen); 
-      } else delay(100); 
-    }
-    if (!endOfHeader) {
-      LOG_WRN("Timed out waiting for response from %s", host);
-      return 0;
-    } 
-  } 
+  while (!endOfHeader && millis() - startTime < waitSecs * 1000) {
+    if (sclient.available()) { 
+      String tline = sclient.readStringUntil('\n');
+      //printf("Res: %s\n", tline.c_str());
+      endOfHeader = tline.length() > 1 ? false : true; // blank line ends header
+      if (!httpCode) sscanf(tline.c_str(), HTTP_CODE, &httpCode);  
+      // get contentLength from header
+      if (!contentLen) sscanf(tline.c_str(), "Content-Length: %d\r", &contentLen); 
+    } else delay(100); 
+  }
+  if (!endOfHeader) {
+    LOG_WRN("Timed out waiting for response from %s", host);
+    return 0;
+  }
   return contentLen;
 }
 
@@ -107,28 +105,32 @@ static bool getTgramResponse() {
       LOG_WRN("contentLen %d exceeds buffer size", contentLen);
       contentLen = MAX_HTTP_MSG - 1;
     }
-    while (contentLen - readLen > 0) {
+    uint32_t startTime = millis();
+    while (contentLen - readLen > 0 && millis() - startTime < responseTimeoutSecs * 1000) {
       // retrieve response content
       size_t availLen = tclient.available();
       if (availLen) readLen += tclient.readBytes((uint8_t*)tgramBuff + readLen, availLen);
       delay(50);
     }
-    // format tgramBuff for searchJsonResponse() 
-    if (readLen != contentLen) LOG_WRN("Telegram data %d not equal to contentLength %d", readLen, contentLen);
-    tgramBuff[contentLen] = 0;
-    removeChar(tgramBuff, '"');
-    replaceChar(tgramBuff, '}', ',');
-    // check if response from Telegram has ok'd request
-    if (searchJsonResponse("ok:")) {
-      if (strcmp(keyValue, "true")) {
-        // get error description
-        if (searchJsonResponse("description:")) LOG_WRN("Telegram error: %s", keyValue);
-        else LOG_WRN("Telegram error, but description not retrieved");
-      } else if (searchJsonResponse("result:")) {
-        // have response if result contains data, else just an ack
-        if (strcmp(keyValue, "[]")) haveResponse = true;
-      }
-    } 
+    if (contentLen - readLen > 0) LOG_WRN("Timed out waiting for telegram response");
+    else {
+      // format tgramBuff for searchJsonResponse() 
+      if (readLen != contentLen) LOG_WRN("Telegram data %d not equal to contentLength %d", readLen, contentLen);
+      tgramBuff[contentLen] = 0;
+      removeChar(tgramBuff, '"');
+      replaceChar(tgramBuff, '}', ',');
+      // check if response from Telegram has ok'd request
+      if (searchJsonResponse("ok:")) {
+        if (strcmp(keyValue, "true")) {
+          // get error description
+          if (searchJsonResponse("description:")) LOG_WRN("Telegram error: %s", keyValue);
+          else LOG_WRN("Telegram error, but description not retrieved");
+        } else if (searchJsonResponse("result:")) {
+          // have response if result contains data, else just an ack
+          if (strcmp(keyValue, "[]")) haveResponse = true;
+        }
+      } 
+    }
     //printf("Cnt: %s\n", tgramBuff);
     remoteServerClose(tclient); // end of transaction 
   } // else nothing received, so leave connection open
@@ -195,7 +197,7 @@ bool prepTelegram() {
         // response loaded into tgramBuff
         if (searchJsonResponse("username:")) {      
           LOG_INF("Connected to Telegram Bot Handle: %s", keyValue);
-          xTaskCreateWithCaps(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle, HEAP_MEM); 
+          xTaskCreateWithCaps(appSpecificTelegramTask, "telegramTask", TGRAM_STACK_SIZE, NULL, TGRAM_PRI, &telegramHandle, STACK_MEM); 
           debugMemory("setupTelegramTask");
           return true;
         } else LOG_WRN("getMe response not parsed %s", tgramBuff);
@@ -224,7 +226,7 @@ bool getTgramUpdate(char* responseText) {
               } // No text, ignore
             } else LOG_WRN("Message from unknown chat id: %s", keyValue);
           } else LOG_WRN("No chat id found");
-        } else LOG_WRN("Old update_id: %d", update_id);
+        } else LOG_WRN("Old update_id: %ld", update_id);
       } // no update_id, ignore
     } 
   } else {

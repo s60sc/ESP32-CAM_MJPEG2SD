@@ -160,7 +160,7 @@ esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value) {
   char* endPtr = strchr(variable, '=');
   if (endPtr != NULL) {
     *endPtr = 0; // split variable into 2 strings, first is key name
-    strcpy(value, variable + strlen(variable) + 1); // value is now second part of string
+    strcpy(value, endPtr + 1); // value is now second part of string
   } else {
     LOG_ERR("Invalid query string %s", variable);
     httpd_resp_set_status(req, "400 Invalid query string");
@@ -212,7 +212,6 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   if (extractQueryKeyVal(req, variable, value) != ESP_OK) return ESP_FAIL;
   if (!strcmp(variable, "displayLog")) displayLog(req);
   else {
-    strcpy(value, variable + strlen(variable) + 1); // value points to second part of string
     if (!strcmp(variable, "reset")) {
       httpd_resp_sendstr(req, NULL); // stop browser resending reset
       doRestart(value); 
@@ -237,31 +236,34 @@ static esp_err_t statusHandler(httpd_req_t *req) {
 }
 
 bool parseJson(int rxSize) {
-  // process json in jsonBuff to extract properly formatted flat key:value pairs  
-  jsonBuff[rxSize - 1] = ','; // replace final '}' 
-  jsonBuff[rxSize] = 0; // terminator
-  char* ptr = jsonBuff + 1; // skip over initial '{'
-  size_t itemLen = 0; 
+  // process json in jsonBuff to extract properly formatted flat key:value pairs
   bool retAction = false;
-  do {
-    // get and process each key:value in turn
-    char* endItem = strchr(ptr += itemLen, ':');
-    itemLen = endItem - ptr;
-    memcpy(variable, ptr, itemLen);
-    variable[itemLen] = 0;
-    removeChar(variable, '"');
-    ptr++;
-    endItem = strchr(ptr += itemLen, ',');
-    itemLen = endItem - ptr;
-    memcpy(value, ptr, itemLen);
-    value[itemLen] = 0;
-    removeChar(value, '"');
-    ptr++;
-    if (!strcmp(variable, "action")) {
-      strcpy(retainAction, value);
-      retAction = true;
-    } else updateStatus(variable, value);
-  } while (ptr + itemLen - jsonBuff < rxSize);
+  if (rxSize > JSON_BUFF_LEN) LOG_WRN("Received json too long %d", rxSize);
+  else {
+    jsonBuff[rxSize - 1] = ','; // replace final '}' 
+    jsonBuff[rxSize] = 0; // terminator
+    char* ptr = jsonBuff + 1; // skip over initial '{'
+    size_t itemLen = 0; 
+    do {
+      // get and process each key:value in turn
+      char* endItem = strchr(ptr += itemLen, ':');
+      itemLen = endItem - ptr;
+      memcpy(variable, ptr, itemLen);
+      variable[itemLen] = 0;
+      removeChar(variable, '"');
+      ptr++;
+      endItem = strchr(ptr += itemLen, ',');
+      itemLen = endItem - ptr;
+      memcpy(value, ptr, itemLen);
+      value[itemLen] = 0;
+      removeChar(value, '"');
+      ptr++;
+      if (!strcmp(variable, "action")) {
+        strcpy(retainAction, value);
+        retAction = true;
+      } else updateStatus(variable, value);
+    } while (ptr + itemLen - jsonBuff < rxSize);
+  }
   return retAction;
 }
 
@@ -300,11 +302,9 @@ static esp_err_t updateHandler(httpd_req_t *req) {
   // obtain json payload
   do {
     ret = httpd_req_recv(req, jsonBuff, rxSize);
-    if (ret < 0) {  
+    if (ret < 0) {
       if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
-      else {
-        LOG_WRN("Update request failed with status %i", ret);
-      }
+      else LOG_WRN("Update request failed with status %i", ret);
     }
   } while (ret > 0);
   httpd_resp_sendstr(req, NULL); 
@@ -398,7 +398,7 @@ static esp_err_t setupHandler(httpd_req_t *req) {
     p += sprintf(p, "{\"ssid\":\"%s\",\"encryption\":\"%s\",\"strength\":\"%ld\"},", WiFi.SSID(i).c_str(), getEncType(i), WiFi.RSSI(i));
   }
   // remove final comma and close the JSON array
-  p += sprintf(p-1, "]}");
+  if (w > 0) p += sprintf(p-1, "]}");
   // Set the response type to JSON and send JSON
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -406,24 +406,6 @@ static esp_err_t setupHandler(httpd_req_t *req) {
   httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
   httpd_resp_sendstr(req, jsonBuff);
   return ESP_OK;
-}
-
-void showHttpHeaders(httpd_req_t *req) {
-  // httpd_req_aux struct members hidden so need to access them via offsets
-  // to calculate offset any element not on 4 byte boundary has to be packed
-  LOG_DBG("HTTP: %s %s", HTTP_METHOD_STRING(req->method), req->uri); 
-#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 3, 0)
-  size_t maxHdrLen = max(CONFIG_HTTPD_MAX_REQ_HDR_LEN, CONFIG_HTTPD_MAX_URI_LEN);
-#else
-  size_t maxHdrLen = max(HTTPD_MAX_REQ_HDR_LEN, HTTPD_MAX_URI_LEN);
-#endif
-  uint32_t req_hdrs_count = *((uint8_t*)req->aux + 4 + maxHdrLen + 1 + 3 + 4 + 4 + 4 + 1 + 3);
-  char* header = (char*)req->aux + 4; // start of scratch buffer containing headers
-  // get each header string in turn
-  while (req_hdrs_count--) {
-    LOG_DBG("  %s", header);
-    header += strlen(header) + 2;
-  }
 }
 
 static esp_err_t sendCrossOriginHeader(httpd_req_t *req) {
@@ -527,7 +509,10 @@ void killSocket(int skt) {
     skt = fdWs;
     fdWs = -1;
   }
-  if (skt >= 0) httpd_sess_trigger_close(httpServer, skt);
+  if (skt >= 0) {
+    httpd_sess_trigger_close(httpServer, skt);
+    delay(10);
+  }
 }
 
 /*
@@ -549,7 +534,12 @@ static esp_err_t customOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err)
 
 bool startWebServer() {
   esp_err_t res = ESP_FAIL;
-  chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE);
+  if (!chunk) chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE);
+  if (httpServer) {
+    httpd_stop(httpServer);
+    httpServer = NULL;
+  }
+  
 #if INCLUDE_CERTS
   if (useHttps) {
     // HTTPS server
@@ -572,7 +562,7 @@ bool startWebServer() {
     res = httpd_ssl_start(&httpServer, &config);
   } else {
 #else
-  if (!useHttps) {
+  if (true) {
 #endif
     // HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -617,9 +607,9 @@ bool startWebServer() {
     LOG_INF("Remote server certificates %s checked", useSecure ? "are" : "not");
     if (DEBUG_MEM) {
       uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
-      LOG_INF("Task httpServer stack space %u", freeStack);
+      LOG_INF("Task httpServer stack space %lu", freeStack);
     }
-  } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to start webserver %s",espErrMsg(res));
+  } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to start webserver %s", espErrMsg(res));
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   debugMemory("startWebserver");
   if (strlen(startupFailure)) {

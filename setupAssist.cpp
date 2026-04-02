@@ -28,8 +28,8 @@ static bool wgetFile(const char* filePath) {
       NetworkClientSecure wclient;
       if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, git_rootCACertificate, SETASSIST)) {
         HTTPClient https;
-        if (https.begin(wclient, GITHUB_HOST, HTTPS_PORT, downloadURL, true)) {
-          LOG_INF("Downloading %s from %s", filePath, downloadURL);    
+        if (https.begin(wclient, GITHUB_HOST, HTTPS_PORT, downloadURL)) {
+          LOG_INF("Downloading %s from %s", filePath, downloadURL);
           int httpCode = https.GET();
           int fileSize = 0;
           if (httpCode == HTTP_CODE_OK) {

@@ -39,11 +39,10 @@ static const char* clientName[128] = {
   "OV2640", "", "", "", "", "", "", "", "", "", "", "", "OV5640/SSD1306", "SSD1306", "", "",
   "", "", "", "", "", "", "", "", "PCF8591", "", "", "", "", "", "", "",
   "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-  "OV2640", "OV2640", "", "", "", "", "", "", "MPUxx50/DS3231", "MPUxx50", "", "", "", "", "", "",
+  "OV2640", "OV2640", "", "", "", "", "", "", "MPUxxxx/DS3231", "MPUxxxx", "", "", "", "", "", "",
   "", "", "", "", "", "", "BMx280", "BMx280", "OV5640", "OV5640", "", "", "", "", "", ""};
 
 static bool prepI2Cdevices();
-static void startPollTask();
 
 /********************* Generic I2C Utilities ***********************/
 
@@ -58,13 +57,13 @@ static bool sendTransmission(int clientAddr, bool scanning) {
       8: unknown pcf8591 status */
       
   if (!scanning && result > 0) LOG_WRN("Client %s at 0x%02X with connection error: %d", clientName[clientAddr], clientAddr, result);
-  return (result == 0) ? true : false;
+  return result == 0;
 }
 
 static void scanI2C() {
   // find details of any active I2C devices
   LOG_INF("I2C device scanning");
-  for (byte address = 0; address < 127; address++) {
+  for (byte address = 1; address < 127; address++) {
     Wire.beginTransmission(address);
     // only report error if client device meant to be present
     if (sendTransmission(address, true)) {
@@ -128,7 +127,7 @@ bool prepI2C() {
     Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
     //Wire.setClock(400000); // default 100kHz, max 400kHz
   }
-  LOG_INF("%sI2C initialised at %dkHz using pins SDA: %d, SCL: %d", isShared ? "Shared " : "", Wire.getClock() / 1000, I2Csda, I2Cscl);
+  LOG_INF("%sI2C initialised at %ldkHz using pins SDA: %d, SCL: %d", isShared ? "Shared " : "", Wire.getClock() / 1000, I2Csda, I2Cscl);
 
   I2Cdevices = 0;
   scanI2C();
@@ -242,6 +241,8 @@ byte* getPCF8591() { // analog channels
 #define STD_PRESSURE 1013.25 // reference pressure in mB/hPa at sea level
 #define DEGREE_SYMBOL "\xC2\xB0"
 
+#if __has_include("../libraries/BMx280MI/src/BMx280I2C.h") 
+
 #include <BMx280I2C.h> // https://github.com/christandlg/BMx280MI
 BMx280I2C bmxDef(BMx280_Def); 
 BMx280I2C bmxAlt(BMx280_Alt);
@@ -249,6 +250,32 @@ BMx280I2C* thisBmx;
 
 static bool BMx280ok = false;
 static bool isBME = false;
+static float pressureMSL = STD_PRESSURE;
+
+#define EXT_MSL_HOST "api.open-meteo.com"
+#define EXT_MSL_PATH "/v1/forecast?latitude=%0.6f&longitude=%0.6f&current=pressure_msl"
+
+static float getSeaLevelPressure() {
+  // Get Mean Sea Level pressure for given location
+  NetworkClient hclient;
+  char jsonVal[FILE_NAME_LEN] = "";
+  if (remoteServerConnect(hclient, EXT_MSL_HOST, HTTP_PORT, GETEXTMSL)) {
+    HTTPClient http;
+    int httpCode = HTTP_CODE_NOT_FOUND;
+    char extMslPath[100];
+    sprintf(extMslPath, EXT_MSL_PATH, latLon[0], latLon[1]);
+    if (http.begin(hclient, EXT_MSL_HOST, HTTP_PORT, extMslPath)) {
+      httpCode = http.GET();
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        if (!getJsonValue(payload.c_str(), "pressure_msl", jsonVal, nullptr, 2)) LOG_WRN("'pressure_msl' field not present");
+      } else LOG_WRN("MSL pressure request failed, error: %s", http.errorToString(httpCode).c_str());    
+      http.end();     
+    }
+    remoteServerClose(hclient);
+  }
+  return strlen(jsonVal) ? atof(jsonVal) : STD_PRESSURE; // in hPa / mbars
+}
 
 static bool setupBMx() {
   // setup BMx280 if available
@@ -267,6 +294,8 @@ static bool setupBMx() {
         if (isBME) thisBmx->writeOversamplingHumidity(BMx280MI::OSRS_H_x16);
         thisBmx->measure();
       }
+      pressureMSL = getSeaLevelPressure();
+      LOG_INF("BMx280 setup complete, local MSL pressure %0.1fhPa @ Lat %0.6f / Lon %0.6f", pressureMSL, latLon[0], latLon[1]);
     }
     if (!BMx280ok) LOG_WRN("BMx280 not available");
   } 
@@ -285,7 +314,7 @@ float* getBMx280() {
       // ambient temperature (but affected by chip heating)
       BMx280[0] = thisBmx->getTemperature(); // celsius 
       BMx280[1] = thisBmx->getPressure() * 0.01;  // pascals to mB/hPa
-      BMx280[2] = 44330.0 * (1.0 - pow(BMx280[1] / STD_PRESSURE, 1.0 / 5.255)); // altitude in meters
+      BMx280[2] = 44330.0 * (1.0 - pow(BMx280[1] / pressureMSL, 1.0 / 5.255)); // altitude in meters
       if (isBME) BMx280[3] = thisBmx->getHumidity(); // % relative humidity
     }
   }
@@ -295,15 +324,37 @@ float* getBMx280() {
 bool identifyBMx() {
   return isBME;
 }
-#endif
+
+#else
+static bool setupBMx() {
+  LOG_WRN("BMx280MI library not installed");
+  return false;
+}
+#endif // __has_include
+
+#endif // USE_BMx280
 
 /**************************** MPU6050 / MPU9250 ******************************/
+
+#if USE_MPU
+
+#define MPUxxxx_HIGH 0x69 // MPU6050 / MPU9250 I2C address if AD0 pulled high
+#define MPUxxxx_LOW 0x68  // MPU6050 / MPU9250 I2C address if AD0 grounded
+
+// MPU model identifiers
+#define MPU9250_ID 0x71
+#define MPU9255_ID 0x73
+#define MPU6500_ID 0x70
+#define MPU6050_ID 0x68
+#define WHOAMI_REG 0x75
+
 static float mpuData[4] = {0};
+static char mpuModel[10] = "Unknown";
+static bool haveMag = false;
+static uint8_t MPUaddr;
 
-#define MPUxx50_HIGH 0x69 // MPU6050 / MPU9250 I2C address if AD0 pulled high
-#define MPUxx50_LOW 0x68  // MPU6050 / MPU9250 I2C address if AD0 grounded
+/********************************* MPU6050 ********************************/
 
-#if USE_MPU6050
 // MPU6050 definitions - not gyroscope
 #define SENS_2G (32768.0/2.0) // divider for 2G sensitivity reading
 #define ACCEL_BYTES 6 // 2 bytes per axis
@@ -312,38 +363,30 @@ static float mpuData[4] = {0};
 #define ACCEL_XOUT_H 0x3B
 #define PWR_MGMT_1 0x6B
 
-static uint8_t MPU6050addr;
 static bool MPU6050ok = false;
 
 bool sleepMPU6050(bool doSleep) {
   // power down or wake up MPU6050 
   I2CDATA[0] = doSleep ? 0x40 : 0x01;
   // PWR_MGMT_1 register set to sleep
-  return sendI2Cdata(MPU6050addr, PWR_MGMT_1, 1);
+  return sendI2Cdata(MPUaddr, PWR_MGMT_1, 1);
 }
 
 static bool setupMPU6050() {
   if (!MPU6050ok) {
-    MPU6050ok = true;
-    if (deviceStatus[MPUxx50_HIGH]) MPU6050addr = MPUxx50_HIGH;
-    else if (deviceStatus[MPUxx50_LOW]) MPU6050addr = MPUxx50_LOW;
-    else MPU6050ok = false;
-    if (MPU6050ok) {
-      // set full range
-      I2CDATA[0] = 0x00; 
-      MPU6050ok = sendI2Cdata(MPU6050addr, CONFIG, 1);
-      // wakeup the sensor 
-      if (MPU6050ok) sleepMPU6050(false);
-    } 
-    if (!MPU6050ok) LOG_WRN("MPU6050 6 axis not available");
-  }
+    // set full range
+    I2CDATA[0] = 0x00; 
+    MPU6050ok = sendI2Cdata(MPUaddr, CONFIG, 1);
+    // wakeup the sensor 
+    if (MPU6050ok) MPU6050ok = sleepMPU6050(false);
+  } 
   return MPU6050ok;
 }
 
-static void getMPU6050() {
-  // get data from MPU6050 and return as array
+static void updateMPU6050data() {
+  // get data from MPU6050 and store in array
   if (MPU6050ok) {
-    if (getI2Cdata(MPU6050addr, ACCEL_XOUT_H, ACCEL_BYTES+2)) { 
+    if (getI2Cdata(MPUaddr, ACCEL_XOUT_H, ACCEL_BYTES+2)) { 
       // read 3 axis accelerometer & temperature
       int16_t raw[4]; // X, Y, Z, Temp
       float axes[4];
@@ -355,21 +398,20 @@ static void getMPU6050() {
       LOG_VRB("gXYZ should be close to 1, is: %0.2f", gXYZ);
       // pitch in degrees - X axis
       float ratio = axes[0] / gXYZ;
-      mpuData[0] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
+      mpuData[0] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
       // roll in degrees - Y axis 
       ratio = axes[1] / gXYZ;
-      mpuData[1] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
+      mpuData[1] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
       // yaw in degrees - Z axis (inaccurate as gravity is constant)
       ratio = axes[2] / gXYZ;
-      mpuData[2] = (float)((ratio < 0.5) ? 90-fabs(asin(ratio)*RAD_TO_DEG) : fabs(acos(ratio)*RAD_TO_DEG));
+      mpuData[2] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
       // temperature in degrees celsius
       mpuData[3] = ((float)raw[3] / 340.0) + 36.53; 
     }
   }
 }
-#endif
 
-/*------------------------------------------------------------------*/
+/********************************* MPU9250 ********************************/
 
 /*
 MPU9250 on GY-91
@@ -382,69 +424,182 @@ SDO/SAO: I2C Address selection MPU9250
 NCS: n/a
 CSB: I2C Address selection BMP280
 */
-#if USE_MPU9250
+#if __has_include("../libraries/MPU9250/MPU9250.h") 
+
 #include "MPU9250.h" // https://github.com/hideakitai/MPU9250
 // accel axis orientation on GY-91:
 // - X : short side (pitch)
 // - Y : long side (roll)
 // - Z : up (yaw from true N)
 // Note internal AK8963 magnetometer is at address 0x0C
-#define LOCAL_MAG_DECLINATION (4 + 56/60)  // see https://www.magnetic-declination.com/ for local value
+#define LOCAL_MAG_DECLINATION 0.0f  // see https://www.magnetic-declination.com/ to obtain local value manually
 
 static MPU9250 mpu9250;
-static uint8_t MPU9250addr;
 static bool MPU9250ok = false;
+static float magDecl = LOCAL_MAG_DECLINATION;
+
+#define EXT_MAG_HOST "geomag.bgs.ac.uk"
+#define EXT_MAG_PATH "/web_service/GMModels/wmm/2025/?latitude=%0.6f&longitude=%0.6f&format=json"
+
+static float getMagneticDeclination() {
+  // Get Magnetic Declination for given location to magmetic compass correct for True North
+  NetworkClient hclient;
+  char jsonVal[FILE_NAME_LEN] = "";
+  float sign = 1.0f;
+  float angle = 0.0f;
+  if (remoteServerConnect(hclient, EXT_MAG_HOST, HTTP_PORT, GETEXTMAG)) {
+    HTTPClient http;
+    int httpCode = HTTP_CODE_NOT_FOUND;
+    char extMagPath[100];
+    sprintf(extMagPath, EXT_MAG_PATH, latLon[0], latLon[1]);
+    if (http.begin(hclient, EXT_MAG_HOST, HTTP_PORT, extMagPath)) {
+      httpCode = http.GET();
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        if (getJsonValue(payload.c_str(), "declination", jsonVal, "value")) {
+          angle = atof(jsonVal);
+          if (getJsonValue(payload.c_str(), "declination", jsonVal, "units")) {
+            if (strstr(jsonVal, "west")) sign = -1.0f;
+          }
+        } else LOG_WRN("'declination' field not present");
+      } else LOG_WRN("Magnetic declination request failed, error: %s", http.errorToString(httpCode).c_str());    
+      http.end();     
+    }
+    remoteServerClose(hclient);
+  }
+  return strlen(jsonVal) ? sign * angle : LOCAL_MAG_DECLINATION; // in degrees
+}
+
+static void updateMPU9250data() {
+  // get data from MPU9250 and return as array
+  // only some functions obtained
+  uint32_t mpuWait = millis();
+  while (!mpu9250.update() && millis() - mpuWait < SENSOR_TIMEOUT) delay(10);
+  if (mpu9250.update()) {
+    // read 3 axis accelerometer & temperature
+    // angle in degrees using airplane coordinate standard
+    mpuData[0] = mpu9250.getPitch(); // X
+    mpuData[1] = mpu9250.getRoll();  // Y
+    mpuData[2] = mpu9250.getYaw();   // Z
+    mpuData[3] = mpu9250.getTemperature(); // celsius
+  }
+}
 
 static bool setupMPU9250() {
   if (!MPU9250ok) {
-    MPU9250ok = true;
-    if (deviceStatus[MPUxx50_HIGH]) MPU9250addr = MPUxx50_HIGH;
-    else if (deviceStatus[MPUxx50_LOW]) MPU9250addr = MPUxx50_LOW;
-    else MPU9250ok = false;
-    if (MPU9250ok) {
-      if (mpu9250.setup(MPU9250addr)) {
-        mpu9250.setMagneticDeclination(LOCAL_MAG_DECLINATION);
-        mpu9250.selectFilter(QuatFilterSel::MADGWICK);
-        mpu9250.setFilterIterations(15);
-        LOG_INF("MPU9250 calibrating, leave still");
-        mpu9250.calibrateAccelGyro();
-  //    LOG_INF("Move MPU9250 in a figure of eight until done");
-  //    delay(2000);
-  //    mpu9250.calibrateMag();
-      } else MPU9250ok = false;
-    } 
-    if (!MPU9250ok) LOG_WRN("MPU9250 9 axis not available");
+    if (mpu9250.setup(MPUaddr)) {
+      magDecl = getMagneticDeclination();
+      mpu9250.setMagneticDeclination(magDecl);
+      mpu9250.selectFilter(QuatFilterSel::MADGWICK);
+      mpu9250.setFilterIterations(15);
+      LOG_INF("MPU calibrating gyro, leave still");
+      mpu9250.calibrateAccelGyro();
+      LOG_INF("MPU gyro calibrated");
+      LOG_INF("Move MPU in a figure of eight until done");
+      delay(2000);
+      mpu9250.calibrateMag();
+      LOG_INF("MPU magnetometer calibrated, local magnetic declination %0.3f° @ Lat %0.6f / Lon %0.6f", magDecl, latLon[0], latLon[1]);
+      MPU9250ok = true;
+    }
   }
   return MPU9250ok;
 }
 
-static void getMPU9250() {
-  // get data from MPU9250 and return as array
-  // only some functions obtained
-  if (MPU9250ok) {
-    uint32_t mpuWait = millis();
-    while (!mpu9250.update() && millis() - mpuWait < SENSOR_TIMEOUT) delay(10);
-    if (mpu9250.update()) {
-      // read 3 axis accelerometer & temperature
-      // angle in degrees using airplane coordinate standard
-      mpuData[0] = mpu9250.getPitch(); // X
-      mpuData[1] = mpu9250.getRoll();  // Y
-      mpuData[2] = mpu9250.getYaw();   // Z
-      mpuData[3] = mpu9250.getTemperature(); // celsius
-    }
-  }
+#else 
+
+static bool setupMPU9250() {
+  LOG_WRN("MPU9250 library not installed");
+  return false;
 }
-#endif
+
+#endif // __has_include
+
+/********************************* MPU common ********************************/
+
+static bool setupMPU() {
+  // identify MPU model
+  bool MPUok = true;
+  if (deviceStatus[MPUxxxx_HIGH]) MPUaddr = MPUxxxx_HIGH;
+  else if (deviceStatus[MPUxxxx_LOW]) MPUaddr = MPUxxxx_LOW;
+  else MPUok = false;
+  if (MPUok) {
+    if (getI2Cdata(MPUaddr, WHOAMI_REG, 1)) {
+      // determine IMU model using whoami register
+      byte iData = I2CDATA[0];
+      if (iData == MPU6050_ID) strcpy(mpuModel, "MPU6050");
+      if (iData == MPU6500_ID) strcpy(mpuModel, "MPU6520");
+      if (iData == MPU9250_ID) {
+        strcpy(mpuModel, "MPU9250");
+        haveMag = true;
+      }
+      if (iData == MPU9255_ID) {
+        strcpy(mpuModel, "MPU9255");
+        haveMag = true;
+      }
+    }
+    MPUok = haveMag ? setupMPU9250() : setupMPU6050();
+    if (MPUok) LOG_INF("%s available", mpuModel);
+    else LOG_WRN("%s not available", mpuModel);
+  }
+  return MPUok;
+}
 
 float* getMPUdata() {
-#if USE_MPU6050
-  getMPU6050();
-#endif
-#if USE_MPU9250
-  getMPU9250();
-#endif
   return mpuData;
 }
+
+bool identifyMPU(char* _mpuModel) {
+  strcpy(_mpuModel, mpuModel);
+  return haveMag;
+}
+
+
+/************** Poll devices for data ***************/
+
+static TaskHandle_t sensorPollHandle = NULL;
+bool accelUse = false;
+
+#ifdef ISCAM
+
+int accelDeg = 2;
+static bool haveMovement = false;
+
+static void getAccelMove() {
+  // determine if sufficient accelerometer movement has occurred
+  haveMovement = false;
+  static int posData[2][3];
+  int currMove = 0;
+  for (int i = 0; i < 3; i++) {
+    posData[0][i] = (int)mpuData[i];
+    currMove += abs(posData[0][i] - posData[1][i]);
+    posData[1][i] = posData[0][i];
+  }
+  if (currMove > accelDeg) haveMovement = true;
+}
+
+bool checkAccelMove() {
+  return haveMovement;
+}
+
+#endif // ISCAM
+
+static void sensorPollTask(void* p) {
+  while (true) {
+    if (MPU9250ok) updateMPU9250data();
+    if (MPU6050ok) updateMPU6050data();
+#ifdef ISCAM
+    if (accelUse) getAccelMove();
+#endif
+    delay(1000);
+  }
+}
+
+static void startPollTask() {
+  // poll input sensors for data
+  if (sensorPollHandle == NULL) xTaskCreateWithCaps(sensorPollTask, "sensorPollTask", SENSOR_STACK_SIZE, NULL, SENSOR_PRI, &sensorPollHandle, STACK_MEM); 
+}
+
+#endif // USE_MPU
 
 /********************************* DS3231 RTC ************************************/
 
@@ -458,9 +613,7 @@ static bool DS3231ok = false;
 static volatile bool RTCalarmFlag = false;
 
 static void IRAM_ATTR RTCalarmISR() {
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   RTCalarmFlag = true;
-  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 static bool setupRTC() {
@@ -472,7 +625,7 @@ static bool setupRTC() {
   // DS3231 SQW --> Alarm Interrupt Pin - needs pullup
 
   // set the interrupt pin to input mode with pullup
-  static bool SQWpin = -1; // needs to be config item
+  static int SQWpin = -1; // needs to be config item
   if (!DS3231ok) {
     if (deviceStatus[DS3231_RTC]) {
       pinMode(SQWpin, INPUT_PULLUP);
@@ -521,8 +674,9 @@ void setRTCintervalAlarm(int alarmHour, int alarmMin) {
   // occurs on 30 secs mark to avoid clash with setRTCrolloverAlarm()
   // args are hours and mins to occur after current time
   if (DS3231ok) {
-    int nextHour = cycleRange(Rtc.GetDateTime().Hour()+alarmHour, 0, 23);
-    int nextMin = cycleRange(Rtc.GetDateTime().Minute()+alarmMin, 0, 59);
+    int totalMins = Rtc.GetDateTime().Minute() + alarmMin;
+    int nextMin   = totalMins % 60;
+    int nextHour  = cycleRange(Rtc.GetDateTime().Hour() + alarmHour + totalMins / 60, 0, 23);
     DS3231AlarmOne alarm1(0, nextHour, nextMin, 30, DS3231AlarmOneControl_HoursMinutesSecondsMatch);
     Rtc.SetAlarmOne(alarm1);
   }
@@ -746,8 +900,8 @@ void lcdPrint(const char* str) {
 void lcdSetCursorPos(uint8_t row, uint8_t col) {
   // set row and col of cursor position
 	int row_offsets[] = {0x00, 0x40, 0x14, 0x54}; 
-  if (row > NUM_ROWS) row = NUM_ROWS - 1;
-  if (col > NUM_COLS) col = NUM_COLS - 1;
+  if (row >= NUM_ROWS) row = NUM_ROWS - 1;
+  if (col >= NUM_COLS) col = NUM_COLS - 1;
 	lcdSend(LCD_SETDDRAMADDR | (col + row_offsets[row]));
 }
 
@@ -816,8 +970,7 @@ bool checkI2Cdevice(const char* devName) {
   if (!strcmp(devName, "SSD1306")) return deviceStatus[SSD1306_BIaddr] || deviceStatus[SSD1306_Extaddr] ? true : false;
   if (!strcmp(devName, "PCF8591")) return deviceStatus[PCF8591addr];
   if (!strcmp(devName, "BMx280")) return deviceStatus[BMx280_Def] || deviceStatus[BMx280_Alt] ? true : false;
-  if (!strcmp(devName, "MPU6050")) return deviceStatus[MPUxx50_HIGH] || deviceStatus[MPUxx50_LOW]  ? true : false;
-  if (!strcmp(devName, "MPU9250")) return deviceStatus[MPUxx50_HIGH] || deviceStatus[MPUxx50_LOW]  ? true : false;
+  if (!strcmp(devName, "MPUxxxx")) return deviceStatus[MPUxxxx_HIGH] || deviceStatus[MPUxxxx_LOW]  ? true : false;
   if (!strcmp(devName, "DS3231")) return deviceStatus[DS3231_RTC];
   if (!strcmp(devName, "LCD1602")) return deviceStatus[LCD1602];
   LOG_WRN("Device name %s not recognised", devName);
@@ -826,6 +979,7 @@ bool checkI2Cdevice(const char* devName) {
 
 static bool prepI2Cdevices() {
   // setup available I2C devices 
+  bool res = false;
   if (I2Cdevices == 0) LOG_WRN("No I2C devices connected");
   else {
 #if USE_SSD1306
@@ -834,14 +988,8 @@ static bool prepI2Cdevices() {
 #if USE_BMx280
     setupBMx();
 #endif
-#if USE_MPU6050
-    setupMPU6050();
-#endif
-#if USE_MPU9250
-    setupMPU9250();
-#endif
-#ifdef ISCAM
-    if (accelUse) startPollTask();
+#if USE_MPU
+    setupMPU();
 #endif
 #if USE_DS3231
     setupRTC();
@@ -849,51 +997,12 @@ static bool prepI2Cdevices() {
 #if USE_LCD1602
     setupLCD1602();
 #endif
-    return true;
+#if (USE_BMx280 || USE_MPU)
+    startPollTask();
+#endif
+    res = true;
   }
-  return false;
+  return res;
 }
-
-/************** Poll accelerometers for motion ***************/
-
-// used by MJPEG2SD app
-#ifdef ISCAM
-
-static TaskHandle_t sensorPollHandle = NULL;
-bool accelUse = false;
-int accelDeg = 2;
-static bool haveMovement = false;
-
-static void getAccelMove() {
-  // determine if sufficient accelerometer movement has occurred
-  haveMovement = false;
-  static int posData[2][3];
-  int currMove = 0;
-  for (int i = 0; i < 3; i++) {
-    posData[0][i] = (int)mpuData[i];
-    currMove += abs(posData[0][i] - posData[1][i]);
-    posData[1][i] = posData[0][i];
-  }
-  if (currMove > accelDeg) haveMovement = true;
-}
-
-bool checkAccelMove() {
-  return haveMovement;
-}
-
-static void sensorPollTask(void* p) {
-  while (true) {
-    getMPUdata();
-    getAccelMove();
-    delay(1000);
-  }
-}
-
-static void startPollTask() {
-  // poll input sensors for data
-  if (sensorPollHandle == NULL) xTaskCreateWithCaps(sensorPollTask, "sensorPollTask", SENSOR_STACK_SIZE, NULL, SENSOR_PRI, &sensorPollHandle, HEAP_MEM); 
-}
-
-#endif // ISCAM
 
 #endif // INCLUDE_I2C

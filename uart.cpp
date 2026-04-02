@@ -64,7 +64,7 @@ static bool readUart() {
       return false;
     } else {
       // uart rx data available, wait till have full message
-      int msgLen = 0;
+      size_t msgLen = 0;
       while (msgLen < MSG_LEN) {
         uart_get_buffered_data_len(uartId, (size_t*)&msgLen);
         delay(10);
@@ -160,12 +160,12 @@ void prepUart() {
   if (useUart) {
     if (uartTxdPin && uartRxdPin) {
       LOG_INF("Prepare UART on pins Tx %d, Rx %d", uartTxdPin, uartRxdPin);
-      responseMutex = xSemaphoreCreateMutex();
+      responseMutex = xSemaphoreCreateBinary();
       writeMutex = xSemaphoreCreateMutex();
       if (configureUart()) {
 #ifdef USE_UARTTASK
         xSemaphoreTake(responseMutex, portMAX_DELAY);
-        xTaskCreateWithCaps(uartRxTask, "uartRxTask", UART_STACK_SIZE, NULL, UART_PRI, &uartRxHandle, HEAP_MEM);
+        xTaskCreateWithCaps(uartRxTask, "uartRxTask", UART_STACK_SIZE, NULL, UART_PRI, &uartRxHandle, STACK_MEM);
 #endif
         xSemaphoreGive(responseMutex);
         xSemaphoreGive(writeMutex);

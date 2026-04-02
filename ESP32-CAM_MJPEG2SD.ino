@@ -2,37 +2,23 @@
 * Capture ESP32 Cam JPEG images into a AVI file and store on SD
 * AVI files stored on the SD card can also be selected and streamed to a browser as MJPEG.
 *
-* s60sc 2020 - 2024
+* s60sc 2020 - 2026
 */
 
 #include "appGlobals.h"
 
 void setup() {
-  logSetup();
-  LOG_INF("Selected board %s", CAM_BOARD);
-  // prep storage
-  if (startStorage()) {
-    // Load saved user configuration
-    if (loadConfig()) {
+  if (utilsStartup()) {
 #ifndef AUXILIARY
-      // initialise camera
-      if (psramFound()) {
-        if (ESP.getPsramSize() > 1 * ONEMEG) prepCam();
-        else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient PSRAM for app: %s", fmtSize(ESP.getPsramSize()));
-      } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need PSRAM to be enabled");
+    LOG_INF("Selected board %s", CAM_BOARD);
+    prepCam();
 #else
-      LOG_INF("AUXILIARY mode without camera");
+    LOG_INF("AUXILIARY mode without camera");
 #endif
-    }
   }
 
-#ifdef DEV_ONLY
-  devSetup();
-#endif
-
-  // connect network (WiFi or Ethernet per config)
-  startNetwork();
-  if (startWebServer()) {
+  // connect network (WiFi or Ethernet per config) and start web server
+  if (startNetwork()) {
     // start rest of services
 #ifndef AUXILIARY
     startSustainTasks(); 
