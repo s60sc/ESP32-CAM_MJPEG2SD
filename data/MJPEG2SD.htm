@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<!-- 
+<!--
   s60sc 2022, 2023, 2025
   with ideas from @marekful
 -->
@@ -20,12 +20,12 @@
         --buttonText: white;
         --buttonLabel: black;
         --itemInactive: gray;
-        --menuBackground: transparent; 
+        --menuBackground: transparent;
         --inputText: navy;
-        --pageText: WhiteSmoke; 
-        --inputBackground: WhiteSmoke; 
+        --pageText: WhiteSmoke;
+        --inputBackground: WhiteSmoke;
         --alertMsg: orange;
-        --itemBorder: silver; 
+        --itemBorder: silver;
         --pageBackground:#181818; /* nearly black */
 
         /* logcolors */
@@ -55,7 +55,7 @@
         font-family: Helvetica  !important;
         background: var(--pageBackground);
         color: var(--pageText);
-        font-size: var(--bodySize); 
+        font-size: var(--bodySize);
       }
 
       .hidden {
@@ -63,7 +63,7 @@
       }
 
       progress {
-        accent-color: var(--buttonActive); 
+        accent-color: var(--buttonActive);
         width: calc(var(--buttonSize) * 15);
       }
 
@@ -85,7 +85,7 @@
       .header {
         font-size: var(--headingSize);
         padding-left: var(--buttonHalf);
-        font-weight:bold; 
+        font-weight:bold;
       }
 
       .subheader {
@@ -101,7 +101,7 @@
       }
 
       .tab button {
-        background: var(--buttonReady);        
+        background: var(--buttonReady);
         float: left;
         border: none;
         outline: none;
@@ -162,7 +162,7 @@
       rect {
         fill: var(--buttonReady);
         width: 100%;
-        height: 100%; 
+        height: 100%;
         x: 0;
         y: 0;
         ry: 15%;
@@ -178,11 +178,11 @@
       }
 
       text {
-        font-size: var(--buttonSize); 
+        font-size: var(--buttonSize);
         fill: var(--buttonText);
         transform: translate(50%, 50%);
-        pointer-events: none; 
-      } 
+        pointer-events: none;
+      }
 
       .panel {
         padding: 0 var(--buttonSize);
@@ -259,7 +259,7 @@
       }
 
       input[type="text"]{
-        font-size: var(--inputSize); 
+        font-size: var(--inputSize);
         width: calc(var(--buttonSize) * 6);
       }
 
@@ -316,19 +316,19 @@
       }
 
       table {
-        border-collapse:collapse; 
+        border-collapse:collapse;
         table-layout:fixed;
         background: var(--menuBackground);
         text-align: left;
       }
 
       th, td {
-        font-weight:bold; 
+        font-weight:bold;
       }
 
       .config-group th, .config-group td {
         border: 0;
-        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf); 
+        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf);
         padding-left: var(--buttonSize);
         line-height: var(--buttonDbl);
         font-size: var(--buttonSize);
@@ -339,17 +339,17 @@
       }
 
       input.configItem[type="radio"] {
-        min-width: var(--buttonSize); 
+        min-width: var(--buttonSize);
       }
 
       input.configItem[type="number"] {
-        min-width: calc(var(--buttonSize) * 3); 
-        width: calc(var(--buttonSize) * 3); 
+        min-width: calc(var(--buttonSize) * 3);
+        width: calc(var(--buttonSize) * 3);
       }
 
       .svgCols {
-        width: calc(var(--buttonSize) * 9); 
-        height: calc(var(--buttonSize) * 2.5);  
+        width: calc(var(--buttonSize) * 9);
+        height: calc(var(--buttonSize) * 2.5);
         fill: var(--buttonLabel);
         font-size: calc(var(--buttonSize) * 1.5);
       }
@@ -368,22 +368,22 @@
       }
 
       .upperText {
-        transform: translate(50%,30%);  
+        transform: translate(50%,30%);
       }
 
       .lowerText {
-        transform: translate(50%,70%);  
+        transform: translate(50%,70%);
       }
 
       .midText {
-        transform: translate(50%,50%); 
+        transform: translate(50%,50%);
       }
-      
+
 
       /*** range slider ***/
 
       .input-group>input[type=range] {
-        min-width: calc(var(--markerSize) * 8);  
+        min-width: calc(var(--markerSize) * 8);
       }
 
       input[type=range] {
@@ -395,7 +395,7 @@
         -webkit-appearance: none;
         width: 100%;
         height: 2px;
-        background: var(--inputBackground); 
+        background: var(--inputBackground);
         margin-top: 2px;
       }
 
@@ -404,7 +404,7 @@
         height: var(--smallThumbSize);
         width: var(--smallThumbSize);
         border-radius: 50%;
-        background: var(--buttonReady); 
+        background: var(--buttonReady);
         -webkit-appearance: none;
         margin-top: calc(-0.5 * var(--smallThumbSize));
       }
@@ -421,8 +421,8 @@
         margin-top: calc(-0.5 * var(--smallThumbSize));
         line-height: var(--markerSize);
         text-align: center;
-        background: var(--buttonReady); 
-        color: var(--buttonText); 
+        background: var(--buttonReady);
+        color: var(--buttonText);
         font-size: var(--footerSize);
         display: inline;
         position: absolute;
@@ -448,7 +448,7 @@
 
       /* static part */
       .switch .slider {
-        width: calc(var(--buttonSize) * 3);  
+        width: calc(var(--buttonSize) * 3);
         height: var(--buttonSize);
         top: calc(var(--buttonQuart) / 2);
         background: var(--itemInactive);
@@ -530,7 +530,7 @@
         box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
         background: var(--buttonActive);
       }
-       
+
       nav#maintoolbar {
         display: flex;
         flex-wrap: nowrap;
@@ -560,7 +560,7 @@
         flex-wrap: wrap;
         border-radius: 2px;
         justify-content: space-between;
-      } 
+      }
       section#title{
         display: flex;
       }
@@ -582,7 +582,7 @@
         border-left: 1px solid var(--itemBorder);
         border-right: 1px solid var(--itemBorder);
         border-bottom: none;
-        text-align: center; 
+        text-align: center;
       }
 
       section#buttons {
@@ -596,7 +596,7 @@
       }
 
       .info-group {
-        position: relative;                               
+        position: relative;
         margin: var(--buttonQuart) 0;
       }
       .info{
@@ -605,7 +605,7 @@
       .info-group label {
         color: var(--itemInactive);
       }
-      
+
       .menu-action {
         display: none;
       }
@@ -616,8 +616,8 @@
         border-top: 1px solid var(--itemBorder);
       }
 
-      .menu-action:not(:checked) + label + div { 
-        display: none; 
+      .menu-action:not(:checked) + label + div {
+        display: none;
       }
 
       .sep {
@@ -723,7 +723,7 @@
 
       figure {
         padding: 0px;
-        margin: 0; 
+        margin: 0;
         width: 100%;
         height: auto;
         margin-block-start: 0;
@@ -751,9 +751,9 @@
 
       #sidebar{
         margin: 0px;
-        padding: 0px; 
+        padding: 0px;
         width: 100%;
-      } 
+      }
 
       @media (min-width: 50rem) and (orientation:landscape) {
         #content {
@@ -763,7 +763,7 @@
         }
         #sidebar {
           width: auto;
-        } 
+        }
       }
 
       #recording-indicator {
@@ -778,7 +778,7 @@
       }
 
       #stream-container {
-        margin: var(--buttonQuart) var(--buttonHalf); 
+        margin: var(--buttonQuart) var(--buttonHalf);
         border: 1px solid var(--itemBorder);
       }
 
@@ -820,7 +820,7 @@
 
       .RCmotorFmt {
         background: transparent;
-        left: -56px; 
+        left: -56px;
         bottom: 72px;
       }
 
@@ -831,7 +831,7 @@
 
       .RCsteerFmt {
         background: transparent;
-        right: 140px; 
+        right: 140px;
         bottom: 4px;
       }
 
@@ -846,7 +846,7 @@
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(20%, 30%));
         gap: var(--buttonSize);
-        margin-left: var(--buttonDbl); 
+        margin-left: var(--buttonDbl);
       }
 
       .hubImg {
@@ -886,7 +886,7 @@
 
       .micContainer, .spkrContainer{
         display: flex;
-        align-items: center; 
+        align-items: center;
       }
 
       #micLevel, #spkrLevel {
@@ -910,12 +910,12 @@
         <nav id="maintoolbar">
           <ul class="navtop">
             <li><span id="recording-indicator" class="hidden" style="float: right; display: none;"></span></li>
-            <li><button id="forceRecord" style="float:right;">➤&nbsp;Start Recording</button></li>   
+            <li><button id="forceRecord" style="float:right;">➤&nbsp;Start Recording</button></li>
             <li><div class="sep"></div></li>
             <li><button id="forceStream" class="local" style="float:right;">➤&nbsp;Start Stream</button></li>
             <li><button id="get-still" class="local" style="float:right;">Get Still</button></li>
             <li><div class="sep"></div></li>
-            <li><button id="forcePlayback" class="local disabled" style="float:right;" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li
+            <li><button id="forcePlayback" class="local disabled" style="float:right;" title="Select a video in 'Playback & File Transfers' to activate playback.">➤&nbsp;Start Playback</button></li>
           </ul>
         </nav>
       </section>
@@ -964,17 +964,17 @@
                         <option class="AllOV hidden" value="14">SXGA(1280x1024)</option>
                         <option class="AllOV PY260 hidden" value="13">HD(1280x720)</option>
                         <option class="AllOV hidden" value="12">XGA(1024x768)</option>
-                        <option class="AllOV hidden" value="11">SVGA(800x600)</option> 
-                        <option class="AllOV PY260 hidden" value="10" selected="selected">VGA(640x480)</option> 
+                        <option class="AllOV hidden" value="11">SVGA(800x600)</option>
+                        <option class="AllOV PY260 hidden" value="10" selected="selected">VGA(640x480)</option>
                         <option class="AllOV hidden" value="9">HVGA(480x320)</option>
-                        <option class="AllOV hidden" value="8">CIF(400x296)</option> 
-                        <option class="PY260 hidden" value="7">320x320</option> 
+                        <option class="AllOV hidden" value="8">CIF(400x296)</option>
+                        <option class="PY260 hidden" value="7">320x320</option>
                         <option class="AllOV PY260 hidden" value="6">QVGA(320x240)</option>
-                        <option class="AllOV hidden" value="5">240x240</option> 
-                        <option class="AllOV hidden" value="4">HQVGA(240x176)</option> 
-                        <option class="AllOV hidden" value="3">QCIF(176x144)</option> 
-                        <option class="AllOV PY260 hidden" value="2">128x128</option> 
-                        <option class="AllOV hidden" value="1">QQVGA(160x120)</option> 
+                        <option class="AllOV hidden" value="5">240x240</option>
+                        <option class="AllOV hidden" value="4">HQVGA(240x176)</option>
+                        <option class="AllOV hidden" value="3">QCIF(176x144)</option>
+                        <option class="AllOV PY260 hidden" value="2">128x128</option>
+                        <option class="AllOV hidden" value="1">QQVGA(160x120)</option>
                         <option class="AllOV PY260 hidden" value="0">96x96</option>
                       </select>
                     </div>
@@ -1128,7 +1128,7 @@
                       <div class="switch">
                         <input id="dcw" type="checkbox" checked="checked">
                         <label class="slider" for="dcw"></label>
-                      </div>  
+                      </div>
                     </div>
                     <div class="input-group" id="agc-group">
                       <label for="agc">AGC Enable</label>
@@ -1142,7 +1142,7 @@
                       <div name="rangeMin">2x</div>
                       <input type="range" id="gainceiling" min="0" max="6" value="0">
                       <div name="rangeMax">128x</div>
-                    </div>                  
+                    </div>
                     <div class="input-group" id="lenc-group">
                       <label for="lenc">Lens Correction</label>
                       <div class="switch">
@@ -1198,7 +1198,7 @@
                   <div class="input-group" id="motion-group">
                     <label for="motion">Motion Sensitivity</label>
                     <input title="Set motion detection sensitivity" type="range" id="motionVal" min="1" max="10" value="7">
-                  </div> 
+                  </div>
                   <div class="input-group" id="minf-group">
                     <label for="minf">Min Seconds</label>
                     <input title="Minimum number of frames to be captured or the file is deleted" type="range" id="minf" min="0" max="20" value="5">
@@ -1209,7 +1209,7 @@
                         <input id="record" type="checkbox">
                         <label title="Enable recording on motion detection" class="slider" for="record"></label>
                       </div>
-                  </div> 
+                  </div>
                   <div class="input-group" id="dbgMotion-group">
                     <label for="dbgMotion">Show Motion</label>
                     <div class="switch">
@@ -1220,7 +1220,7 @@
                   <div class="input-group" id="lswitch-group">
                     <label for="lswitch">Night Switch</label>
                     <input title="Set night switch sensitivity" type="range" id="lswitch" min="0" max="100" value="10">
-                  </div> 
+                  </div>
                   <div class="vsep"></div>
                   <div class="input-group" id="tlapse-group">
                     <label for="timeLapseOn">Time Lapse</label>
@@ -1373,7 +1373,7 @@
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_port">SMTP port</label>
                     <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port">
-                  </div>                          
+                  </div>
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_login">SMTP login</label>
                     <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email">
@@ -1416,7 +1416,7 @@
               <div id="foot-spacer"></div>
             </div>
           </div>
-          <section id="footer"> 
+          <section id="footer">
             <div class="info-group center">
                 <label for="fw_version">Version</label>
                 <div id="fw_version" class="info displayonly">&nbsp;</div>
@@ -1432,11 +1432,11 @@
             <div class="info-group center">
                 <label for="atemp">Camera&nbsp;Temp</label>
                 <div id="atemp" class="info displayonly">&nbsp;</div>
-            </div> 
+            </div>
             <div class="info-group center">
                 <label for="battv">Battery&nbsp;Voltage</label>
                 <div id="battv" class="info displayonly">&nbsp;</div>
-            </div> 
+            </div>
             <div class="info-group center">
                 <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
                 <div id="clock" class="info displayonly">&nbsp;</div>
@@ -1452,7 +1452,7 @@
             <div class="info-group center">
                 <label for="free_heap">Free&nbsp;heap</label>
                 <div id="free_heap" class="info displayonly">&nbsp;</div>
-            </div>  
+            </div>
             <div class="info-group center">
                 <label for="free_psram">Free&nbsp;PSRAM</label>
                 <div id="free_psram" class="info displayonly">&nbsp;</div>
@@ -1460,12 +1460,12 @@
             <div class="info-group center">
                 <label for="free_bytes">Free&nbsp;SD</label>
                 <div id="free_bytes" class="info displayonly">&nbsp;</div>
-            </div> 
+            </div>
             <div class="info-group center">
                 <label for="total_bytes">Total&nbsp;SD</label>
                 <div id="total_bytes" class="info displayonly">&nbsp;</div>
-            </div>  
-          </section> 
+            </div>
+          </section>
         </div>
         <figure>
           <div id="stream-container" class="image-container hidden">
@@ -1477,7 +1477,7 @@
             <div class="iconSize" id="fullSize" title="Full screen">&rect;</div>
             <div class="iconSize" id="saveImage" title="Download screenshot">v</div>
             <div id="RCenable" class="hidden">
-              <div class="RCcontrolFmt RCbuttonFmt" title="Switch RC controls on / off">  
+              <div class="RCcontrolFmt RCbuttonFmt" title="Switch RC controls on / off">
                 <svg class="svgIcon">
                   <rect class="RCoff"/>
                   <text class="RCbutton local" id="RCcontrols">🎮</text>
@@ -1485,33 +1485,33 @@
               </div>
             </div>
             <div id="RCdisplay" class="hidden touchDisabled">
-              <div class="RCcontrolFmt RClightsFmt" title="Switch RC lights on / off">  
+              <div class="RCcontrolFmt RClightsFmt" title="Switch RC lights on / off">
                 <svg class="svgIcon">
                   <rect class="RCoff"/>
-                  <text class="RCcontrol local" id="RClights">💡</text> 
+                  <text class="RCcontrol local" id="RClights">💡</text>
                 </svg>
               </div>
               <div class="RCcontrolFmt RCsteerFmt">
                 <input title="Control RC steering" type="range" id="steerDirection" class="RCcontrol immed bigThumb ignore" value=0>
-                <div name="rangeVal" style="top: 2px" class="rvThumb">0</div> 
+                <div name="rangeVal" style="top: 2px" class="rvThumb">0</div>
               </div>
               <div class="RCcontrolFmt RCmotorFmt">
                 <input title="Control RC speed" type="range" id="motorSpeed" class="RCcontrol immed bigThumb ignore" value=0>
-                <div name="rangeVal" class="rvThumb">0</div> 
+                <div name="rangeVal" class="rvThumb">0</div>
               </div>
             </div>
             <img id="stream" src="" crossorigin>
           </div>
         </figure>
-      </div> 
+      </div>
     </div>
 
     <div id="ShowLog" class="tabcontent">
       <br>
       <div class="grid-cols4">
         <div class="input-group" style="grid-column: span 1; grid-row: span 3">
-          <fieldset> 
-          <legend id="selectLog">Select Log</legend> 
+          <fieldset>
+          <legend id="selectLog">Select Log</legend>
           <div>
             <label title="Display RTC RAM log" for="rtcram">RTC RAM</label>
             <input class="local" id="rtcram" type="radio" name="logType" value="0" checked>
@@ -1533,12 +1533,12 @@
         <br>
         <div class="input-group" id="dbg-group" style="text-align: left">
           <label for="sdLog" class="header" title="Enable logging to sd card">Log to SD:</label>
-        </div> 
+        </div>
         <div class="input-group" id="dbg-group" style="text-align: right">
           <div class="switch">
             <input id="sdLog" type="checkbox">
             <label title="Outputs log to SD card" class="slider" for="sdLog"></label>
-          </div> 
+          </div>
         </div>
         <div>
           <svg>
@@ -1716,7 +1716,7 @@
       let playbackButton;
       let rotateAngle = 0;
       let RCmode = false;
-      let showRC = false; 
+      let showRC = false;
       let wsInd = 0;
 
       // slider orientation is one of:
@@ -1724,7 +1724,7 @@
       //   vertical   : vertical up for forward
       //   vertInv    : vertical up for reverse / stop
       const steerOrientation = "horizontal";
-      const motorOrientation = "vertical"; 
+      const motorOrientation = "vertical";
       // following set from app
       let maxSteerAngle = 45;   // max steering angle in degrees from straightahead
       let maxDutyCycle = 100;   // maximum motor duty cycle % (speed)
@@ -1749,8 +1749,8 @@
         $('#motorSpeed').min = allowReverse ? 0 - maxDutyCycle : 0;
         $('#motorSpeed').classList.add(motorOrientation);
         const RCcfgObserver = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => { 
-            if (!entry.isIntersecting && isHidden($('#RCdisplay'))) doLoadStatus = true; 
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting && isHidden($('#RCdisplay'))) doLoadStatus = true;
           });
         });
         RCcfgObserver.observe($('#RCconfigBtn'));
@@ -1767,12 +1767,12 @@
           else if (key == "hostName") {
             document.title = value;
             if (fromUser) sendControl(key, value);
-          } 
+          }
           else if (key == "clearLog") clearLog();
           else if (key == "refreshLog") getLog();
           else if (key == "logType") { logType = value; sendControl(key, value); return; }
-          else if (key == "refreshVal") refreshInterval = value * 1000; 
-          else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
+          else if (key == "refreshVal") refreshInterval = value * 1000;
+          else if (key == "heartbeatRC") heartbeatInterval = value * 1000;
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
           else if (key == "streaming") getConfig("012345678");
           else if (key == "motion") getConfig("01");
@@ -1794,7 +1794,7 @@
           else if (key == "devHub") {value == "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]')); }
           else if (key == "AuxIP") wsAux(value);
           else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
-          else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group')); 
+          else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group'));
           else if (key == "agc") setAgc(key, value);
           else if (key == "forceRecord") value = recordAction(key);
           else if (key == "showRecord") setRecIndicator(value);
@@ -1826,16 +1826,16 @@
           else if (key == "micSdPin") micState(value);
           else if (key == "mampSdIo") spkrState(value);
           else if (key == 'save') await sleep(600); // allow last input to debounce
-          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
-        } 
+          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value);
+        }
         else if (dest == CLASS) {
           // operations based on class
-          if (key.substring(0, 9) == "quick-nav") navigation(value); 
+          if (key.substring(0, 9) == "quick-nav") navigation(value);
           else if (key == "iconSize") {
             if (value == "saveImage") saveImage();
-            else sizeView(value); 
+            else sizeView(value);
           }
-          else if (key == "pin-menu") pinMenu(); 
+          else if (key == "pin-menu") pinMenu();
         }
       }
 
@@ -1885,7 +1885,7 @@
             $$('#framesize option').forEach(el => {
               if (el.classList.contains(cameraModel) || el.classList.contains("AllOV")) show(el);
             });
-            let avMax = (cameraModel == "OV3660") ? "1536": "1920"; 
+            let avMax = (cameraModel == "OV3660") ? "1536": "1920";
             changeRange('aec_value', "0", avMax, "320");
           } else if (cameraModel == "PY260") {
             // change button labels
@@ -1904,7 +1904,7 @@
             for (let i = 1; i < $('#special_effect').options.length; i++) $('#special_effect').options[i].innerHTML = effects[i-1];
             const modes = ['Sunny', 'Office', 'Cloudy', 'Home'];
             for (let i = 1; i < $('#wb_mode').options.length; i++) $('#wb_mode').options[i].innerHTML = modes[i-1];
-            // show additional options 
+            // show additional options
             $$('div.PY260').forEach(el => {show(el)});
             $$('#framesize option').forEach(el => {
               if (el.classList.contains(cameraModel)) show(el);
@@ -1924,9 +1924,9 @@
         range.parentElement.children.rangeMax.innerHTML = isX ? (parseInt(max)+1)+'x' : max;
       }
 
-      function navigation(key) { 
+      function navigation(key) {
         const i = $('#'+key); // the clicked icon
-        const m = $('#'+i.getAttribute('name')); // the associated menu 
+        const m = $('#'+i.getAttribute('name')); // the associated menu
 
         // toggle selected icon as active, others inactive
         i.classList.toggle('active');
@@ -1969,7 +1969,7 @@
         if (response.ok) {
           sustainId = +appClock + Math.ceil(refreshInterval / 1000);
           return true;
-        } else alert("checkTask - " + response.status + ": " + response.statusText); 
+        } else alert("checkTask - " + response.status + ": " + response.statusText);
         return false;
       }
 
@@ -1982,8 +1982,8 @@
 
       function getStill() {
         hide($('#RCenable'));
-        stopAll("getStill"); 
-        view.src = webServer + "/control?still="+Date.now(); 
+        stopAll("getStill");
+        view.src = webServer + "/control?still="+Date.now();
         sustainId = +appClock + Math.ceil(refreshInterval / 1000);
         showView(false);
       }
@@ -1999,7 +1999,7 @@
 
       function streamAction(key) {
         isActive($('#'+key)) ? deactivateStreamButton() : activateStreamButton();
-      } 
+      }
 
       async function checkStream() {
          // check when playback stream ends to close it
@@ -2009,7 +2009,7 @@
           try { await view.decode(); }
           catch { running = false; }
         }
-        if (!isHidden(viewContainer)) stopAll("checkStream"); 
+        if (!isHidden(viewContainer)) stopAll("checkStream");
       }
 
       async function activatePlaybackButton() {
@@ -2022,12 +2022,12 @@
             playbackButton.innerHTML = "▢&nbsp;Stop Playback";
             playbackButton.classList.add("blinking");
             if (await checkTask('/sustain?playback=0')) {
-              view.src = webServer + '/sustain?playback=0'; 
+              view.src = webServer + '/sustain?playback=0';
               checkStream();
               hide($('#RCenable'));
               showView(true);
             } else deactivatePlaybackButton();
-          } 
+          }
         } else alert('Recording in progress');
       }
 
@@ -2070,9 +2070,9 @@
         streamButton.classList.add("active");
         streamButton.innerHTML = "▢&nbsp;Stop Stream";
         streamButton.classList.add('blinking');
-        showRC ? show($('#RCenable')) : hide($('#RCenable')); 
+        showRC ? show($('#RCenable')) : hide($('#RCenable'));
         if (await checkTask('/sustain?stream=0')) {
-          view.src = webServer + '/sustain?stream=0'; 
+          view.src = webServer + '/sustain?stream=0';
           showView(false);
         } else deactivateStreamButton();
       }
@@ -2099,18 +2099,17 @@
         if (isActive(streamButton)) deactivateStreamButton(sendStop);
         hide(viewContainer);
       }
-      
-            
+
       function activateButton(thisButton) {
         thisButton.classList.add("active");
         thisButton.classList.add('blinking');
       }
-      
+
       function deactivateButton(thisButton) {
         thisButton.classList.remove("active");
         thisButton.classList.remove('blinking');
       }
-      
+
       function micOrSpkrState(key) {
         const thisButton = $('#'+key);
         const thisActive = !isActive(thisButton);
@@ -2122,9 +2121,9 @@
         // set size values for given framesize
         let sizeStr = '800x600';
         if (isFile) {
-          // get framesize from filename  
+          // get framesize from filename
           sizeStr = $('#sfile').value.split('_')[2]; // the frame type eg SVGA
-          $$('#framesize option').forEach(el => { 
+          $$('#framesize option').forEach(el => {
             if (el.innerHTML.substr(0, sizeStr.length) == sizeStr) sizeStr = el.innerHTML; // now contains eg SVGA(800x600)
           });
         } else sizeStr = $('#framesize option:checked').innerHTML; // get framesize from selected framesize
@@ -2132,7 +2131,7 @@
         // determine actual image size using framesize pixels
         const sizeData = sizeStr.match(/(\d+)x(\d+)/);
         const fwidth = sizeData[1];
-        const fheight = sizeData[2];        
+        const fheight = sizeData[2];
         imgSize = {width: fwidth, height: fheight};
         sizeView('maxFit'); // initial view size
       }
@@ -2142,14 +2141,14 @@
         return { width: Math.round(srcWidth*ratio), height: Math.round(srcHeight*ratio) };
       }
 
-      function sizeView(selectedSize) {  
+      function sizeView(selectedSize) {
         // stream icons to set size of screen
         // - max size to fit browser window for aspect ratio
         // # actual frame size
         // ¤ fullscreen with correct aspect ratio (lose some)
         // ▭ fullscreen (aspect ratio changed)
         // x close screen
-        // v download still image 
+        // v download still image
 
         if (selectedSize == 'closeStream') {
           stopAll("closeStream");
@@ -2157,8 +2156,8 @@
         }
         else {
           if (selectedSize == 'maxFit') {
-            fitSize = calculateAspectRatioFit(imgSize.width, imgSize.height, 
-            window.screen.availWidth - $('#menu-container').offsetWidth - 25, 
+            fitSize = calculateAspectRatioFit(imgSize.width, imgSize.height,
+            window.screen.availWidth - $('#menu-container').offsetWidth - 25,
             window.innerHeight - $('.tab').offsetHeight - $('#footer').offsetHeight - 25);
             viewContainer.style.cssText = 'width:'+fitSize.width+'px; height:'+fitSize.height+'px';
           }
@@ -2181,7 +2180,7 @@
           else if (selectedSize == 'rotate') {
             rotateAngle = rotateAngle == 270 ? 0 : rotateAngle + 90;
             const scale = (rotateAngle == 90 || rotateAngle == 270) ? imgSize.height / imgSize.width : 1.0;
-            view.style.transform = 'rotate('+rotateAngle+'deg) scale(' + scale + ')'; 
+            view.style.transform = 'rotate('+rotateAngle+'deg) scale(' + scale + ')';
           }
           if ((selectedSize == 'actualSize' || selectedSize == 'maxFit') && document.fullscreenElement !== null) {
             if (document.exitFullscreen) document.exitFullscreen();
@@ -2192,7 +2191,7 @@
           let buttonPos = baseFontSize / 4;
           $$('.iconSize').forEach(el => {
             if (el.id != selectedSize || el.id == "rotate") {
-              el.style.right = buttonPos + 'px'; 
+              el.style.right = buttonPos + 'px';
               buttonPos += baseFontSize * 1.25;
               show(el);
             } else hide(el);
@@ -2227,7 +2226,7 @@
           $('#upload').value = filePath; //Store file path for file server upload
           pathDir = filePath.substring(0, filePath.lastIndexOf("/"));
         }
-        if (pathDir == "") $$('#sfile option:not(:first-child)').forEach(el => { el.remove()}); 
+        if (pathDir == "") $$('#sfile option:not(:first-child)').forEach(el => { el.remove()});
         if (filePath.substr(-4) === '.avi' && !isActive(playbackButton)) enable(playbackButton);
         if (fromUser) getFiles(filePath);
         return false;
@@ -2248,7 +2247,7 @@
             }
           });
         } else alert("getFiles - " + response.status + ": " + response.statusText);
-        await sleep(500); 
+        await sleep(500);
         $$('*').forEach(el => { el.style.cursor = ("default")});
       }
 
@@ -2276,7 +2275,7 @@
         show($('#aec_value-group'));
         rangeSlider($('#aec_value'));
       }
- 
+
       function sdFile(key, value) {
         if (key == "delete") {
           if (!confirm("Are you sure you want to delete " + value + " from the SD card?")) return false;
@@ -2289,15 +2288,15 @@
         sendControl(key, val);
         sendWsMsg('C' + key + '=' + val);
       }
-      
+
       function micState(value) {
-        value > 0 ? enableRangeSlider($('#micGain')) : disableRangeSlider($('#micGain')); 
+        value > 0 ? enableRangeSlider($('#micGain')) : disableRangeSlider($('#micGain'));
         value > 0 ? enable($('#spkrRem')) : disable($('#spkrRem'))
       }
-      
+
       function spkrState(value) {
-        value > 0 ? enableRangeSlider($('#ampVol')) : disableRangeSlider($('#ampVol')); 
-        value > 0 ? enable($('#micRem')) : disable($('#micRem')); 
+        value > 0 ? enableRangeSlider($('#ampVol')) : disableRangeSlider($('#ampVol'));
+        value > 0 ? enable($('#micRem')) : disable($('#micRem'));
       }
 
       /************** RC ****************/
@@ -2308,7 +2307,7 @@
             showRC = true;
             show($('#RCconfigBtn'));
           }
-        } else { 
+        } else {
           showRC = false;
           hide($('#RCconfigBtn'));
         }
@@ -2317,7 +2316,7 @@
       async function showRCcontrols(showControls) {
         if (showControls) {
           // start rc control
-          show($('#RCdisplay')) 
+          show($('#RCdisplay'))
           RCmode = true;
           await sleep(50); // allow websocket to start
           doLoadStatus = false;
@@ -2334,17 +2333,17 @@
           doLoadStatus = true;
           // close off RC activity
           try {
-            sendWsMsg("D" + servoCenter, wsInd);  
+            sendWsMsg("D" + servoCenter, wsInd);
             sendWsMsg("M0", wsInd);
             sendWsMsg("L0", wsInd);
           } catch(error) { alert("No connection to " + wsServers[wsInd]); }
-          RCmode = false; 
+          RCmode = false;
         }
       }
 
       function resetButton(buttonId) {
         const rect = $('#'+buttonId).previousElementSibling;
-        if (rect.classList.contains('RCon')) { 
+        if (rect.classList.contains('RCon')) {
           rect.classList.remove('RCon');
           rect.classList.add('RCoff');
         }
@@ -2372,12 +2371,12 @@
           checkedRC = true;
           if (autoControl && !isImmed) {
             // auto centre steering or stop motor if focus lost
-            val = 0; 
+            val = 0;
             const e = $('#'+key);
             e.parentElement.children.rangeVal.innerHTML = '0';
             rangeSlider(e, false);
             doSend = true;
-          }  
+          }
           if (doSend) {
             if (key == "steerDirection") {
               val += 1 * servoCenter;
@@ -2440,7 +2439,7 @@
         }
       }
 
-      function configStatus(refresh) {} 
+      function configStatus(refresh) {}
 
       function closedTab(isClosed) {
         // actions when page refreshed, closed or not in focus
@@ -2558,7 +2557,7 @@
       const doHeartbeat = true;
       const doInitSSE = false;
 
-      const scriptFiles = ['/web?common.js', '../../CommonMaster/Latest/common.js']; 
+      const scriptFiles = ['/web?common.js', '../../CommonMaster/common.js'];
       for (let i = 0; i < scriptFiles.length; i++) {
         const scriptElement = document.createElement('script');
         scriptElement.src = scriptFiles[i];

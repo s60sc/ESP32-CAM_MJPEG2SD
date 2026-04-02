@@ -1,8 +1,8 @@
 
 <!DOCTYPE html>
-<!-- 
+<!--
   s60sc 2022
-                           
+
 -->
 <html>
   <head>
@@ -10,7 +10,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>ESP32-CAM_AUX</title>
     <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">📷</text></svg>'>
-    
+
     <style>
       :root {
         /* colors used on web pages - see https://www.w3schools.com/colors/colors_names.asp */
@@ -20,20 +20,20 @@
         --buttonText: white;
         --buttonLabel: black;
         --itemInactive: gray;
-        --menuBackground: transparent; 
+        --menuBackground: transparent;
         --inputText: navy;
-        --pageText: WhiteSmoke; 
-        --inputBackground: WhiteSmoke; 
+        --pageText: WhiteSmoke;
+        --inputBackground: WhiteSmoke;
         --alertMsg: orange;
-        --itemBorder: silver; 
+        --itemBorder: silver;
         --pageBackground:#181818; /* nearly black */
-        
+
         /* logcolors */
         --warnColor: orange;
         --errColor: red;
         --chkColor: green;
         --dbgColor: blue;
-        
+
         /* element sizes */
         --bodySize:1rem; /* used as basis for element, padding, and font sizes */
         --buttonSize: var(--bodySize);
@@ -48,30 +48,30 @@
         --bigThumbSize: 2rem; /* must be specific value, not calc */
         --markerSize: 1rem; /* must be specific value, not calc */
       }
-      
+
       html body {height: 100%;}
-      
+
       body {
         font-family: Helvetica  !important;
         background: var(--pageBackground);
         color: var(--pageText);
-        font-size: var(--bodySize); 
+        font-size: var(--bodySize);
       }
 
       .hidden {
         display: none;
       }
-      
+
       progress {
-        accent-color: var(--buttonActive); 
+        accent-color: var(--buttonActive);
         width: calc(var(--buttonSize) * 15);
       }
-      
+
       .fixed {
         position: fixed;
         top: 0;
       }
-      
+
       .alertMsg {
         left:10%;
         bottom: var(--buttonDbl);
@@ -85,15 +85,15 @@
       .header {
         font-size: var(--headingSize);
         padding-left: var(--buttonHalf);
-        font-weight:bold; 
+        font-weight:bold;
       }
-      
+
       .subheader {
         font-style: italic;
         font-size: var(--subheadingSize);
         padding-left: var(--buttonQuart);
       }
-      
+
       .tab {
         display: flex;
         overflow: hidden;
@@ -101,7 +101,7 @@
       }
 
       .tab button {
-        background: var(--buttonReady);        
+        background: var(--buttonReady);
         float: left;
         border: none;
         outline: none;
@@ -110,21 +110,21 @@
         transition: 0.3s;
         font-size: calc(var(--buttonSize) * 1.1);
       }
-      
+
       .tab button.active {
         box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
         background: var(--buttonActive);
       }
-      
+
       .tab button.hover {
         background: var(--buttonHover);
       }
-      
+
       .tab button.disabled {
         cursor: default;
         background: var(--itemInactive)
       }
-      
+
       .tabcontent {
         display: none;
       }
@@ -147,7 +147,7 @@
         dominant-baseline: middle;
         text-anchor: middle;
       }
-      
+
       .cfgTitle {
         grid-column: 1/5;
         text-align: left;
@@ -157,39 +157,39 @@
         width: calc(var(--buttonSize) * 8);
         height: var(--buttonDbl);
       }
-      
+
       rect {
         fill: var(--buttonReady);
         width: 100%;
-        height: 100%; 
+        height: 100%;
         x: 0;
         y: 0;
         ry: 15%;
       }
-      
+
       .buttonRect:focus {
         fill: var(--buttonActive);
         outline: none; /* Remove focus outline if not needed */
       }
-      
+
       rect:hover{
         fill: var(--buttonHover);
       }
-    
+
       text {
-        font-size: var(--buttonSize); 
+        font-size: var(--buttonSize);
         fill: var(--buttonText);
         transform: translate(50%, 50%);
-        pointer-events: none; 
-      } 
-     
+        pointer-events: none;
+      }
+
       .panel {
         padding: 0 var(--buttonSize);
         display: none;
         background-color: var(--pageBackground);
         overflow: hidden;
       }
-      
+
       button {
         display: block;
         margin: var(--buttonQuart);
@@ -217,7 +217,7 @@
         cursor: default;
         background: var(--itemInactive)
       }
-      
+
       .input-group {
         position: relative;
         display: flex;
@@ -225,13 +225,13 @@
         line-height: var(--buttonDbl);
         margin-top: var(--buttonHalf);
       }
-      
+
       .input-group>label {
         display: inline-block;
         padding-right: var(--buttonHalf);
         min-width: 40%;
       }
-      
+
       .input-group>input {
         width: 100%;
       }
@@ -239,41 +239,41 @@
       .input-group input,.input-group select {
         flex-grow: 1
       }
-      
+
       input {
         height: calc(var(--inputSize) * 1.5);
         border-radius: var(--buttonQuart);
       }
-      
+
       input, #appLog {
         font: var(--inputSize) 'Courier New';
         font-weight:bold;
         color: var(--inputText);
         background: var(--inputBackground);
-        min-width: calc(var(--buttonSize) * 10);       
+        min-width: calc(var(--buttonSize) * 10);
       }
-      
+
       input[type="radio"], input[type="checkbox"], progress {
         accent-color: var(--buttonActive);
       }
 
       input[type="text"]{
-        font-size: var(--inputSize); 
+        font-size: var(--inputSize);
         width: calc(var(--buttonSize) * 6);
       }
-      
+
       input[type="checkbox"] {
         width : calc(var(--inputSize) * 1.5);
         height : calc(var(--inputSize) * 1.5);
         margin-top: calc(var(--buttonQuart) * -1);
       }
-      
+
       input[type="radio"] {
         width: var(--inputSize);
         height: var(--inputSize);
         min-width: var(--buttonSize);
       }
-      
+
  /*     input[type="number"]:not(.configItem), input[type="time"] {
         font-size: var(--buttonDbl);
         border: 1px solid var(--itemBorder);
@@ -284,15 +284,15 @@
       input[type="number"] {
         height: var(--buttonSize);
       }
-      
+
       input[type=number]::-webkit-inner-spin-button {
         opacity: 1;
       }
-      
+
       input[type="button"]:focus {
         background-color: var(--buttonActive);
       }
-      
+
       #appLog {
         height:50vh;
         width:90%;
@@ -301,7 +301,7 @@
         background: var(--inputBackground);
         white-space: pre-wrap;   /* preserves spaces, tabs, and newlines */
       }
-      
+
       select {
         border: 1px solid var(--menuBackground);
         font-size: var(--inputSize);
@@ -309,82 +309,82 @@
         border-radius: var(--buttonQuart);
         margin-top: 2px;
       }
-      
+
       .selectField {
          height: calc(var(--inputSize) * 1.5);
       }
-      
+
       table {
-        border-collapse:collapse; 
+        border-collapse:collapse;
         table-layout:fixed;
         background: var(--menuBackground);
         text-align: left;
       }
-      
+
       th, td {
-        font-weight:bold; 
+        font-weight:bold;
       }
-      
+
       .config-group th, .config-group td {
         border: 0;
-        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf); 
+        padding: var(--buttonHalf) var(--buttonHalf) 0 var(--buttonHalf);
         padding-left: var(--buttonSize);
         line-height: var(--buttonDbl);
         font-size: var(--buttonSize);
       }
-      
+
       .configGroup td input[type="number"] {
         font-size: var(--buttonSize);
       }
-      
+
       input.configItem[type="radio"] {
-        min-width: var(--buttonSize); 
+        min-width: var(--buttonSize);
       }
-      
+
       input.configItem[type="number"] {
-        min-width: calc(var(--buttonSize) * 3); 
-        width: calc(var(--buttonSize) * 3); 
+        min-width: calc(var(--buttonSize) * 3);
+        width: calc(var(--buttonSize) * 3);
       }
-      
+
       .svgCols {
-        width: calc(var(--buttonSize) * 9); 
-        height: calc(var(--buttonSize) * 2.5);  
+        width: calc(var(--buttonSize) * 9);
+        height: calc(var(--buttonSize) * 2.5);
         fill: var(--buttonLabel);
         font-size: calc(var(--buttonSize) * 1.5);
-      }   
-      
+      }
+
       .svgIcon {
         width: var(--buttonDbl);
         height: var(--buttonDbl);
       }
-      
+
       rect.RCon {
         fill: var(--buttonActive);
       }
-      
+
       rect.RCoff {
         fill: var(--buttonReady);
       }
-      
+
       .upperText {
-        transform: translate(50%,30%);  
+        transform: translate(50%,30%);
       }
-      
+
       .lowerText {
-        transform: translate(50%,70%);  
+        transform: translate(50%,70%);
       }
-      
+
       .midText {
-        transform: translate(50%,50%); 
+        transform: translate(50%,50%);
       }
-      
-      
+
+
       /*** range slider ***/
-      
+
       .input-group>input[type=range]  {
-        min-width: calc(var(--markerSize) * 8);  
+        min-width: calc(var(--markerSize) * 8);
       }
-      
+
       input[type=range] {
         -webkit-appearance: none;
         background: transparent;
@@ -394,7 +394,7 @@
         -webkit-appearance: none;
         width: 100%;
         height: 2px;
-        background: var(--inputBackground); 
+        background: var(--inputBackground);
         margin-top: 2px;
       }
 
@@ -403,7 +403,7 @@
         height: var(--smallThumbSize);
         width: var(--smallThumbSize);
         border-radius: 50%;
-        background: var(--buttonReady); 
+        background: var(--buttonReady);
         -webkit-appearance: none;
         margin-top: calc(-0.5 * var(--smallThumbSize));
       }
@@ -412,7 +412,7 @@
         width: var(--bigThumbSize);
         margin-top: calc(-0.5 * var(--bigThumbSize));
       }
-      
+
       div[name="rangeVal"] {
         /* shape & location of marker relative to thumb */
         width: calc(var(--markerSize) * 2);
@@ -420,8 +420,8 @@
         margin-top: calc(-0.5 * var(--smallThumbSize));
         line-height: var(--markerSize);
         text-align: center;
-        background: var(--buttonReady); 
-        color: var(--buttonText); 
+        background: var(--buttonReady);
+        color: var(--buttonText);
         font-size: var(--footerSize);
         display: inline;
         position: absolute;
@@ -437,7 +437,7 @@
         padding: 0 var(--buttonQuart);
         pointer-events: none;
       }
-       
+
 
       /* checkbox slider */
 
@@ -448,7 +448,7 @@
 
       /* static part */
       .switch .slider {
-        width: calc(var(--buttonSize) * 3);  
+        width: calc(var(--buttonSize) * 3);
         height: var(--buttonSize);
         top: calc(var(--buttonQuart) / 2);
         background: var(--itemInactive);
@@ -509,7 +509,7 @@
       nav.menu.panel.active {
         display: block;
       }
-      
+
       nav.quick-nav {
         width: var(--buttonDbl);
         height: var(--buttonDbl);
@@ -530,14 +530,14 @@
         box-shadow: 0 0 0 var(--buttonQuart) var(--buttonActive);
         background: var(--buttonActive);
       }
-       
+
       nav#maintoolbar {
         display: flex;
         flex-wrap: nowrap;
         justify-content: flex-end;
         overflow: auto;
       }
-      
+
       .nav-toggle {
         margin: 0 0 var(--buttonQuart) var(--buttonQuart);
         font-size:var(--headingSize);
@@ -546,7 +546,7 @@
         padding-bottom: var(--buttonHalf);
         border-bottom: 1px solid var(--itemBorder);
       }
-                  
+
       section#main {
         display: flex;
         flex-direction: column;
@@ -560,7 +560,7 @@
         flex-wrap: wrap;
         border-radius: 2px;
         justify-content: space-between;
-      } 
+      }
       section#title{
         display: flex;
       }
@@ -582,9 +582,9 @@
         border-left: 1px solid var(--itemBorder);
         border-right: 1px solid var(--itemBorder);
         border-bottom: none;
-        text-align: center; 
+        text-align: center;
       }
-      
+
       section#buttons {
         display: flex;
         flex-wrap: nowrap;
@@ -594,9 +594,9 @@
       #foot-spacer {
         height: calc(var(--buttonSize) * 4);
       }
-      
+
       .info-group {
-        position: relative;                               
+        position: relative;
         margin: var(--buttonQuart) 0;
       }
       .info{
@@ -605,7 +605,7 @@
       .info-group label {
         color: var(--itemInactive);
       }
-      
+
       .menu-action {
         display: none;
       }
@@ -616,8 +616,8 @@
         border-top: 1px solid var(--itemBorder);
       }
 
-      .menu-action:not(:checked) + label + div { 
-        display: none; 
+      .menu-action:not(:checked) + label + div {
+        display: none;
       }
 
       .sep {
@@ -710,7 +710,7 @@
       .displayonly {
         pointer-events: none;
       }
-      
+
       .blinking {
         animation: blinker 1.5s linear infinite;
       }
@@ -720,10 +720,10 @@
           opacity: .4;
         }
       }
-      
+
       figure {
         padding: 0px;
-        margin: 0; 
+        margin: 0;
         width: 100%;
         height: auto;
         margin-block-start: 0;
@@ -731,7 +731,7 @@
         margin-inline-start: 0;
         margin-inline-end: 0;
       }
-      
+
       .image-container {
         position: relative;
       }
@@ -742,7 +742,7 @@
         height: 100%;
         border-radius: var(--buttonQuart);
       }
-      
+
       #content {
         display: flex;
         flex-wrap: wrap;
@@ -751,9 +751,9 @@
 
       #sidebar{
         margin: 0px;
-        padding: 0px; 
+        padding: 0px;
         width: 100%;
-      } 
+      }
 
       @media (min-width: 50rem) and (orientation:landscape) {
         #content {
@@ -763,9 +763,9 @@
         }
         #sidebar {
           width: auto;
-        } 
+        }
       }
-      
+
       fieldset {
         margin: 0px;
       }
@@ -774,14 +774,14 @@
         display: flex;
         align-items: center;
       }
-      
+
       .touchDisabled {
         touch-action: none;
       }
 
     </style>
   </head>
-  
+
   <body>
     <div class="tab">
       <ul class="navtop">
@@ -791,7 +791,7 @@
         <a href="/web?OTA.htm"><button class="tablinks">OTA Upload</button></a>
       </ul>
     </div>
-    
+
     <div id="mainPage" class="tabcontent" style="display:block">
       <div id="content">
         <div id="mainPageIcons">
@@ -887,7 +887,7 @@
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_port">SMTP port</label>
                     <input id="smtp_port" name="smtp_port" length=6 placeholder="smtp port">
-                  </div>                          
+                  </div>
                   <div class="input-group" id="smtp-group">
                     <label for="smtp_login">SMTP login</label>
                     <input id="smtp_login" name="smtp_login" length=32 placeholder="smtp login email">
@@ -899,7 +899,7 @@
                   <div class="input-group" id="ftp-group">
                     <label for="smtp_email">SMTP email</label>
                     <input id="smtp_email" name="smtp_email" length=64 placeholder="smtp email to">
-                  </div>   
+                  </div>
                   <br>
                   <div class="subheader">Authentication settings</div>
                   <div class="input-group" id="auth-group">
@@ -930,7 +930,7 @@
               <div id="foot-spacer"></div>
             </div>
           </div>
-          <section id="footer"> 
+          <section id="footer">
             <div class="info-group center">
                 <label for="fw_version">Version</label>
                 <div id="fw_version" class="info displayonly">&nbsp;</div>
@@ -946,11 +946,11 @@
             <div class="info-group center">
                 <label for="atemp">Camera&nbsp;Temp</label>
                 <div id="atemp" class="info displayonly">&nbsp;</div>
-            </div> 
+            </div>
             <div class="info-group center">
                 <label for="battv">Battery&nbsp;Voltage</label>
                 <div id="battv" class="info displayonly">&nbsp;</div>
-            </div> 
+            </div>
             <div class="info-group center">
                 <label for="clock">&nbsp;Camera&nbsp;local&nbsp;time</label>
                 <div id="clock" class="info displayonly">&nbsp;</div>
@@ -958,7 +958,7 @@
             <div class="info-group center">
                 <label for="up_time">Up&nbsp;time</label>
                 <div id="up_time" class="info displayonly">&nbsp;</div>
-            </div>                                                 
+            </div>
             <div class="info-group center">
                 <label for="wifi_rssi">Signal&nbsp;Strength</label>
                 <div id="wifi_rssi" class="info displayonly">&nbsp;</div>
@@ -966,7 +966,7 @@
             <div class="info-group center">
                 <label for="free_heap">Free&nbsp;heap</label>
                 <div id="free_heap" class="info displayonly">&nbsp;</div>
-            </div>  
+            </div>
             <div class="info-group center">
                 <label for="free_psram">Free&nbsp;PSRAM</label>
                 <div id="free_psram" class="info displayonly">&nbsp;</div>
@@ -974,15 +974,15 @@
             <div class="info-group center">
                 <label for="free_bytes">Free&nbsp;SD</label>
                 <div id="free_bytes" class="info displayonly">&nbsp;</div>
-            </div> 
+            </div>
             <div class="info-group center">
                 <label for="total_bytes">Total&nbsp;SD</label>
                 <div id="total_bytes" class="info displayonly">&nbsp;</div>
-            </div>  
-          </section> 
+            </div>
+          </section>
         </div>
-                                                
-      </div> 
+
+      </div>
     </div>
 
     <div id="ShowLog" class="tabcontent">
@@ -1113,7 +1113,7 @@
 
     <script>
       'use strict'
-      
+
       let refreshInterval = 5000;
       let heartbeatInterval = 5000;
       let cameraModel = "Auxil";
@@ -1121,7 +1121,7 @@
       let appClock = Math.ceil(Date.now() / 1000);
       let sustainId = "1";
       let RCmode = false;
-      let showRC = false;  
+      let showRC = false;
       let wsInd = 0;
 
       // following set from app
@@ -1138,7 +1138,7 @@
 
       function appInit() {
       }
-      
+
       async function processStatus(dest, key, value, fromUser = true) {
         // process change to status value
         if (dest == ID) {
@@ -1147,12 +1147,12 @@
           else if (key == "hostName") {
             document.title = value;
             if (fromUser) sendControl(key, value);
-          } 
+          }
           else if (key == "clearLog") clearLog();
           else if (key == "refreshLog") getLog();
           else if (key == "logType") { logType = value; sendControl(key, value); return; }
-          else if (key == "refreshVal") refreshInterval = value * 1000; 
-          else if (key == "heartbeatRC") heartbeatInterval = value * 1000; 
+          else if (key == "refreshVal") refreshInterval = value * 1000;
+          else if (key == "heartbeatRC") heartbeatInterval = value * 1000;
           else if (key == "clockUTC") { appClock = value; checkTime(value); }
           else if (key == "peripherals") getConfig("0123");
           else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
@@ -1174,12 +1174,12 @@
           else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); }
           else if (key == "AuxIP") return; // ignored
           else if (key == 'save') await sleep(600); // allow last input to debounce
-          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value); 
-        } 
+          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value);
+        }
         else if (dest == CLASS) {
           // operations based on class
-          if (key.substring(0, 9) == "quick-nav") navigation(value); 
-          else if (key == "pin-menu") pinMenu(); 
+          if (key.substring(0, 9) == "quick-nav") navigation(value);
+          else if (key == "pin-menu") pinMenu();
         }
       }
 
@@ -1194,20 +1194,20 @@
         range.parentElement.children.rangeMin.innerHTML = isX ? (parseInt(min)+1)+'x' : min;
         range.parentElement.children.rangeMax.innerHTML = isX ? (parseInt(max)+1)+'x' : max;
       }
-         
-      function navigation(key) { 
+
+      function navigation(key) {
         const i = $('#'+key); // the clicked icon
-        const m = $('#'+i.getAttribute('name')); // the associated menu 
+        const m = $('#'+i.getAttribute('name')); // the associated menu
 
         // toggle selected icon as active, others inactive
         i.classList.toggle('active');
-        $$('nav.quick-nav:not(#'+i.id+')').forEach(el => {el.classList.remove('active')});   
-        
+        $$('nav.quick-nav:not(#'+i.id+')').forEach(el => {el.classList.remove('active')});
+
         // toggle menu attached to icon as active, others inactive
         m.classList.toggle('active');
-        $$('nav.panel:not(#'+m.id+')').forEach(el => {el.classList.remove('active')});   
+        $$('nav.panel:not(#'+m.id+')').forEach(el => {el.classList.remove('active')});
         m.querySelector('.menu-action').checked = isActive(i); // open if icon toggled active, close if not
-        
+
         if (isActive(i)) {
           $('#menu-selector').classList.remove('menu-closed');
           $('#menu-selector').classList.add('menu-open');
@@ -1234,33 +1234,33 @@
 
 
       /************* user selection functions ************/
-      
+
       function sendAll(key, val) {
         sendControl(key, val);
         if (wsSkt[0] != null) wsSkt[0].send('C' + key + '=' + val);
       }
-      
-      function configStatus(refresh) {} 
-      
+
+      function configStatus(refresh) {}
+
       function closedTab(isClosed) {}
-      
+
       /************** RC ****************/
-      
+
       function updateMaxSteerAngle(val) {
         if (maxSteerAngle != val) maxSteerAngle = val;
       }
-      
+
       function updateMaxDutyCycle(val, force = false) {
         if (maxDutyCycle != val || force) maxDutyCycle = val;
       }
-      
+
       function wsAuxSend(msg, index) {
         if (wsSkt[index] && wsSkt[index].readyState === WebSocket.OPEN) wsSkt[wsInd].send(msg);
         else alert("Lost connection to " + wsServers[wsInd]);
       }
 
       /***************************************************************************/
-      
+
       // config for common script - leave as is
       const doCustomInit = false;
       const doInitWebSocket = false;
@@ -1270,7 +1270,7 @@
       const doHeartbeat = false;
       const doInitSSE = true;
 
-      const scriptFiles = ['/web?common.js', '../../CommonMaster/Latest/common.js'];
+      const scriptFiles = ['/web?common.js', '../../CommonMaster/common.js'];
       for (let i = 0; i < scriptFiles.length; i++) {
         const scriptElement = document.createElement('script');
         scriptElement.src = scriptFiles[i];
