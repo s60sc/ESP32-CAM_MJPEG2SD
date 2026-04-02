@@ -424,7 +424,8 @@ SDO/SAO: I2C Address selection MPU9250
 NCS: n/a
 CSB: I2C Address selection BMP280
 */
-#if __has_include("../libraries/MPU9250/MPU9250.h") 
+
+#if __has_include("../libraries/MPU9250/MPU9250.h")
 
 #include "MPU9250.h" // https://github.com/hideakitai/MPU9250
 // accel axis orientation on GY-91:
@@ -432,6 +433,7 @@ CSB: I2C Address selection BMP280
 // - Y : long side (roll)
 // - Z : up (yaw from true N)
 // Note internal AK8963 magnetometer is at address 0x0C
+#define USE_MPU9250
 #define LOCAL_MAG_DECLINATION 0.0f  // see https://www.magnetic-declination.com/ to obtain local value manually
 
 static MPU9250 mpu9250;
@@ -585,7 +587,9 @@ bool checkAccelMove() {
 
 static void sensorPollTask(void* p) {
   while (true) {
+#ifdef USE_MPU9250
     if (MPU9250ok) updateMPU9250data();
+#endif
     if (MPU6050ok) updateMPU6050data();
 #ifdef ISCAM
     if (accelUse) getAccelMove();
@@ -894,7 +898,8 @@ static bool setupLCD1602() {
 
 void lcdPrint(const char* str) {
   // write string to lcd
-	for (int i=0; i<strlen(str); i++) lcdSend((uint8_t)str[i], Rs);
+  int len = strlen(str);
+  for (int i=0; i<len; i++) lcdSend((uint8_t)str[i], Rs);
 }
 
 void lcdSetCursorPos(uint8_t row, uint8_t col) {
