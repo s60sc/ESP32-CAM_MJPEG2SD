@@ -75,6 +75,8 @@ The ESP32 time is set from an NTP server or connected browser client.
 
 ## Installation
 
+**Note that this app can be unstable on boards with only 2MB PSRAM.**
+
 Download github files into the Arduino IDE sketch folder, removing `-master` from the application folder name.
 Compile with at least arduino-esp32 core v3.1.1 which contains network fixes and frame selection changes.
 Select the required ESP-CAM board by uncommenting ONE only of the `#define CAMERA_MODEL_*` in `appGlobals.h` unless using the one of the defaults:
