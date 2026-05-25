@@ -287,6 +287,8 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         changeMap[(i * stride) + 2] = pixVal;
         for (int j = 0; j < RGB888_BYTES - 1; j++) changeMap[(i * stride) + j] = 0;
       }
+      // on this branch moving threshold may hit - escape earlier
+      if (changeCount > moveThreshold) break;
     }
   }
 
