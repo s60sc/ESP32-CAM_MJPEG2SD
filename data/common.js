@@ -799,7 +799,7 @@
                   let valCntr = 0;
                   switch (value.charAt(0)) {
                     case 'A': // action button
-                      inputHtml = '<svg class="svgCols nochange"><rect class="buttonRect" tabindex="0"/><text id="' + saveKey + '" class="midText" text-anchor="middle" dominant-baseline="middle">' + saveVal + '</text></svg>';
+                      inputHtml = '<svg class="svgCols nochange"><rect class="buttonRect" tabindex="0"/><text id="' + saveKey + '" class="btnText" text-anchor="start" dominant-baseline="middle">' + saveVal + '</text></svg>';
                     break;
                     case 'B': // B:lab1:lab2:etc
                       // radio button group
