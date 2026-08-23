@@ -224,15 +224,16 @@ static void prepServos() {
     If DS18B20 is not present, use ESP internal temperature sensor
 */
 
+static float dsTemp = NULL_TEMP;
+static bool haveDS18B20 = false;
+
 #if INCLUDE_DS18B20
 #if (__has_include("../libraries/DallasTemperature/DallasTemperature.h") || __has_include("../../DallasTemperature/DallasTemperature.h"))
 #include <OneWire.h> // https://github.com/PaulStoffregen/OneWire
 #include <DallasTemperature.h> // https://github.com/milesburton/Arduino-Temperature-Control-Library
 
 // configuration
-static float dsTemp = NULL_TEMP;
 TaskHandle_t DS18B20handle = NULL;
-static bool haveDS18B20 = false;
 
 static void DS18B20task(void* pvParameters) {
   // get current temperature from DS18B20 device
