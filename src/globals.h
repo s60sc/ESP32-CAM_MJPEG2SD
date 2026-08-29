@@ -92,7 +92,7 @@
 #define BOUNDARY_VAL "123456789000000000000987654321"
 #define SF_LEN 128
 #define WAV_HDR_LEN 44
-#define RAM_LOG_LEN (1024 * 7) // size of system message log in bytes stored in slow RTC ram (max 8KB - vars)
+#define RAM_LOG_LEN ((1024 * 7) - 32) // size of system message log in bytes stored in slow RTC ram (max 8KB - vars)
 #define MIN_STACK_FREE 512
 #define STARTUP_FAIL "Startup Failure: "
 #define MAX_PAYLOAD_LEN 672 // set bigger than any incoming websocket payload (20ms audio)
