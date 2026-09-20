@@ -58,7 +58,7 @@
 #define INCLUDE_MQTT false    // mqtt.cpp (MQTT)
 #define INCLUDE_HASIO false   // mqtt.cpp (Send home assistant discovery messages). Needs INCLUDE_MQTT true
 
-#define INCLUDE_CERTS false   // certificates.cpp (https and server certificate checking)
+#define INCLUDE_CERTS false   // setupAssist.cpp (if using app https server)
 #define INCLUDE_UART false    // uart.cpp (use another esp32 as Auxiliary connected via UART)
 #define INCLUDE_TELEM false   // telemetry.cpp (real time data collection). Needs INCLUDE_I2C true
 #define INCLUDE_WEBDAV false  // webDav.cpp (WebDAV protocol)
@@ -77,7 +77,6 @@
 #define USE_MPU false      // MPU6050, MPU9250, MPU9255. MPU9250 needs hideakitai MPU9250 library
 #define USE_DS3231 false   // Needs Makuna Rtc library
 #define USE_LCD1602 false  // none
-#define USE_MS6511 false   // tbd
 
 // To include Edge Impulse arduino library for additional motion detect filtering
 // Use Edge Impulse Studio to create model:

@@ -29,7 +29,7 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version up to 10.9.5:
+Changes for version up to 10.9.6:
 * Addition of [Ethernet](#configuration-web-page) network selection instead of Wifi
 * Pins added for [`CAMERA_MODEL_Waveshare_ESP32_S3_ETH`](https://www.waveshare.com/wiki/ESP32-S3-ETH)
 * Define pins for external W5500 Ethernet controller
@@ -41,6 +41,8 @@ Changes for version up to 10.9.5:
 * Fix for issue [#698](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/698)
 * Internal improvements
 * Night time duration based on location
+* New image rescaling algorithm by [JBarnaky](https://github.com/JBarnaky)
+* Remote server certificate handling simplified to use IDF ESP x509 Certificate Bundle.
 
 ## Purpose
 
@@ -320,13 +322,12 @@ By default the app uses a HTTP web interface, but it can be set up to use HTTPS.
 Due to mbedtls memory use and processor load from app, HTTPS is only useable on ESP32-S3 but can still be unstable due to lack of memory and interrupt watchdog resets.
 Alternatively under **Access Settings** a web user login and password can be defined for a bit more security for HTTP access.
 
-See `certificates.cpp` for how to generate and instal certificates. To prevent browser warning for untrusted site, import the server certificate into the browser as given in `certificates.cpp`.
+See `setupAssist.cpp` for how to generate and instal certificates. To prevent browser warning for untrusted site, import the server certificate into the browser as given in `setupAssist.cpp`.
 
 To switch HTTPS on / off, press **Access Settings** sidebar button and set **Use HTTPS** slider on / off.
 
 Note: if HTTPS is on but the certificates are not correct the web page can not be accessed so the certificate files on the SD card will need to be manually deleted.
 
-Separately from app HTTPS status, to protect against man-in-middle attacks when accessing remote servers, set **Check Certs** slider on. See `certificates.cpp` for how to obtain remote server certificates.
 
 ## MQTT
 
