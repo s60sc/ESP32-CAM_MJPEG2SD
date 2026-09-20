@@ -5,10 +5,6 @@
 #include "appGlobals.h"
 
 #if INCLUDE_FTP_HFS
-#if (!INCLUDE_CERTS)
-const char* hfs_rootCACertificate = "";
-const char* ftps_rootCACertificate = "";
-#endif
 
 // File server params (FTP or HTTPS), setup via web page
 char fsServer[MAX_HOST_LEN];
@@ -292,7 +288,7 @@ static bool uploadFolderOrFileFs(const char* fileOrFolder) {
   // Upload a single file or whole folder using FTP or HTTPS server
   // folder is uploaded file by file
   fsBuff = (char*)fsChunk;
-  bool res = fsUse ? remoteServerConnect(hclient, fsServer, fsPort, hfs_rootCACertificate, FSFTP) : ftpConnect();
+  bool res = fsUse ? remoteServerConnect(hclient, fsServer, fsPort, FSFTP) : ftpConnect();
 
   if (!res) {
     LOG_WRN("Unable to connect to %s server", fsUse ? "HTTPS" : "FTP");

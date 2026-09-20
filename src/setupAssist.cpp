@@ -154,10 +154,10 @@ void checkDataFiles() {
      res = checkFilePresent(COMMON_JS_PATH);
     if (res) res = checkFilePresent(INDEX_PAGE_PATH);
     if (!res) {
-      // separate transient download task due to TLS memory usage 
-      if (WiFi.status() == WL_NO_SSID_AVAIL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need to connect to AP to setup router");
+      if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_DISCONNECTED) LOG_WRN("Need to connect to AP to setup router");
       else if (WiFi.status() != WL_CONNECTED) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "No internet connection to download files");
       else if (checkDataHandle == NULL) {
+        // separate transient download task due to TLS memory usage 
         LOG_INF("Download web files then restart");
         xTaskCreate(&checkDataFilesTask, "checkDataFilesTask", CHECK_STACK_SIZE, NULL, CHECK_PRI, &checkDataHandle);
       }
