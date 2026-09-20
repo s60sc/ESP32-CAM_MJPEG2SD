@@ -191,6 +191,11 @@
               applyMessageData(event.data);
             });
             
+            eventSource.addEventListener('cmd', (event) => {
+              // server command
+              applyMessageData(event.data);
+            });
+            
             // unhandled events
             eventSource.onerror = (err) => {
               console.error("SSE error:", err);

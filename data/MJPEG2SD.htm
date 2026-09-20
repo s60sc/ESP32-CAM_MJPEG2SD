@@ -2464,7 +2464,11 @@
         outputSpkr(bufferData); // ArrayBuffer containing PCM 16kHz audio data
       }
 
-      function customWsMsg(data) {}
+      function customWsMsg(data) {
+        // notify end of playback
+        if (data == "#SP") deactivatePlaybackButton(false);
+      }
+
 
       function customInit() {
         disableRangeSlider($('#micGain'));
@@ -2559,7 +2563,7 @@
       const doRefreshTimer = true;
       const doCustomSync = false;
       const doHeartbeat = true;
-      const doInitSSE = false;
+      const doInitSSE = true;
      
       const scriptElement = document.createElement('script');
       scriptElement.src = (window.location.protocol === "file:") ? '../../CommonMaster/common.js' : '/web?common.js';
