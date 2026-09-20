@@ -13,9 +13,6 @@
 #include "appGlobals.h"
 
 #if INCLUDE_SMTP
-#if (!INCLUDE_CERTS)
-const char* smtp_rootCACertificate = "";
-#endif
 
 // SMTP connection params, setup via web page
 char smtp_login[MAX_HOST_LEN]; // sender email account 
@@ -73,7 +70,7 @@ static bool emailSend(const char* mimeType = MIME_TYPE, const char* fileName = A
   char content[100];
   
   NetworkClientSecure client;
-  bool res = remoteServerConnect(client, smtp_server, smtp_port, smtp_rootCACertificate, EMAILCONN); 
+  bool res = remoteServerConnect(client, smtp_server, smtp_port, EMAILCONN); 
   if (!res) return false;
   
   while (true) { // fake non loop to enable breaks

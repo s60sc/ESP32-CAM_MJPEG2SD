@@ -8,7 +8,7 @@
 
 #include "appGlobals.h"
 #if INCLUDE_AF
-#if (__has_include("../libraries/OV5640_Auto_Focus_for_ESP32_Camera/src/ESP32_OV5640_AF.h") || __has_include("../../OV5640_Auto_Focus_for_ESP32_Camera/src/ESP32_OV5640_AF.h"))
+#if __has_include("../libraries/OV5640_Auto_Focus_for_ESP32_Camera/src/ESP32_OV5640_AF.h")
 #include <ESP32_OV5640_AF.h>
 OV5640 ov5640AF = OV5640();
 #else
@@ -647,6 +647,7 @@ mjpegStruct getNextFrame(bool firstCall) {
         mjpegData.buffOffset = 0; // from start of buff
         mjpegData.jpegSize = 0;
         stopPlayback = completedPlayback = true;
+        sendSSE("cmd", "#SP"); // notify browser
         return mjpegData;
       } else {
         // get jpeg frame size
@@ -810,9 +811,11 @@ void endTasks() {
   deleteTask(telemetryHandle);
 #endif
 #if INCLUDE_PERIPH
-  deleteTask(DS18B20handle);
   deleteTask(servoHandle);
   deleteTask(stickHandle);
+#if INCLUDE_DS18B20
+  deleteTask(DS18B20handle);
+#endif
 #endif
 #if INCLUDE_SMTP
   deleteTask(emailHandle);
@@ -826,6 +829,7 @@ void endTasks() {
 #if INCLUDE_AUDIO
   deleteTask(audioHandle);
 #endif
+  deleteTask(statusCheckHandle);
 }
 
 void OTAprereq() {

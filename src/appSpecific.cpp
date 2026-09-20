@@ -648,11 +648,12 @@ void startHeartbeat() {
 
 #define EXT_NOCT_HOST "api.sunrise-sunset.org"
 #define EXT_NOCT_PATH "/json?lat=%0.6f&lng=%0.6f&formatted=0"
+
 void getNocturnal() {
   // Get length of current location night time in secs
-  if (doGetExtIP) { 
+  if (doGetExtIP) {  // needed for lat lon
     NetworkClientSecure hclient;
-    if (remoteServerConnect(hclient, EXT_NOCT_HOST, HTTPS_PORT, "", GETEXTNOCT)) {
+    if (remoteServerConnect(hclient, EXT_NOCT_HOST, HTTPS_PORT, GETEXTNOCT)) {
       HTTPClient http;
       int httpCode = HTTP_CODE_NOT_FOUND;
       char extNoctPath[100];
@@ -714,6 +715,57 @@ void doAppPing(bool timeSynced) {
     atNight = false; 
 #endif
   }
+}
+
+bool appSetup() {
+#ifndef AUXILIARY
+  startSustainTasks(); 
+#endif
+  if (!prepRecording()) {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient memory, remove optional features");
+    LOG_WRN("%s", startupFailure);
+    return false;
+  }
+#if INCLUDE_SMTP
+  prepSMTP(); 
+#endif
+#if INCLUDE_FTP_HFS
+  prepUpload();
+#endif
+#if INCLUDE_UART
+  prepUart();
+#endif
+#if INCLUDE_PERIPH
+  prepPeripherals();
+ #if INCLUDE_MCPWM 
+  prepMotors();
+ #endif
+#endif
+#if INCLUDE_AUDIO
+  prepAudio(); 
+#endif
+#if INCLUDE_TGRAM
+  prepTelegram();
+#endif
+#if INCLUDE_I2C
+  prepI2C();
+ #if INCLUDE_TELEM
+  prepTelemetry();
+ #endif
+#endif
+#if INCLUDE_PERIPH
+  startHeartbeat();
+#endif
+#if INCLUDE_GPS
+  prepGPS();
+#endif
+#ifndef AUXILIARY
+ #if INCLUDE_RTSP
+  prepRTSP();
+ #endif
+#endif
+  appSetupDone = true;
+  return true;
 }
 
 /************** telegram app specific **************/

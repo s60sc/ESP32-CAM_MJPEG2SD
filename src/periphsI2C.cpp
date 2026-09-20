@@ -8,7 +8,6 @@
 // MPU9250 9 axis accel & gyro & mag
 // DS3231 RTC
 // LCD 1602 display 2*16 
-// MS6511 altimeter
 //
 // To enable a device, set the appropriate USE_* define in appGlobals.h
 //
@@ -246,7 +245,7 @@ static bool BMx280ok = false;
 #define STD_PRESSURE 1013.25 // reference pressure in mB/hPa at sea level
 #define DEGREE_SYMBOL "\xC2\xB0"
 
-#if (__has_include("../libraries/BMx280MI/src/BMx280I2C.h") || __has_include("../../BMx280MI/src/BMx280I2C.h"))
+#if __has_include("../libraries/BMx280MI/src/BMx280I2C.h")
 
 #include <BMx280I2C.h> // https://github.com/christandlg/BMx280MI 
 BMx280I2C bmxDef(BMx280_Def); 
@@ -275,7 +274,7 @@ static float getSeaLevelPressure() {
         String payload = http.getString();
         if (!getJsonValue(payload.c_str(), "pressure_msl", jsonVal, nullptr, 2)) LOG_WRN("'pressure_msl' field not present");
       } else LOG_WRN("MSL pressure request failed, error: %s", http.errorToString(httpCode).c_str());    
-      http.end();     
+      http.end();
     }
     remoteServerClose(hclient);
   }
@@ -418,17 +417,17 @@ static void updateMPU6050data() {
 
 /*
 MPU9250 on GY-91
-VIN: Voltage Supply Pin
-3V3: 3.3v Regulator output
+VIN: Voltage Supply Pin for > 3V3, if not used can be connected to pull high SDO/SAO or CSB
+3V3: 3.3v Regulator output / or 3V3 input
 GND: 0V Power Supply
 SCL: I2C Clock 
 SDA: I2C Data 
-SDO/SAO: I2C Address selection MPU9250
+SDO/SAO: I2C Address selection MPU9250, pull high for Alt addr
 NCS: n/a
-CSB: I2C Address selection BMP280
+CSB: I2C Address selection BMP280, pull high for Alt addr
 */
 
-#if (__has_include("../libraries/MPU9250/MPU9250.h") || __has_include("../../MPU9250/MPU9250.h"))
+#if __has_include("../libraries/MPU9250/MPU9250.h")
 
 #include "MPU9250.h" // https://github.com/hideakitai/MPU9250
 // accel axis orientation on GY-91:
@@ -917,30 +916,6 @@ void lcdWriteCustom(uint8_t charLoc) {
 }
 #endif
 
-/**************************** MS5611 ******************************/
-
-/*
-MS6511 on GY-63
-VCC: 3V3 Power Supply
-GND: 0V Power Supply
-SCL: I2C Clock 
-SDA: I2C Data
-CSB: I2C Address selection (connect to GND)
-SDO: Onboard LED
-PS:  n/a
-
-Use address 0x77 as 0x76 used by BMx280
-
-*/
-
-#define MS5611_Def 0x77 // MS5611 default address
-#define MS5611_Alt 0x77 // MS5611 alternative address
-static bool MS5611ok = false;
-
-#if USE_MS5611
-#define IS_POLLABLE
-
-#endif
 
 /************** Poll devices for data ***************/
 

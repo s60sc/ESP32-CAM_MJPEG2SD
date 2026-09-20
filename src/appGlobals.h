@@ -26,16 +26,15 @@
 #endif
 #include "camera_pins.h"
 
+#define APP_VER "10.9.6"
+#define CFG_VER 40 // to determine if newer data files need to be loaded
+
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
 #define DBG_ON false // esp debug output
 #define DBG_LVL ESP_LOG_ERROR // level to use if DBG_ON true: ESP_LOG_ERROR, ESP_LOG_WARN, ESP_LOG_INFO, ESP_LOG_DEBUG, ESP_LOG_VERBOSE
 #define DOT_MAX 50
 #define HOSTNAME_GRP 99
- 
-#define APP_VER "10.9.5"
-// to determine if newer data files need to be loaded
-#define CFG_VER 39
 
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
@@ -109,7 +108,7 @@
 #define AUDIO_STACK_SIZE (1024 * 4)
 #define MICREM_STACK_SIZE (1024 * 2)
 #define MQTT_STACK_SIZE (1024 * 4)
-#define PING_STACK_SIZE (1024 * 6)
+#define PING_STACK_SIZE (1024 * 3)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
 #define SERVO_STACK_SIZE (1024 * 1)
 #define SUSTAIN_STACK_SIZE (1024 * 4)
@@ -119,6 +118,9 @@
 #define UART_STACK_SIZE (1024 * 2)
 #define INTERCOM_STACK_SIZE (1024 * 2)
 #define SENSOR_STACK_SIZE (1024 * 2)
+#define GNSS_STACK_SIZE (1024 * 3)
+#define STATUS_STACK_SIZE (1024 * 4)
+#define CHECK_STACK_SIZE (1024 * 6)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -130,6 +132,7 @@
 #define LOG_PRI 5
 #define PLAY_PRI 4
 #define TELEM_PRI 3
+#define GNSS_PRI 3
 #define TGRAM_PRI 1
 #define EMAIL_PRI 1
 #define FTP_PRI 1
@@ -141,6 +144,8 @@
 #define DS18B20_PRI 1
 #define BATT_PRI 1
 #define SENSOR_PRI 1
+#define STATUS_PRI 1
+#define CHECK_PRI 1
 
 /******************** Function declarations *******************/
 
@@ -194,6 +199,7 @@ void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
+bool prepGPS();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
@@ -433,6 +439,10 @@ extern uint8_t rtspMaxClients;
 extern uint8_t rtpTTL;
 extern char RTSP_Name[];
 extern char RTSP_Pass[];
+
+//GNSS
+extern int gnssUartRx;
+extern int gnssUartTx;
 
 // task handling
 extern TaskHandle_t battHandle;

@@ -13,9 +13,6 @@
 #endif
 #include "mqtt_client.h" 
 
-#if (!INCLUDE_CERTS)
-const char* mqtt_rootCACertificate = "";
-#endif
 #if (INCLUDE_HASIO)
 #define HASIO_AVAILABILITY "homeassistant/status"
 void sendMqttHasDiscovery();

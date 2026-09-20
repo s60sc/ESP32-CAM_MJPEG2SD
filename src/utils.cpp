@@ -5,7 +5,7 @@
 // - base64 encoding
 // - device startup & sleep
 //
-// s60sc 2021, 2023, 2025
+// s60sc 2021, 2023, 2025, 2026
 // some functions based on code contributed by gemi254
 
 #include "appGlobals.h"
@@ -16,16 +16,20 @@ bool dataFilesChecked = false;
 size_t alertBufferSize = 0;
 size_t maxAlertBuffSize = 32 * 1024;
 byte* alertBuffer = NULL; // buffer for telegram / smtp alert image
-static void printPartitionTable();
 int wakePin = -1; // if wakeUse is true
 int wakeLevel; // if wakeUse is true
 bool wakeUse = false; // true to allow app to sleep and wake
 char* jsonBuff = NULL;
 char portFwd[6] = "";
 UBaseType_t STACK_MEM; // allow some task stacks to use psram if available
-float latLon[2];
+float latLon[2] = {0};
 RTC_DATA_ATTR uint32_t remainingSeconds = 0;
 uint32_t deepSleepTimer = 0;
+bool appSetupDone = false;
+
+#define xstr(s) str(s)
+#define str(s) #s
+const char* storageType = xstr(STORAGE);
 
 /************************** Network (WiFi/Ethernet) **************************/
 
@@ -70,16 +74,26 @@ uint32_t wifiTimeoutSecs = 30; // how often to check wifi status
 static bool APstarted = false;
 esp_ping_handle_t pingHandle = NULL;
 bool usePing = true;
+TaskHandle_t statusCheckHandle = NULL;
 
-static void startPing();
-static bool getLocalNTP();
-static void checkScheduledRestart();
+static inline void runStatusCheck();
+static bool startPing();
+static bool waitForNTPsync(int maxRetries = 5, uint32_t perTryTimeoutMs = 2000);
+char timezone[FILE_NAME_LEN] = "GMT0";
+char ntpServer[MAX_HOST_LEN] = "pool.ntp.org";
 
 int netMode = 0; // 0=WiFi only, 1=Ethernet only, 2=Ethernet+AP
 
 // LAN8720
 #define ETH_PHY_ADDR  0 
 #define ETH_CLK_MODE  ETH_CLOCK_GPIO0_IN // external clock from crystal oscillator
+
+static const char* wifiModes[] = {"NULL", "STA", "AP", "STA+AP", "NAN"};
+static wifi_mode_t getWifiMode() {
+  wifi_mode_t wifiMode = WiFi.getMode();
+  LOG_INF("WiFi Mode: %s", wifiModes[wifiMode]);
+  return wifiMode;
+}
 
 static void setupMdnsHost() {  
   // set up MDNS service 
@@ -155,6 +169,7 @@ static void onNetEvent(arduino_event_id_t event, arduino_event_info_t info) {
     case ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED: break;
     case ARDUINO_EVENT_WIFI_AP_GOT_IP6: LOG_INF("AP interface V6 IP addr is preferred"); break;
     case ARDUINO_EVENT_WIFI_STA_GOT_IP6: LOG_INF("Station interface V6 IP addr is preferred"); break;
+    case ARDUINO_EVENT_WIFI_OFF: LOG_INF("WiFi Off"); break;
 
     case ARDUINO_EVENT_ETH_START: LOG_INF("Ethernet started, speed %uMHz", ETH.linkSpeed()); break;
     case ARDUINO_EVENT_ETH_CONNECTED: LOG_INF("Ethernet connected, MAC: %s", ETH.macAddress().c_str()); break;
@@ -180,6 +195,7 @@ static void onNetEvent(arduino_event_id_t event, arduino_event_info_t info) {
 
 static void setWifiAP() {
   if (!APstarted) {
+    delay(100);
     WiFi.AP.begin();
     // Set access point with static ip if provided
     if (strlen(AP_ip) > 1) {
@@ -192,6 +208,9 @@ static void setWifiAP() {
       WiFi.AP.config(_ip, _gw, _sn);
     } 
     WiFi.AP.create(AP_SSID, AP_Pass);
+    // allow AP time to start
+    uint32_t t0 = millis();
+    while (!APstarted && millis() - t0 < 2000) delay(50);
     debugMemory("setWifiAP");
   }
 }
@@ -314,11 +333,14 @@ static bool startEth(bool firstcall) {
 static bool startWifi(bool firstcall = true) {
   // start wifi station (and wifi AP if allowed or station not defined)
   if (firstcall) {
-    WiFi.mode(WIFI_AP_STA);
+#ifdef NO_WIFI_SLEEP
+    WiFi.setSleep(false); // Disable Power Saving depending on app
+#endif
     WiFi.persistent(false); // prevent the flash storage WiFi credentials
-    WiFi.STA.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
     WiFi.AP.clear();
     WiFi.AP.end(); // kill rogue AP on startup
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.STA.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
     WiFi.STA.setHostname(hostName);
     delay(100);
   }
@@ -336,8 +358,8 @@ static bool startWifi(bool firstcall = true) {
         delay(500);
       }
     }
-    // show stats of requested SSID
-    int numNetworks = WiFi.scanNetworks();
+    // show stats of requested SSID if present
+    int numNetworks = strlen(ST_SSID) ? WiFi.scanNetworks() : 0;
     for (int i=0; i < numNetworks; i++) {
       if (WiFi.SSID(i) == ST_SSID)
         LOG_INF("Wifi stats for %s - signal strength: %ld dBm; Encryption: %s; channel: %ld",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
@@ -350,6 +372,7 @@ static bool startWifi(bool firstcall = true) {
   if (netMode == 0) setupMdnsHost(); // not on ESP32 as uses 6k of heap
 #endif
   if (pingHandle == NULL) startPing();
+  getWifiMode();
   return wlStat == WL_CONNECTED ? true : false;
 }
 
@@ -387,6 +410,13 @@ bool startNetwork(bool firstcall) {
 #ifdef DEV_ONLY
   devCheck();
 #endif
+  if (res) runStatusCheck();
+  else {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to complete network setup");
+    LOG_WRN("%s", startupFailure);
+  }
+  if (res) getExtIP();
+  if (res) while(!dataFilesChecked) delay (1000);
   return res;
 }
 
@@ -426,17 +456,6 @@ void resetWatchDog(int wdIndex, uint32_t wdTimeout) {
   }
 }
 
-static void statusCheck() {
-  // regular status checks
-  if (!timeSynchronized) getLocalNTP();
-  doAppPing(timeSynchronized);
-  checkScheduledRestart();
-  if (!dataFilesChecked) dataFilesChecked = checkDataFiles();
-#if INCLUDE_MQTT
-  if (mqtt_active) startMqttClient();
-#endif
-}
-
 static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   //uint32_t elapsed_time;
   //esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
@@ -451,7 +470,7 @@ static void pingSuccess(esp_ping_handle_t hdl, void *args) {
   }
   resetWatchDog(0, wifiTimeoutSecs * 1000 * 2);
   if (dataFilesChecked) resetCrashLoop();
-  statusCheck();
+  runStatusCheck();
 }
 
 static void pingTimeout(esp_ping_handle_t hdl, void *args) {
@@ -464,7 +483,7 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
       LOG_WRN("Failed to ping gateway, restart ethernet ...");
       startNetwork(false);
     } else {
-      if (netIsConnected()) statusCheck();
+      if (netIsConnected()) runStatusCheck();
       else {
         LOG_WRN("Disconnected, restart ethernet ...");
         startNetwork(false);
@@ -478,7 +497,7 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
           LOG_WRN("Failed to ping gateway, restart wifi ...");
           startWifi(false);
         } else {
-          if (wStat == WL_CONNECTED) statusCheck();
+          if (wStat == WL_CONNECTED) runStatusCheck();
           else {
             LOG_WRN("Disconnected, restart wifi ...");
             startWifi(false);
@@ -489,9 +508,9 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
   }
 }
 
-static void startPing() {
+static bool startPing() {
   IPAddress ipAddr = netGatewayIP();
-  if (!ipAddr) return; // don't start ping until gateway is known
+  if (!ipAddr) return false; // don't start ping until gateway is known
   ip_addr_t pingDest; 
   IP_ADDR4(&pingDest, ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
   esp_ping_config_t pingConfig = ESP_PING_DEFAULT_CONFIG();
@@ -511,6 +530,7 @@ static void startPing() {
   esp_ping_start(pingHandle);
   LOG_INF("Started ping monitoring - %s", usePing ? "On" : "Off");
   debugMemory("startPing");
+  return true;
 }
 
 void stopPing() {
@@ -565,6 +585,10 @@ void getExtIP() {
 
 /************** generic NetworkClientSecure functions ******************/
 
+#include <esp_crt_bundle.h>
+extern const uint8_t x509_certificate_bundle_start[] __asm__("_binary_x509_crt_bundle_start");
+extern const uint8_t x509_certificate_bundle_end[]   __asm__("_binary_x509_crt_bundle_end");
+
 static uint8_t failCounts[REMFAILCNT] = {0};
 
 void remoteServerClose(Client& client) {
@@ -587,6 +611,16 @@ static bool checkFailureThreshold(const char* host, uint8_t idx) {
 
 bool remoteServerConnect(Client& client, const char* host, uint16_t port, uint8_t idx) {
   if (client.connected()) return true;
+
+  // first check remote server exists / is available
+  NetworkClient tcp;
+  bool ok = tcp.connect(host, port);
+  tcp.stop();
+  if (!ok) {
+    LOG_WRN("Server %s not reachable", host);
+    return false;
+  }
+
   if (checkFailureThreshold(host, idx)) {
     // Connection loop
     uint32_t start = millis();
@@ -595,41 +629,54 @@ bool remoteServerConnect(Client& client, const char* host, uint16_t port, uint8_
       if (millis() - start > (uint32_t)responseTimeoutSecs * 1000) break;
       delay(500); 
     }
-
     // Final status & error reporting
     if (client.connected()) {
       failCounts[idx] = 0;
       return true;
     }
-
     failCounts[idx]++;
     LOG_WRN("Failed to connect to %s", host);
   }
   return false;
 }
 
-bool remoteServerConnect(NetworkClientSecure& client, const char* host, uint16_t port, const char* cert, uint8_t idx) {
+static bool remoteServerConnectSec(NetworkClientSecure& client, const char* host, uint16_t port, uint8_t idx) {
   if (checkFailureThreshold(host, idx)) {
     // Additional operations for secure client
-    if (ESP.getFreeHeap() <= TLS_HEAP) {
-      LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), host);
-      failCounts[idx]++;
-      return false;
-    }
-    // Configure security
-    if (useSecure && strlen(cert)) client.setCACert(cert);
-    else client.setInsecure();
-    if (remoteServerConnect(static_cast<Client&>(client), host, port, idx)) return true;
-    else {
-      // failed to connect in allocated time
-      // 'Memory allocation failed' indicates lack of heap space
-      // 'Generic error' can indicate DNS failure
-      char buf[100];
-      int err = client.lastError(buf, sizeof(buf));
-      LOG_WRN("TSL connect Fail: %s, Err %d: %s", host, err, buf);
-    }
+    waitForNTPsync();
+    if (timeSynchronized || !useSecure) {
+      if (ESP.getFreeHeap() <= TLS_HEAP) {
+        LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), host);
+        failCounts[idx]++;
+        return false;
+      }
+      if (remoteServerConnect(static_cast<Client&>(client), host, port, idx)) return true;
+      else {
+        // failed to connect in allocated time
+        // 'Memory allocation failed' indicates lack of heap space
+        // 'Generic error' can indicate DNS failure
+        char buf[100];
+        int err = client.lastError(buf, sizeof(buf));
+        LOG_WRN("Failed to %s connect to %s: Err %d: %s", useSecure ? "securely" : "insecurely", host, err, buf);
+        return false;
+      }
+    } else LOG_WRN("Remote server certificate checks require a valid device datetime");
   }
   return false;
+}
+
+bool remoteServerConnect(NetworkClientSecure& client, const char* host, uint16_t port, const char* cert, uint8_t idx) {
+  // Configure security using own public certs
+  if (useSecure) client.setCACert(cert);
+  else client.setInsecure(); 
+  return remoteServerConnectSec(client, host, port, idx);
+}
+
+bool remoteServerConnect(NetworkClientSecure& client, const char* host, uint16_t port, uint8_t idx) {
+  // Configure security using certs from IDF ESP x509 Certificate Bundle
+  if (useSecure) client.setCACertBundle(x509_certificate_bundle_start, (size_t)(x509_certificate_bundle_end - x509_certificate_bundle_start)); 
+  else client.setInsecure(); 
+  return remoteServerConnectSec(client, host, port, idx);
 }
 
 void remoteServerReset() {
@@ -640,8 +687,6 @@ void remoteServerReset() {
 /************************** NTP  **************************/
 
 // Needs to be a time zone string from: https://raw.githubusercontent.com/nayarsystems/posix_tz_db/master/zones.csv
-char timezone[FILE_NAME_LEN] = "GMT0";
-char ntpServer[MAX_HOST_LEN] = "pool.ntp.org";
 uint8_t alarmHour = 1;
 
 time_t getEpoch() {
@@ -662,21 +707,22 @@ static void showLocalTime(const char* timeSrc) {
   char timeFormat[20];
   strftime(timeFormat, sizeof(timeFormat), "%d/%m/%Y %H:%M:%S", localtime(&currEpoch));
   LOG_INF("Got current time from %s: %s with tz: %s", timeSrc, timeFormat, timezone);
-  timeSynchronized = true;
 }
 
-static bool getLocalNTP() {
-  // get current time from NTP server and apply to ESP32
-  LOG_INF("Using NTP server: %s", ntpServer);
-  configTzTime(timezone, ntpServer);
-  if (getEpoch() > 10000) {
-    showLocalTime("NTP");
-    getExtIP();
-    return true;
-  } else {
-    LOG_WRN("Not yet synced with NTP");
-    return false;
+static bool waitForNTPsync(int maxRetries, uint32_t perTryTimeoutMs) {
+  // wait for local time to sync with NTP server
+  if (!timeSynchronized) {
+    struct tm timeinfo;
+    int retry = 0;
+    while (!getLocalTime(&timeinfo, perTryTimeoutMs) && retry < maxRetries) retry++;
+    if (retry >= maxRetries) {
+      LOG_WRN("Time sync with NTP failed, retry");
+      return false;
+    }
+    LOG_INF("Time synced with NTP: %s, using timezone: %s", ntpServer, timezone);
+    timeSynchronized = true;
   }
+  return true;
 }
 
 void syncToBrowser(uint32_t browserUTC) {
@@ -770,7 +816,7 @@ static time_t nextWeeklyRestartEpoch(time_t fromEpoch) {
 }
 
 static void checkScheduledRestart() {
-  // call regularly (from statusCheck()) to trigger the weekly restart, or the NTP-unavailable fallback
+  // call regularly (from statusCheckTask()) to trigger the weekly restart, or the NTP-unavailable fallback
   static time_t nextRestartEpoch = 0;
   static bool fallbackArmed = true;
 
@@ -780,7 +826,7 @@ static void checkScheduledRestart() {
       nextRestartEpoch = nextWeeklyRestartEpoch(nowEpoch);
       char inBuff[30];
       strftime(inBuff, sizeof(inBuff), "%d/%m/%Y %H:%M:%S", localtime(&nextRestartEpoch));
-      LOG_INF("Next scheduled weekly restart due: %s (tz %s)", inBuff, timezone);
+      LOG_INF("Next scheduled weekly restart due: %s", inBuff);
     }
     if (nowEpoch >= nextRestartEpoch) {
       bool noPriorRestart = (lastScheduledRestartValid != MAGIC_NUM);
@@ -800,6 +846,24 @@ static void checkScheduledRestart() {
     LOG_ALT("Weekly scheduled restart fallback: 7 days uptime reached without NTP sync");
     doRestart("uptime fallback restart (no NTP sync)");
   }
+}
+
+static void statusCheckTask(void* parameter) {
+  while (true) {
+    // regular status checks
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (!dataFilesChecked) checkDataFiles();
+    if (!timeSynchronized) waitForNTPsync();
+    if (appSetupDone) doAppPing(timeSynchronized);
+    checkScheduledRestart();
+#if INCLUDE_MQTT
+    if (mqtt_active) startMqttClient();
+#endif
+  }
+}
+
+static inline void runStatusCheck() {
+  if (statusCheckHandle) xTaskNotifyGive(statusCheckHandle);
 }
 
 /********************** misc functions ************************/
@@ -990,16 +1054,16 @@ float smoothSensor(float latestVal, float smoothedVal, float alpha) {
 // onboard chip temperature sensor
 #if CONFIG_IDF_TARGET_ESP32
 extern "C" {
-// Use internal on chip temperature sensor (if present)
+// Use internal on-chip temperature sensor (if present)
 uint8_t temprature_sens_read(); // sic
 }
-#elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
+#elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S2
 #include "driver/temperature_sensor.h"
 static temperature_sensor_handle_t temp_sensor = NULL;
 #endif
 
 static void prepInternalTemp() {
-#if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S2
   // setup internal sensor
   temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
   temperature_sensor_install(&temp_sensor_config, &temp_sensor);
@@ -1133,6 +1197,7 @@ bool utilsStartup() {
   STACK_MEM = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
 #endif
   logSetup();
+  configTzTime(timezone, ntpServer);
 #ifdef NEED_PSRAM
   if (psramFound()) {
     if (ESP.getPsramSize() < MIN_PSRAM * ONEMEG) 
@@ -1150,5 +1215,9 @@ bool utilsStartup() {
 #ifdef DEV_ONLY
   devSetup();
 #endif
+  if (statusCheckHandle == NULL) {
+    if (!strcmp(storageType, "SD_MMC")) xTaskCreateWithCaps(&statusCheckTask, "statusCheckTask", STATUS_STACK_SIZE, NULL, STATUS_PRI, &statusCheckHandle, STACK_MEM);
+    else xTaskCreate(&statusCheckTask, "statusCheckTask", STATUS_STACK_SIZE, NULL, STATUS_PRI, &statusCheckHandle); // cant use PSRAM as SPI conflict with flash storage
+  } 
   return res;
 }

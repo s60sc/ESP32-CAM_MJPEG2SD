@@ -23,7 +23,7 @@
 #include "appGlobals.h"
 
 #if INCLUDE_RTSP
-#if (__has_include("../libraries/ESP32-RTSPServer/src/ESP32-RTSPServer.h") || __has_include("../../ESP32-RTSPServer/src/ESP32-RTSPServer.h"))
+#if __has_include("../libraries/ESP32-RTSPServer/src/ESP32-RTSPServer.h")
 #include <ESP32-RTSPServer.h> 
 RTSPServer rtspServer;
 

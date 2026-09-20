@@ -2,31 +2,100 @@
 // Assist setup for new app installations
 // original provided by gemi254
 // 
-// s60sc 2023
+// s60sc 2023, 2026
 
 #include "appGlobals.h"
 
-#if (!INCLUDE_CERTS)
-const char* git_rootCACertificate = "";
+#if INCLUDE_CERTS
+
+ /*
+
+ To set app as HTTPS server, a server private key and public certificate are required
+ Create keys and certificates using openssl tool
+ On Windows, paste commands below into a Command Prompt (cmd) window
+
+ Define app to have static IP address, and use this as variable substitution for openssl:
+   set APP_IP="192.168.1.135"
+
+ Create app server private key and public certificate:
+   openssl req -nodes -x509 -sha256 -newkey rsa:2048 -subj "/CN=%APP_IP%" -addext "subjectAltName=IP:%APP_IP%" -extensions v3_ca -keyout prvtkey.pem -out servercert.pem -days 3660
+
+ View server cert content:
+   openssl x509 -in servercert.pem -noout -text
+
+ Use app web page OTA Upload tab to copy servercert.pem and prvtkey.pem into ESP storage.
+
+ Use of HTTPS is controlled on web page by option 'Use HTTPS' under Access Settings / Authentication settings or Edit Config / Network settings
+ If the private key or public certificate is not loaded, the Use HTTPS setting is ignored.
+ 
+ Enter `https://static_ip` to access the app from the browser. A security warning will be displayed as the certificate is self signed so untrusted. 
+ To trust the certificate it needs to be installed on the device: 
+ - open the Chrome settings page.
+ - in the Privacy and security panel, expand the Security section, click on Manage certificates.
+ - in the Certificate Manager panel, press Manage imported certificates from Windows
+ - in the Certificates popup, select the Trusted Root Certification Authorities tab, click the Import... button to launch the Import Wizard.
+ - click Next, on the next page, select Browse... All Files and locate the servercert.pem file.
+ - click Next, then Finish, then in the Security Warning popup, click on Yes and another popup indicates that the import was successful.
+
+ */
+
+#ifndef CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC
+#define CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC 1
 #endif
+
+/************************************************************************************************************/
+
+#define PRVTKEY DATA_DIR "/prvtkey" ".pem"
+#define SERVERCERT DATA_DIR "/servercert" ".pem"
+
+char* serverCerts[2]; // private key, server key
+#define NUM_CERTS 2
+
+void loadCerts() {
+  if (useHttps) {
+    const char* certFiles[NUM_CERTS] = {PRVTKEY, SERVERCERT};
+    for (int i = 0; i < NUM_CERTS; i++) {
+      File file;
+      if (STORAGE.exists(certFiles[i])) {
+        file = STORAGE.open(certFiles[i], FILE_READ);
+        if (!file || !file.size()) {
+          LOG_WRN("Failed to load file %s", certFiles[i]);
+          useHttps = false;
+        } else {
+          // load contents
+          serverCerts[i] = psramFound() ? (char*)ps_malloc(file.size() + 1) : (char*)malloc(file.size() + 1); 
+          size_t inBytes = file.read((uint8_t*)serverCerts[i], file.size());
+          if (inBytes != file.size()) {
+            LOG_WRN("File %s not correctly loaded", certFiles[i]);
+            useHttps = false;
+          }
+        }
+        file.close();
+      } else {
+        LOG_WRN("File %s not found", certFiles[i]);
+        useHttps = false;
+      }
+    }
+    if (!useHttps) LOG_WRN("HTTPS not available as server keys not loaded, using HTTP");
+  }
+}
+
+#endif
+
+/*****************************************************************/
+
+TaskHandle_t checkDataHandle = NULL;
 
 static bool wgetFile(const char* filePath) {
   // download required data file from github repository and store
   bool res = false;
-  if (STORAGE.exists(filePath)) {
-    // if file exists but is empty, delete it to allow re-download
-    File f = STORAGE.open(filePath, FILE_READ);
-    size_t fSize = f.size();
-    f.close();
-    if (!fSize) STORAGE.remove(filePath);
-  }
   if (!STORAGE.exists(filePath)) {
-    char downloadURL[150];
-    snprintf(downloadURL, 150, "%s%s", GITHUB_PATH, filePath);
-    File f = STORAGE.open(filePath, FILE_WRITE);
-    if (f) {
-      NetworkClientSecure wclient;
-      if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, git_rootCACertificate, SETASSIST)) {
+    NetworkClientSecure wclient;
+    if (remoteServerConnect(wclient, GITHUB_HOST, HTTPS_PORT, SETASSIST)) {
+      char downloadURL[150];
+      snprintf(downloadURL, 150, "%s%s", GITHUB_PATH, filePath);
+      File f = STORAGE.open(filePath, FILE_WRITE);
+      if (f) {
         HTTPClient https;
         if (https.begin(wclient, GITHUB_HOST, HTTPS_PORT, downloadURL)) {
           LOG_INF("Downloading %s from %s", filePath, downloadURL);
@@ -49,22 +118,53 @@ static bool wgetFile(const char* filePath) {
             STORAGE.remove(filePath);
           }
         }
-      }
-      remoteServerClose(wclient);
-    } else LOG_WRN("Open failed: %s", filePath);
+      } else LOG_WRN("Open failed: %s", filePath);
+    }
+    remoteServerClose(wclient);
   } else res = true;
   return res;
 }
 
-bool checkDataFiles() {
-  // Download any missing data files
-  bool res = false;
-  if (strlen(GITHUB_PATH)) {
-    res = wgetFile(COMMON_JS_PATH); 
-    if (res) res = wgetFile(INDEX_PAGE_PATH); 
-    if (res) res = appDataFiles(); 
-  } else res = true; // no download needed
-  return res;
+static void checkDataFilesTask(void* parameter) {
+  // try and get get each remote file in turn
+  wgetFile(COMMON_JS_PATH); 
+  delay(100);
+  wgetFile(INDEX_PAGE_PATH);
+  delay(100);
+  appDataFiles(); 
+  doRestart("Restart after web file download");
+  vTaskDelete(NULL);
+}
+
+static bool checkFilePresent(const char* filePath) {
+  if (STORAGE.exists(filePath)) {
+    // if file exists but is empty, delete it to allow re-download
+    File f = STORAGE.open(filePath, FILE_READ);
+    size_t fSize = f.size();
+    f.close();
+    if (!fSize) STORAGE.remove(filePath);
+  }
+  return STORAGE.exists(filePath);
+}
+
+void checkDataFiles() {
+  // check if required files have been downloaded
+  bool res = true;
+  if (strlen(GITHUB_PATH)) { 
+     res = checkFilePresent(COMMON_JS_PATH);
+    if (res) res = checkFilePresent(INDEX_PAGE_PATH);
+    if (!res) {
+      // separate transient download task due to TLS memory usage 
+      if (WiFi.status() == WL_NO_SSID_AVAIL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need to connect to AP to setup router");
+      else if (WiFi.status() != WL_CONNECTED) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "No internet connection to download files");
+      else if (checkDataHandle == NULL) {
+        LOG_INF("Download web files then restart");
+        xTaskCreate(&checkDataFilesTask, "checkDataFilesTask", CHECK_STACK_SIZE, NULL, CHECK_PRI, &checkDataHandle);
+      }
+      if (strlen(startupFailure)) LOG_WRN("%s", startupFailure);
+    } // else no download needed if GITHUB_PATH not defined
+  }
+  if (res) dataFilesChecked = true;
 }
 
 const char* setupPage_html = R"~(

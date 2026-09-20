@@ -117,9 +117,9 @@ static bool configureUart() {
   };
   
   // install the driver and configure pins
-#if CONFIG_IDF_TARGET_ESP32C3 
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S2
   uartId = UART_NUM_1;
-#else // ESP32, ESP32S3
+#else // ESP32, ESP32S3 (UART_NUM_1 default pins on ESP32 clash with flash)
   uartId = UART_NUM_2;
 #endif
   esp_err_t res = uart_driver_install(uartId, BUFF_LEN, BUFF_LEN, 20, &uartQueue, 0);

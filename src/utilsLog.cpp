@@ -6,6 +6,8 @@
  * true  : also saves log on SD card. To download the log generated, either:
  *  - To view the log, press Show Log button on the browser
  * - To clear the log file contents, on log web page press Clear Log link
+ *
+ * s60sc 2026
  */
  
 #include "appGlobals.h"
@@ -108,7 +110,7 @@ void flush_log(bool andClose) {
 }
 
 static void remote_log_init_SD() {
-#if !CONFIG_IDF_TARGET_ESP32C3
+#if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
   STORAGE.mkdir(DATA_DIR);
   // Open remote file
   log_remote_fp = NULL;
@@ -211,14 +213,15 @@ const char* espErrMsg(esp_err_t errCode) {
 static void appPanicHandler(arduino_panic_info_t *info, void *arg) {
   // store crash backtrace and delay reboot to avoid thrashing
   // https://github.com/espressif/arduino-esp32/blob/master/cores/esp32/esp32-hal-misc.c
-    TaskHandle_t task =  xTaskGetCurrentTaskHandleForCore(info->core);
-    btHWM = uxTaskGetStackHighWaterMark(task);
-    const char* taskName = task ? pcTaskGetName(task) : "idle";
-    strncpy(btTask, taskName, sizeof(btTask) - 1);
-    strncpy(btReason, info->reason, sizeof(btReason) - 1);
-    btCore = info->core;
+  TaskHandle_t task =  xTaskGetCurrentTaskHandleForCore(info->core);
+  btHWM = uxTaskGetStackHighWaterMark(task);
+  const char* taskName = task ? pcTaskGetName(task) : "idle";
+  strncpy(btTask, taskName, sizeof(btTask) - 1);
+  strncpy(btReason, info->reason, sizeof(btReason) - 1);
+  btCore = info->core;
   btLen = info->backtrace_len;
-  for (int i = 0; i < info->backtrace_len; i++) backtrace[i] = info->backtrace[i];
+  int start = (btLen > 60) ? btLen - 60 : 0; // later entries more important
+  for (int i = start; i < info->backtrace_len; i++) backtrace[i - start] = info->backtrace[i];
   haveTrace = MAGIC_NUM; // flag that backtrace available
   esp_rom_delay_us(PANIC_DELAY * 1000 * 1000);
 }
