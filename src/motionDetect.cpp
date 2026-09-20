@@ -115,31 +115,227 @@ bool isNight(uint8_t nightSwitch) {
   return nightTime;
 }
 
-static void rescaleImage(const uint8_t* input, int inputWidth, int inputHeight, uint8_t* output, int outputWidth, int outputHeight) {
-  // use bilinear interpolation to resize image
-  float xRatio = (float)inputWidth / (float)outputWidth;
-  float yRatio = (float)inputHeight / (float)outputHeight;
+// Bilinear interpolation of four neighboring pixels using 16‑bit fixed‑point fractions
+static inline uint8_t interpolatePixel(
+    uint8_t a, uint8_t b, uint8_t c, uint8_t d,
+    uint32_t xFrac8, uint32_t yFrac8)
+{
+    constexpr uint32_t FRACTION_TO_8BIT_SHIFT = 8;
+    constexpr uint32_t ROUNDING_OFFSET = 0x8000; // midpoint rounding for 16‑bit fixed‑point
+    constexpr int32_t MIN_COLOR_VALUE = 0;
+    constexpr int32_t MAX_COLOR_VALUE = 255;
+    constexpr uint32_t FIXED_POINT_SHIFT = 16;
 
-  for (int i = 0; i < outputHeight; ++i) {
-    for (int j = 0; j < outputWidth; ++j) {
-      int xL = (int)floor(xRatio * j);
-      int yL = (int)floor(yRatio * i);
-      int xH = (int)ceil(xRatio * j);
-      int yH = (int)ceil(yRatio * i);
-      float xWeight = xRatio * j - xL;
-      float yWeight = yRatio * i - yL;
-      for (int channel = 0; channel < colorDepth; ++channel) {
-        uint8_t a = input[(yL * inputWidth + xL) * colorDepth + channel];
-        uint8_t b = input[(yL * inputWidth + xH) * colorDepth + channel];
-        uint8_t c = input[(yH * inputWidth + xL) * colorDepth + channel];
-        uint8_t d = input[(yH * inputWidth + xH) * colorDepth + channel];
+    // Convert 8‑bit samples to signed 32‑bit for arithmetic
+    const int32_t val_a = a;
+    const int32_t val_b = b;
+    const int32_t val_c = c;
+    const int32_t val_d = d;
 
-        float pixel = a * (1 - xWeight) * (1 - yWeight) + b * xWeight * (1 - yWeight)
-                    + c * yWeight * (1 - xWeight) + d * xWeight * yWeight;
-        output[(i * outputWidth + j) * colorDepth + channel] = (uint8_t)pixel;
-      }
+    // Convert fractional inputs to signed 32‑bit
+    const int32_t xFrac = static_cast<int32_t>(xFrac8);
+    const int32_t yFrac = static_cast<int32_t>(yFrac8);
+
+    // Horizontal deltas for top and bottom rows
+    const int32_t diff_ab = val_b - val_a;
+    const int32_t diff_cd = val_d - val_c;
+
+    // Horizontal interpolation of top and bottom rows in 8‑bit fixed‑point
+    const int32_t top = (val_a << FRACTION_TO_8BIT_SHIFT) + diff_ab * xFrac;
+    const int32_t bot = (val_c << FRACTION_TO_8BIT_SHIFT) + diff_cd * xFrac;
+
+    // Vertical interpolation between top and bottom
+    const int32_t diffY = bot - top;
+    const int32_t res = (top << FRACTION_TO_8BIT_SHIFT) + (diffY * yFrac);
+
+    // Convert back to 8‑bit with rounding
+    const int32_t final_val = (res + ROUNDING_OFFSET) >> FIXED_POINT_SHIFT;
+
+    // Clamp to valid color range
+    return static_cast<uint8_t>(
+        final_val > MAX_COLOR_VALUE ? MAX_COLOR_VALUE :
+        (final_val < MIN_COLOR_VALUE ? MIN_COLOR_VALUE : final_val));
+}
+
+// Rescales an image using bilinear interpolation with fixed‑point stepping
+static void rescaleImage(const uint8_t* input, int inputWidth, int inputHeight,
+    uint8_t* output, int outputWidth, int outputHeight,
+    uint8_t colorDepth)
+{
+    // Minimum valid parameters and fixed‑point constants
+    constexpr int MIN_VALID_DIMENSION = 1;
+    constexpr int MIN_VALID_COLOR_DEPTH = 1;
+    constexpr uint32_t FIXED_POINT_SHIFT = 16;
+    constexpr uint32_t FIXED_POINT_MASK = 0xFFFF;
+    constexpr uint32_t FRACTION_TO_8BIT_SHIFT = 8;
+    constexpr uint32_t FRACTION_8BIT_MASK = 0xFF;
+    constexpr uint8_t RGB_COLOR_DEPTH = 3;
+    constexpr uint32_t ADJACENT_PIXEL_OFFSET = 1;
+
+    // Reject invalid buffers or dimensions
+    if (!input || !output ||
+        inputWidth < MIN_VALID_DIMENSION || inputHeight < MIN_VALID_DIMENSION ||
+        outputWidth < MIN_VALID_DIMENSION || outputHeight < MIN_VALID_DIMENSION ||
+        colorDepth < MIN_VALID_COLOR_DEPTH) {
+        return;
     }
-  }
+
+    // Fast path: identical dimensions → direct copy
+    if (inputWidth == outputWidth && inputHeight == outputHeight) {
+        if (input != output) {
+            const size_t totalBytes =
+                static_cast<size_t>(inputWidth) *
+                static_cast<size_t>(inputHeight) *
+                colorDepth;
+            memcpy(output, input, totalBytes); // raw block copy
+        }
+        return;
+    }
+
+    // Compute fixed‑point scaling increments for X/Y
+    const uint32_t xStep =
+        (static_cast<uint32_t>(inputWidth) << FIXED_POINT_SHIFT) /
+        static_cast<uint32_t>(outputWidth);
+    const uint32_t yStep =
+        (static_cast<uint32_t>(inputHeight) << FIXED_POINT_SHIFT) /
+        static_cast<uint32_t>(outputHeight);
+
+    // Last valid source pixel index for bilinear lookup
+    const uint32_t max_y = static_cast<uint32_t>(inputHeight) - ADJACENT_PIXEL_OFFSET;
+    const uint32_t max_x = static_cast<uint32_t>(inputWidth) - ADJACENT_PIXEL_OFFSET;
+
+    // Byte stride per row for input/output
+    const size_t rowStride = static_cast<size_t>(inputWidth) * colorDepth;
+    const size_t outRowStride = static_cast<size_t>(outputWidth) * colorDepth;
+
+    const size_t colorDepthSz = colorDepth; // avoid repeated casts
+
+    // Single‑channel grayscale path
+    if (colorDepth == MIN_VALID_COLOR_DEPTH) {
+        uint32_t yPos = 0;
+        for (int i = 0; i < outputHeight; ++i) {
+            const uint32_t yL = yPos >> FIXED_POINT_SHIFT; // source row low
+            const uint32_t yFrac8 =
+                (yPos & FIXED_POINT_MASK) >> FRACTION_TO_8BIT_SHIFT; // vertical fraction
+            uint32_t yH = yL + ADJACENT_PIXEL_OFFSET;
+            yH = (yH > max_y) ? max_y : yH; // clamp high row
+
+            const uint8_t* rowL = input + static_cast<size_t>(yL) * rowStride;
+            const uint8_t* rowH = input + static_cast<size_t>(yH) * rowStride;
+            uint8_t* outRow = output + static_cast<size_t>(i) * outRowStride;
+
+            uint32_t xPos = 0;
+            for (int j = 0; j < outputWidth; ++j) {
+                const uint32_t xL = xPos >> FIXED_POINT_SHIFT; // source col low
+                const uint32_t xFrac8 =
+                    (xPos & FIXED_POINT_MASK) >> FRACTION_TO_8BIT_SHIFT; // horizontal fraction
+                uint32_t xH = xL + ADJACENT_PIXEL_OFFSET;
+                xH = (xH > max_x) ? max_x : xH; // clamp high col
+
+                // Four neighboring grayscale samples
+                const uint8_t* pLL = rowL + xL;
+                const uint8_t* pLH = rowL + xH;
+                const uint8_t* pHL = rowH + xL;
+                const uint8_t* pHH = rowH + xH;
+
+                outRow[j] = interpolatePixel(
+                    *pLL, *pLH, *pHL, *pHH, xFrac8, yFrac8); // bilinear sample
+
+                xPos += xStep; // advance horizontal position
+            }
+            yPos += yStep; // advance vertical position
+        }
+    }
+    // 3‑channel RGB path with optimized pointer increments
+    else if (colorDepth == RGB_COLOR_DEPTH) {
+        uint32_t yPos = 0;
+
+        for (int i = 0; i < outputHeight; ++i) {
+            const uint32_t yL = yPos >> FIXED_POINT_SHIFT;
+            const uint32_t yFrac8 =
+                (yPos & FIXED_POINT_MASK) >> FRACTION_TO_8BIT_SHIFT;
+
+            uint32_t yH = yL + ADJACENT_PIXEL_OFFSET;
+            yH = (yH > max_y) ? max_y : yH;
+
+            const uint8_t* rowL = input + static_cast<size_t>(yL) * rowStride;
+            const uint8_t* rowH = input + static_cast<size_t>(yH) * rowStride;
+            uint8_t* outRow = output + static_cast<size_t>(i) * outRowStride;
+
+            uint32_t xPos = 0;
+
+            for (int j = 0; j < outputWidth; ++j) {
+                const uint32_t xL = xPos >> FIXED_POINT_SHIFT;
+                const uint32_t xFrac8 =
+                    (xPos & FIXED_POINT_MASK) >> FRACTION_TO_8BIT_SHIFT;
+
+                uint32_t xH = xL + ADJACENT_PIXEL_OFFSET;
+                xH = (xH > max_x) ? max_x : xH;
+
+                // Correct LL/HL pointers (based on xL)
+                const uint8_t* pLL = rowL + static_cast<size_t>(xL) * RGB_COLOR_DEPTH;
+                const uint8_t* pHL = rowH + static_cast<size_t>(xL) * RGB_COLOR_DEPTH;
+
+                // Correct LH/HH pointers (based on xH)
+                const uint8_t* pLH = rowL + static_cast<size_t>(xH) * RGB_COLOR_DEPTH;
+                const uint8_t* pHH = rowH + static_cast<size_t>(xH) * RGB_COLOR_DEPTH;
+
+                uint8_t* pOut = outRow + static_cast<size_t>(j) * RGB_COLOR_DEPTH;
+
+                // Per‑channel bilinear interpolation
+                pOut[0] = interpolatePixel(pLL[0], pLH[0], pHL[0], pHH[0], xFrac8, yFrac8); // R
+                pOut[1] = interpolatePixel(pLL[1], pLH[1], pHL[1], pHH[1], xFrac8, yFrac8); // G
+                pOut[2] = interpolatePixel(pLL[2], pLH[2], pHL[2], pHH[2], xFrac8, yFrac8); // B
+
+                xPos += xStep;
+            }
+
+            yPos += yStep;
+        }
+    }
+    // Generic multi‑channel path for arbitrary colorDepth
+    else {
+        uint32_t yPos = 0;
+        for (int i = 0; i < outputHeight; ++i) {
+            const uint32_t yL = yPos >> FIXED_POINT_SHIFT;
+            const uint32_t yFrac8 =
+                (yPos & FIXED_POINT_MASK) >> FRACTION_TO_8BIT_SHIFT;
+            uint32_t yH = yL + ADJACENT_PIXEL_OFFSET;
+            yH = (yH > max_y) ? max_y : yH;
+
+            const uint8_t* rowL = input + static_cast<size_t>(yL) * rowStride;
+            const uint8_t* rowH = input + static_cast<size_t>(yH) * rowStride;
+            uint8_t* outRow = output + static_cast<size_t>(i) * outRowStride;
+
+            uint32_t xPos = 0;
+            for (int j = 0; j < outputWidth; ++j) {
+                const uint32_t xL = xPos >> FIXED_POINT_SHIFT;
+                const uint32_t xFrac8 =
+                    (xPos & FIXED_POINT_MASK) >> FRACTION_TO_8BIT_SHIFT;
+                uint32_t xH = xL + ADJACENT_PIXEL_OFFSET;
+                xH = (xH > max_x) ? max_x : xH;
+
+                // Byte offsets for multi‑channel pixels
+                const size_t xL_off = static_cast<size_t>(xL) * colorDepthSz;
+                const size_t xH_off = static_cast<size_t>(xH) * colorDepthSz;
+                const size_t j_off = static_cast<size_t>(j) * colorDepthSz;
+
+                // Four neighboring multi‑channel pixels
+                const uint8_t* pLL = rowL + xL_off;
+                const uint8_t* pLH = rowL + xH_off;
+                const uint8_t* pHL = rowH + xL_off;
+                const uint8_t* pHH = rowH + xH_off;
+
+                // Interpolate each channel independently
+                for (size_t ch = 0; ch < colorDepthSz; ++ch) {
+                    outRow[j_off + ch] = interpolatePixel(
+                        pLL[ch], pLH[ch], pHL[ch], pHH[ch], xFrac8, yFrac8);
+                }
+                xPos += xStep;
+            }
+            yPos += yStep;
+        }
+    }
 }
 
 static void rgbToGray(uint8_t* buffer, int width, int height) {
@@ -174,7 +370,7 @@ static bool tinyMLclassify(size_t (RESIZE_DIM) {
   if (RESIZE_DIM != EI_CLASSIFIER_INPUT_WIDTH) {
     size_t tempSize = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT * colorDepth;
     uint8_t* tempBuff = (uint8_t*)ps_malloc(tempSize);
-    rescaleImage(currBuff, RESIZE_DIM, RESIZE_DIM, tempBuff, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+    rescaleImage(currBuff, RESIZE_DIM, RESIZE_DIM, tempBuff, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT, colorDepth);
     memcpy(currBuff, tempBuff, tempSize);
     free(tempBuff);
   }
@@ -261,7 +457,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   static uint8_t* changeMap = (uint8_t*)ps_malloc(RESIZE_DIM_SQ * RGB888_BYTES);
   
   dTime = millis();
-  rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM);
+  rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM, colorDepth);
   LOG_VRB("Bitmap rescale to %u bytes in %lums", resizeDimLen, millis() - dTime);
   
   // compare each pixel in current frame with previous frame 
