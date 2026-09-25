@@ -538,8 +538,8 @@ If multiple streams are enabled they need to be processed by an intermediate too
 
 ## WebDAV
 
-A simple WebDAV server is included. A WebDAV client such as Windows 10 File Explorer can be used to access and manage the SD card content. In a folder's address bar enter `<ip_address>/webdav`, eg `192.168.1.132/webdav`  
-For Windows 11, Android, MacOS, Linux see `webDav.cpp` file.
+A simple WebDAV server is included. A WebDAV client such as Windows File Explorer or a browser can be used to access and manage the SD card content. In the address bar enter `\\<ip_address>\webdav`, eg `\\192.168.1.132\webdav`  
+For Android, MacOS, Linux see `webDav.cpp` file.
 
 To incorporate, set `#define INCLUDE_WEBDAV` to `true`
 
