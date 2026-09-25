@@ -1,6 +1,6 @@
 // Provides web server for user control of app
 // 
-// s60sc 2022 - 2023
+// s60sc 2022 - 2026      
 
 #include "appGlobals.h"
 
@@ -26,14 +26,15 @@ esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {
   // use chunked encoding to send large content to browser
   size_t chunksize = 0;
   esp_err_t res = ESP_OK;
-  while ((chunksize = df.read(chunk, CHUNKSIZE))) {
-    res = httpd_resp_send_chunk(req, (char*)chunk, chunksize);
+  const size_t sendBlockSize = 1024; // fit cleanly within 1 TCP MSS for lwIP flow control
+  while ((chunksize = df.read(chunk, sendBlockSize))) {
+  	res = httpd_resp_send_chunk(req, (char*)chunk, chunksize);
     if (res != ESP_OK) break;
     // httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
   } 
   if (endChunking) {
     df.close();
-    httpd_resp_sendstr_chunk(req, NULL);
+    if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
   }
   if (res != ESP_OK) LOG_WRN("Failed to send to browser: %s, err %s", inFileName, espErrMsg(res));
   return res;
@@ -75,8 +76,8 @@ esp_err_t fileHandler(httpd_req_t* req, bool download) {
 static void displayLog(httpd_req_t *req) {
   // output ram log to browser
   if (logType == 0) {
-    int startPtr, endPtr;
-    startPtr = endPtr = mlogEnd;  
+    int startPtr = getLogStartPtr(mlogEnd);
+    int endPtr = mlogEnd;   
     httpd_resp_set_type(req, "text/plain"); 
     
     // output log in chunks
@@ -93,13 +94,13 @@ static void displayLog(httpd_req_t *req) {
 
 bool checkAuth(httpd_req_t* req) {
   // check if authentication is required
-  if (strlen(Auth_Name)) {
+  if (Auth_Name[0] && Auth_Pass[0]) {
     // authentication required
     size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
     char credentials[credLen];
     snprintf(credentials, credLen, "%s:%s", Auth_Name, Auth_Pass);
     const char* encodedCreds = encode64(credentials);
-    size_t expectedLen = strlen("Basic ") + strlen(encodedCreds) + 1;
+    size_t expectedLen = (sizeof("Basic ") - 1) + strlen(encodedCreds) + 1;
     char expectedAuth[expectedLen];
     snprintf(expectedAuth, expectedLen, "Basic %s", encodedCreds);
     size_t authHdrLen = httpd_req_get_hdr_value_len(req, "Authorization");
@@ -124,11 +125,21 @@ bool checkAuth(httpd_req_t* req) {
   return true; // authentication ok or not required
 }
 
+bool isPathTraversal(const char* path) {
+  if (!path) return false;
+  return strstr(path, "../") || strstr(path, "..\\") ||
+         strstr(path, "/..") || strstr(path, "\\..") ||
+         !strcmp(path, "..");
+}
+
 static esp_err_t indexHandler(httpd_req_t* req) {
   strcpy(inFileName, INDEX_PAGE_PATH);
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  // first check if a startup failure needs to be reported
-  if (strlen(startupFailure)) {
+  if (isPathTraversal(inFileName)) {
+    LOG_WRN("Path traversal attempt detected in index: %s", inFileName);
+    httpd_resp_send_404(req);
+    return ESP_FAIL;
+  }  // first check if a startup failure needs to be reported
+  if (startupFailure[0]) {
     httpd_resp_set_type(req, "text/html");
     httpd_resp_sendstr_chunk(req, failPageS_html);
     httpd_resp_sendstr_chunk(req, startupFailure);
@@ -146,12 +157,12 @@ static esp_err_t indexHandler(httpd_req_t* req) {
   return fileHandler(req);
 }
 
-esp_err_t extractHeaderVal(httpd_req_t *req, const char* variable, char* value) {
+esp_err_t extractHeaderVal(httpd_req_t *req, const char* variable, char* value, size_t valueSize) {
   // check if header field present, if so extract value
   esp_err_t res = ESP_FAIL;
   size_t hdrFieldLen = httpd_req_get_hdr_value_len(req, variable);
   if (!hdrFieldLen) return ESP_ERR_INVALID_ARG; // header not present
-  else if (hdrFieldLen >= IN_FILE_NAME_LEN - 1) LOG_WRN("Field %s value too long (%d)", variable, hdrFieldLen);
+  else if (hdrFieldLen >= valueSize - 1) LOG_WRN("Field %s value too long (%d)", variable, hdrFieldLen);
   else {
     res = httpd_req_get_hdr_value_str(req, variable, value, hdrFieldLen + 1);
     if (res != ESP_OK) LOG_ERR("Value for %s could not be retrieved: %s", variable, espErrMsg(res));
@@ -159,17 +170,32 @@ esp_err_t extractHeaderVal(httpd_req_t *req, const char* variable, char* value) 
   return res;
 }
 
-esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value) {
+esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value, size_t valueSize) {
   // get variable and value pair from URL query
   size_t queryLen = httpd_req_get_url_query_len(req) + 1;
+  if (queryLen > FILE_NAME_LEN) {
+    LOG_ERR("Query string too long");
+    httpd_resp_set_status(req, "400 Invalid query string");
+    httpd_resp_sendstr(req, NULL);
+    return ESP_FAIL;
+  }
   httpd_req_get_url_query_str(req, variable, queryLen);
-  urlDecode(variable);
   // extract key 
   char* endPtr = strchr(variable, '=');
   if (endPtr != NULL) {
     *endPtr = 0; // split variable into 2 strings, first is key name
-    strcpy(value, endPtr + 1); // value is now second part of string
+    strncpy(value, endPtr + 1, valueSize - 1); // value is now second part of string, avoiding redundant strlen
+    value[valueSize - 1] = 0; // ensure null termination
+    urlDecode(variable);
+    urlDecode(value);
+    if (isPathTraversal(variable) || isPathTraversal(value)) {
+      LOG_WRN("Path traversal attempt detected in query string");
+      httpd_resp_set_status(req, "400 Bad Request");
+      httpd_resp_sendstr(req, "Path traversal not allowed");
+      return ESP_FAIL;
+    }  
   } else {
+  	urlDecode(variable);
     LOG_ERR("Invalid query string %s", variable);
     httpd_resp_set_status(req, "400 Invalid query string");
     httpd_resp_sendstr(req, NULL);
@@ -179,11 +205,29 @@ esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value) {
 }
 
 static esp_err_t webHandler(httpd_req_t* req) {
+  if (!checkAuth(req)) return ESP_OK;
   // return required web page or component to browser using filename from query string
   size_t queryLen = httpd_req_get_url_query_len(req) + 1;
+  if (queryLen > FILE_NAME_LEN) {
+    LOG_ERR("Query string too long");
+    httpd_resp_set_status(req, "400 Invalid query string");
+    httpd_resp_sendstr(req, NULL);
+    return ESP_FAIL;
+  }
   httpd_req_get_url_query_str(req, variable, queryLen);
   urlDecode(variable);
 
+  // Strip query parameters for cache busting (e.g. common.js?v=41)
+  char* qmark = strchr(variable, '?');
+  if (qmark != NULL) *qmark = '\0';
+  char* ampersand = strchr(variable, '&');
+  if (ampersand != NULL) *ampersand = '\0';
+
+  if (isPathTraversal(variable)) {
+    LOG_WRN("Path traversal attempt detected in URL query: %s", variable);
+    httpd_resp_send_404(req);
+    return ESP_FAIL;
+  }
   // check file extension to determine required processing before response sent to browser
   size_t varLen = strlen(variable);
   if (!strcmp(variable, "OTA.htm")) {
@@ -209,8 +253,20 @@ static esp_err_t webHandler(httpd_req_t* req) {
     // any svg file
     httpd_resp_set_type(req, "image/svg+xml");
   } else LOG_WRN("Unknown file type %s", variable);  
+
+  if (isPathTraversal(variable)) {
+    LOG_WRN("Path traversal attempt detected before formatting: %s", variable);
+    httpd_resp_send_404(req);
+    return ESP_FAIL;
+  }
+  
   int dlen = snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, variable);               
   if (dlen >= IN_FILE_NAME_LEN) LOG_WRN("file name truncated");
+  if (isPathTraversal(inFileName)) {
+    LOG_WRN("Path traversal attempt detected in formatted path: %s", inFileName);
+    httpd_resp_send_404(req);
+    return ESP_FAIL;
+  }
   return fileHandler(req);
 }
 
@@ -218,25 +274,37 @@ static esp_err_t controlHandler(httpd_req_t *req) {
   // process control query from browser 
   // obtain details from query string
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  if (extractQueryKeyVal(req, variable, value) != ESP_OK) return ESP_FAIL;
-  if (!strcmp(variable, "displayLog")) displayLog(req);
-  else {
-    if (!strcmp(variable, "reset")) {
-      httpd_resp_sendstr(req, NULL); // stop browser resending reset
-      doRestart(value); 
-      return ESP_OK;
-    }
-    if (!strcmp(variable, "startOTA")) snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, value); 
-    else {
-      // if not handled by appSpecificWebHandler(), try updateStatus()
-      if (appSpecificWebHandler(req, variable, value) == ESP_FAIL) updateStatus(variable, value);
-    }
+  if (!checkAuth(req)) return ESP_OK;
+  if (extractQueryKeyVal(req, variable, value, sizeof(value)) != ESP_OK) return ESP_FAIL;
+  if (!strcmp(variable, "displayLog")) {
+    displayLog(req);
+    return ESP_OK;
+  }    
+  if (!strcmp(variable, "reset")) {
+    httpd_resp_sendstr(req, NULL); // stop browser resending reset
+    doRestart(value); 
+    return ESP_OK;
   }
-  httpd_resp_sendstr(req, NULL); 
+  if (!strcmp(variable, "startOTA")) {
+    if (strstr(value, "..") != NULL || strchr(value, '/') != NULL || strchr(value, '\\') != NULL) {
+      LOG_WRN("Path traversal attempt in startOTA: %s", value);
+      httpd_resp_send_404(req);
+      return ESP_FAIL;
+    }
+    snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, value);
+    httpd_resp_sendstr(req, NULL);
+    return ESP_OK;
+  }
+  // if not handled by appSpecificWebHandler(), try updateStatus()
+  if (appSpecificWebHandler(req, variable, value) == ESP_FAIL) {
+    updateStatus(variable, value);
+    httpd_resp_sendstr(req, NULL);
+  }  
   return ESP_OK;
 }
 
 static esp_err_t statusHandler(httpd_req_t *req) {
+  if (!checkAuth(req)) return ESP_OK;
   uint8_t filter = (uint8_t)httpd_req_get_url_query_len(req); // filter number is length of query string
   buildJsonString(filter);
   httpd_resp_set_type(req, "application/json");
@@ -277,8 +345,9 @@ bool parseJson(int rxSize) {
 }
 
 static esp_err_t sseHandler(httpd_req_t *req) {
+  if (!checkAuth(req)) return ESP_OK;
   // enable Server Sent Events
-  const char* sseHeader = "HTTP/1.1 200 OK\r\n"
+  const char sseHeader[] = "HTTP/1.1 200 OK\r\n"
                           "Cache-Control: no-store\r\n"
                           "Connection: keep-alive\r\n"
                           "Content-Type: text/event-stream\r\n\r\n";
@@ -294,10 +363,11 @@ void sendSSE(const char* eventType, const char* eventData) {
   // send event data to browser
   if (sseSocketFD > 0) {
     char eventMsg[30];
-    snprintf(eventMsg, 30 - 1, "event: %s\ndata: ", eventType);
-    int res = httpd_socket_send(sseSocketHD, sseSocketFD, eventMsg, strlen(eventMsg), 0);
+    int msgLen = snprintf(eventMsg, sizeof(eventMsg), "event: %s\ndata: ", eventType);
+    if (msgLen >= sizeof(eventMsg)) msgLen = sizeof(eventMsg) - 1;
+    int res = httpd_socket_send(sseSocketHD, sseSocketFD, eventMsg, msgLen, 0);
     res = httpd_socket_send(sseSocketHD, sseSocketFD, eventData, strlen(eventData), 0);
-    res = httpd_socket_send(sseSocketHD, sseSocketFD, SSESEP, strlen(SSESEP), 0);
+    res = httpd_socket_send(sseSocketHD, sseSocketFD, SSESEP, (sizeof(SSESEP) - 1), 0);
     if (res == HTTPD_SOCK_ERR_TIMEOUT) LOG_WRN("Timeout/interrupted while using socket");
     if (res == HTTPD_SOCK_ERR_FAIL) LOG_WRN("Unrecoverable error while using socket");
     if (res == HTTPD_SOCK_ERR_INVALID) LOG_WRN("Invalid arguments %s, %s", eventType, eventData);
@@ -305,6 +375,7 @@ void sendSSE(const char* eventType, const char* eventData) {
 }
 
 static esp_err_t updateHandler(httpd_req_t *req) {
+  if (!checkAuth(req)) return ESP_OK;
   // bulk update of config, extract key pairs from received json string
   size_t rxSize = min(req->content_len, (size_t)JSON_BUFF_LEN);
   int ret = 0;
@@ -327,12 +398,19 @@ void progress(size_t prg, size_t sz) {
 }
 
 esp_err_t uploadHandler(httpd_req_t *req) {
+  if (!checkAuth(req)) return ESP_OK;
   // upload file for storage or firmware update
   esp_err_t res = ESP_OK;
   size_t fileSize = req->content_len;
   size_t rxSize = min(fileSize, (size_t)JSON_BUFF_LEN);
   int bytesRead = -1;
   LOG_INF("Upload file %s", inFileName);
+  
+  if (isPathTraversal(inFileName)) {
+    LOG_WRN("Path traversal attempt detected in upload: %s", inFileName);
+    httpd_resp_send_404(req);
+    return ESP_FAIL;
+  }
   
   if (strstr(inFileName, ".bin") != NULL) {
     // partition update - sketch or SPIFFS
@@ -397,6 +475,7 @@ esp_err_t uploadHandler(httpd_req_t *req) {
 }
 
 static esp_err_t setupHandler(httpd_req_t *req) {
+  if (!checkAuth(req)) return ESP_OK;
   // Scan for WiFi networks
   int w = (netMode == 0) ? WiFi.scanNetworks() : 0;
   // Start building the JSON string
@@ -416,6 +495,7 @@ static esp_err_t setupHandler(httpd_req_t *req) {
   httpd_resp_sendstr(req, jsonBuff);
   return ESP_OK;
 }
+
 
 static esp_err_t sendCrossOriginHeader(httpd_req_t *req) {
   // prevent CORS from blocking request
@@ -480,6 +560,7 @@ static esp_err_t wsHandler(httpd_req_t *req) {
   // page on the newer connection may need to be manually refreshed to take over the log
   esp_err_t ret = ESP_OK;
   if (req->method == HTTP_GET) {
+    if (!checkAuth(req)) return ESP_OK;
     // websocket connection request from browser client
     if (fdWs != -1) {
       if (fdWs != httpd_req_to_sockfd(req)) {
@@ -502,7 +583,10 @@ static esp_err_t wsHandler(httpd_req_t *req) {
     wsPkt.payload = wsMsg;
     ret = httpd_ws_recv_frame(req, &wsPkt, MAX_PAYLOAD_LEN); 
     if (ret == ESP_OK) {
-      if (wsPkt.len >= MAX_PAYLOAD_LEN) LOG_ERR("websocket payload too long %d", wsPkt.len);
+      if (wsPkt.len >= MAX_PAYLOAD_LEN) {
+        LOG_ERR("websocket payload too long %d", wsPkt.len);
+        return ESP_FAIL;
+      }
       wsMsg[wsPkt.len] = 0; // terminator
       if (wsPkt.type == HTTPD_WS_TYPE_BINARY && wsPkt.len) appSpecificWsBinHandler(wsMsg, wsPkt.len);
       else if (wsPkt.type == HTTPD_WS_TYPE_TEXT) appSpecificWsHandler((const char*)wsMsg);
@@ -532,10 +616,10 @@ static void https_server_user_callback(esp_https_server_user_cb_arg_t *user_cb) 
 
 static esp_err_t customOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err) {
   // either handle WebDAV methods or report non existent URI
-  if (req->method == HTTP_OPTIONS) sendCrossOriginHeader(req);
 #if INCLUDE_WEBDAV
   if (strncmp(req->uri, WEBDAV, strlen(WEBDAV)) == 0) return handleWebDav(req) ? ESP_OK : ESP_FAIL;
 #endif
+  if (req->method == HTTP_OPTIONS) sendCrossOriginHeader(req);
   // For any other URI send 404 and close socket
   httpd_resp_send_404(req);
   return ESP_FAIL;
@@ -584,6 +668,8 @@ bool startWebServer() {
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     config.task_priority = HTTP_PRI;
     //config.uri_match_fn = httpd_uri_match_wildcard;
+    config.send_wait_timeout = 3;
+    config.recv_wait_timeout = 5;
     res = httpd_start(&httpServer, &config);
   }
   httpd_uri_t indexUri = {.uri = "/", .method = HTTP_GET, .handler = indexHandler, .user_ctx = NULL};
@@ -614,6 +700,9 @@ bool startWebServer() {
 
     LOG_INF("Starting web server on port: %u", useHttps ? HTTPS_PORT : HTTP_PORT);
     LOG_INF("Remote server certificates %s checked", useSecure ? "are" : "not");
+  #if INCLUDE_WEBDAV
+    LOG_INF("Webdav server available");
+  #endif
     if (DEBUG_MEM) {
       uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
       LOG_INF("Task httpServer stack space %lu", freeStack);
@@ -621,7 +710,7 @@ bool startWebServer() {
   } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to start webserver %s", espErrMsg(res));
   if (!DBG_ON) esp_log_level_set("*", ESP_LOG_NONE); // suppress ESP_LOG_ERROR messages
   debugMemory("startWebserver");
-  if (strlen(startupFailure)) {
+  if (startupFailure[0]) {
     LOG_WRN("%s", startupFailure);
     return false;
   }

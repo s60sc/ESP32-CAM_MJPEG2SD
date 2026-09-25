@@ -1,10 +1,13 @@
 
 /*
   Using the WebDAV server:
-    Windows 10:
-    - Windows file explorer, in address bar enter: <ip_address>/webdav
-    - Map Network Drive, connect to: \\<ip_address>\webdav
-    Windows 11:
+    Windows 10 / 11:
+    - Ensure windows webdav service is running:
+        Open command window as administrator
+        Enter: sc query WebClient
+        If not running, enter: net start WebClient
+    - Windows file explorer - in address bar enter: \\<ip_address>\webdav
+    - Browser - in address bar enter: \\<ip_address>\webdav
     - Map Network Drive:
       - connect to: \\<ip_address>\webdav
       - Click on the link “Connect to a web site that you can use to store your documents and pictures.”
@@ -31,7 +34,7 @@
 #include "appGlobals.h"
 
 #if INCLUDE_WEBDAV
-#define ALLOW "PROPPATCH,PROPFIND,OPTIONS,DELETE,MOVE,COPY,HEAD,POST,PUT,GET"
+#define ALLOW "OPTIONS,PROPFIND,PROPPATCH,LOCK,UNLOCK,MKCOL,DELETE,MOVE,COPY,HEAD,PUT,GET"
 #define XML1 "<?xml version=\"1.0\" encoding=\"utf-8\"?><D:multistatus xmlns:D=\"DAV:\">"
 #define XML2 "<D:response xmlns:D=\"DAV:\"><D:href>"
 #define XML3 "</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop>"
@@ -109,10 +112,10 @@ static void sendPropResponse(File& file, const char* payload) {
   }
   sendContentProp("displayname", file.name());
 
-  if (strlen(payload)) {
+  if (payload[0]) {
     // return quota data if requested
     if (strstr(payload, "quota-available-bytes") != NULL || strstr(payload, "quota-used-bytes") != NULL) {
-      char numberStr[15];
+      char numberStr[24];
       sprintf(numberStr, "%llu", (uint64_t)STORAGE.totalBytes() - (uint64_t)STORAGE.usedBytes());
       sendContentProp("quota-available-bytes", numberStr);
       sprintf(numberStr, "%llu", (uint64_t)STORAGE.usedBytes());
@@ -153,7 +156,7 @@ static bool handleProp() {
   // get depth header
   bool depth = false;
   char value[10];
-  if (extractHeaderVal(req, "Depth", value) == ESP_OK) depth = (!strcmp(value, "0")) ? false : true;
+  if (extractHeaderVal(req, "Depth", value, sizeof(value)) == ESP_OK) depth = (!strcmp(value, "0")) ? false : true;
 
   // get request payload content if present
   char payload[req->content_len + 1] = {0};
@@ -179,6 +182,20 @@ static bool handleProp() {
   root.close();
   httpd_resp_sendstr_chunk(req, "</D:multistatus>");
   httpd_resp_sendstr_chunk(req, NULL);
+  return true;
+}
+
+static bool handlePropPatch() {
+  // ignore
+  httpd_resp_set_status(req, "207 Multi-Status");
+  httpd_resp_set_type(req, "application/xml; charset=utf-8");
+
+  const char* response =
+      "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+      "<D:multistatus xmlns:D=\"DAV:\">"
+      "</D:multistatus>";
+
+  httpd_resp_sendstr(req, response);
   return true;
 }
 
@@ -282,11 +299,15 @@ static bool checkSamePath(const char *source_path, const char *dest_path) {
 static bool handleMove() {
   // rename file or folder, or change file location
   bool res = false;
-  char dest[100];
-  if (extractHeaderVal(req, "Destination", dest) == ESP_OK) {
+  char dest[IN_FILE_NAME_LEN];
+  if (extractHeaderVal(req, "Destination", dest, sizeof(dest)) == ESP_OK) {
     // obtain destination filename
     res = true;
     urlDecode(dest);
+    if (isPathTraversal(dest)) {
+      httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Path traversal not allowed");
+      return false;
+    }
     char* pos = strstr(dest, WEBDAV);
     if (!pos) {
       httpd_resp_send_404(req);
@@ -318,21 +339,33 @@ static bool handleCopy() {
 bool handleWebDav(httpd_req_t* rreq) {
   // extract method to determine which WebDAV action to take
   req = rreq;
-  sprintf(pathName, "%s", req->uri + strlen(WEBDAV)); // strip out "/webdav"
-  if (pathName[strlen(pathName) - 1] == '/') pathName[strlen(pathName) - 1] = 0; // remove final / if present
-  if (!strlen(pathName)) strcpy(pathName, "/"); // if pathname empty, use single /
-  urlDecode(pathName);
   // common response header
   httpd_resp_set_hdr(req, "DAV", "1");
   httpd_resp_set_hdr(req, "Allow", ALLOW);
 
+  if (req->method == HTTP_OPTIONS) return handleOptions(); // supported options
+ 
+  snprintf(pathName, sizeof(pathName), "%s", req->uri + (sizeof(WEBDAV) - 1)); // strip out "/webdav"
+  size_t pathLen = strlen(pathName);
+  if (pathLen > 0 && pathName[pathLen - 1] == '/') {
+    pathName[pathLen - 1] = 0; // remove final / if present
+    pathLen--;
+  }
+  if (!pathLen) strcpy(pathName, "/"); // if pathname empty, use single /
+  urlDecode(pathName);
+  if (isPathTraversal(pathName)) {
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Path traversal not allowed");
+    return false;
+  }
+
+  if (req->method != HTTP_OPTIONS && !checkAuth(req)) return false;
+
   switch(req->method) {
     case HTTP_PUT: return handlePut(); // file create/uploads
     case HTTP_PROPFIND: return handleProp(); // get file or directory properties
-    case HTTP_PROPPATCH: return handleProp(); // set file or directory properties
+    case HTTP_PROPPATCH: return handlePropPatch(); // property mod request
     case HTTP_GET: return handleGet(); // file downloads
     case HTTP_HEAD: return handleHead(); // file properties
-    case HTTP_OPTIONS: return handleOptions(); // supported options
     case HTTP_LOCK: return handleLock(); // open file lock
     case HTTP_UNLOCK: return handleUnlock(); // close file lock
     case HTTP_MKCOL: return handleMkdir(); // folder creation

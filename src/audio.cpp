@@ -162,7 +162,7 @@ static void applyMicGain(size_t bytesRead) {
     int shift = gainSteps;
     if (shift > 8) shift = 8; // limit maximum amplification (adjust as appropriate)
     for (int i = 0; i < samples; i++) {
-      int32_t v = (int32_t)sampleBuffer[i] << shift;
+      int32_t v = (int32_t)sampleBuffer[i] * (1 << shift);
       sampleBuffer[i] = (int16_t)constrain(v, SHRT_MIN, SHRT_MAX);
     }
   } else {

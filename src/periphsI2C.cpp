@@ -35,7 +35,7 @@ static bool deviceStatus[128] = {false}; // whether device present
 static const char* clientName[128] = {
   "", "", "", "", "", "", "", "", "", "", "", "", "AK8963", "", "", "",
   "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PY260",
-  "", "", "", "", "", "", "", "LCD1602", "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "LCD1602", "", "VL531LX", "", "", "", "", "", "",
   "OV2640", "", "", "", "", "", "", "", "", "", "", "", "OV5640/SSD1306", "SSD1306", "", "",
   "", "", "", "", "", "", "", "", "PCF8591", "", "", "", "", "", "", "",
   "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
@@ -85,7 +85,7 @@ static bool getI2Cdata (uint8_t clientAddr, uint8_t controlByte, uint8_t numByte
   if (sendTransmission(clientAddr, false)) {
     // get required number of bytes
     Wire.requestFrom (clientAddr, numBytes);
-    for (int i=0; i<numBytes; i++) I2CDATA[i] = Wire.read();
+    Wire.readBytes(I2CDATA, numBytes);
     return sendTransmission(clientAddr, false);
   } 
   return false; 
@@ -278,7 +278,7 @@ static float getSeaLevelPressure() {
     }
     remoteServerClose(hclient);
   }
-  return strlen(jsonVal) ? atof(jsonVal) : STD_PRESSURE; // in hPa / mbars
+  return jsonVal[0] ? atof(jsonVal) : STD_PRESSURE; // in hPa / mbars
 }
 
 static bool setupBMx() {
@@ -470,7 +470,7 @@ static float getMagneticDeclination() {
     }
     remoteServerClose(hclient);
   }
-  return strlen(jsonVal) ? sign * angle : LOCAL_MAG_DECLINATION; // in degrees
+  return jsonVal[0] ? sign * angle : LOCAL_MAG_DECLINATION; // in degrees
 }
 
 static void updateMPU9250data() {

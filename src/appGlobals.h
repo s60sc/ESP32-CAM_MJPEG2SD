@@ -26,8 +26,8 @@
 #endif
 #include "camera_pins.h"
 
-#define APP_VER "10.9.6"
-#define CFG_VER 40 // to determine if newer data files need to be loaded
+#define APP_VER "10.9.7"
+#define CFG_VER 41 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
@@ -111,7 +111,8 @@
 #define PING_STACK_SIZE (1024 * 3)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
 #define SERVO_STACK_SIZE (1024 * 1)
-#define SUSTAIN_STACK_SIZE (1024 * 4)
+#define SUSTAIN0_STACK_SIZE (1024 * 5)
+#define SUSTAINn_STACK_SIZE (1024 * 3)
 #define TGRAM_STACK_SIZE (1024 * 6)
 #define TELEM_STACK_SIZE (1024 * 4)
 #define HB_STACK_SIZE (1024 * 2)
@@ -231,6 +232,7 @@ void storeSensorData(bool fromStream);
 void takePhotos(bool startPhotos);
 void trackSteeering(int controlVal, bool steering);
 size_t updateWavHeader();
+bool waitForFrame();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
 bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);

@@ -70,7 +70,7 @@ void reloadConfigs() {
 #endif
 }
 
-static int getKeyPos(const std::string thisKey) {
+static int getKeyPos(const std::string& thisKey) {
   // get location of given key to retrieve other elements
   if (configs.empty()) return -1;
   auto lower = std::lower_bound(configs.begin(), configs.end(), thisKey, [](

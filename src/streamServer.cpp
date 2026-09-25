@@ -8,6 +8,8 @@
 // s60sc 2022 - 2025
 
 #include "appGlobals.h"
+#include <lwip/sockets.h>
+#include <errno.h>
 
 // stream separator
 #define STREAM_CONTENT_TYPE "multipart/x-mixed-replace;boundary=" BOUNDARY_VAL
@@ -40,12 +42,6 @@ struct httpd_sustain_req_t {
   bool inUse = false; 
 };
 httpd_sustain_req_t sustainReq[MAX_STREAMS];
-
-#if INCLUDE_RTSP
-static const bool includeRTSP = true;
-#else
-static const bool includeRTSP = false;
-#endif
 
 static void showPlayback(httpd_req_t* req) {
   // output playback file to browser
@@ -120,13 +116,35 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
   char hdrBuf[HDR_BUF_LEN];
+  int sockfd = httpd_req_to_sockfd(req);
+  uint32_t consecutiveTimeouts = 0;
   while (isStreaming[taskNum]) {
     // stream from camera at current frame rate
     if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
       // failed to take semaphore, allow retry
       streamBufferSize[taskNum] = 0;
+      consecutiveTimeouts++;
+
+      // Check if client socket is still connected
+      if (sockfd >= 0) {
+        char probe;
+        int r = recv(sockfd, &probe, 1, MSG_PEEK | MSG_DONTWAIT);
+        if (r == 0 || (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+          LOG_VRB("Stream client disconnected (sockfd %d, r=%d, errno=%d)", sockfd, r, errno);
+          isStreaming[taskNum] = false;
+          break;
+        }
+      }
+
+      // If haven't received a frame for 10 consecutive timeouts (~12s)
+      if (consecutiveTimeouts >= 10) {
+        LOG_WRN("Stream task %u stalled: 10 consecutive frame timeouts, aborting stream", taskNum);
+        isStreaming[taskNum] = false;
+        break;
+      }
       continue;
     }
+    consecutiveTimeouts = 0;
     if (dbgMotion && !taskNum) {
       // motion tracking stream on task 0 only, wait for new move mapping image
       if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
@@ -233,6 +251,7 @@ static void srtStream(httpd_req_t* req, uint8_t taskNum) {
 
 void stopSustainTask(int taskId) {
   isStreaming[taskId] = false;
+  if (taskId < vidStreams && frameSemaphore[taskId] != NULL) xSemaphoreGive(frameSemaphore[taskId]);
 }
 
 static void sustainTask(void* p) {
@@ -274,8 +293,9 @@ void startSustainTasks() {
 
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
-    if (includeRTSP && i > 0) continue; // as RTSP tasks created in rtsp.cpp
-    xTaskCreateWithCaps(sustainTask, "sustainTask", SUSTAIN_STACK_SIZE, &sustainReq[i].taskNum, SUSTAIN_PRI, &sustainHandle[i], STACK_MEM); 
+    if (rtspVideo && i > 0) continue; // as RTSP tasks created in rtsp.cpp
+    uint16_t streamStackSize = i == 0 ? SUSTAIN0_STACK_SIZE : SUSTAINn_STACK_SIZE;
+    xTaskCreateWithCaps(sustainTask, "sustainTask", streamStackSize, &sustainReq[i].taskNum, SUSTAIN_PRI, &sustainHandle[i], STACK_MEM); 
   }
   
   LOG_INF("Started %d sustain tasks", numStreams);
@@ -288,18 +308,17 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
   if (checkAuth(req)) { 
     // handle long running request as separate task
     // obtain details from query string
-    if (extractQueryKeyVal(req, variable, value) == ESP_OK) {
+    if (extractQueryKeyVal(req, variable, value, sizeof(value)) == ESP_OK) {
       // playback, download, web streaming uses task 0
       // remote streaming eg video uses task 1, audio task 2, srt task 3
       uint8_t taskNum = 99;
       if (!strcmp(variable, "download")) taskNum = 0;
       else if (!strcmp(variable, "playback")) taskNum = 0;
       else if (!strcmp(variable, "stream")) taskNum = 0;
-      else if (!strcmp(variable, "video")) taskNum = 1;
-      else if (!strcmp(variable, "audio")) taskNum = 2;
-      else if (!strcmp(variable, "srt")) taskNum = 3;
+      else if (!strcmp(variable, "video") && !rtspVideo) taskNum = 1;
+      else if (!strcmp(variable, "audio") && !rtspVideo) taskNum = 2;
+      else if (!strcmp(variable, "srt") && !rtspVideo) taskNum = 3;
       // http(s) streams not available if RTSP being used
-      if (includeRTSP && taskNum > 0) taskNum = 99;
       if (taskNum < numStreams) {
         if (taskNum == 0) {
           if (req->method == HTTP_HEAD) { 
@@ -309,8 +328,9 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
               if (!strcmp(variable, "stream")) {
                 isStreaming[taskNum] = false;
                 if (!taskNum) doPlayback = false; // only for task 0
-                delay(END_WAIT + 100);
-              }
+                if (taskNum < vidStreams && frameSemaphore[taskNum] != NULL) xSemaphoreGive(frameSemaphore[taskNum]);
+                for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
+               }
             } 
             if (sustainReq[taskNum].inUse) {
               LOG_WRN("Task %d not free", taskNum);
@@ -328,12 +348,17 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
           if (taskNum < MAX_STREAMS) {
             if (sustainReq[taskNum].inUse) {
               isStreaming[taskNum] = false;
-              delay(END_WAIT + 100);
+              if (taskNum < vidStreams && frameSemaphore[taskNum] != NULL) xSemaphoreGive(frameSemaphore[taskNum]);
+              for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
             }
           }
         }
             
         // action request if task available
+        if (sustainReq[taskNum].inUse && taskNum == 0 && !strcmp(variable, "stream")) {
+          // If task 0 is in use when starting new stream, allow up to 2 seconds for previous stream to release
+          for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
+        }
         if (!sustainReq[taskNum].inUse) {
           // make copy of request data and pass request to task indexed by request
           uint8_t i = taskNum;
@@ -351,7 +376,7 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
         } else httpd_resp_set_status(req, "500 No free task");
       } else {
         if (taskNum < MAX_STREAMS) LOG_WRN("Task not created for stream: %s, numStreams %d", variable, numStreams);
-        else LOG_WRN("Invalid task id: %s", variable);
+        else LOG_WRN("Invalid: %s, as using RTSP", variable);
         httpd_resp_set_status(req, "400 Invalid url");
       }
     } else httpd_resp_set_status(req, "400 Bad URL");

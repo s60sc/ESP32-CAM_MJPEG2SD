@@ -378,8 +378,8 @@ static bool closeAvi() {
 #if INCLUDE_SMTP
       if (smtpUse) {
         // send email with movement image
-        char subjectMsg[50];
-        snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s, in %s", hostName, aviFileName);
+        char subjectMsg[100];
+        snprintf(subjectMsg, sizeof(subjectMsg) - 1, "from %s, in file %s", hostName, aviFileName);
         emailAlert("Motion Alert", subjectMsg);
       } 
 #endif
@@ -412,8 +412,30 @@ static boolean processFrame() {
   bool res = true;
   uint32_t dTime = millis();
 
+  static uint32_t nullFbCount = 0;
   camera_fb_t* fb = esp_camera_fb_get();
-  if (fb == NULL || !fb->len || fb->len > maxFrameBuffSize) return false;
+  if (fb == NULL) {
+  	// reset camera for possible freeze if failing to return frames
+    nullFbCount++;
+    if (nullFbCount >= 50 && (nullFbCount % 50 == 0)) {
+      LOG_WRN("Camera fb_get returned NULL (%u consecutive frames) - attempting sensor recovery", (unsigned int)nullFbCount);
+      sensor_t* s = esp_camera_sensor_get();
+      if (s != NULL && s->reset != NULL) {
+        s->reset(s);
+        char fsizePtrStr[4];
+        if (retrieveConfigVal("framesize", fsizePtrStr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtrStr)));
+        else s->set_framesize(s, FRAMESIZE_VGA);
+      }
+    }
+    return false;
+  }
+  nullFbCount = 0;
+
+  if (!fb->len || fb->len > maxFrameBuffSize) {
+    LOG_WRN("Invalid camera frame length: %u (max: %u)", (unsigned int)fb->len, (unsigned int)maxFrameBuffSize);
+    esp_camera_fb_return(fb);
+    return false;
+  }
   timeLapse(fb);
 
   for (int i = 0; i < vidStreams; i++) {
@@ -446,7 +468,6 @@ static boolean processFrame() {
   // process motion status
   if (haveMotion && !prevMotion) {
     // start of movement detection
-    keepFrame(fb);
 #if INCLUDE_PERIPH
     buzzerAlert(true); // sound buzzer if enabled
     if (lampAuto && nightTime) setLamp(lampLevel);  // switch on lamp if requested
@@ -791,6 +812,16 @@ bool prepRecording() {
   logLine();
   debugMemory("prepRecording");
   return true;
+}
+
+bool waitForFrame() {
+  // wait for kept frame to be available
+  uint32_t startTime = millis();
+  doKeepFrame = true;
+  while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) delay(100);
+  if (!doKeepFrame && alertBufferSize) return true;
+  LOG_WRN("Unable to fetch image");
+  return false;
 }
 
 void appShutdown() {

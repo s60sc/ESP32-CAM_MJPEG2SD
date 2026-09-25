@@ -215,13 +215,13 @@ bool checkFreeStorage() {
   return res;
 } 
 
-void setFolderName(const char* fname, char* fileName) {
+void setFolderName(const char* fname, char* fileName, size_t fileNameSize) {
   // set current or previous folder 
   char partName[FILE_NAME_LEN];
   if (strchr(fname, '~') != NULL) {
     if (!strcmp(fname, currentDir)) {
       dateFormat(partName, sizeof(partName), true);
-      strcpy(fileName, partName);
+      snprintf(fileName, fileNameSize, "%s", partName);
       LOG_INF("Current directory set to %s", fileName);
     }
     else if (!strcmp(fname, previousDir)) {
@@ -231,10 +231,10 @@ void setFolderName(const char* fname, char* fileName) {
       tm->tm_mday -= 1;
       time_t prev = mktime(tm);
       strftime(partName, sizeof(partName), "/%Y%m%d", localtime(&prev));
-      strcpy(fileName, partName);
+      snprintf(fileName, fileNameSize, "%s", partName);
       LOG_INF("Previous directory set to %s", fileName);
-    } else strcpy(fileName, ""); 
-  } else strcpy(fileName, fname);
+    } else fileName[0] = 0;
+  } else snprintf(fileName, fileNameSize, "%s", fname);
 }
 
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension) {
@@ -243,7 +243,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
   char partJson[200]; // used to build SD page json buffer
   bool noEntries = true;
   char fileName[FILE_NAME_LEN];
-  setFolderName(fname, fileName);
+  setFolderName(fname, fileName, sizeof(fileName));
 
   // check if folder or file
   if (strstr(fileName, extension) != NULL) {
@@ -256,7 +256,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     bool returnDirs = strlen(fileName) > 1 ? (strchr(fileName+1, '/') == NULL ? false : true) : true; 
     // open relevant folder to list contents
     File root = STORAGE.open(fileName);
-    if (strlen(fileName)) {
+    if (fileName[0]) {
       if (!root) LOG_WRN("Failed to open directory %s", fileName);
       else if (!root.isDirectory()) LOG_WRN("Not a directory %s", fileName);
       LOG_VRB("Retrieving %s in %s", returnDirs ? "folders" : "files", fileName);
@@ -294,7 +294,7 @@ bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* 
     for (const auto& fileInfo : fileVec) {
       size_t infoLen = fileInfo.length();
       if (buffLen + infoLen < jsonBuffLen) {
-        strcpy(jsonBuff + buffLen, fileInfo.c_str());
+        snprintf(jsonBuff + buffLen, jsonBuffLen - buffLen, "%s", fileInfo.c_str());
         buffLen += infoLen;
       } else {
         LOG_WRN("Too many folders/files to list %u+%u in %u bytes", buffLen, infoLen, jsonBuffLen);
@@ -322,7 +322,7 @@ static void deleteOthers(const char* baseFile) {
 void deleteFolderOrFile(const char* deleteThis) {
   // delete supplied file or folder, unless it is a reserved folder
   char fileName[FILE_NAME_LEN];
-  setFolderName(deleteThis, fileName);
+  setFolderName(deleteThis, fileName, sizeof(fileName));
   File df = STORAGE.open(fileName);
   if (!df) {
     LOG_WRN("Failed to open %s", fileName);
@@ -341,7 +341,7 @@ void deleteFolderOrFile(const char* deleteThis) {
     File file = df.openNextFile();
     while (file) {
       char filepath[FILE_NAME_LEN];
-      strcpy(filepath, file.path()); 
+      snprintf(filepath, sizeof(filepath), "%s", file.path());
       if (file.isDirectory()) LOG_INF("  DIR : %s", filepath);
       else {
         size_t fSize = file.size();
@@ -389,10 +389,10 @@ esp_err_t downloadFile(File& df, httpd_req_t* req) {
   esp_err_t res = ESP_OK;
   bool needZip = false;
   char downloadName[IN_FILE_NAME_LEN];
-  strcpy(downloadName, df.name());
+  snprintf(downloadName, sizeof(downloadName), "%s", df.name());
   size_t downloadSize = df.size();
   char fsSavePath[IN_FILE_NAME_LEN];
-  strcpy(fsSavePath, inFileName);
+  snprintf(fsSavePath, sizeof(fsSavePath), "%s", inFileName);
 #ifdef ISCAM
   changeExtension(fsSavePath, CSV_EXT);
   

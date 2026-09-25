@@ -66,11 +66,9 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
   else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
   else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal; 
-#if !INCLUDE_RTSP 
-  else if (!strcmp(variable, "streamVid")) streamVid = (bool)intVal; 
+  else if (!strcmp(variable, "streamVid")) streamVid = (bool)intVal;
   else if (!strcmp(variable, "streamAud")) streamAud = (bool)intVal; 
   else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
-#endif
   else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
 #endif // AUXILIARY
 #if INCLUDE_FTP_HFS
@@ -301,12 +299,14 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 static bool extractKeyVal(const char* wsMsg) {
   // extract key 
   strncpy(variable, wsMsg, FILE_NAME_LEN - 1); 
+  variable[FILE_NAME_LEN - 1] = 0;
   char* endPtr = strchr(variable, '=');
   if (endPtr != NULL) {
     *endPtr = 0; // split variable into 2 strings, first is key name
-    strcpy(value, endPtr + 1); // value is now second part of string
+    strncpy(value, endPtr + 1, FILE_NAME_LEN - 1); // value is now second part of string
+    value[FILE_NAME_LEN - 1] = 0; // ensure null termination
     return true;
-  } else LOG_ERR("Invalid query string: %s", wsMsg);
+  } else LOG_ERR("Invalid query string: %s", (char*)wsMsg);
   return false;
 } 
 
@@ -314,7 +314,8 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
   // update handling requiring response specific to mjpeg2sd
   if (!strcmp(variable, "sfile")) {
     // get folders / files on SD, save received filename if has required extension
-    strcpy(inFileName, value);
+    strncpy(inFileName, value, IN_FILE_NAME_LEN - 1);
+    inFileName[IN_FILE_NAME_LEN - 1] = 0;    
     if (!forceRecord) doPlayback = listDir(inFileName, jsonBuff, JSON_BUFF_LEN, AVI_EXT); // browser control
     else strcpy(jsonBuff, "{}");
     httpd_resp_set_type(req, "application/json");
@@ -329,16 +330,26 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
   else if (!strcmp(variable, "still") || !strcmp(variable, "hub")) {
     // send single jpeg to browser (local or hub)
     uint32_t startTime = millis();
-    doKeepFrame = true;
-    while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) delay(100);
-    if (!doKeepFrame && alertBufferSize) {
+    if (waitForFrame()) {
       httpd_resp_set_type(req, "image/jpeg");
       httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-      httpd_resp_send(req, (const char*)alertBuffer, alertBufferSize);
+      size_t remaining = alertBufferSize;
+      const char* p = (const char*)alertBuffer;
+      esp_err_t sendRes = ESP_OK;
+      while (remaining > 0) {
+        size_t toSend = std::min(remaining, (size_t)1024);
+        sendRes = httpd_resp_send_chunk(req, p, toSend);
+        if (sendRes != ESP_OK) break;
+        p += toSend;
+        remaining -= toSend;
+      }
+      if (sendRes == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
       uint32_t jpegTime = millis() - startTime;
-      LOG_INF("%s JPEG: %uB in %lums", frameData[fsizePtr].frameSizeStr, alertBufferSize, jpegTime);
+      LOG_INF("JPEG: %uB in %lums", alertBufferSize, jpegTime);
       alertBufferSize = 0;
-    } else LOG_WRN("Failed to get still");
+    } else {
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to capture still");
+    }
   } 
   else if (!strcmp(variable, "formatSD")) {
     if (formatSDcard()) doRestart("user requested format of SD card");
@@ -505,10 +516,6 @@ char* buildAppJsonString(bool filter) {
     p += sprintf(p, "\"total_bytes\":\"%s\",", fmtSize(STORAGE.totalBytes()));
   }
   p += sprintf(p, "\"free_psram\":\"%s\",", fmtSize(ESP.getFreePsram()));
-#endif
-#if INCLUDE_FTP_HFS
-  p += sprintf(p, "\"progressBar\":%d,", percentLoaded);
-  if (percentLoaded == 100) percentLoaded = 0;
 #endif
   //p += sprintf(p, "\"vcc\":\"%i V\",", ESP.getVcc() / 1023.0F; );
   return p;
@@ -694,7 +701,9 @@ void doAppPing(bool timeSynced) {
   if (external_heartbeat_active) sendExternalHeartbeat();
 #endif
   // check for night time actions
+#if INCLUDE_PERIPH
   static bool atNight = false;
+#endif
   if (wakeUse && wakePin < 0 && deepSleepTimer == 0 && timeSynced) getNocturnal();
   if (isNight(nightSwitch)) {
     if (wakeUse) {
@@ -783,18 +792,27 @@ void tgramAlert(const char* subject, const char* message) {
 }
 
 static bool downloadAvi(const char* userCmd) {
-  char* pos = strchr(userCmd, '_'); // if contains '_', assume filename
+  const char* pos = strchr(userCmd, '_'); // if contains '_', assume filename
   if (pos != NULL) {
     // add folder name and avi extension to incoming file name
     char fileName[FILE_NAME_LEN];
-    strncpy(fileName, userCmd, FILE_NAME_LEN - 1);
-    pos = strchr(fileName, '_');
-    memmove(pos, fileName, sizeof(fileName) - (pos - fileName));
-    strncat(fileName, ".avi", sizeof(fileName) - 1 - strlen(fileName)); 
+    int folderLen = pos - userCmd;
+    if (userCmd[0] == '/') {
+      snprintf(fileName, sizeof(fileName), "%.*s/%s.avi", folderLen, userCmd, userCmd + 1);
+    } else {
+      snprintf(fileName, sizeof(fileName), "/%.*s/%s.avi", folderLen, userCmd, userCmd);
+    }
     if (STORAGE.exists(fileName)) sendTgramFile(fileName, "video/x-msvideo", "");
     else sendTgramMessage("AVI file not found: ", fileName, "");
   }
   return (bool)pos;
+}
+
+bool appSpecificSMTP() {
+#if INCLUDE_SMTP
+  return waitForFrame();
+#endif
+  return false;
 }
 
 void appSpecificTelegramTask(void* p) {
@@ -808,13 +826,8 @@ void appSpecificTelegramTask(void* p) {
     // service requests from Telegram
     if (getTgramUpdate(userCmd)) {     
       if (!strcmp(userCmd, "/snap")) {
-        uint32_t startTime = millis();
-        doKeepFrame = true;
-        while (doKeepFrame && (millis() - startTime < MAX_FRAME_WAIT)) delay(100);
-        if (!doKeepFrame && alertBufferSize) {
-          sprintf(userCmd, "/snap from %s", hostName);
-          sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
-        }
+        sprintf(userCmd, "/snap from %s", hostName);
+        if (waitForFrame()) sendTgramPhoto(alertBuffer, alertBufferSize, userCmd);
       } else if (!strcmp(userCmd, "/log")) {
         // build unique ram log file name using time 
         char ramLogName[FILE_NAME_LEN];
@@ -838,7 +851,8 @@ void appSpecificTelegramTask(void* p) {
       // send out any outgoing alerts from app
       if (alertReady) {
         alertReady = false;
-        sendTgramPhoto(alertBuffer, alertBufferSize, alertCaption);
+        LOG_INF("Notify telegram");
+        if (waitForFrame()) sendTgramPhoto(alertBuffer, alertBufferSize, alertCaption);
         alertBufferSize = 0;
       } else delay(5000); // avoid thrashing
     }

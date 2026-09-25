@@ -108,9 +108,15 @@ static bool hfsStoreFile(File &fh) {
   while ((chunksize = fh.read((uint8_t*)fsChunk, CHUNKSIZE))) {
     hclient.write((uint8_t*)fsChunk, chunksize);
     totalSent += chunksize;
-    if (calcProgress(totalSent, fh.size(), 5, percentLoaded)) LOG_INF("Uploaded %u%%", percentLoaded); 
+    if (calcProgress(totalSent, fh.size(), 5, percentLoaded)) {
+      char pcntStr[10];
+      sprintf(pcntStr, "#P%u", percentLoaded);
+      sendSSE("cmd", pcntStr); 
+      LOG_INF("Uploaded %u%%", percentLoaded); 
+    }
   }
   percentLoaded = 100;
+  sendSSE("cmd", "#P0");
   hclient.println(END_BOUNDARY);
   return true;
 }
@@ -130,7 +136,7 @@ NetworkClient dclient;
 
 static bool sendFtpCommand(const char* cmd, const char* param, const char* respCode, const char* respCode2 = NO_CHECK) {
   // build and send ftp command
-  if (strlen(cmd)) {
+  if (cmd[0]) {
     rclient.print(cmd);
     rclient.println(param);
   }
@@ -148,7 +154,8 @@ static bool sendFtpCommand(const char* cmd, const char* param, const char* respC
   respCodeRx[3] = 0; // terminator
   int readLen = rclient.read((uint8_t*)rspBuf, 255);
   if (readLen >= 0) rspBuf[readLen] = 0;
-  while (rclient.available()) rclient.read(); // bin the rest of response
+  uint8_t dumpBuf[64];
+  while (rclient.available()) rclient.read(dumpBuf, sizeof(dumpBuf)); // bin the rest of response
 
   // check response code with expected
   LOG_VRB("Rx code: %s, resp: %s", respCodeRx, rspBuf);
@@ -255,11 +262,17 @@ static bool ftpStoreFile(File &fh) {
         LOG_WRN("Upload file to ftp failed");
         return false;
       }
-      if (calcProgress(writeBytes, fileSize, 5, percentLoaded)) LOG_INF("Uploaded %u%%", percentLoaded); 
+      if (calcProgress(writeBytes, fileSize, 5, percentLoaded)) {
+        char pcntStr[10];
+        sprintf(pcntStr, "#P%u", percentLoaded);
+        sendSSE("cmd", pcntStr); 
+        LOG_INF("Uploaded %u%%", percentLoaded);
+      }
     }
   } while (readLen > 0);
   dclient.stop();
   percentLoaded = 100;
+  sendSSE("cmd", "#P0");
   bool res = sendFtpCommand("", "", "226");
   if (res) {
     LOG_ALT("Uploaded %s in %lu sec", fmtSize(writeBytes), (millis() - uploadStart) / 1000);
@@ -365,7 +378,7 @@ static void fileServerTask(void* parameter) {
 
 bool fsStartTransfer(const char* fileFolder) {
   // called from other functions to commence transfer of file or folder to file server
-  setFolderName(fileFolder, storedPathName);
+  setFolderName(fileFolder, storedPathName, sizeof(storedPathName));
   if (!uploadInProgress) {
     uploadInProgress = true;
     if (fsHandle == NULL) xTaskCreateWithCaps(&fileServerTask, "fileServerTask", FS_STACK_SIZE, NULL, FTP_PRI, &fsHandle, STACK_MEM);    

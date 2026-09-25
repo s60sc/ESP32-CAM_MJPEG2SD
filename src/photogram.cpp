@@ -82,10 +82,7 @@ static void getPhoto() {
   // use built in esp cam
   setLamp(lampLevel); // turn on lamp led as flash if required
   if (timeForPhoto * 1000 > MAX_FRAME_WAIT) delay((timeForPhoto * 1000) - MAX_FRAME_WAIT); // allow time for turntable to stabilise
-  uint32_t startTime = millis();
-  doKeepFrame = true;
-  while (doKeepFrame && (millis() - startTime < MAX_FRAME_WAIT)) delay(100);
-  if (!doKeepFrame && alertBufferSize) {
+  if (waitForFrame()) {
     // create file name 
     char pName[FILE_NAME_LEN];
     strcpy(pName, pFolder);
@@ -98,7 +95,7 @@ static void getPhoto() {
     pFile.close();
     LOG_INF("Photo %u of %u saved in %s", photosDone + 1, numberOfPhotos, pName);
     alertBufferSize = 0;
-  } else LOG_WRN("Failed to get photo");
+  } 
   setLamp(0);
 #endif
 }

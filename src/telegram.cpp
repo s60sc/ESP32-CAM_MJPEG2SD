@@ -57,6 +57,12 @@ static bool searchJsonResponse(const char* keyName) {
   if (keyPtr == NULL) return false;
   char* startItem = keyPtr + strlen(keyName);
   char* endItem = strchr(startItem, ',');
+  if (endItem == NULL) {
+    endItem = strchr(startItem, '}');
+    if (endItem == NULL) {
+      endItem = startItem + strlen(startItem);
+    }
+  }
   int valSize = endItem - startItem;
   if (valSize > sizeof(keyValue) - 1) {
     LOG_WRN("Telegram JSON value too long %d", valSize); 
@@ -105,9 +111,13 @@ static bool getTgramResponse() {
     while (contentLen - readLen > 0 && millis() - startTime < responseTimeoutSecs * 1000) {
       // retrieve response content
       size_t availLen = tclient.available();
-      if (availLen) readLen += tclient.readBytes((uint8_t*)tgramBuff + readLen, availLen);
-      delay(50);
-    }
+      if (availLen) {
+        size_t toRead = min(availLen, (size_t)(contentLen - readLen));
+        int bytesRead = tclient.read((uint8_t*)tgramBuff + readLen, toRead);
+        if (bytesRead <= 0) break;
+        readLen += (size_t)bytesRead;
+      } else delay(10);
+    }  
     if (contentLen - readLen > 0) LOG_WRN("Timed out waiting for telegram response");
     else {
       // format tgramBuff for searchJsonResponse() 
@@ -178,7 +188,7 @@ static bool sendTgramBuff(uint8_t* buffData, size_t buffSize) {
 bool prepTelegram() {
   // setup and check access to Telegram if required
   if (tgramUse) {
-    if (strlen(tgramToken)) {
+    if (tgramToken[0]) {
       if (tgramBuff == NULL) tgramBuff = psramFound() ? (char*)ps_malloc(MAX_HTTP_MSG) : (char*)malloc(MAX_HTTP_MSG); 
       // check connection with getme request
       bool res = false;
@@ -245,8 +255,10 @@ bool sendTgramMessage(const char* info, const char* item, const char* parseMode)
 bool sendTgramPhoto(uint8_t* photoData, size_t photoSize, const char* caption) {
   // send photo stored in buffer to Telegram
   // max size of photo upload to Telegram is 10MB, bigger than ESP camera maximum
-  if (sendTgramHeader("sendPhoto", "image/jpeg", "photo", photoSize, "frame.jpg", caption))
-    return sendTgramBuff(photoData, photoSize);
+  if (sendTgramHeader("sendPhoto", "image/jpeg", "photo", photoSize, "frame.jpg", caption)) {
+    sendTgramBuff(photoData, photoSize);
+    return true;
+  }
   return false;
 }
 
@@ -270,7 +282,7 @@ bool sendTgramFile(const char* fileName, const char* contentType, const char* ca
         tclient.println(END_BOUNDARY);
       } else snprintf(errMsg, sizeof(errMsg) - 1, "File size too large: %s", fmtSize(df.size()));        
     } else snprintf(errMsg, sizeof(errMsg) - 1, "File does not exist or cannot be opened: %s", fileName);
-    if (strlen(errMsg)) {
+    if (errMsg[0]) {
       LOG_WRN("%s", errMsg);
       sendTgramMessage("ERROR: ", errMsg, "");
     }

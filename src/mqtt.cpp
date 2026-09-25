@@ -56,7 +56,7 @@ void mqttPublish(const char* payload) {
 
 void mqttPublishPath(const char* suffix, const char* payload, const char *device) {
   char topic[2 * FILE_NAME_LEN];
-  if (!strlen(mqtt_topic_prefix)) return;
+  if (!mqtt_topic_prefix[0]) return;
   snprintf(topic, 2 * FILE_NAME_LEN, "%s%s/%s/%s", mqtt_topic_prefix, device, hostName, suffix);
   mqtt_client_publish(topic, payload);
 }
@@ -103,7 +103,7 @@ static void mqtt_data_handler(void *handler_args, esp_event_base_t base, int32_t
   }
 #endif
   if(strncmp(event->topic, cmd_topic, event->topic_len) == 0){
-    if (strlen(remoteQuery) == 0) sprintf(remoteQuery, "%.*s", event->data_len, (char*)event->data);            
+    if (!remoteQuery[0]) sprintf(remoteQuery, "%.*s", event->data_len, (char*)event->data);            
     mqttConnected = true;
     LOG_VRB("Resuming mqtt thread..");
     xTaskNotifyGive(mqttTaskHandle);
@@ -123,22 +123,17 @@ static void mqtt_error_handler(void *handler_args, esp_event_base_t base, int32_
   }
 }
 void sendMqttImage(){
-  uint32_t startTime = millis();
-  if (!strlen(mqtt_topic_prefix)) return;
-  doKeepFrame = true;
-  while (doKeepFrame && millis() - startTime < 4 * MAX_FRAME_WAIT) delay(100);
-  if (!doKeepFrame && alertBufferSize) {
+  if (!mqtt_topic_prefix[0]) return;
+  if (waitForFrame()) {
      const char* picBuff = (const char*)(alertBuffer);
      int id = esp_mqtt_client_publish(mqtt_client, image_topic, picBuff, alertBufferSize, MQTT_QOS, 0);
      LOG_VRB("Sent pic, size: %u", alertBufferSize);
-  }else{
-    LOG_WRN("Fail to send image");
   }
 }
 
 void checkForRemoteQuery() {
   //Execute remote query i.e. dbgVerbose=1;framesize=7;fps=1
-  if (strlen(remoteQuery) > 0) {
+  if (remoteQuery[0]) {
     char* query = strtok(remoteQuery, ";");
     while (query != NULL) {
       char* value = strchr(query, '=');
@@ -393,6 +388,7 @@ void sendMqttHasDiscovery(){
 void sendMqttHasState(){  
   char* p = jsonBuff;
   char timeBuff[20];
+  time_t currEpoch = getEpoch();
   strftime(timeBuff, 20, "%Y-%m-%d %H:%M:%S", localtime(&currEpoch));
   mqttPublishPath("clock", timeBuff);
   formatElapsedTime(timeBuff, millis());

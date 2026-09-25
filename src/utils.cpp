@@ -352,7 +352,7 @@ static bool startWifi(bool firstcall = true) {
     uint32_t startAttemptTime = millis();
     // Stop trying on failure timeout, will try to reconnect later by ping
     wlStat = WL_NO_SSID_AVAIL;
-    if (strlen(ST_SSID)) {
+    if (ST_SSID[0]) {
       while (wlStat = WiFi.STA.status(), wlStat != WL_CONNECTED && millis() - startAttemptTime < 5000)  {
         LOG_SEND(".");
         delay(500);
@@ -490,7 +490,7 @@ static void pingTimeout(esp_ping_handle_t hdl, void *args) {
       }
     }
   } else {
-    if (strlen(ST_SSID)) {
+    if (ST_SSID[0]) {
       wl_status_t wStat = WiFi.STA.status();
       if (wStat != WL_NO_SSID_AVAIL && wStat != WL_NO_SHIELD) {
         if (usePing) {
@@ -593,7 +593,8 @@ static uint8_t failCounts[REMFAILCNT] = {0};
 
 void remoteServerClose(Client& client) {
   uint32_t startAttempt = millis();
-  while (client.available() > 0 && (millis() - startAttempt < 1000)) client.read();
+  uint8_t dumpBuf[64];
+  while (client.available() > 0 && (millis() - startAttempt < 1000)) client.read(dumpBuf, sizeof(dumpBuf));
   if (client.connected()) client.stop();
 }
 
@@ -920,25 +921,47 @@ bool urlEncode(const char* inVal, char* encoded, size_t maxSize) {
 }
 
 void urlDecode(char* inVal) {
+  // Optimized: Precomputed constant-time lookup table (LUT) to eliminate generic bitwise
+  // and arithmetic operations in the hot loop, reducing CPU overhead during hex decoding.
+  static const uint8_t hexDecodeLUT[256] = {
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,
+      0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 10, 11, 12, 13, 14, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  };
+
   // replace url encoded characters in-place
-  // decoded output is always equal or shorter than input
-  char* src = inVal;
-  char* dst = inVal;
-  while (*src) {
-    if (*src == '%' && isxdigit((unsigned char)*(src+1)) && isxdigit((unsigned char)*(src+2))) {
-      // decode %XX hex sequence
-      char hex[3] = {*(src+1), *(src+2), 0};
-      *dst++ = (char)strtoul(hex, nullptr, 16);
-      src += 3;
-    } else if (*src == '+') {
+  char* readPtr = inVal;
+  char* writePtr = inVal;
+  while (*readPtr) {
+    if (*readPtr == '%' && isxdigit((unsigned char)readPtr[1]) && isxdigit((unsigned char)readPtr[2])) {
+      char h1 = readPtr[1];
+      char h2 = readPtr[2];
+      int v1 = hexDecodeLUT[(unsigned char)h1];
+      int v2 = hexDecodeLUT[(unsigned char)h2];
+      *writePtr++ = (char)((v1 << 4) | v2);
+      readPtr += 3;
+    } else if (*readPtr == '+') {
       // + is encoded space in form data
-      *dst++ = ' ';
-      src++;
+      *writePtr++ = ' ';
+      readPtr++;
     } else {
-      *dst++ = *src++;
+      *writePtr++ = *readPtr++;
     }
   }
-  *dst = 0; // NUL terminate
+  *writePtr = 0;
 }
 
 void listBuff (const uint8_t* b, size_t len) {
@@ -994,13 +1017,15 @@ void replaceChar(char* s, char c, char r) {
 
 char* fmtSize (uint64_t sizeVal) {
   // format size according to magnitude
-  // only one call per format string
-  static char returnStr[20];
-  if (sizeVal < 50 * 1024) sprintf(returnStr, "%llu bytes", sizeVal);
-  else if (sizeVal < ONEMEG) sprintf(returnStr, "%lluKB", sizeVal / 1024);
-  else if (sizeVal < ONEMEG * 1024) sprintf(returnStr, "%0.1fMB", (double)(sizeVal) / ONEMEG);
-  else sprintf(returnStr, "%0.1fGB", (double)(sizeVal) / (ONEMEG * 1024));
-  return returnStr;
+   // rotating buffer pool to support up to 4 calls per format string
+  static char returnStr[4][24];
+  static uint8_t idx = 0;
+  char* buf = returnStr[idx++ & 3];
+  if (sizeVal < 50 * 1024) snprintf(buf, sizeof(returnStr[0]), "%llu bytes", (unsigned long long)sizeVal);
+  else if (sizeVal < ONEMEG) snprintf(buf, sizeof(returnStr[0]), "%lluKB", (unsigned long long)(sizeVal / 1024));
+  else if (sizeVal < ONEMEG * 1024) snprintf(buf, sizeof(returnStr[0]), "%0.1fMB", (double)(sizeVal) / ONEMEG);
+  else snprintf(buf, sizeof(returnStr[0]), "%0.1fGB", (double)(sizeVal) / (ONEMEG * 1024));
+  return buf;
 }
 
 char* trim(char* str) {
@@ -1110,8 +1135,12 @@ const char* encode64(const char* inp) {
     LOG_WRN("Input string too long: %u chars", len);
     len = 90;
   }
-  for (int i = 0; i < len; i += 3) 
-    strncat(encoded, (char*)encode64chunk((uint8_t*)inp + i, min(len - i, 3)), 4);
+  int outLen = 0;
+  for (int i = 0; i < len; i += 3) {
+    memcpy(encoded + outLen, encode64chunk((uint8_t*)inp + i, min(len - i, 3)), 4);
+    outLen += 4;
+  }
+  encoded[outLen] = 0;  
   return encoded;
 }
 

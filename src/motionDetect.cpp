@@ -40,7 +40,6 @@ int detectStartBand = 3;
 int detectEndBand = 8; // inclusive
 int detectChangeThreshold = 15; // min difference in pixel comparison to indicate a change
 uint8_t colorDepth; // set by depthColor config
-static size_t stride;
 bool mlUse = false; // whether to use ML for motion detection, requires INCLUDE_TINYML to be true
 float mlProbability = 0.8; // minimum probability (0.0 - 1.0) for positive classification
 
@@ -388,8 +387,15 @@ static bool tinyMLclassify(size_t (RESIZE_DIM) {
         LOG_VRB("Prob: %0.2f, Timing: DSP %d ms, inference %d ms, anomaly %d ms", 
         result.classification[0].value, result.timing.dsp, result.timing.classification, result.timing.anomaly);
         char outcome[200] = {0};
-        for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
-          sprintf(outcome + strlen(outcome), "%s: %.2f, ", ei_classifier_inferencing_categories[i], result.classification[i].value);
+        char* outPtr = outcome; // ⚡ Bolt optimization: track pointer to prevent O(N^2) strlen overhead
+        size_t rem = sizeof(outcome);
+        for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+          int n = snprintf(outPtr, rem, "%s: %.2f, ", ei_classifier_inferencing_categories[i], result.classification[i].value);
+          if (n > 0 && (size_t)n < rem) { 
+            outPtr += n; 
+            rem -= n; 
+          } else break;
+        }
         LOG_VRB("Predictions - %s in %ums", outcome, millis() - dTime);
       } 
     } 
@@ -728,7 +734,6 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     // convert image from JPEG to downscaled RGB888 or 8 bit grayscale bitmap
     static size_t RESIZE_DIM = 96;  // dimensions of resized motion bitmap
     static bool isInitialized = false; // Guards one-time initialization
-    
     if (!isInitialized) {
         if (ESP.getPsramSize() < 3 * ONEMEG) {
             RESIZE_DIM = 64; // otherwise insufficient PSRAM (issue #706)
@@ -1203,7 +1208,7 @@ static bool _rgb_write(void * arg, uint16_t x, uint16_t y, uint16_t w, uint16_t 
   uint8_t *o = out;
   size_t iy, ix;
   w *= RGB888_BYTES;
-
+  uint8_t stride = (colorDepth == RGB888_BYTES) ? GRAYSCALE_BYTES : RGB888_BYTES; // stride is inverse of colorDepth
   for (iy=t; iy<b; iy+=jw) {
     o = out+(iy+l)/stride;
     for (ix=0; ix<w; ix+=RGB888_BYTES) {

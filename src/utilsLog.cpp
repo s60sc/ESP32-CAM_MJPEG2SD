@@ -63,11 +63,23 @@ void logIncrementDropCount(void) {
   Atomic_Increment_u32(&dropCount);
 }
 
+int getLogStartPtr(int mlogEnd) {
+  // skip over nulls
+  int startPtr = mlogEnd;
+  while (messageLog[startPtr] == 0) {
+    startPtr++;
+    if (startPtr >= RAM_LOG_LEN) startPtr = 0;
+    if (startPtr == mlogEnd) break;
+  }
+  return startPtr;
+}
+
 void saveRamLog(const char* ramLogName) {
   // save ramlog to storage 
   File ramFile = STORAGE.open(ramLogName, FILE_WRITE);
-  int startPtr, endPtr;
-  startPtr = endPtr = mlogEnd;  
+  int startPtr = getLogStartPtr(mlogEnd);
+  int endPtr = mlogEnd;  
+
   // write log in chunks
   do {
     int maxChunk = startPtr < endPtr ? endPtr - startPtr : RAM_LOG_LEN - startPtr;
@@ -75,6 +87,7 @@ void saveRamLog(const char* ramLogName) {
     if (chunkSize > 0) ramFile.write((uint8_t*)messageLog + startPtr, chunkSize);
     startPtr += chunkSize;
     if (startPtr >= RAM_LOG_LEN) startPtr = 0;
+    delay(1);
   } while (startPtr != endPtr);
   ramFile.close();
 }
@@ -227,7 +240,7 @@ static void appPanicHandler(arduino_panic_info_t *info, void *arg) {
 }
 
 static void expandReason() {
-  if (!strlen(btReason)) strcpy(btReason, "unknown");
+  if (!btReason[0]) strcpy(btReason, "unknown");
 #if CONFIG_IDF_TARGET_ARCH_RISCV
   // riscV
   else if (strstr(btReason, "Breakpoint") != NULL) sprintf(btReason, "probably printf format"); // usually misplaced or misformatted vsnprintf()
@@ -251,8 +264,15 @@ static void showBacktrace() {
     expandReason();
     LOG_WRN("Core %d task: %s - %s", btCore, btTask, btReason); 
     char bt[(11 * btLen) + 1]; // 11 is size of each trace hex
-    for (int i = 0; i < btLen; i++) 
-      snprintf(bt + strlen(bt), sizeof(bt) - strlen(bt) - 11, "0x%08x ", (unsigned int)backtrace[i]); 
+    bt[0] = 0;
+    int offset = 0;
+    for (int i = 0; i < btLen; i++) {
+      int remaining = sizeof(bt) - offset;
+      if (remaining < 12) break; // Need space for 11 chars + null terminator
+      int written = snprintf(bt + offset, remaining, "0x%08x ", (unsigned int)backtrace[i]);
+      if (written > 0 && written < remaining) offset += written;
+      else  break;
+    }
     LOG_WRN("Paste backtrace below into Arduino Exception Decoder:\n");
     LOG_SEND("Backtrace: %s\n\n", bt);
   }
@@ -400,7 +420,7 @@ void logSetup() {
       }
       xTaskCreateWithCaps(logTask, "logTask", LOG_STACK_SIZE, NULL, LOG_PRI, &logHandle, STACK_MEM);
       
-      if (mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
+      if (esp_reset_reason() == ESP_RST_POWERON || mlogEnd >= RAM_LOG_LEN) ramLogClear(); // init
       LOG_SEND("\n\n=============== %s %s ===============\n", APP_NAME, APP_VER);
       LOG_INF("Setup RAM based log, size %u, starting from %u", RAM_LOG_LEN, mlogEnd);
       if (!DBG_ON) esp_log_level_set("*", ESP_LOG_ERROR); // show ESP_LOG_ERROR messages during init
@@ -498,10 +518,10 @@ void runTaskStats(bool _onceOnly) {
 #endif
 
 void checkMemory(const char* source) {
-  LOG_INF("%s Free: heap %lu, block: %lu, min: %lu, pSRAM %lu", strlen(source) ? source : "Setup", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
+  LOG_INF("%s Free: heap %lu, block: %lu, min: %lu, pSRAM %lu", source[0] ? source : "Setup", ESP.getFreeHeap(), ESP.getMaxAllocHeap(), ESP.getMinFreeHeap(), ESP.getFreePsram());
   if (ESP.getFreeHeap() < WARN_HEAP) LOG_WRN("Free heap only %lu, min %lu", ESP.getFreeHeap(), ESP.getMinFreeHeap());
   if (ESP.getMaxAllocHeap() < WARN_ALLOC) LOG_WRN("Max allocatable heap block is only %lu", ESP.getMaxAllocHeap());
-  if (!strlen(source) && DEBUG_MEM) runTaskStats();
+  if (!source[0] && DEBUG_MEM) runTaskStats();
 }
 
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx) {
@@ -638,4 +658,10 @@ void showSys() {
   runTaskStats(true);
   logLine();
   //gpio_dump_io_configuration(stdout, SOC_GPIO_VALID_GPIO_MASK);
+}
+
+void showHWM(const char* msg) {
+  uint32_t freeStack = (uint32_t)uxTaskGetStackHighWaterMark(NULL);
+  LOG_DBG("%s: stack for task %s has min %lu bytes",  msg, pcTaskGetName(NULL), freeStack);
+  delay(250);
 }

@@ -11,7 +11,7 @@
 // - 4 wire Bipolar Stepper Motor with MX1508 H-Bridge Motor Driver
 //
 // Peripherals can be hosted directly on the client ESP, or on
-// a separate IO Extender ESP if the client ESP has limited free 
+// a separate Auxiliary ESP if the client ESP has limited free
 // pins, eg ESP-Cam module
 // External peripherals should have low data rate and not require fast response,
 // so interrupt driven input pins should be monitored internally by the client.
