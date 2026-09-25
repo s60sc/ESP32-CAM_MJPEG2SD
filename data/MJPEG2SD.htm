@@ -2464,9 +2464,10 @@
         outputSpkr(bufferData); // ArrayBuffer containing PCM 16kHz audio data
       }
 
-      function customWsMsg(data) {
+      function customSvrMsg(data) {
         // notify end of playback
         if (data == "#SP") deactivatePlaybackButton(false);
+        else if (data.slice(0, 2) === "#P") document.getElementById("progressBar").value = data.slice(2);
       }
 
 

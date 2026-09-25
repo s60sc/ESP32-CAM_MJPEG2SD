@@ -65,7 +65,7 @@
               } catch (err) {
                 console.error("Invalid WS JSON:", data, err);
               }
-            } else if (data.startsWith("#")) customWsMsg(data);
+            } else if (data.startsWith("#")) customSvrMsg(data);
             else {
               if (data.endsWith("\n")) data = data.slice(0, -1); // remove newline
               if (data.endsWith("~")) {
@@ -75,6 +75,10 @@
               showLog(data, false);
             }
           }
+        }
+        
+        function applyMessageCmd(msgData) {
+          customSvrMsg(msgData);
         }
 
         // JSON handlers
@@ -193,7 +197,7 @@
             
             eventSource.addEventListener('cmd', (event) => {
               // server command
-              applyMessageData(event.data);
+              applyMessageCmd(event.data);
             });
             
             // unhandled events
