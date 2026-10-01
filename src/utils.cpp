@@ -541,8 +541,8 @@ bool startNetwork(bool firstcall) {
     snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to complete network setup");
     LOG_WRN("%s", startupFailure);
   }
-  if (res) getExtIP();
   if (res) while(!dataFilesChecked) delay (1000);
+  if (res) getExtIP();
   return res;
 }
 
