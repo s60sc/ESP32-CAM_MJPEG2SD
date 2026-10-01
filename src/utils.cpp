@@ -133,6 +133,8 @@ const char* getEncType(int ssidIndex) {
     case (WIFI_AUTH_WPA2_PSK): return "WPA2_PSK";
     case (WIFI_AUTH_WPA_WPA2_PSK): return "WPA_WPA2_PSK";
     case (WIFI_AUTH_WPA2_ENTERPRISE): return "WPA2_ENTERPRISE";
+   	case (WIFI_AUTH_WPA3_PSK): return "WPA3_PSK";
+	   case (WIFI_AUTH_WPA2_WPA3_PSK): return "WPA2_WPA3_PSK";
     case (WIFI_AUTH_MAX): return "AUTH_MAX";
     default: return "Not listed";
   }
@@ -330,50 +332,174 @@ static bool startEth(bool firstcall) {
   return ETH.linkUp();
 }
 
-static bool startWifi(bool firstcall = true) {
-  // start wifi station (and wifi AP if allowed or station not defined)
+// Event group handles and bits for Wi-Fi connection status
+static EventGroupHandle_t wifiEventGroup = NULL;
+static bool wifiEventHandlerRegistered = false;
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_FAIL_BIT      BIT1
+
+// Initializes and manages Wi-Fi (STA/AP), returning true if STA connects successfully.
+static bool startWifi(bool firstcall = true) { // firstcall: true on initial invocation to apply one-time HW config.
+  // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
   if (firstcall) {
-#ifdef NO_WIFI_SLEEP
-    WiFi.setSleep(false); // Disable Power Saving depending on app
-#endif
-    WiFi.persistent(false); // prevent the flash storage WiFi credentials
+    WiFi.mode(WIFI_AP_STA); // Enable concurrent Station and Access Point modes.
+    WiFi.setSleep(true); // Setup modem sleep to configure association latency(Options: true - for energy efficiency, false - for continuous power supply.
+    WiFi.setTxPower(WIFI_POWER_15dBm); // Set the Wi-Fi transmit power(range vs energy efficiency). Options: WIFI_POWER_19_5dBm, WIFI_POWER_15dBm, WIFI_POWER_8_5dBm, WIFI_POWER_2dBm, etc ...(see the documentation)
+    WiFi.persistent(false); // Disable NVS flash writes for Wi-Fi credentials.
+    WiFi.STA.setAutoReconnect(false); // Disable auto-reconnect to manage connection lifecycle manually.
     WiFi.AP.clear();
-    WiFi.AP.end(); // kill rogue AP on startup
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.STA.setAutoReconnect(false); // Set whether module will attempt to reconnect to an access point in case it is disconnected
-    WiFi.STA.setHostname(hostName);
-    delay(100);
+    WiFi.AP.end(); // Terminate residual AP state from previous runs.
+    WiFi.STA.setHostname(hostName); // Assign custom hostname for DHCP/DNS resolution.
+    vTaskDelay(1); // Yield to allow Wi-Fi driver task to process initialization.
   }
-  
+
+  bool localAllowAP = allowAP;
   wl_status_t wlStat = WL_NO_SSID_AVAIL;
+  // Attempt Station mode connection if network mode permits (netMode == 0).
   if (netMode == 0) {
-    // connect to Wifi station
-    setWifiSTA();
-    uint32_t startAttemptTime = millis();
-    // Stop trying on failure timeout, will try to reconnect later by ping
-    wlStat = WL_NO_SSID_AVAIL;
-    if (ST_SSID[0]) {
-      while (wlStat = WiFi.STA.status(), wlStat != WL_CONNECTED && millis() - startAttemptTime < 5000)  {
-        LOG_SEND(".");
-        delay(500);
+    // Register the Wi-Fi event handler once to update the event group.
+    if (!wifiEventHandlerRegistered) {
+      WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
+        if (wifiEventGroup == NULL) return;
+        if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+          xEventGroupSetBits(wifiEventGroup, WIFI_CONNECTED_BIT);
+        } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+          xEventGroupSetBits(wifiEventGroup, WIFI_FAIL_BIT);
+        }
+      });
+      wifiEventHandlerRegistered = true;
+    }
+
+    // Create the event group if it does not exist, BEFORE starting the connection.
+    if (wifiEventGroup == NULL) {
+      wifiEventGroup = xEventGroupCreate();
+    }
+    if (wifiEventGroup != NULL) {
+      // Clear bits before starting the connection attempt to prevent race conditions.
+      xEventGroupClearBits(wifiEventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
+    }
+
+    setWifiSTA(); // Apply Station configuration (SSID/password).
+    wlStat = WL_NO_SSID_AVAIL; // Reset status; reconnection is deferred to background ping task.
+    
+    // Poll connection status with a 5-second timeout to prevent indefinite blocking.
+    if (strlen(ST_SSID) > 0) {
+      if (wifiEventGroup != NULL) {
+        EventBits_t bits = 0;
+        uint32_t startAttemptTime = millis();
+        // Wait for connection or failure with a 100ms loop to preserve progress logging.
+        while (!(bits & (WIFI_CONNECTED_BIT | WIFI_FAIL_BIT)) && (millis() - startAttemptTime < 5000)) {
+          bits = xEventGroupWaitBits(
+            wifiEventGroup,
+            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+            pdFALSE, // Do not clear bits on exit
+            pdFALSE, // Wait for any bit
+            pdMS_TO_TICKS(100)
+          );
+          if (!(bits & (WIFI_CONNECTED_BIT | WIFI_FAIL_BIT))) {
+            LOG_SEND(".");
+          }
+        }
+        
+        if (bits & WIFI_CONNECTED_BIT) {
+          wlStat = WL_CONNECTED;
+        } else {
+          wlStat = WiFi.STA.status(); // Get exact status if failed or timeout
+        }
+      } else {
+        // Fallback to polling if event group creation failed
+        uint32_t startAttemptTime = millis();
+        wlStat = WiFi.STA.status();
+        while (wlStat != WL_CONNECTED && (millis() - startAttemptTime < 5000)) {
+          LOG_SEND(".");
+          vTaskDelay(pdMS_TO_TICKS(100)); // Yield to prevent task watchdog timeout.
+          wlStat = WiFi.STA.status();
+        }
       }
     }
-    // show stats of requested SSID if present
-    int numNetworks = strlen(ST_SSID) ? WiFi.scanNetworks() : 0;
-    for (int i=0; i < numNetworks; i++) {
-      if (WiFi.SSID(i) == ST_SSID)
-        LOG_INF("Wifi stats for %s - signal strength: %ld dBm; Encryption: %s; channel: %ld",  ST_SSID, WiFi.RSSI(i), getEncType(i), WiFi.channel(i));
+
+    if (wlStat == WL_CONNECTED) {
+      // Log successful STA connection metrics.
+      LOG_VRB("Wi-Fi connected to %s - signal strength: %ld dBm; channel: %ld",
+              ST_SSID,
+              (long)WiFi.RSSI(),
+              (long)WiFi.channel());
+    } else {
+      // Log connection failure diagnostics and trigger asynchronous scan for debugging.
+      LOG_WRN("SSID %s not connected %s - status: %d; mode: %d; signal strength: %ld dBm; channel: %ld",
+              ST_SSID,
+              wifiStatusStr(wlStat),
+              (int)wlStat,
+              (int)WiFi.getMode(),
+              (long)WiFi.RSSI(),
+              (long)WiFi.channel());
+
+      // Capture a copy of the target SSID before starting the scan.
+      static char targetSsid[sizeof(ST_SSID)];
+      strlcpy(targetSsid, ST_SSID, sizeof(targetSsid));
+
+      // Register one-time event handler to log target SSID details upon scan completion.
+      static bool scanEventRegistered = false;
+      if (!scanEventRegistered) {
+        WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
+          if (event == ARDUINO_EVENT_WIFI_SCAN_DONE) {
+            uint16_t numNetworks = info.wifi_scan_done.number;
+            for (uint16_t i = 0; i < numNetworks; i++) {
+              if (strcmp(WiFi.SSID(i).c_str(), targetSsid) == 0) {
+                LOG_INF("Wi-Fi stats for %s - signal strength: %ld dBm; Encryption: %s; channel: %ld",
+                        targetSsid,
+                        (long)WiFi.RSSI(i),
+                        getEncType(i),
+                        (long)WiFi.channel(i));
+              }
+            }
+            WiFi.scanDelete(); // Release heap allocated for scan results.
+          }
+        }, ARDUINO_EVENT_WIFI_SCAN_DONE);
+        scanEventRegistered = true;
+      }
+
+      // Initiate non-blocking background Wi-Fi scan.
+      if (WiFi.scanComplete() == WIFI_SCAN_RUNNING) {
+          // Do not start another scan.
+      } else {
+          // Clear the STA connecting state to allow scanning.
+          WiFi.disconnect(false);
+          vTaskDelay(pdMS_TO_TICKS(100)); // Yield to allow Wi-Fi driver to process disconnection.
+
+          int16_t scanResult = WiFi.scanNetworks(true); // true = async background scan.
+          if (scanResult == WIFI_SCAN_FAILED) {
+            LOG_WRN("Wi-Fi scan failed - result: %d", (int)scanResult);
+          }
+      }
     }
-    if (wlStat != WL_CONNECTED) LOG_WRN("SSID %s not connected %s", ST_SSID, wifiStatusStr(wlStat));
+  }
+
+  // Fallback to AP mode if STA connection failed or AP is explicitly allowed.
+  if (localAllowAP ||
+    wlStat == WL_NO_SSID_AVAIL ||
+    wlStat == WL_CONNECT_FAILED ||
+    wlStat == WL_DISCONNECTED ||
+    wlStat == WL_IDLE_STATUS) {
+    setWifiAP(); // Configure and start Access Point for provisioning or fallback access.
   }
   
-  if (wlStat == WL_NO_SSID_AVAIL || allowAP) setWifiAP(); // AP allowed if no Station SSID eg on first time use 
+  // Start mDNS only on the ESP32-S3 and only if the Station obtained a valid IP address.
 #if CONFIG_IDF_TARGET_ESP32S3
-  if (netMode == 0) setupMdnsHost(); // not on ESP32 as uses 6k of heap
+  if (netMode == 0) {
+    if ((uint32_t)WiFi.localIP() != 0) {
+      setupMdnsHost();
+    }
+  }
 #endif
-  if (pingHandle == NULL) startPing();
-  getWifiMode();
-  return wlStat == WL_CONNECTED ? true : false;
+
+  // Ensure background ping task is active for connection monitoring.
+  if (pingHandle == NULL) {
+    startPing();
+  }
+  
+  // Return true only if Station mode achieved a connected state.
+  return wlStat == WL_CONNECTED;
 }
 
 bool startNetwork(bool firstcall) {
@@ -1073,7 +1199,7 @@ void setupADC() {
 float smoothSensor(float latestVal, float smoothedVal, float alpha) {
   // simple Exponential Moving Average filter 
   // where alpha between 0.0 (max smooth) and 1.0 (no smooth)
-  return (latestVal * alpha) + smoothedVal * (1.0 - alpha);
+  return (latestVal * alpha) + smoothedVal * (1.0f - alpha);
 }
 
 // onboard chip temperature sensor
@@ -1100,7 +1226,7 @@ float readInternalTemp() {
   float intTemp = NULL_TEMP;
 #if CONFIG_IDF_TARGET_ESP32
   // convert on chip raw temperature in F to Celsius degrees
-  intTemp = (temprature_sens_read() - 32) / 1.8;  // value of 55 means not present
+  intTemp = (temprature_sens_read() - 32) / 1.8f;  // value of 55 means not present
 #elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
     temperature_sensor_get_celsius(temp_sensor, &intTemp); 
 #endif
