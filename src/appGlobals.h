@@ -26,7 +26,7 @@
 #endif
 #include "camera_pins.h"
 
-#define APP_VER "10.9.8"
+#define APP_VER "10.9.9"
 #define CFG_VER 41 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false
@@ -92,6 +92,10 @@
 #define DMA_BUFF_CNT 4
 #define MIC_GAIN_CENTER 3 // mid point
 
+// used by drone s/w
+#define DST_WIDTH 96  // width of image center extract 
+#define DST_HEIGHT 72 // height of image center extract 
+
 #ifdef CONFIG_IDF_TARGET_ESP32S3 
 #define SERVER_STACK_SIZE (1024 * 8)
 #define DS18B20_STACK_SIZE (1024 * 2)
@@ -108,7 +112,7 @@
 #define AUDIO_STACK_SIZE (1024 * 4)
 #define MICREM_STACK_SIZE (1024 * 2)
 #define MQTT_STACK_SIZE (1024 * 4)
-#define PING_STACK_SIZE (1024 * 3)
+#define PING_STACK_SIZE (1024 * 4)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
 #define SERVO_STACK_SIZE (1024 * 1)
 #define SUSTAIN0_STACK_SIZE (1024 * 5)
@@ -122,6 +126,7 @@
 #define GNSS_STACK_SIZE (1024 * 3)
 #define STATUS_STACK_SIZE (1024 * 4)
 #define CHECK_STACK_SIZE (1024 * 6)
+#define DRONE_STACK_SIZE (1024 * 4)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -147,6 +152,7 @@
 #define SENSOR_PRI 1
 #define STATUS_PRI 1
 #define CHECK_PRI 1
+#define DRONE_PRI 7
 
 /******************** Function declarations *******************/
 
@@ -176,6 +182,7 @@ void buildAviIdx(size_t dataSize, bool isVid = true, bool isTL = false);
 size_t buildSubtitle(int srtSeqNo, uint32_t sampleInterval);
 void buzzerAlert(bool buzzerOn);
 bool checkAccelMove();
+bool checkGeofence(bool isArmed);
 int8_t checkPotVol(int8_t adjVol);
 bool checkSDFiles();
 void currentStackUsage();
@@ -183,7 +190,9 @@ void displayAudioLed(int16_t audioSample);
 void finalizeAviIndex(uint16_t frameCnt, bool isTL = false);
 void finishAudioRecord(bool isValid);
 float* getBMx280();
+float* getGNSSdata();
 float* getMPUdata();
+uint16_t getTofData(uint8_t whichI2C = 0);
 int getInputPeripheral(uint8_t cmd);
 mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
@@ -200,7 +209,6 @@ void openSDfile(const char* streamFile);
 void prepAudio();
 void prepAviIndex(bool isTL = false);
 bool prepCam();
-bool prepGPS();
 bool prepRecording();
 void prepTelemetry();
 void prepMic();
@@ -231,6 +239,8 @@ void stopTelemetry(const char* fileName);
 void storeSensorData(bool fromStream);
 void takePhotos(bool startPhotos);
 void trackSteeering(int controlVal, bool steering);
+void updateBMx280();
+void updateMPU9250data();
 size_t updateWavHeader();
 bool waitForFrame();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
@@ -240,6 +250,11 @@ size_t writeWavFile(byte* clientBuf, size_t buffSize);
 #ifndef AUXILIARY
 bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly = false);
 void keepFrame(camera_fb_t* fb);
+#endif
+
+#if INCLUDE_DRONE
+bool prepDrone();
+void opticalFlow(const uint8_t* currBuff, size_t inWidth, size_t inHeight);
 #endif
 
 /******************** Global app declarations *******************/
@@ -315,6 +330,7 @@ extern size_t audioBytes;
 extern char srtBuffer[];
 extern size_t srtBytes;
 extern size_t maxFrameBuffSize;
+extern uint8_t* centerExtract;
 
 // Auxiliary use
 extern bool useUart;
@@ -442,10 +458,6 @@ extern uint8_t rtpTTL;
 extern char RTSP_Name[];
 extern char RTSP_Pass[];
 
-//GNSS
-extern int gnssUartRx;
-extern int gnssUartTx;
-
 // task handling
 extern TaskHandle_t battHandle;
 extern TaskHandle_t captureHandle;
@@ -466,7 +478,6 @@ extern TaskHandle_t audioHandle;
 extern SemaphoreHandle_t frameSemaphore[];
 extern SemaphoreHandle_t motionSemaphore;
 
-
 /************************** structures ********************************/
 
 struct frameStruct {
@@ -482,9 +493,9 @@ struct frameStruct {
 // and update corresponding frameSizeData[] entries in avi.cpp 
 // https://github.com/espressif/esp32-camera/blob/master/driver/include/sensor.h
 const frameStruct frameData[] = {
-  {"96X96", 96, 96, 30, 1, 1},     // 2MP sensors // PY260
-  {"QQVGA", 160, 120, 30, 1, 1},
-  {"128X128", 128, 128, 30, 1, 1}, // PY260
+  {"96X96", 96, 96, 30, 0, 1},     // 2MP sensors // PY260
+  {"QQVGA", 160, 120, 30, 0, 1},
+  {"128X128", 128, 128, 30, 0, 1}, // PY260
   {"QCIF", 176, 144, 30, 1, 1}, 
   {"HQVGA", 240, 176, 30, 2, 1}, 
   {"240X240", 240, 240, 30, 2, 1}, 

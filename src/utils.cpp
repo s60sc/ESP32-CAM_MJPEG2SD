@@ -78,7 +78,6 @@ TaskHandle_t statusCheckHandle = NULL;
 
 static inline void runStatusCheck();
 static bool startPing();
-static bool waitForNTPsync(int maxRetries = 5, uint32_t perTryTimeoutMs = 2000);
 char timezone[FILE_NAME_LEN] = "GMT0";
 char ntpServer[MAX_HOST_LEN] = "pool.ntp.org";
 
@@ -770,7 +769,6 @@ bool remoteServerConnect(Client& client, const char* host, uint16_t port, uint8_
 static bool remoteServerConnectSec(NetworkClientSecure& client, const char* host, uint16_t port, uint8_t idx) {
   if (checkFailureThreshold(host, idx)) {
     // Additional operations for secure client
-    waitForNTPsync();
     if (timeSynchronized || !useSecure) {
       if (ESP.getFreeHeap() <= TLS_HEAP) {
         LOG_WRN("Insufficient heap %s for %s TLS session", fmtSize(ESP.getFreeHeap()), host);
@@ -836,20 +834,10 @@ static void showLocalTime(const char* timeSrc) {
   LOG_INF("Got current time from %s: %s with tz: %s", timeSrc, timeFormat, timezone);
 }
 
-static bool waitForNTPsync(int maxRetries, uint32_t perTryTimeoutMs) {
+static void timeSyncCallback(struct timeval *tv) {
   // wait for local time to sync with NTP server
-  if (!timeSynchronized) {
-    struct tm timeinfo;
-    int retry = 0;
-    while (!getLocalTime(&timeinfo, perTryTimeoutMs) && retry < maxRetries) retry++;
-    if (retry >= maxRetries) {
-      LOG_WRN("Time sync with NTP failed, retry");
-      return false;
-    }
-    LOG_INF("Time synced with NTP: %s, using timezone: %s", ntpServer, timezone);
-    timeSynchronized = true;
-  }
-  return true;
+  LOG_INF("Time synced with NTP: %s, using timezone: %s", ntpServer, timezone);
+  timeSynchronized = true;
 }
 
 void syncToBrowser(uint32_t browserUTC) {
@@ -980,7 +968,6 @@ static void statusCheckTask(void* parameter) {
     // regular status checks
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     if (!dataFilesChecked) checkDataFiles();
-    if (!timeSynchronized) waitForNTPsync();
     if (appSetupDone) doAppPing(timeSynchronized);
     checkScheduledRestart();
 #if INCLUDE_MQTT
@@ -1352,14 +1339,13 @@ bool utilsStartup() {
   STACK_MEM = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
 #endif
   logSetup();
-  configTzTime(timezone, ntpServer);
 #ifdef NEED_PSRAM
   if (psramFound()) {
     if (ESP.getPsramSize() < MIN_PSRAM * ONEMEG) 
       snprintf(startupFailure, SF_LEN, STARTUP_FAIL "App needs at least %dMB PSRAM", MIN_PSRAM);
   } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need PSRAM to be enabled");
 #endif
-  
+
   prepInternalTemp();
   if (jsonBuff == NULL) jsonBuff = psramFound() ? (char*)ps_malloc(JSON_BUFF_LEN) : (char*)malloc(JSON_BUFF_LEN);
   LOG_INF("Compiled with arduino-esp32 v%s", ESP_ARDUINO_VERSION_STR);
@@ -1367,6 +1353,8 @@ bool utilsStartup() {
   res = startStorage();
   // Load saved user configuration
   if (res) res = loadConfig();
+  sntp_set_time_sync_notification_cb(timeSyncCallback);
+  configTzTime(timezone, ntpServer);
 #ifdef DEV_ONLY
   devSetup();
 #endif
