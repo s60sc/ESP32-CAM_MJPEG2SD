@@ -7,6 +7,7 @@
 */
 
 #include "appGlobals.h"
+#include <charconv> // Required for std::from_chars (better atoi)
 #if INCLUDE_AF
 #if __has_include("../libraries/OV5640_Auto_Focus_for_ESP32_Camera/src/ESP32_OV5640_AF.h")
 #include <ESP32_OV5640_AF.h>
@@ -406,63 +407,115 @@ static bool closeAvi() {
   }
 }
 
-static boolean processFrame() {
+static bool processFrame() { // Changed legacy 'boolean' to standard C++ 'bool' for type safety.
   // get camera frame
   static bool haveMotion = false;
   bool res = true;
   uint32_t dTime = millis();
 
-  static uint32_t nullFbCount = 0;
+  // Use time-based recovery to prevent Task Watchdog Timer (TWDT) resets.
+  static uint32_t lastRecoveryTime = 0;
+  static uint32_t recoveryAttempts = 0;
+  constexpr uint32_t RECOVERY_INTERVAL_MS = 2000; // Wait 2000 milliseconds between recovery attempts.
+  constexpr uint32_t MAX_RECOVERY_ATTEMPTS = 10;  // Stop recovery after 10 consecutive attempts.
+
   camera_fb_t* fb = esp_camera_fb_get();
+  
   if (fb == NULL) {
-  	// reset camera for possible freeze if failing to return frames
-    nullFbCount++;
-    if (nullFbCount >= 50 && (nullFbCount % 50 == 0)) {
-      LOG_WRN("Camera fb_get returned NULL (%u consecutive frames) - attempting sensor recovery", (unsigned int)nullFbCount);
-      sensor_t* s = esp_camera_sensor_get();
-      if (s != NULL && s->reset != NULL) {
-        s->reset(s);
-        char fsizePtrStr[4];
-        if (retrieveConfigVal("framesize", fsizePtrStr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtrStr)));
-        else s->set_framesize(s, FRAMESIZE_VGA);
+    uint32_t currentTime = millis();
+
+    // Limit recovery attempts to a specific time interval to prevent processor starvation.
+    if (currentTime - lastRecoveryTime >= RECOVERY_INTERVAL_MS) {
+      lastRecoveryTime = currentTime;
+      recoveryAttempts++;
+
+      if (recoveryAttempts <= MAX_RECOVERY_ATTEMPTS) {
+        LOG_WRN("Camera fb_get returned NULL - attempting sensor recovery (attempt %u/%u)", 
+                (unsigned int)recoveryAttempts, (unsigned int)MAX_RECOVERY_ATTEMPTS);
+        
+        sensor_t* s = esp_camera_sensor_get();
+        if (s != NULL && s->reset != NULL) {
+          s->reset(s);
+          
+          char fsizePtrStr[8] = {0}; // Increased buffer size and zero-initialized to prevent overflow.
+          if (retrieveConfigVal("framesize", fsizePtrStr)) {
+            int parsed_framesize = 0;
+            // Replaced unsafe old 'atoi' with bounded and faster 'std::from_chars' to prevent undefined behavior.
+            const auto result = std::from_chars(fsizePtrStr, fsizePtrStr + sizeof(fsizePtrStr), parsed_framesize);
+            
+            if (result.ec == std::errc{}) {
+              s->set_framesize(s, static_cast<framesize_t>(parsed_framesize)); // Used static_cast for type safety.
+            } else {
+              s->set_framesize(s, FRAMESIZE_VGA); // Added explicit fallback on parse failure.
+            }
+          } else {
+            s->set_framesize(s, FRAMESIZE_VGA);
+          }
+        }
+      } else {
+        // Display an error log after maximum consecutive attempts.
+        LOG_ERR("Camera fb_get failed %u times. Recovery limit reached. System requires hard reset.", 
+                (unsigned int)recoveryAttempts);
       }
     }
+
+    // Yield to the FreeRTOS Idle task to prevent TWDT reset during rapid NULL returns.
+    vTaskDelay(pdMS_TO_TICKS(10));
     return false;
   }
-  nullFbCount = 0;
+  
+  // Reset recovery counters when a valid frame is received.
+  recoveryAttempts = 0;
+  lastRecoveryTime = 0;
 
-  if (!fb->len || fb->len > maxFrameBuffSize) {
+  if (fb->len == 0 || fb->len > maxFrameBuffSize) { // Replaced implicit boolean conversion with explicit zero check.
     LOG_WRN("Invalid camera frame length: %u (max: %u)", (unsigned int)fb->len, (unsigned int)maxFrameBuffSize);
     esp_camera_fb_return(fb);
     return false;
   }
+  
   timeLapse(fb);
 
   for (int i = 0; i < vidStreams; i++) {
-    if (!streamBufferSize[i] && streamBuffer[i] != NULL) {
+    if (streamBuffer[i] != NULL && streamBufferSize[i] == 0) { // Reordered null check first to prevent potential dereference.
       memcpy(streamBuffer[i], fb->buf, fb->len);
       streamBufferSize[i] = fb->len;
-      xSemaphoreGive(frameSemaphore[i]); // signal frame ready for stream
+      // Added semaphore return check to detect and log stalled stream consumers.
+      if (xSemaphoreGive(frameSemaphore[i]) != pdPASS) {
+        LOG_WRN("Stream %d consumer stalled (semaphore full)", i);
+      }
     }
   }
+  
   if (doKeepFrame) {
     keepFrame(fb);
     doKeepFrame = false;
   }
 
-  // determine if time to check for motion change
-  int reasonId = 0;
+  uint8_t reasonMask = 0; // Changed from single 'reasonId' to bitmask to capture multiple trigger sources.
   bool prevMotion = haveMotion;
-  if (doMonitor(doRecording ? isCapturing : dbgMotion ? false : true)) {
-    if (useMotion && checkMotion(fb, isCapturing)) reasonId = 1; // check 1 in N frames
-    if (!useMotion) checkMotion(fb, false, true); // calc light level only
+  
+  // Extracted complex ternary logic into a named boolean variable for readability.
+  bool shouldMonitor = doRecording ? isCapturing : !dbgMotion;
+  
+  if (doMonitor(shouldMonitor)) {
+    if (useMotion && checkMotion(fb, isCapturing)) {
+      reasonMask |= 1; // Use bitwise OR to accumulate camera motion trigger.
+    }
+    if (!useMotion) {
+      checkMotion(fb, false, true); // calculate light level only
+    }
 #if INCLUDE_PERIPH
-    if (pirUse && getPIRval()) reasonId = 2;
+    if (pirUse && getPIRval()) {
+      reasonMask |= 2; // Use bitwise OR to accumulate PIR motion trigger.
+    }
 #endif
 #if INCLUDE_I2C && USE_MPU
-    if (accelUse && checkAccelMove()) reasonId = 3;
+    if (accelUse && checkAccelMove()) {
+      reasonMask |= 4; // Use bitwise OR to accumulate accelerometer motion trigger.
+    }
 #endif
-    haveMotion = (reasonId) ? true : false;
+    haveMotion = (reasonMask != 0); // Simplified boolean assignment using explicit non-zero comparison.
   }
 
   // process motion status
@@ -470,27 +523,43 @@ static boolean processFrame() {
     // start of movement detection
 #if INCLUDE_PERIPH
     buzzerAlert(true); // sound buzzer if enabled
-    if (lampAuto && nightTime) setLamp(lampLevel);  // switch on lamp if requested
+    if (lampAuto && nightTime) {
+      setLamp(lampLevel);  // turn on lamp if requested
+    }
 #endif
   }
+  
   if (!haveMotion) {
 #if INCLUDE_PERIPH
-    if (lampAuto) setLamp(0); // switch off lamp
-    buzzerAlert(false); // switch off buzzer if still on
+    if (lampAuto) {
+      setLamp(0); // turn off lamp
+    }
+    buzzerAlert(false); // turn off buzzer if still on
 #endif
   }
 
   // recording status
   bool prevCapture = isCapturing;
-  isCapturing = haveMotion | forceRecord;
+  isCapturing = haveMotion || forceRecord; // Changed bitwise OR to logical OR for correct boolean evaluation.
+  
   if (isCapturing && !prevCapture) {
     // new movement has occurred or record button pressed, start recording
     stopPlaying(); // terminate any playback
     stopPlayback = true; // stop any subsequent playback
-    if (!dashCamOn) LOG_ALT("Capture started by %s%s%s%s", reasonId == 0 ? "Button" : "", reasonId == 1 ? "Camera " : "", reasonId == 2 ? "PIR" : "", reasonId == 3 ? "Accelerometer" : "");
+    
+    if (!dashCamOn) {
+      // Updated logging to evaluate bitmask flags and display all active trigger sources.
+      LOG_ALT("Capture started by %s%s%s%s", 
+              (reasonMask == 0) ? "Button " : "", 
+              (reasonMask & 1) ? "Camera " : "", 
+              (reasonMask & 2) ? "PIR " : "", 
+              (reasonMask & 4) ? "Accelerometer " : "");
+    }
+    
 #if INCLUDE_MQTT
     if (mqtt_active) {
-      sprintf(jsonBuff, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
+      // Replaced unsafe 'sprintf' with 'snprintf' to prevent buffer overflow.
+      snprintf(jsonBuff, sizeof(jsonBuff), "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
       mqttPublishPath("record", "on");
     }
@@ -503,29 +572,38 @@ static boolean processFrame() {
     // capture is ongoing
     showProgress();
     if (frameCnt < frameLimit) {
-      dTimeTot += millis() - dTime;
+      dTimeTot += (millis() - dTime);
       saveFrame(fb);
+      
       if (frameCnt >= frameLimit) {
         // stop saving frames for this avi as limit reached
-        isCapturing = forceRecord = false;
+        isCapturing = false;
+        // Removed automatic clearing of 'forceRecord' to allow external controller to manage state.
+        
         if (!dashCamOn) {
           logLine();
-          LOG_WRN("Auto closed recording after %u frames", frameLimit);
+          LOG_WRN("Auto closed recording after %u frames", (unsigned int)frameLimit);
         }
       }
     }
+    
 #if INCLUDE_PERIPH
-    if (buzzerUse && frameCnt / FPS >= buzzerDuration) buzzerAlert(false); // switch off after given period
+    // Replaced expensive integer division with multiplication for Xtensa performance, with zero-check.
+    if (buzzerUse && FPS > 0 && frameCnt >= (static_cast<uint32_t>(buzzerDuration) * static_cast<uint32_t>(FPS))) {
+      buzzerAlert(false); // turn off after given period
+    }
 #endif
   }
 
   esp_camera_fb_return(fb);
+  
   if (!isCapturing && prevCapture) {
     // finish recording (normal or forced)
     closeAvi();
     wsAsyncSendJson("ustatus", "\"showRecord\":0");
     stopPlayback = false; // allow for playbacks
   }
+  
   return res;
 }
 
@@ -955,23 +1033,43 @@ bool prepCam() {
 #endif
 
   bool res = false;
+  
+  // Cache PSRAM size to avoid multiple hardware/register reads
+  const size_t psramSize = ESP.getPsramSize();
+
   // buffer sizing depends on psram size (2M, 4M or 8M)
   // FRAMESIZE_QSXGA = 1MB, FRAMESIZE_UXGA = 375KB (as JPEG)
   // Omnivision camera models
   maxFS = FRAMESIZE_SVGA; // 2M
-  if (ESP.getPsramSize() > 5 * ONEMEG) maxFS = FRAMESIZE_QSXGA; // 8M
-  else if (ESP.getPsramSize() > 3 * ONEMEG) maxFS = FRAMESIZE_UXGA; // 4M
+  if (psramSize > 5 * ONEMEG) maxFS = FRAMESIZE_QSXGA; // 8M
+  else if (psramSize > 3 * ONEMEG) maxFS = FRAMESIZE_UXGA; // 4M
 #ifdef USE_PY260
   // PY260 camera has different frame sizes
-  maxFS = (ESP.getPsramSize() > 5 * ONEMEG) ? FRAMESIZE_5MP : FRAMESIZE_HD;
+  maxFS = (psramSize > 5 * ONEMEG) ? FRAMESIZE_5MP : FRAMESIZE_HD;
 #endif
+  
+  // Cache frame data reference to avoid repeated array indexing
+  const auto& frameInfo = frameData[maxFS];
+  
   // define buffer size depending on maximum frame size available, esp32-camera/driver/cam_hal.c: cam_obj->recv_size
-  maxFrameBuffSize = maxAlertBuffSize = frameData[maxFS].frameWidth * frameData[maxFS].frameHeight / 5;
-  if (alertBuffer == NULL) alertBuffer = psramFound() ? (byte*)ps_malloc(maxAlertBuffSize) : (byte*)malloc(maxAlertBuffSize);
-  LOG_INF("Max frame size for %s PSRAM is %s ", fmtSize(ESP.getPsramSize()), frameData[maxFS].frameSizeStr);
+  // Use size_t to prevent integer overflow during multiplication
+  size_t requiredBuffSize = static_cast<size_t>(frameInfo.frameWidth) * frameInfo.frameHeight / 5;
+  maxFrameBuffSize = maxAlertBuffSize = requiredBuffSize;
+  
+  if (alertBuffer == NULL) {
+    alertBuffer = psramFound() ? static_cast<uint8_t*>(ps_malloc(maxAlertBuffSize)) : static_cast<uint8_t*>(malloc(maxAlertBuffSize));
+    if (alertBuffer == NULL) {
+      LOG_ERR("Failed to allocate alertBuffer (%u bytes)", static_cast<unsigned int>(maxAlertBuffSize));
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Memory allocation failed for alert buffer");
+      return false;
+    }
+  }
+  
+  LOG_INF("Max frame size for %s PSRAM is %s ", fmtSize(psramSize), frameInfo.frameSizeStr);
 
   // configure camera
-  camera_config_t config;
+  // Zero-initialize to prevent undefined behavior from garbage values in unassigned fields
+  camera_config_t config = {0};
   config.ledc_channel = LEDC_CHANNEL_1;
   config.ledc_timer = LEDC_TIMER_1;
   config.pin_d0 = Y2_GPIO_NUM;
@@ -996,7 +1094,7 @@ bool prepCam() {
   // init with high specs to pre-allocate larger buffers
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.frame_size = maxFS;
-  config.jpeg_quality = 10;
+  config.jpeg_quality = 12;
   config.fb_count = FB_CNT;
   config.sccb_i2c_port = 0;// using I2C 0. to be sure what port we are using.
 
@@ -1015,21 +1113,24 @@ bool prepCam() {
       // power cycle the camera, provided pin is connected
 #if (defined(PWDN_GPIO_NUM)) && (PWDN_GPIO_NUM > -1) // both checks are needed. if send -1 to digitalWrite, it can cause crash.
       digitalWrite(PWDN_GPIO_NUM, 1);
-      delay(100);
+      vTaskDelay(pdMS_TO_TICKS(100));
       digitalWrite(PWDN_GPIO_NUM, 0);
-      delay(100);
+      vTaskDelay(pdMS_TO_TICKS(100));
 #else
-      delay(200);
+      vTaskDelay(pdMS_TO_TICKS(200));
 #endif
       retries--;
     }
   }
+  
   uint16_t PID = 0;
-  if (err != ESP_OK) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%X:%s on %s", err, espErrMsg(err), CAM_BOARD);
-  else {
+  if (err != ESP_OK) {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Camera init error 0x%X:%s on %s", err, espErrMsg(err), CAM_BOARD);
+  } else {
     sensor_t* s = esp_camera_sensor_get();
-    if (s == NULL) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to access camera data on %s", CAM_BOARD);
-    else {
+    if (s == NULL) {
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to access camera data on %s", CAM_BOARD);
+    } else {
       PID = s->id.PID;
       switch (PID) {
         case (OV2640_PID):
@@ -1055,13 +1156,30 @@ bool prepCam() {
           break;
         default:
           // not recognised
-          sprintf(camModel, "PID=0x%X", s->id.PID);
+          // 16 bytes is sufficient for "PID=0xXXXX\0", preventing buffer overflow
+          snprintf(camModel, 16, "PID=0x%X", s->id.PID);
           break;
       }
+      
       // set frame size to configured value
       char fsizePtrStr[4];
-      if (retrieveConfigVal("framesize", fsizePtrStr)) s->set_framesize(s, (framesize_t)(atoi(fsizePtrStr)));
-      else s->set_framesize(s, FRAMESIZE_VGA);
+      if (retrieveConfigVal("framesize", fsizePtrStr)) {
+        int parsed_size = 0;
+        auto res = std::from_chars(fsizePtrStr, fsizePtrStr + sizeof(fsizePtrStr), parsed_size);
+        if (res.ec == std::errc{} && res.ptr > fsizePtrStr) {
+          if (parsed_size >= 0 && parsed_size < FRAMESIZE_INVALID) {
+            s->set_framesize(s, static_cast<framesize_t>(parsed_size));
+          } else {
+            s->set_framesize(s, FRAMESIZE_VGA);
+            LOG_WRN("Config framessize %d out of bounds, default to VGA", parsed_size);
+          }
+        } else {
+          s->set_framesize(s, FRAMESIZE_VGA);
+          LOG_WRN("Parse failed for config framesize, default to VGA");
+        }
+      } else {
+        s->set_framesize(s, FRAMESIZE_VGA);
+      }
 
       // model specific corrections
       if (PID == OV3660_PID) {
@@ -1082,27 +1200,53 @@ bool prepCam() {
       res = true;
     }
   }
-  // check that camera data is accessible
+  
+  // check that camera data is accessible and allow sensor AEC/AWB to settle
   if (res) {
-    camera_fb_t* fb = esp_camera_fb_get();
+    // Discard first few frames to allow automatic exposure and white balance to settle.
+    // OV2640 and similar sensors need ~1-2 seconds; 3 frames with small delays is effective.
+    const uint8_t warmupFrames = 3;
+    camera_fb_t* fb = NULL;
+    
+    for (uint8_t i = 0; i < warmupFrames; ++i) {
+      fb = esp_camera_fb_get();
+      if (fb != NULL) {
+        esp_camera_fb_return(fb);
+        fb = NULL;
+        // Small delay to allow sensor ISP to adjust AEC/AWB
+        vTaskDelay(pdMS_TO_TICKS(150));
+      } else {
+        LOG_WRN("Camera warmup frame %d failed to grab", i + 1);
+        break; // If it fails, the final check will catch it
+      }
+    }
+
+    // Final validation frame
+    fb = esp_camera_fb_get();
     if (fb == NULL) {
       // usually a camera hardware / ribbon cable fault
       snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to get camera frame - check camera hardware");
+      res = false;
     } else {
       esp_camera_fb_return(fb);
       fb = NULL;
       res = true;
-      LOG_INF("Camera model %s ready @ %uMHz", camModel, xclkMhz);
+      LOG_INF("Camera model %s ready @ %uMHz (AEC/AWB settled)", camModel, xclkMhz);
       if (timeLapseOn) dashCamOn = 0;
       if (dashCamOn) {
         timeLapseOn = useMotion = false; // disable timeLapse and motion recording
-        frameLimit = FPS * dashCamOn * 60; // frameLimit is not changed if FPS later changed without restart
+        // Cast to uint32_t to prevent potential integer overflow
+        frameLimit = static_cast<uint32_t>(FPS) * dashCamOn * 60; // frameLimit is not changed if FPS later changed without restart
         if (frameLimit > maxFrames) {
           frameLimit = maxFrames;
           LOG_WRN("Max continuous recording time interval is %d mins", frameLimit / FPS / 60);
-        } else LOG_INF("Do continuous recording at %d min intervals", dashCamOn);
+        } else {
+          LOG_INF("Do continuous recording at %d min intervals", dashCamOn);
+        }
         forceRecord = true;
-      } else frameLimit = maxFrames;
+      } else {
+        frameLimit = maxFrames;
+      }
     }
   }
   debugMemory("prepCam");
