@@ -482,7 +482,7 @@ static bool processFrame() { // Changed legacy 'boolean' to standard C++ 'bool' 
       streamBufferSize[i] = fb->len;
       // Added semaphore return check to detect and log stalled stream consumers.
       if (xSemaphoreGive(frameSemaphore[i]) != pdPASS) {
-        LOG_WRN("Stream %d consumer stalled (semaphore full)", i);
+////        LOG_WRN("Stream %d consumer stalled (semaphore full)", i);
       }
     }
   }
