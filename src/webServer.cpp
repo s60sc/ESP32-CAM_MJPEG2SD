@@ -647,6 +647,7 @@ bool startWebServer() {
   
     //config.user_cb = https_server_user_callback;
     config.httpd.server_port = HTTPS_PORT;
+    config.max_resp_headers = 16; // maximum number of headers in an HTTP response
     config.httpd.lru_purge_enable = true; // close least used socket 
     config.httpd.max_uri_handlers = MAX_HANDLERS;
     config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
