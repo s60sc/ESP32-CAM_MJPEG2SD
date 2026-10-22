@@ -9,6 +9,8 @@
 // s60sc 2022 - 2024
 
 #include "appGlobals.h"
+#include <charconv> // Add for std::from_chars to enable safe, locale-independent integer parsing.
+#include <cstring>
 
 static char variable[FILE_NAME_LEN]; 
 static char value[FILE_NAME_LEN];
@@ -24,275 +26,645 @@ static void stopRC();
 
 /************************ webServer callbacks *************************/
 
+// Add compile-time MurmurHash3 function for safe string switching.
+static constexpr uint32_t murmur3_scramble(uint32_t k) {
+    k *= 0xcc9e2d51u;
+    k = (k << 15u) | (k >> 17u);
+    k *= 0x1b873593u;
+    return k;
+}
+
+static constexpr uint32_t murmur3_32(const char* str) {
+    uint32_t h = 0x9747b28cu; // Standard seed
+    uint32_t k = 0u;
+    uint32_t len = 0u;
+    
+    // Calculate string length at compile time.
+    while (str[len] != '\0') {
+        len++;
+    }
+
+    uint32_t i = 0u;
+    // Process 4-byte blocks. Added (uint8_t) cast to prevent sign-extension issues with signed char.
+    for (; i + 4u <= len; i += 4u) {
+        k = (uint32_t)(uint8_t)str[i] | ((uint32_t)(uint8_t)str[i + 1u] << 8u) | 
+            ((uint32_t)(uint8_t)str[i + 2u] << 16u) | ((uint32_t)(uint8_t)str[i + 3u] << 24u);
+        h ^= murmur3_scramble(k);
+        h = (h << 13u) | (h >> 19u);
+        h = h * 5u + 0xe6546b64u;
+    }
+
+    // Process remaining bytes.
+    k = 0u;
+    uint32_t rem = len & 3u;
+    if (rem >= 3u) k ^= (uint32_t)(uint8_t)str[i + 2u] << 16u;
+    if (rem >= 2u) k ^= (uint32_t)(uint8_t)str[i + 1u] << 8u;
+    if (rem >= 1u) {
+        k ^= (uint32_t)(uint8_t)str[i];
+        k = murmur3_scramble(k);
+        h ^= k;
+    }
+
+    // Mix final hash value.
+    h ^= len;
+    h ^= h >> 16u;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13u;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16u;
+
+    return h;
+}
+
 bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
   // update vars from browser input
   esp_err_t res = ESP_OK; 
+  
+  // Add null pointer check to prevent crashes on invalid input.
+  if (variable == nullptr || value == nullptr) {
+    return false;
+  }
+
 #ifndef AUXILIARY
   sensor_t* s = esp_camera_sensor_get();
 #endif
-  int intVal = atoi(value);
-  float fltVal = atof(value);
-  if (!strcmp(variable, "custom")) return true;
+  
+  int intVal = 0; // Initialize to 0 to ensure safe default if parsing fails.
+  float fltVal = 0.0f; // Initialize to 0.0f to ensure safe default if parsing fails.
+  
+  // Replace atoi with std::from_chars for safe, locale-independent integer parsing.
+  std::from_chars(value, value + std::strlen(value), intVal);
+  
+  // Replace atof with strtof for safe, standard-compliant floating-point parsing.
+  char* endPtr = nullptr;
+  fltVal = strtof(value, &endPtr);
+
+  // Replace linear if-else chain with O(1) average-time switch statement using MurmurHash3.
+  switch (murmur3_32(variable)) {
+    case murmur3_32("custom"):
+      return true;
+
 #ifndef AUXILIARY
-  else if (!strcmp(variable, "stopStream")) stopSustainTask(intVal);
-  else if (!strcmp(variable, "stopPlaying")) stopPlaying();
-  else if (!strcmp(variable, "minf")) minSeconds = intVal; 
-  else if (!strcmp(variable, "motionVal")) motionVal = intVal;
-  else if (!strcmp(variable, "moveStartChecks")) moveStartChecks = intVal;
-  else if (!strcmp(variable, "moveStopSecs")) moveStopSecs = intVal;
-  else if (!strcmp(variable, "maxFrames")) maxFrames = intVal > 0 ? intVal : maxFrames;
-  else if (!strcmp(variable, "detectMotionFrames")) detectMotionFrames = intVal;
-  else if (!strcmp(variable, "detectNightFrames")) detectNightFrames = intVal;
-  else if (!strcmp(variable, "detectNumBands")) detectNumBands = intVal;
-  else if (!strcmp(variable, "detectStartBand")) detectStartBand = intVal;
-  else if (!strcmp(variable, "detectEndBand")) detectEndBand = intVal;
-  else if (!strcmp(variable, "detectChangeThreshold")) detectChangeThreshold = intVal;
-  else if (!strcmp(variable, "mlUse")) mlUse = (bool)intVal;
-  else if (!strcmp(variable, "mlProbability")) mlProbability = fltVal < 0 ? 0.0 : (fltVal > 1.0 ? 1.0 : fltVal);
-  else if (!strcmp(variable, "depthColor")) {
-    depthColor = (bool)intVal;
-    colorDepth = depthColor ? RGB888_BYTES : GRAYSCALE_BYTES;
-  }
-  else if (!strcmp(variable, "enableMotion")) {
-    // Turn on/off motion detection 
-    useMotion = (intVal) ? true : false; 
-    LOG_INF("%s motion detection by camera", useMotion ? "Enabling" : "Disabling");
-  }
-  else if (!strcmp(variable, "timeLapseOn")) timeLapseOn = intVal;
-  else if (!strcmp(variable, "dashCamOn")) {
-    dashCamOn = intVal;
-    if (dashCamOn == 0) forceRecord = false;
-  }
-  else if (!strcmp(variable, "tlSecsBetweenFrames")) tlSecsBetweenFrames = intVal;
-  else if (!strcmp(variable, "tlDurationMins")) tlDurationMins = intVal;
-  else if (!strcmp(variable, "tlPlaybackFPS")) tlPlaybackFPS = intVal; 
-  else if (!strcmp(variable, "streamVid")) streamVid = (bool)intVal;
-  else if (!strcmp(variable, "streamAud")) streamAud = (bool)intVal; 
-  else if (!strcmp(variable, "streamSrt")) streamSrt = (bool)intVal; 
-  else if (!strcmp(variable, "lswitch")) nightSwitch = intVal;
+    case murmur3_32("stopStream"):
+      stopSustainTask(intVal);
+      break;
+    case murmur3_32("stopPlaying"):
+      stopPlaying();
+      break;
+    case murmur3_32("minf"):
+      minSeconds = intVal;
+      break;
+    case murmur3_32("motionVal"):
+      motionVal = intVal;
+      break;
+    case murmur3_32("moveStartChecks"):
+      moveStartChecks = intVal;
+      break;
+    case murmur3_32("moveStopSecs"):
+      moveStopSecs = intVal;
+      break;
+    case murmur3_32("maxFrames"):
+      maxFrames = intVal > 0 ? intVal : maxFrames;
+      break;
+    case murmur3_32("detectMotionFrames"):
+      detectMotionFrames = intVal;
+      break;
+    case murmur3_32("detectNightFrames"):
+      detectNightFrames = intVal;
+      break;
+    case murmur3_32("detectNumBands"):
+      detectNumBands = intVal;
+      break;
+    case murmur3_32("detectStartBand"):
+      detectStartBand = intVal;
+      break;
+    case murmur3_32("detectEndBand"):
+      detectEndBand = intVal;
+      break;
+    case murmur3_32("detectChangeThreshold"):
+      detectChangeThreshold = intVal;
+      break;
+    case murmur3_32("mlUse"):
+      mlUse = (intVal != 0); // Replace implicit boolean cast with explicit (intVal != 0) for safe conversion.
+      break;
+    case murmur3_32("mlProbability"):
+      mlProbability = fltVal < 0.0f ? 0.0f : (fltVal > 1.0f ? 1.0f : fltVal); // Add 'f' suffix to prevent implicit double-to-float conversion.
+      break;
+    case murmur3_32("depthColor"): {
+      depthColor = (intVal != 0); // Replace implicit boolean cast with explicit (intVal != 0).
+      colorDepth = depthColor ? RGB888_BYTES : GRAYSCALE_BYTES;
+      break;
+    }
+    case murmur3_32("enableMotion"):
+      // Turn on/off motion detection 
+      useMotion = (intVal != 0); // Replace implicit boolean cast with explicit (intVal != 0).
+      LOG_INF("%s motion detection by camera", useMotion ? "Enabling" : "Disabling");
+      break;
+    case murmur3_32("timeLapseOn"):
+      timeLapseOn = intVal;
+      break;
+    case murmur3_32("dashCamOn"):
+      dashCamOn = intVal;
+      if (dashCamOn == 0) forceRecord = false;
+      break;
+    case murmur3_32("tlSecsBetweenFrames"):
+      tlSecsBetweenFrames = intVal;
+      break;
+    case murmur3_32("tlDurationMins"):
+      tlDurationMins = intVal;
+      break;
+    case murmur3_32("tlPlaybackFPS"):
+      tlPlaybackFPS = intVal;
+      break;
+    case murmur3_32("streamVid"):
+      streamVid = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("streamAud"):
+      streamAud = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("streamSrt"):
+      streamSrt = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("lswitch"):
+      nightSwitch = intVal;
+      break;
 #endif // AUXILIARY
+
 #if INCLUDE_FTP_HFS
-  else if (!strcmp(variable, "upload")) fsStartTransfer(value); 
+    case murmur3_32("upload"):
+      fsStartTransfer(value);
+      break;
 #endif
-  else if (!strcmp(variable, "delete")) {
-    stopPlayback = true;
-    deleteFolderOrFile(value);
-  }
-  else if (!strcmp(variable, "record")) doRecording = (intVal) ? true : false;   
-  else if (!strcmp(variable, "forceRecord")) forceRecord = (intVal) ? true : false; 
-  else if (!strcmp(variable, "dbgMotion")) {
-    // only enable show motion if motion detect enabled
-    dbgMotion = (intVal && useMotion) ? true : false;
-    doRecording = !dbgMotion;
-  }
-  else if (!strcmp(variable, "devHub")) devHub = (bool)intVal;   
+
+    case murmur3_32("delete"):
+      stopPlayback = true;
+      deleteFolderOrFile(value);
+      break;
+    case murmur3_32("record"):
+      doRecording = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("forceRecord"):
+      forceRecord = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("dbgMotion"):
+      // only enable show motion if motion detect enabled
+      dbgMotion = (intVal != 0) && useMotion; // Replace implicit boolean cast and simplify logic.
+      doRecording = !dbgMotion;
+      break;
+    case murmur3_32("devHub"):
+      devHub = (intVal != 0); // Replace implicit boolean cast.
+      break;
+
   // peripherals
 #if INCLUDE_PERIPH
-  else if (!strcmp(variable, "pirUse")) pirUse = (bool)intVal;
-  else if (!strcmp(variable, "lampLevel")) {
-    lampLevel = intVal;
-    if (!lampType) setLamp(lampLevel); // manual
-  }
-  else if (!strcmp(variable, "lampType")) {
-    lampType = intVal;
-    lampAuto = lampNight = false;
-    if (lampType == 1) lampAuto = true; // lamp activated by motion detector device
-    if (!lampType) setLamp(lampLevel); 
-    else setLamp(0); 
-  }
-  else if (!strcmp(variable, "relayPin")) relayPin = intVal;
-  else if (!strcmp(variable, "relayMode")) relayMode = (bool)intVal;
-  else if (!strcmp(variable, "relaySwitch")) digitalWrite(relayPin, intVal);
-  else if (!strcmp(variable, "SVactive")) SVactive = (bool)intVal;
-  else if (!strcmp(variable, "voltUse")) voltUse = (bool)intVal;
-  else if (!strcmp(variable, "pirPin")) pirPin = intVal;
-  else if (!strcmp(variable, "lampPin")) lampPin = intVal;
-  else if (!strcmp(variable, "servoPanPin")) servoPanPin = intVal;
-  else if (!strcmp(variable, "servoTiltPin")) servoTiltPin = intVal;
-  else if (!strcmp(variable, "voltPin")) voltPin = intVal;
-  else if (!strcmp(variable, "servoSteerPin")) servoSteerPin = intVal;
-  else if (!strcmp(variable, "servoDelay")) servoDelay = intVal;
-  else if (!strcmp(variable, "servoMinAngle")) servoMinAngle = intVal;
-  else if (!strcmp(variable, "servoMaxAngle")) servoMaxAngle = intVal;
-  else if (!strcmp(variable, "servoMinPulseWidth")) servoMinPulseWidth = intVal;
-  else if (!strcmp(variable, "servoMaxPulseWidth")) servoMaxPulseWidth = intVal;
-  else if (!strcmp(variable, "servoCenter")) servoCenter = intVal;
-  else if (!strcmp(variable, "voltDivider")) voltDivider = intVal;
-  else if (!strcmp(variable, "voltLow")) voltLow = fltVal;
-  else if (!strcmp(variable, "voltInterval")) voltInterval = intVal;
-  else if (!strcmp(variable, "buzzerUse")) buzzerUse = (bool)intVal;  
-  else if (!strcmp(variable, "buzzerPin")) buzzerPin = intVal; 
-  else if (!strcmp(variable, "buzzerDuration")) buzzerDuration = intVal;
-  else if (!strcmp(variable, "ds18b20Pin")) ds18b20Pin = intVal;
+    case murmur3_32("pirUse"):
+      pirUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("lampLevel"):
+      lampLevel = intVal;
+      if (!lampType) setLamp(lampLevel); // manual
+      break;
+    case murmur3_32("lampType"):
+      lampType = intVal;
+      lampAuto = lampNight = false;
+      if (lampType == 1) lampAuto = true; // lamp activated by motion detector device
+      if (!lampType) setLamp(lampLevel);
+      else setLamp(0);
+      break;
+    case murmur3_32("relayPin"):
+      relayPin = intVal;
+      break;
+    case murmur3_32("relayMode"):
+      relayMode = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("relaySwitch"):
+      // Ensure digitalWrite receives explicit HIGH/LOW to prevent undefined hardware behavior from arbitrary integers.
+      digitalWrite(relayPin, intVal != 0 ? HIGH : LOW);
+      break;
+    case murmur3_32("SVactive"):
+      SVactive = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("voltUse"):
+      voltUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("pirPin"):
+      pirPin = intVal;
+      break;
+    case murmur3_32("lampPin"):
+      lampPin = intVal;
+      break;
+    case murmur3_32("servoPanPin"):
+      servoPanPin = intVal;
+      break;
+    case murmur3_32("servoTiltPin"):
+      servoTiltPin = intVal;
+      break;
+    case murmur3_32("voltPin"):
+      voltPin = intVal;
+      break;
+    case murmur3_32("servoSteerPin"):
+      servoSteerPin = intVal;
+      break;
+    case murmur3_32("servoDelay"):
+      servoDelay = intVal;
+      break;
+    case murmur3_32("servoMinAngle"):
+      servoMinAngle = intVal;
+      break;
+    case murmur3_32("servoMaxAngle"):
+      servoMaxAngle = intVal;
+      break;
+    case murmur3_32("servoMinPulseWidth"):
+      servoMinPulseWidth = intVal;
+      break;
+    case murmur3_32("servoMaxPulseWidth"):
+      servoMaxPulseWidth = intVal;
+      break;
+    case murmur3_32("servoCenter"):
+      servoCenter = intVal;
+      break;
+    case murmur3_32("voltDivider"):
+      voltDivider = intVal;
+      break;
+    case murmur3_32("voltLow"):
+      voltLow = fltVal;
+      break;
+    case murmur3_32("voltInterval"):
+      voltInterval = intVal;
+      break;
+    case murmur3_32("buzzerUse"):
+      buzzerUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("buzzerPin"):
+      buzzerPin = intVal;
+      break;
+    case murmur3_32("buzzerDuration"):
+      buzzerDuration = intVal;
+      break;
+    case murmur3_32("ds18b20Pin"):
+      ds18b20Pin = intVal;
+      break;
 #endif
+
 #if INCLUDE_I2C
-  else if (!strcmp(variable, "I2Csda")) I2Csda = intVal;
-  else if (!strcmp(variable, "I2Cscl")) I2Cscl = intVal;
-  else if (!strcmp(variable, "accelUse")) accelUse = (bool)intVal;
-  else if (!strcmp(variable, "accelDeg")) accelDeg = intVal;
+    case murmur3_32("I2Csda"):
+      I2Csda = intVal;
+      break;
+    case murmur3_32("I2Cscl"):
+      I2Cscl = intVal;
+      break;
+    case murmur3_32("accelUse"):
+      accelUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("accelDeg"):
+      accelDeg = intVal;
+      break;
 #endif
+
 #if INCLUDE_AUDIO
-  else if (!strcmp(variable, "micRem")) {
-    micRem = bool(intVal);
-    LOG_INF("Remote mic is %s", micRem ? "On" : "Off");
-    if (micRem && !ampVol) LOG_WRN("Amp volume is off");
-  }
-  else if (!strcmp(variable, "spkrRem")) {
-    spkrRem = (bool)intVal;
-    LOG_INF("Remote speaker is %s", spkrRem ? "On" : "Off");
-    if (spkrRem && !micGain) LOG_WRN("Mic gain is off");
-  }
-  else if (!strcmp(variable, "micGain")) micGain = intVal;
-  else if (!strcmp(variable, "micSckPin")) micSckPin = intVal;
-  else if (!strcmp(variable, "micSWsPin")) micSWsPin = intVal;
-  else if (!strcmp(variable, "micSdPin")) micSdPin = intVal;
-  else if (!strcmp(variable, "ampVol")) ampVol = intVal;
-  else if (!strcmp(variable, "mampBckIo")) mampBckIo = intVal;
-  else if (!strcmp(variable, "mampSwsIo")) mampSwsIo = intVal;
-  else if (!strcmp(variable, "mampSdIo")) mampSdIo = intVal;
-  else if (!strcmp(variable, "AudActive")) AudActive = intVal;
+    case murmur3_32("micRem"):
+      micRem = (intVal != 0); // Replace implicit boolean cast.
+      LOG_INF("Remote mic is %s", micRem ? "On" : "Off");
+      if (micRem && !ampVol) LOG_WRN("Amp volume is off");
+      break;
+    case murmur3_32("spkrRem"):
+      spkrRem = (intVal != 0); // Replace implicit boolean cast.
+      LOG_INF("Remote speaker is %s", spkrRem ? "On" : "Off");
+      if (spkrRem && !micGain) LOG_WRN("Mic gain is off");
+      break;
+    case murmur3_32("micGain"):
+      micGain = intVal;
+      break;
+    case murmur3_32("micSckPin"):
+      micSckPin = intVal;
+      break;
+    case murmur3_32("micSWsPin"):
+      micSWsPin = intVal;
+      break;
+    case murmur3_32("micSdPin"):
+      micSdPin = intVal;
+      break;
+    case murmur3_32("ampVol"):
+      ampVol = intVal;
+      break;
+    case murmur3_32("mampBckIo"):
+      mampBckIo = intVal;
+      break;
+    case murmur3_32("mampSwsIo"):
+      mampSwsIo = intVal;
+      break;
+    case murmur3_32("mampSdIo"):
+      mampSdIo = intVal;
+      break;
+    case murmur3_32("AudActive"):
+      AudActive = intVal;
+      break;
 #endif
+
 #if INCLUDE_TELEM
-  else if (!strcmp(variable, "teleUse")) teleUse = (bool)intVal;
+    case murmur3_32("teleUse"):
+      teleUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
 #endif
-  else if (!strcmp(variable, "teleInterval")) srtInterval = intVal;
-  else if (!strcmp(variable, "wakeUse")) wakeUse = (bool)intVal;
-  else if (!strcmp(variable, "wakePin")) wakePin = intVal;
-  else if (!strcmp(variable, "wakeLevel")) wakeLevel = intVal;
+
+    case murmur3_32("teleInterval"):
+      srtInterval = intVal;
+      break;
+    case murmur3_32("wakeUse"):
+      wakeUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("wakePin"):
+      wakePin = intVal;
+      break;
+    case murmur3_32("wakeLevel"):
+      wakeLevel = intVal;
+      break;
+
 #if INCLUDE_MCPWM
-  else if (!strcmp(variable, "motorRevPin")) motorRevPin = intVal;
-  else if (!strcmp(variable, "motorFwdPin")) motorFwdPin = intVal;
-  else if (!strcmp(variable, "motorRevPinR")) motorRevPinR = intVal;
-  else if (!strcmp(variable, "motorFwdPinR")) {
-    motorFwdPinR = intVal;
-    if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
-  }
-  else if (!strcmp(variable, "pwmFreq")) pwmFreq = intVal;
+    case murmur3_32("motorRevPin"):
+      motorRevPin = intVal;
+      break;
+    case murmur3_32("motorFwdPin"):
+      motorFwdPin = intVal;
+      break;
+    case murmur3_32("motorRevPinR"):
+      motorRevPinR = intVal;
+      break;
+    case murmur3_32("motorFwdPinR"):
+      motorFwdPinR = intVal;
+      if (motorFwdPinR > 0) trackSteer = true; // use track steering if pin defined
+      break;
+    case murmur3_32("pwmFreq"):
+      pwmFreq = intVal;
+      break;
 #endif
+
 #ifndef AUXILIARY
-  else if (!strcmp(variable, "AuxIP")) strncpy(AuxIP, value, MAX_IP_LEN-1);
+    case murmur3_32("AuxIP"):
+      strncpy(AuxIP, value, MAX_IP_LEN - 1);
+      AuxIP[MAX_IP_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      break;
 #endif
+
 #if INCLUDE_PERIPH
-  else if (!strcmp(variable, "RCactive")) {
-    RCactive = (bool)intVal;
-    bool aux = false;
+    case murmur3_32("RCactive"): {
+      // Added {} block to prevent "crosses initialization of 'bool aux'" compilation error.
+      RCactive = (intVal != 0); // Replace implicit boolean cast.
+      // Note: 'aux' logic preserved exactly as in original code.
+      bool aux = false;
 #ifdef AUXILIARY
-    aux = true;
+      aux = true;
 #endif
 #if INCLUDE_MCPWM
-    useBDC = (useUart && !aux) ? false : (bool)intVal;
+      useBDC = (useUart && !aux) ? false : (intVal != 0); // Replace implicit boolean cast.
 #endif
-  }
-  else if (!strcmp(variable, "heartbeatRC")) heartbeatRC = intVal;
-  else if (!strcmp(variable, "maxSteerAngle")) maxSteerAngle = intVal;  
-  else if (!strcmp(variable, "maxDutyCycle")) maxDutyCycle = intVal;  
-  else if (!strcmp(variable, "minDutyCycle")) minDutyCycle = intVal;  
-  else if (!strcmp(variable, "maxTurnSpeed")) maxTurnSpeed = intVal;  
-  else if (!strcmp(variable, "allowReverse")) allowReverse = (bool)intVal;   
-  else if (!strcmp(variable, "autoControl")) autoControl = (bool)intVal; 
-  else if (!strcmp(variable, "waitTime")) waitTime = intVal;    
-  else if (!strcmp(variable, "lightsRCpin")) lightsRCpin = intVal;
-  else if (!strcmp(variable, "stickUse")) stickUse = (bool)intVal; 
-  else if (!strcmp(variable, "stickXpin")) stickXpin = intVal; 
-  else if (!strcmp(variable, "stickYpin")) stickYpin = intVal; 
-  else if (!strcmp(variable, "stickzPushPin")) stickzPushPin = intVal; 
+      break;
+    }
+    case murmur3_32("heartbeatRC"):
+      heartbeatRC = intVal;
+      break;
+    case murmur3_32("maxSteerAngle"):
+      maxSteerAngle = intVal;
+      break;
+    case murmur3_32("maxDutyCycle"):
+      maxDutyCycle = intVal;
+      break;
+    case murmur3_32("minDutyCycle"):
+      minDutyCycle = intVal;
+      break;
+    case murmur3_32("maxTurnSpeed"):
+      maxTurnSpeed = intVal;
+      break;
+    case murmur3_32("allowReverse"):
+      allowReverse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("autoControl"):
+      autoControl = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("waitTime"):
+      waitTime = intVal;
+      break;
+    case murmur3_32("lightsRCpin"):
+      lightsRCpin = intVal;
+      break;
+    case murmur3_32("stickUse"):
+      stickUse = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("stickXpin"):
+      stickXpin = intVal;
+      break;
+    case murmur3_32("stickYpin"):
+      stickYpin = intVal;
+      break;
+    case murmur3_32("stickzPushPin"):
+      stickzPushPin = intVal;
+      break;
 #endif // INCLUDE_PERIPH
+
 #if (INCLUDE_PGRAM && INCLUDE_PERIPH)
-  else if (!strcmp(variable, "stepIN1pin")) setStepperPin((uint8_t)intVal, 0);
-  else if (!strcmp(variable, "stepIN2pin")) setStepperPin((uint8_t)intVal, 1);
-  else if (!strcmp(variable, "stepIN3pin")) setStepperPin((uint8_t)intVal, 2);
-  else if (!strcmp(variable, "stepIN4pin")) setStepperPin((uint8_t)intVal, 3);
-  else if (!strcmp(variable, "PGactive")) {
-    PGactive = stepperUse = (bool)intVal;
-    if (PGactive) setLamp(0);
-  }
-  else if (!strcmp(variable, "numberOfPhotos")) numberOfPhotos = intVal;
-  else if (!strcmp(variable, "gearing")) gearing = fltVal;
-  else if (!strcmp(variable, "RPM")) tRPM = intVal;
-  else if (!strcmp(variable, "clockwise")) clockWise = (bool)intVal;
-  else if (!strcmp(variable, "timeForPhoto")) timeForPhoto = intVal;
-  else if (!strcmp(variable, "timeForFocus")) timeForFocus = intVal;
-  else if (!strcmp(variable, "pinShutter")) pinShutter = intVal;
-  else if (!strcmp(variable, "pinFocus")) pinFocus = intVal;
-  else if (!strcmp(variable, "extCam")) extCam = (bool)intVal;
+    case murmur3_32("stepIN1pin"):
+      if (intVal >= 0) setStepperPin(static_cast<uint8_t>(intVal), 0); // Add bounds check and static_cast to prevent negative value wrapping.
+      break;
+    case murmur3_32("stepIN2pin"):
+      if (intVal >= 0) setStepperPin(static_cast<uint8_t>(intVal), 1);
+      break;
+    case murmur3_32("stepIN3pin"):
+      if (intVal >= 0) setStepperPin(static_cast<uint8_t>(intVal), 2);
+      break;
+    case murmur3_32("stepIN4pin"):
+      if (intVal >= 0) setStepperPin(static_cast<uint8_t>(intVal), 3);
+      break;
+    case murmur3_32("PGactive"):
+      PGactive = stepperUse = (intVal != 0); // Replace implicit boolean cast.
+      if (PGactive) setLamp(0);
+      break;
+    case murmur3_32("numberOfPhotos"):
+      numberOfPhotos = intVal;
+      break;
+    case murmur3_32("gearing"):
+      gearing = fltVal;
+      break;
+    case murmur3_32("RPM"):
+      tRPM = intVal;
+      break;
+    case murmur3_32("clockwise"):
+      clockWise = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("timeForPhoto"):
+      timeForPhoto = intVal;
+      break;
+    case murmur3_32("timeForFocus"):
+      timeForFocus = intVal;
+      break;
+    case murmur3_32("pinShutter"):
+      pinShutter = intVal;
+      break;
+    case murmur3_32("pinFocus"):
+      pinFocus = intVal;
+      break;
+    case murmur3_32("extCam"):
+      extCam = (intVal != 0); // Replace implicit boolean cast.
+      break;
 #endif
 
 #if INCLUDE_EXTHB
-  // External Heartbeat
-  else if (!strcmp(variable, "external_heartbeat_active")) external_heartbeat_active = (bool)intVal;
-  else if (!strcmp(variable, "external_heartbeat_domain")) snprintf(external_heartbeat_domain, MAX_HOST_LEN, "%s", value);
-  else if (!strcmp(variable, "external_heartbeat_uri")) snprintf(external_heartbeat_uri, FILE_NAME_LEN, "%s", value);
-  else if (!strcmp(variable, "external_heartbeat_port")) external_heartbeat_port = intVal;
-  else if (!strcmp(variable, "external_heartbeat_token")) snprintf(external_heartbeat_token, EXTHB_LEN, "%s", value);
+    // External Heartbeat
+    case murmur3_32("external_heartbeat_active"):
+      external_heartbeat_active = (intVal != 0); // Replace implicit boolean cast.
+      break;
+    case murmur3_32("external_heartbeat_domain"):
+      snprintf(external_heartbeat_domain, MAX_HOST_LEN, "%s", value);
+      external_heartbeat_domain[MAX_HOST_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      break;
+    case murmur3_32("external_heartbeat_uri"):
+      snprintf(external_heartbeat_uri, FILE_NAME_LEN, "%s", value);
+      external_heartbeat_uri[FILE_NAME_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      break;
+    case murmur3_32("external_heartbeat_port"):
+      external_heartbeat_port = intVal;
+      break;
+    case murmur3_32("external_heartbeat_token"):
+      snprintf(external_heartbeat_token, EXTHB_LEN, "%s", value);
+      external_heartbeat_token[EXTHB_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      break;
 #endif
 
-  else if (!strcmp(variable, "useUart")) useUart = (bool)intVal;
+    case murmur3_32("useUart"):
+      useUart = (intVal != 0); // Replace implicit boolean cast.
+      break;
 #if INCLUDE_UART
-  else if (!strcmp(variable, "uartTxdPin")) uartTxdPin = intVal;
-  else if (!strcmp(variable, "uartRxdPin")) uartRxdPin = intVal;
+    case murmur3_32("uartTxdPin"):
+      uartTxdPin = intVal;
+      break;
+    case murmur3_32("uartRxdPin"):
+      uartRxdPin = intVal;
+      break;
 #endif
 
 #ifndef AUXILIARY
-  // camera settings
-  else if (!strcmp(variable, "xclkMhz")) xclkMhz = intVal;
-  else if (!strcmp(variable, "framesize")) {
-    if (intVal > maxFS && fromUser) LOG_WRN("Frame size %s too large for %s PSRAM ", frameData[intVal].frameSizeStr, fmtSize(ESP.getPsramSize()));
-    else {
-      fsizePtr = intVal;
-      if (fsizePtr > FRAMESIZE_SXGA) LOG_WRN("Motion detection not available as frame size %s too large", frameData[fsizePtr].frameSizeStr);
+    // camera settings
+    case murmur3_32("xclkMhz"):
+      xclkMhz = intVal;
+      break;
+    case murmur3_32("framesize"): {
+      // Prevent out-of-bounds array read in frameData by validating intVal before logging or assignment.
+      if (intVal < 0 || intVal > maxFS) {
+        if (fromUser) {
+          LOG_WRN("Frame size %d is invalid or too large for PSRAM", intVal);
+        }
+      } else {
+        fsizePtr = intVal;
+        if (fsizePtr > FRAMESIZE_SXGA) {
+          LOG_WRN("Motion detection not available as frame size %s too large", frameData[fsizePtr].frameSizeStr);
+        }
 
-      if (s) {
-        res = s->set_framesize(s, (framesize_t)fsizePtr);
-        if (res == ESP_OK) {
-          // update default FPS for this frame size
-          if (playbackHandle != NULL) {
-            setFPSlookup(fsizePtr);
-            char fpsStr[8];
-            snprintf(fpsStr, sizeof(fpsStr), "%u", FPS);
-            updateConfigVect("fps", fpsStr);
+        if (s) {
+          // Replace C-style cast with static_cast for safer, more explicit type conversion.
+          res = s->set_framesize(s, static_cast<framesize_t>(fsizePtr));
+          if (res == ESP_OK) {
+            // update default FPS for this frame size
+            if (playbackHandle != NULL) {
+              setFPSlookup(fsizePtr);
+              char fpsStr[8];
+              snprintf(fpsStr, sizeof(fpsStr), "%u", FPS);
+              updateConfigVect("fps", fpsStr);
+            }
           }
         }
       }
+      break;
     }
-  }
-  else if (!strcmp(variable, "fps")) {
-    FPS = intVal;
-    if (playbackHandle != NULL) setFPS(FPS);
-  }
-  else if (s) {
-    if (!strcmp(variable, "quality")) {
-      res = s->set_quality(s, intVal);
-      if (res == ESP_OK) quality = intVal;
-    }
-    else if (!strcmp(variable, "contrast")) res = s->set_contrast(s, intVal);
-    else if (!strcmp(variable, "brightness")) res = s->set_brightness(s, intVal);
-    else if (!strcmp(variable, "saturation")) res = s->set_saturation(s, intVal);
-    else if (!strcmp(variable, "denoise")) res = s->set_denoise(s, intVal);    
-    else if (!strcmp(variable, "sharpness")) res = s->set_sharpness(s, intVal);    
-    else if (!strcmp(variable, "gainceiling")) res = s->set_gainceiling(s, (gainceiling_t)intVal);
-    else if (!strcmp(variable, "colorbar")) res = s->set_colorbar(s, intVal);
-    else if (!strcmp(variable, "awb")) res = s->set_whitebal(s, intVal);
-    else if (!strcmp(variable, "agc")) res = s->set_gain_ctrl(s, intVal);
-    else if (!strcmp(variable, "aec")) res = s->set_exposure_ctrl(s, intVal);
-    else if (!strcmp(variable, "hmirror")) res = s->set_hmirror(s, intVal);
-    else if (!strcmp(variable, "vflip")) res = s->set_vflip(s, intVal);
-    else if (!strcmp(variable, "awb_gain")) res = s->set_awb_gain(s, intVal);
-    else if (!strcmp(variable, "agc_gain")) res = s->set_agc_gain(s, intVal);
-    else if (!strcmp(variable, "aec_value")) res = s->set_aec_value(s, intVal);
-    else if (!strcmp(variable, "aec2")) res = s->set_aec2(s, intVal);
-    else if (!strcmp(variable, "dcw")) res = s->set_dcw(s, intVal);
-    else if (!strcmp(variable, "bpc")) res = s->set_bpc(s, intVal);
-    else if (!strcmp(variable, "wpc")) res = s->set_wpc(s, intVal);
-    else if (!strcmp(variable, "raw_gma")) res = s->set_raw_gma(s, intVal);
-    else if (!strcmp(variable, "lenc")) res = s->set_lenc(s, intVal);
-    else if (!strcmp(variable, "special_effect")) res = s->set_special_effect(s, intVal);
-    else if (!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, intVal);
-    else if (!strcmp(variable, "ae_level")) res = s->set_ae_level(s, intVal);
-    else return false;
-  }
+    case murmur3_32("fps"):
+      FPS = intVal;
+      if (playbackHandle != NULL) setFPS(FPS);
+      break;
+    
+    // The following camera settings require a valid sensor pointer (s).
+    // If (s) is null, return false to match original fallback behavior.
+    case murmur3_32("quality"):
+      if (s) { res = s->set_quality(s, intVal); if (res == ESP_OK) quality = intVal; } else { return false; }
+      break;
+    case murmur3_32("contrast"):
+      if (s) res = s->set_contrast(s, intVal); else return false;
+      break;
+    case murmur3_32("brightness"):
+      if (s) res = s->set_brightness(s, intVal); else return false;
+      break;
+    case murmur3_32("saturation"):
+      if (s) res = s->set_saturation(s, intVal); else return false;
+      break;
+    case murmur3_32("denoise"):
+      if (s) res = s->set_denoise(s, intVal); else return false;
+      break;
+    case murmur3_32("sharpness"):
+      if (s) res = s->set_sharpness(s, intVal); else return false;
+      break;
+    case murmur3_32("gainceiling"):
+      if (s) res = s->set_gainceiling(s, static_cast<gainceiling_t>(intVal)); else return false; // Replace C-style cast with static_cast.
+      break;
+    case murmur3_32("colorbar"):
+      if (s) res = s->set_colorbar(s, intVal); else return false;
+      break;
+    case murmur3_32("awb"):
+      if (s) res = s->set_whitebal(s, intVal); else return false;
+      break;
+    case murmur3_32("agc"):
+      if (s) res = s->set_gain_ctrl(s, intVal); else return false;
+      break;
+    case murmur3_32("aec"):
+      if (s) res = s->set_exposure_ctrl(s, intVal); else return false;
+      break;
+    case murmur3_32("hmirror"):
+      if (s) res = s->set_hmirror(s, intVal); else return false;
+      break;
+    case murmur3_32("vflip"):
+      if (s) res = s->set_vflip(s, intVal); else return false;
+      break;
+    case murmur3_32("awb_gain"):
+      if (s) res = s->set_awb_gain(s, intVal); else return false;
+      break;
+    case murmur3_32("agc_gain"):
+      if (s) res = s->set_agc_gain(s, intVal); else return false;
+      break;
+    case murmur3_32("aec_value"):
+      if (s) res = s->set_aec_value(s, intVal); else return false;
+      break;
+    case murmur3_32("aec2"):
+      if (s) res = s->set_aec2(s, intVal); else return false;
+      break;
+    case murmur3_32("dcw"):
+      if (s) res = s->set_dcw(s, intVal); else return false;
+      break;
+    case murmur3_32("bpc"):
+      if (s) res = s->set_bpc(s, intVal); else return false;
+      break;
+    case murmur3_32("wpc"):
+      if (s) res = s->set_wpc(s, intVal); else return false;
+      break;
+    case murmur3_32("raw_gma"):
+      if (s) res = s->set_raw_gma(s, intVal); else return false;
+      break;
+    case murmur3_32("lenc"):
+      if (s) res = s->set_lenc(s, intVal); else return false;
+      break;
+    case murmur3_32("special_effect"):
+      if (s) res = s->set_special_effect(s, intVal); else return false;
+      break;
+    case murmur3_32("wb_mode"):
+      if (s) res = s->set_wb_mode(s, intVal); else return false;
+      break;
+    case murmur3_32("ae_level"):
+      if (s) res = s->set_ae_level(s, intVal); else return false;
+      break;
 #endif // AUXILIARY
-  else return false;
-  if (res != ESP_OK && fromUser) LOG_WRN("Value %d for setting %s not supported for camera type %s", intVal, variable, camModel);
+
+    default:
+      return false;
+  }
+  
+  if (res != ESP_OK && fromUser) {
+    LOG_WRN("Value %d for setting %s not supported for camera type %s", intVal, variable, camModel);
+  }
   return true;
 }
 
