@@ -419,6 +419,12 @@ static bool processFrame() { // Changed legacy 'boolean' to standard C++ 'bool' 
   constexpr uint32_t RECOVERY_INTERVAL_MS = 2000; // Wait 2000 milliseconds between recovery attempts.
   constexpr uint32_t MAX_RECOVERY_ATTEMPTS = 10;  // Stop recovery after 10 consecutive attempts.
 
+  // Configurable rate limiting parameters for stall warnings.
+  // Adjust STALL_LOG_INTERVAL_MS to change the minimum time between warnings.
+  constexpr uint32_t STALL_LOG_INTERVAL_MS = 5000; 
+  static uint32_t lastStallLogTime = 0;
+  static int lastStalledStream = -1;
+
   camera_fb_t* fb = esp_camera_fb_get();
   
   if (fb == NULL) {
@@ -443,10 +449,11 @@ static bool processFrame() { // Changed legacy 'boolean' to standard C++ 'bool' 
             // Replaced unsafe old 'atoi' with bounded and faster 'std::from_chars' to prevent undefined behavior.
             const auto result = std::from_chars(fsizePtrStr, fsizePtrStr + sizeof(fsizePtrStr), parsed_framesize);
             
-            if (result.ec == std::errc{}) {
+            // Added bounds check to prevent invalid enum cast and undefined behavior.
+            if (result.ec == std::errc{} && parsed_framesize >= 0 && parsed_framesize <= 11) {
               s->set_framesize(s, static_cast<framesize_t>(parsed_framesize)); // Used static_cast for type safety.
             } else {
-              s->set_framesize(s, FRAMESIZE_VGA); // Added explicit fallback on parse failure.
+              s->set_framesize(s, FRAMESIZE_VGA); // Added explicit fallback on parse failure or out-of-bounds value.
             }
           } else {
             s->set_framesize(s, FRAMESIZE_VGA);
@@ -480,9 +487,16 @@ static bool processFrame() { // Changed legacy 'boolean' to standard C++ 'bool' 
     if (streamBuffer[i] != NULL && streamBufferSize[i] == 0) { // Reordered null check first to prevent potential dereference.
       memcpy(streamBuffer[i], fb->buf, fb->len);
       streamBufferSize[i] = fb->len;
-      // Added semaphore return check to detect and log stalled stream consumers.
+      
+      // Added semaphore return check with configurable rate limiting to detect and log stalled stream 
+      // consumers without causing excessive log messages or flash wear.
       if (xSemaphoreGive(frameSemaphore[i]) != pdPASS) {
-////        LOG_WRN("Stream %d consumer stalled (semaphore full)", i);
+        uint32_t currentTime = millis();
+        if ((currentTime - lastStallLogTime >= STALL_LOG_INTERVAL_MS) || (lastStalledStream != i)) {
+          lastStallLogTime = currentTime;
+          lastStalledStream = i;
+          LOG_VRB("Stream %d consumer stalled (semaphore full)", i);
+        }
       }
     }
   }
