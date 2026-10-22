@@ -15,7 +15,8 @@
 #define STREAM_CONTENT_TYPE "multipart/x-mixed-replace;boundary=" BOUNDARY_VAL
 #define JPEG_BOUNDARY "\r\n--" BOUNDARY_VAL "\r\n"
 #define JPEG_TYPE "Content-Type: image/jpeg\r\nContent-Length: %10u\r\n\r\n"
-#define HDR_BUF_LEN 64
+// Increased to 128 to safely hold combined boundary and header.
+#define HDR_BUF_LEN 128
 #define END_WAIT 100
 
 static bool forcePlayback = false; // browser playback status
@@ -59,12 +60,24 @@ static void showPlayback(httpd_req_t* req) {
   if (doPlayback) {
     // playback mjpeg from SD
     mjpegStruct mjpegData;
-    // output header for playback request
+    
+    // Output headers for playback request.
+    // Prevent browser and proxy caching to avoid memory exhaustion.
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache, no-store, must-revalidate");
+    httpd_resp_set_hdr(req, "Pragma", "no-cache");
+    httpd_resp_set_hdr(req, "Expires", "0");
+    // Ensure persistent connection for continuous chunked transfer.
+    httpd_resp_set_hdr(req, "Connection", "keep-alive");
+    // Complete CORS configuration for cross-origin video embedding.
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+    // Set the MIME type for MJPEG streaming.
     httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
+    
     char hdrBuf[HDR_BUF_LEN];
     openSDfile(inFileName);
     mjpegData = getNextFrame(true);
+    
     while (doPlayback) {
       size_t jpgLen = mjpegData.buffLen;
       size_t buffOffset = mjpegData.buffOffset;
@@ -75,9 +88,8 @@ static void showPlayback(httpd_req_t* req) {
       } else {
         if (jpgLen) {
           if (mjpegData.jpegSize) { // start of frame
-            // send mjpeg header 
-            if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, JPEG_BOUNDARY);
-            snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, mjpegData.jpegSize);
+            // Send combined MJPEG boundary and header.
+            snprintf(hdrBuf, sizeof(hdrBuf), JPEG_BOUNDARY JPEG_TYPE, mjpegData.jpegSize);
             if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, hdrBuf);   
           } 
           // send buffer 
@@ -109,15 +121,30 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
   uint32_t startTime = millis();
   uint32_t frameCnt = 0;
   uint32_t mjpegLen = 0;
+  
   isStreaming[taskNum] = true;
   streamBufferSize[taskNum] = 0;
-  if (!taskNum) motionJpegLen = 0;
-  // output header for streaming request
+  if (!taskNum) {
+    motionJpegLen = 0;
+  }
+  
+  // Output headers for streaming request.
+  // Prevent browser and proxy caching to avoid memory exhaustion.
+  httpd_resp_set_hdr(req, "Cache-Control", "no-cache, no-store, must-revalidate");
+  httpd_resp_set_hdr(req, "Pragma", "no-cache");
+  httpd_resp_set_hdr(req, "Expires", "0");
+  // Ensure persistent connection for continuous chunked transfer.
+  httpd_resp_set_hdr(req, "Connection", "keep-alive");
+  // Complete CORS configuration for cross-origin video embedding.
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+  // Set the MIME type for MJPEG streaming.
   httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
+  
   char hdrBuf[HDR_BUF_LEN];
   int sockfd = httpd_req_to_sockfd(req);
   uint32_t consecutiveTimeouts = 0;
+  
   while (isStreaming[taskNum]) {
     // stream from camera at current frame rate
     if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
@@ -144,42 +171,84 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       }
       continue;
     }
+    
     consecutiveTimeouts = 0;
+    
     if (dbgMotion && !taskNum) {
       // motion tracking stream on task 0 only, wait for new move mapping image
-      if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) continue;
+      if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
+        // Release frame semaphore to prevent deadlock before continuing.
+        xSemaphoreGive(frameSemaphore[taskNum]);
+		    vTaskDelay(pdMS_TO_TICKS(1));
+        continue;
+      }
+      
       // use image created by checkMotion()
       jpgLen = motionJpegLen;
-      if (!jpgLen) continue;
+      if (!jpgLen) {
+        // Release semaphores to prevent deadlock before continuing.
+        xSemaphoreGive(motionSemaphore);
+        xSemaphoreGive(frameSemaphore[taskNum]);
+		    vTaskDelay(pdMS_TO_TICKS(1));
+        continue;
+      }
       jpgBuf = motionJpeg;
     } else {
       // live stream 
-      if (!streamBufferSize[taskNum]) continue;
+      if (!streamBufferSize[taskNum]) {
+        // Release frame semaphore to prevent deadlock before continuing.
+        xSemaphoreGive(frameSemaphore[taskNum]);
+		    vTaskDelay(pdMS_TO_TICKS(1));
+        continue;
+      }
       jpgLen = streamBufferSize[taskNum];
       // use frame stored by processFrame()
       jpgBuf = streamBuffer[taskNum];
     }
+    
     if (res == ESP_OK) {
-      // send next frame in stream
-      res = httpd_resp_sendstr_chunk(req, JPEG_BOUNDARY);  
-      snprintf(hdrBuf, HDR_BUF_LEN-1, JPEG_TYPE, jpgLen);
-      if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, hdrBuf);
-      if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
+      // Send combined MJPEG boundary and header.
+      snprintf(hdrBuf, sizeof(hdrBuf), JPEG_BOUNDARY JPEG_TYPE, jpgLen);
+      res = httpd_resp_sendstr_chunk(req, hdrBuf);
+    }
+    
+    if (res == ESP_OK) {
+      // Send image data.
+      res = httpd_resp_send_chunk(req, (const char*)jpgBuf, jpgLen);
       frameCnt++;
     }
-    mjpegLen += jpgLen;
-    jpgLen = streamBufferSize[taskNum] = 0;
-    if (dbgMotion && !taskNum) motionJpegLen = 0;
+    
+    mjpegLen += (uint32_t)jpgLen;
+    
+    // Reset buffer size to signal producer that buffer is free.
+    streamBufferSize[taskNum] = 0;
+    jpgLen = 0;
+    
+    if (dbgMotion && !taskNum) {
+      motionJpegLen = 0;
+      xSemaphoreGive(motionSemaphore);
+    }
+    
+    // Always release frame semaphore after processing or skipping.
+    xSemaphoreGive(frameSemaphore[taskNum]);
+    
     if (res != ESP_OK) {
       // get send error when browser closes stream 
       LOG_VRB("Streaming aborted due to error: %s", espErrMsg(res));
       isStreaming[taskNum] = false;
     }     
   }
-  if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
+  
+  if (res == ESP_OK) {
+    httpd_resp_sendstr_chunk(req, NULL);
+  }
+  
   uint32_t mjpegTime = millis() - startTime;
-  float mjpegTimeF = float(mjpegTime) / 1000; // secs
-  LOG_INF("MJPEG: %lu frames, total %s in %0.1fs @ %0.1ffps", frameCnt, fmtSize(mjpegLen), mjpegTimeF, (float)(frameCnt) / mjpegTimeF);
+  float mjpegTimeF = (float)mjpegTime / 1000.0f; // seconds
+  float fps = (mjpegTimeF > 0.0f) ? ((float)frameCnt / mjpegTimeF) : 0.0f;
+  
+  LOG_INF("MJPEG: %lu frames, total %s in %0.1fs @ %0.1ffps", 
+          (unsigned long)frameCnt, fmtSize(mjpegLen), mjpegTimeF, fps);
 }
 
 static void audioStream(httpd_req_t* req, uint8_t taskNum) {
