@@ -647,6 +647,10 @@ bool startWebServer() {
   
     //config.user_cb = https_server_user_callback;
     config.httpd.server_port = HTTPS_PORT;
+    config.max_resp_headers = 16; // maximum number of headers in an HTTP response
+    config.keep_alive_enable = true;     // Enable persistent connections
+	  config.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
+	  config.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
     config.httpd.lru_purge_enable = true; // close least used socket 
     config.httpd.max_uri_handlers = MAX_HANDLERS;
     config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
@@ -663,6 +667,10 @@ bool startWebServer() {
     config.stack_size = SERVER_STACK_SIZE;
 #endif
     config.server_port = HTTP_PORT;
+    config.max_resp_headers = 16; // maximum number of headers in an HTTP response
+    config.keep_alive_enable = true;     // Enable persistent connections
+	  config.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
+	  config.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
     config.lru_purge_enable = true;
     config.max_uri_handlers = MAX_HANDLERS;
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
