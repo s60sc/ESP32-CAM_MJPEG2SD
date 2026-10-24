@@ -29,6 +29,7 @@
 */
 
 #include "appGlobals.h"
+#include <charconv> // Required for std::from_chars
 
 static std::vector<std::vector<std::string>> configs;
 static Preferences prefs; 
@@ -238,166 +239,459 @@ static bool loadPrefs() {
   return true;
 }
 
+// Add compile-time MurmurHash3 function for safe string switching.
+static constexpr uint32_t murmur3_scramble(uint32_t k) {
+    k *= 0xcc9e2d51u;
+    k = (k << 15u) | (k >> 17u);
+    k *= 0x1b873593u;
+    return k;
+}
+
+static constexpr uint32_t murmur3_32(const char* str) {
+    uint32_t h = 0x9747b28cu; // Standard seed
+    uint32_t k = 0u;
+    uint32_t len = 0u;
+    
+    // Calculate string length at compile time.
+    while (str[len] != '\0') {
+        len++;
+    }
+
+    uint32_t i = 0u;
+    // Process 4-byte blocks.
+    for (; i + 4u <= len; i += 4u) {
+        k = (uint32_t)str[i] | ((uint32_t)str[i + 1u] << 8u) | 
+            ((uint32_t)str[i + 2u] << 16u) | ((uint32_t)str[i + 3u] << 24u);
+        h ^= murmur3_scramble(k);
+        h = (h << 13u) | (h >> 19u);
+        h = h * 5u + 0xe6546b64u;
+    }
+
+    // Process remaining bytes.
+    k = 0u;
+    uint32_t rem = len & 3u;
+    if (rem >= 3u) k ^= (uint32_t)str[i + 2u] << 16u;
+    if (rem >= 2u) k ^= (uint32_t)str[i + 1u] << 8u;
+    if (rem >= 1u) {
+        k ^= (uint32_t)str[i];
+        k = murmur3_scramble(k);
+        h ^= k;
+    }
+
+    // Mix final hash value.
+    h ^= len;
+    h ^= h >> 16u;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13u;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16u;
+
+    return h;
+}
+
 void updateStatus(const char* variable, const char* _value, bool fromUser) {
   // called from controlHandler() to update app status from changes made on browser
   // or from loadConfig() to update app status from stored preferences
+  
+  // Defensive programming: prevent null pointer dereference
+  if (variable == nullptr || _value == nullptr) {
+    return;
+  }
+
   bool res = true;
   char value[IN_FILE_NAME_LEN];
-  strncpy(value, _value, sizeof(value));  
+  strncpy(value, _value, sizeof(value));
+  value[sizeof(value) - 1] = '\0'; // DEFECT FIX: Ensure null-termination
+
 #if INCLUDE_MQTT
   if (mqtt_active) {
-    char buff[(IN_FILE_NAME_LEN * 2)];
-    snprintf(buff, IN_FILE_NAME_LEN * 2, "%s=%s", variable, value);
+    // +2 for '=' and null terminator, preventing potential silent truncation
+    char buff[(IN_FILE_NAME_LEN * 2) + 2];
+    snprintf(buff, sizeof(buff), "%s=%s", variable, value);
     mqttPublishPath("state", buff);
   }
 #endif
 
-  int intVal = atoi(value); 
-  if (!strcmp(variable, "hostName")) strncpy(hostName, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "ST_SSID")) strncpy(ST_SSID, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "ST_Pass") && value[0] != '*') strncpy(ST_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "ST_ip")) strncpy(ST_ip, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "ST_gw")) strncpy(ST_gw, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "ST_sn")) strncpy(ST_sn, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "ST_ns1")) strncpy(ST_ns1, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "ST_ns2")) strncpy(ST_ns2, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "Auth_Name")) strncpy(Auth_Name, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "Auth_Pass") && value[0] != '*') strncpy(Auth_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "AP_ip")) strncpy(AP_ip, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "AP_gw")) strncpy(AP_gw, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "AP_sn")) strncpy(AP_sn, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "AP_SSID")) strncpy(AP_SSID, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "AP_Pass") && value[0] != '*') strncpy(AP_Pass, value, MAX_PWD_LEN-1); 
-  else if (!strcmp(variable, "allowAP")) allowAP = (bool)intVal;
-  else if (!strcmp(variable, "useHttps")) useHttps = (bool)intVal;
-  else if (!strcmp(variable, "useSecure")) useSecure = (bool)intVal;
-  else if (!strcmp(variable, "doGetExtIP")) doGetExtIP = (bool)intVal;  
-  else if (!strcmp(variable, "netMode")) netMode = intVal;
-  else if (!strcmp(variable, "ethCS")) ethCS = intVal;
-  else if (!strcmp(variable, "ethInt")) ethInt = intVal;
-  else if (!strcmp(variable, "ethRst")) ethRst = intVal;
-  else if (!strcmp(variable, "ethSclk")) ethSclk = intVal;
-  else if (!strcmp(variable, "ethMiso")) ethMiso = intVal;
-  else if (!strcmp(variable, "ethMosi")) ethMosi = intVal;
-  else if (!strcmp(variable, "extIP")) strncpy(extIP, value, MAX_IP_LEN-1);
-#if INCLUDE_TGRAM
-  else if (!strcmp(variable, "tgramUse")) {
-    tgramUse = (bool)intVal;
-    if (tgramUse) {
-#if INCLUDE_SMTP
-      smtpUse = false;
-#endif
-      updateConfigVect("smtpUse", "0");
-    }
-  }
-  else if (!strcmp(variable, "tgramToken")) strncpy(tgramToken, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "tgramChatId")) strncpy(tgramChatId, value, MAX_IP_LEN-1);
-#endif
-#if INCLUDE_FTP_HFS
-  else if (!strcmp(variable, "fsServer")) strncpy(fsServer, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "fsPort")) fsPort = intVal;
-  else if (!strcmp(variable, "ftpUser")) strncpy(ftpUser, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "FS_Pass") && value[0] != '*') strncpy(FS_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "fsWd")) strncpy(fsWd, value, FILE_NAME_LEN-1);
-  else if(!strcmp(variable, "fsUse")) fsUse = (bool)intVal;
-  else if(!strcmp(variable, "autoUpload")) autoUpload = (bool)intVal;
-  else if(!strcmp(variable, "deleteAfter")) deleteAfter = (bool)intVal;
-  else if(!strcmp(variable, "useFtps")) useFtps = (bool)intVal;
-#endif
-#if INCLUDE_SMTP
-  else if (!strcmp(variable, "smtpUse")) {
-    smtpUse = (bool)intVal;
-    if (smtpUse) {
-#if INCLUDE_TGRAM
-      tgramUse = false;
-#endif
-      updateConfigVect("tgramUse", "0");
-    }
-  }
-  else if (!strcmp(variable, "smtp_login")) strncpy(smtp_login, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "smtp_server")) strncpy(smtp_server, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "smtp_email")) strncpy(smtp_email, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "SMTP_Pass") && value[0] != '*') strncpy(SMTP_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "smtp_port")) smtp_port = intVal;
-  else if (!strcmp(variable, "smtpMaxEmails")) alertMax = intVal;
-#endif
-#if INCLUDE_MQTT
-  else if (!strcmp(variable, "mqtt_active")) {
-    mqtt_active = (bool)intVal;
-    if (!mqtt_active) stopMqttClient();
-  } 
-  else if (!strcmp(variable, "mqtt_broker")) strncpy(mqtt_broker, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "mqtt_port")) strncpy(mqtt_port, value, 4);
-  else if (!strcmp(variable, "mqtt_user")) strncpy(mqtt_user, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "mqtt_user_Pass") && value[0] != '*') strncpy(mqtt_user_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "mqtt_topic_prefix")) strncpy(mqtt_topic_prefix, value, (FILE_NAME_LEN/2)-1);
-#endif
-#if INCLUDE_RTSP
-  else if (!strcmp(variable, "RTSP_Name")) strncpy(RTSP_Name, value, MAX_HOST_LEN-1);
-  else if (!strcmp(variable, "RTSP_Pass")  && value[0] != '*')strncpy(RTSP_Pass, value, MAX_PWD_LEN-1);
-  else if (!strcmp(variable, "rtsp00Video")) rtspVideo = streamVid = (bool)intVal;
-  else if (!strcmp(variable, "rtsp01Audio")) rtspAudio = streamAud = (bool)intVal;
-  else if (!strcmp(variable, "rtsp02Subtitles")) rtspSubtitles = streamSrt = (bool)intVal;
-  else if (!strcmp(variable, "rtsp03Port")) rtspPort = intVal;
-  else if (!strcmp(variable, "rtsp04VideoPort")) rtpVideoPort = intVal;
-  else if (!strcmp(variable, "rtsp05AudioPort")) rtpAudioPort = intVal;
-  else if (!strcmp(variable, "rtsp06SubtitlesPort")) rtpSubtitlesPort = intVal;
-  else if (!strcmp(variable, "rtsp07Ip")) strncpy(RTP_ip, value, MAX_IP_LEN-1);
-  else if (!strcmp(variable, "rtsp08MaxC")) rtspMaxClients = intVal;
-  else if (!strcmp(variable, "rtsp09TTL")) rtpTTL = intVal;
-#endif
-  // Other settings
-  else if (!strcmp(variable, "clockUTC")) syncToBrowser((uint32_t)intVal);      
-  else if (!strcmp(variable, "timezone")) strncpy(timezone, value, FILE_NAME_LEN-1);
-  else if (!strcmp(variable, "ntpServer")) strncpy(ntpServer, value, FILE_NAME_LEN-1);
-  else if (!strcmp(variable, "alarmHour")) alarmHour = (uint8_t)intVal;
-  else if (!strcmp(variable, "sdMinCardFreeSpace")) sdMinCardFreeSpace = intVal;
-  else if (!strcmp(variable, "sdFreeSpaceMode")) sdFreeSpaceMode = intVal;
-  else if (!strcmp(variable, "responseTimeoutSecs")) responseTimeoutSecs = intVal;
-  else if (!strcmp(variable, "wifiTimeoutSecs")) wifiTimeoutSecs = intVal;
-  else if (!strcmp(variable, "usePing")) usePing = (bool)intVal;
-  else if (!strcmp(variable, "dbgVerbose")) {
-    dbgVerbose = (intVal) ? true : false;
-    Serial.setDebugOutput(dbgVerbose);
-  } 
-  else if (!strcmp(variable, "logType")) {
-    logType = intVal;
-    remote_log_init();
-  } 
-  else if (!strcmp(variable, "sdLog")) {
-    sdLog = (bool)intVal; 
-    remote_log_init();
-  } 
-  else if (!strcmp(variable, "refreshVal")) refreshVal = intVal; 
-  else if (!strcmp(variable, "formatIfMountFailed")) formatIfMountFailed = (bool)intVal;
-  else if (!strcmp(variable, "resetLog")) reset_log(); 
-  else if (!strcmp(variable, "clear")) savePrefs(false); // /control?clear=1
-  else if (!strcmp(variable, "deldata")) {  
-    if (intVal) deleteFolderOrFile(DATA_DIR); // entire folder
-    else {
-      // manually specified file, eg control?deldata=favicon.ico
-      char delFile[FILE_NAME_LEN];
-      int dlen = snprintf(delFile, FILE_NAME_LEN, "%s/%s", DATA_DIR, value);
-      if (dlen > FILE_NAME_LEN) LOG_WRN("File name %s too long", value);
-      else deleteFolderOrFile(delFile);
-    }
-    doRestart("user requested restart after data deletion"); 
-  }
-  else if (!strcmp(variable, "showsys")) showSys();
-  else if (!strcmp(variable, "save")) {
-    if (intVal) savePrefs();
-    saveConfigVect();
-  } else {
-    res = updateAppStatus(variable, value, fromUser);
-    if (!res) {
-      if (fromUser) {
-        updateConfigVect(variable, value); // in case value previously set in different compilation state
-        LOG_WRN("Unable to use %s as required cpp file not included", variable);
+  int intVal = 0;
+  const char* start = value;
+  
+  // Use std::from_chars for safe, locale-independent string-to-int conversion.
+  // It stops at the first invalid character or the end of the buffer.
+  std::from_chars(start, value + sizeof(value), intVal);
+
+  // Runtime hash of the variable name determines the action.
+  // The constexpr murmur3_32 function guarantees compile-time evaluation of these case labels.
+  switch (murmur3_32(variable)) {
+    case murmur3_32("hostName"):
+      strncpy(hostName, value, MAX_HOST_LEN - 1);
+      hostName[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ST_SSID"):
+      strncpy(ST_SSID, value, MAX_HOST_LEN - 1);
+      ST_SSID[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ST_Pass"):
+      if (value[0] != '*') {
+        strncpy(ST_Pass, value, MAX_PWD_LEN - 1);
+        ST_Pass[MAX_PWD_LEN - 1] = '\0';
       }
-      else LOG_VRB("Unrecognised config: %s", variable);
-    }
+      break;
+    case murmur3_32("ST_ip"):
+      strncpy(ST_ip, value, MAX_IP_LEN - 1);
+      ST_ip[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ST_gw"):
+      strncpy(ST_gw, value, MAX_IP_LEN - 1);
+      ST_gw[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ST_sn"):
+      strncpy(ST_sn, value, MAX_IP_LEN - 1);
+      ST_sn[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ST_ns1"):
+      strncpy(ST_ns1, value, MAX_IP_LEN - 1);
+      ST_ns1[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ST_ns2"):
+      strncpy(ST_ns2, value, MAX_IP_LEN - 1);
+      ST_ns2[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("Auth_Name"):
+      strncpy(Auth_Name, value, MAX_HOST_LEN - 1);
+      Auth_Name[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("Auth_Pass"):
+      if (value[0] != '*') {
+        strncpy(Auth_Pass, value, MAX_PWD_LEN - 1);
+        Auth_Pass[MAX_PWD_LEN - 1] = '\0';
+      }
+      break;
+    case murmur3_32("AP_ip"):
+      strncpy(AP_ip, value, MAX_IP_LEN - 1);
+      AP_ip[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("AP_gw"):
+      strncpy(AP_gw, value, MAX_IP_LEN - 1);
+      AP_gw[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("AP_sn"):
+      strncpy(AP_sn, value, MAX_IP_LEN - 1);
+      AP_sn[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("AP_SSID"):
+      strncpy(AP_SSID, value, MAX_HOST_LEN - 1);
+      AP_SSID[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("AP_Pass"):
+      if (value[0] != '*') {
+        strncpy(AP_Pass, value, MAX_PWD_LEN - 1);
+        AP_Pass[MAX_PWD_LEN - 1] = '\0';
+      }
+      break;
+    case murmur3_32("allowAP"):
+      allowAP = (intVal != 0);
+      break;
+    case murmur3_32("useHttps"):
+      useHttps = (intVal != 0);
+      break;
+    case murmur3_32("useSecure"):
+      useSecure = (intVal != 0);
+      break;
+    case murmur3_32("doGetExtIP"):
+      doGetExtIP = (intVal != 0);
+      break;
+    case murmur3_32("netMode"):
+      netMode = intVal;
+      break;
+    case murmur3_32("ethCS"):
+      ethCS = intVal;
+      break;
+    case murmur3_32("ethInt"):
+      ethInt = intVal;
+      break;
+    case murmur3_32("ethRst"):
+      ethRst = intVal;
+      break;
+    case murmur3_32("ethSclk"):
+      ethSclk = intVal;
+      break;
+    case murmur3_32("ethMiso"):
+      ethMiso = intVal;
+      break;
+    case murmur3_32("ethMosi"):
+      ethMosi = intVal;
+      break;
+    case murmur3_32("extIP"):
+      strncpy(extIP, value, MAX_IP_LEN - 1);
+      extIP[MAX_IP_LEN - 1] = '\0';
+      break;
+
+#if INCLUDE_TGRAM
+    case murmur3_32("tgramUse"):
+      tgramUse = (intVal != 0);
+      if (tgramUse) {
+#if INCLUDE_SMTP
+        smtpUse = false;
+#endif
+        updateConfigVect("smtpUse", "0");
+      }
+      break;
+    case murmur3_32("tgramToken"):
+      strncpy(tgramToken, value, MAX_PWD_LEN - 1);
+      tgramToken[MAX_PWD_LEN - 1] = '\0';
+      break;
+    case murmur3_32("tgramChatId"):
+      strncpy(tgramChatId, value, MAX_IP_LEN - 1);
+      tgramChatId[MAX_IP_LEN - 1] = '\0';
+      break;
+#endif
+
+#if INCLUDE_FTP_HFS
+    case murmur3_32("fsServer"):
+      strncpy(fsServer, value, MAX_HOST_LEN - 1);
+      fsServer[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("fsPort"):
+      fsPort = intVal;
+      break;
+    case murmur3_32("ftpUser"):
+      strncpy(ftpUser, value, MAX_HOST_LEN - 1);
+      ftpUser[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("FS_Pass"):
+      if (value[0] != '*') {
+        strncpy(FS_Pass, value, MAX_PWD_LEN - 1);
+        FS_Pass[MAX_PWD_LEN - 1] = '\0';
+      }
+      break;
+    case murmur3_32("fsWd"):
+      strncpy(fsWd, value, FILE_NAME_LEN - 1);
+      fsWd[FILE_NAME_LEN - 1] = '\0';
+      break;
+    case murmur3_32("fsUse"):
+      fsUse = (intVal != 0);
+      break;
+    case murmur3_32("autoUpload"):
+      autoUpload = (intVal != 0);
+      break;
+    case murmur3_32("deleteAfter"):
+      deleteAfter = (intVal != 0);
+      break;
+    case murmur3_32("useFtps"):
+      useFtps = (intVal != 0);
+      break;
+#endif
+
+#if INCLUDE_SMTP
+    case murmur3_32("smtpUse"):
+      smtpUse = (intVal != 0);
+      if (smtpUse) {
+#if INCLUDE_TGRAM
+        tgramUse = false;
+#endif
+        updateConfigVect("tgramUse", "0");
+      }
+      break;
+    case murmur3_32("smtp_login"):
+      strncpy(smtp_login, value, MAX_HOST_LEN - 1);
+      smtp_login[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("smtp_server"):
+      strncpy(smtp_server, value, MAX_HOST_LEN - 1);
+      smtp_server[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("smtp_email"):
+      strncpy(smtp_email, value, MAX_HOST_LEN - 1);
+      smtp_email[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("SMTP_Pass"):
+      if (value[0] != '*') {
+        strncpy(SMTP_Pass, value, MAX_PWD_LEN - 1);
+        SMTP_Pass[MAX_PWD_LEN - 1] = '\0';
+      }
+      break;
+    case murmur3_32("smtp_port"):
+      smtp_port = intVal;
+      break;
+    case murmur3_32("smtpMaxEmails"):
+      alertMax = intVal;
+      break;
+#endif
+
+#if INCLUDE_MQTT
+    case murmur3_32("mqtt_active"):
+      mqtt_active = (intVal != 0);
+      if (!mqtt_active) {
+        stopMqttClient();
+      }
+      break;
+    case murmur3_32("mqtt_broker"):
+      strncpy(mqtt_broker, value, MAX_HOST_LEN - 1);
+      mqtt_broker[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("mqtt_port"):
+      // DEFECT MITIGATION: Original code lacked guaranteed null-termination.
+      strncpy(mqtt_port, value, 5);
+      mqtt_port[4] = '\0'; 
+      break;
+    case murmur3_32("mqtt_user"):
+      strncpy(mqtt_user, value, MAX_HOST_LEN - 1);
+      mqtt_user[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("mqtt_user_Pass"):
+      if (value[0] != '*') {
+        strncpy(mqtt_user_Pass, value, MAX_PWD_LEN - 1);
+        mqtt_user_Pass[MAX_PWD_LEN - 1] = '\0';
+      }
+      break;
+    case murmur3_32("mqtt_topic_prefix"):
+      strncpy(mqtt_topic_prefix, value, (FILE_NAME_LEN / 2) - 1);
+      mqtt_topic_prefix[(FILE_NAME_LEN / 2) - 1] = '\0';
+      break;
+#endif
+
+#if INCLUDE_RTSP
+    case murmur3_32("RTSP_Name"):
+      strncpy(RTSP_Name, value, MAX_HOST_LEN - 1);
+      RTSP_Name[MAX_HOST_LEN - 1] = '\0';
+      break;
+    case murmur3_32("RTSP_Pass"):
+      if (value[0] != '*') {
+        strncpy(RTSP_Pass, value, MAX_PWD_LEN - 1);
+        RTSP_Pass[MAX_PWD_LEN - 1] = '\0';
+      }
+      break;
+    case murmur3_32("rtsp00Video"):
+      rtspVideo = streamVid = (intVal != 0);
+      break;
+    case murmur3_32("rtsp01Audio"):
+      rtspAudio = streamAud = (intVal != 0);
+      break;
+    case murmur3_32("rtsp02Subtitles"):
+      rtspSubtitles = streamSrt = (intVal != 0);
+      break;
+    case murmur3_32("rtsp03Port"):
+      rtspPort = intVal;
+      break;
+    case murmur3_32("rtsp04VideoPort"):
+      rtpVideoPort = intVal;
+      break;
+    case murmur3_32("rtsp05AudioPort"):
+      rtpAudioPort = intVal;
+      break;
+    case murmur3_32("rtsp06SubtitlesPort"):
+      rtpSubtitlesPort = intVal;
+      break;
+    case murmur3_32("rtsp07Ip"):
+      strncpy(RTP_ip, value, MAX_IP_LEN - 1);
+      RTP_ip[MAX_IP_LEN - 1] = '\0';
+      break;
+    case murmur3_32("rtsp08MaxC"):
+      rtspMaxClients = intVal;
+      break;
+    case murmur3_32("rtsp09TTL"):
+      rtpTTL = intVal;
+      break;
+#endif
+
+    // Other settings
+    case murmur3_32("clockUTC"):
+      syncToBrowser((uint32_t)intVal);
+      break;
+    case murmur3_32("timezone"):
+      strncpy(timezone, value, FILE_NAME_LEN - 1);
+      timezone[FILE_NAME_LEN - 1] = '\0';
+      break;
+    case murmur3_32("ntpServer"):
+      strncpy(ntpServer, value, FILE_NAME_LEN - 1);
+      ntpServer[FILE_NAME_LEN - 1] = '\0';
+      break;
+    case murmur3_32("alarmHour"):
+      alarmHour = (uint8_t)intVal;
+      break;
+    case murmur3_32("sdMinCardFreeSpace"):
+      sdMinCardFreeSpace = intVal;
+      break;
+    case murmur3_32("sdFreeSpaceMode"):
+      sdFreeSpaceMode = intVal;
+      break;
+    case murmur3_32("responseTimeoutSecs"):
+      responseTimeoutSecs = intVal;
+      break;
+    case murmur3_32("wifiTimeoutSecs"):
+      wifiTimeoutSecs = intVal;
+      break;
+    case murmur3_32("usePing"):
+      usePing = (intVal != 0);
+      break;
+    case murmur3_32("dbgVerbose"):
+      dbgVerbose = (intVal != 0);
+      Serial.setDebugOutput(dbgVerbose);
+      break;
+    case murmur3_32("logType"):
+      logType = intVal;
+      remote_log_init();
+      break;
+    case murmur3_32("sdLog"):
+      sdLog = (intVal != 0);
+      remote_log_init();
+      break;
+    case murmur3_32("refreshVal"):
+      refreshVal = intVal;
+      break;
+    case murmur3_32("formatIfMountFailed"):
+      formatIfMountFailed = (intVal != 0);
+      break;
+    case murmur3_32("resetLog"):
+      reset_log();
+      break;
+    case murmur3_32("clear"):
+      savePrefs(false); // /control?clear=1
+      break;
+    case murmur3_32("deldata"):
+      if (intVal != 0) {
+        deleteFolderOrFile(DATA_DIR); // entire folder
+      } else {
+        // manually specified file, eg control?deldata=favicon.ico
+        char delFile[FILE_NAME_LEN];
+        int dlen = snprintf(delFile, FILE_NAME_LEN, "%s/%s", DATA_DIR, value);
+        // DEFECT FIX: snprintf returns length excluding null terminator. 
+        // If dlen >= FILE_NAME_LEN, the string was truncated and lacks null-termination.
+        if (dlen >= FILE_NAME_LEN) {
+          LOG_WRN("File name %s too long", value);
+        } else {
+          deleteFolderOrFile(delFile);
+        }
+      }
+      // Preserved original behavior: restart occurs regardless of truncation warning
+      doRestart("user requested restart after data deletion");
+      break;
+    case murmur3_32("showsys"):
+      showSys();
+      break;
+    case murmur3_32("save"):
+      if (intVal != 0) {
+        savePrefs();
+      }
+      saveConfigVect();
+      break;
+
+    default:
+      res = updateAppStatus(variable, value, fromUser);
+      if (!res) {
+        if (fromUser) {
+          updateConfigVect(variable, value); // in case value previously set in different compilation state
+          LOG_WRN("Unable to use %s as required cpp file not included", variable);
+        } else {
+          LOG_VRB("Unrecognised config: %s", variable);
+        }
+      }
+      break;
   }
-  if (res) updateConfigVect(variable, value);
+
+  if (res) {
+    updateConfigVect(variable, value);
+  }
 }
 
 void buildJsonString(uint8_t filter) {
