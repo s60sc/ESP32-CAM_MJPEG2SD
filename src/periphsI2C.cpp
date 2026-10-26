@@ -242,7 +242,7 @@ static bool BMx280ok = false;
 #if USE_BMx280
 #define IS_POLLABLE
 
-#define STD_PRESSURE 1013.25 // reference pressure in mB/hPa at sea level
+#define STD_PRESSURE 1013.25f // reference pressure in mB/hPa at sea level
 #define DEGREE_SYMBOL "\xC2\xB0"
 
 #if __has_include("../libraries/BMx280MI/src/BMx280I2C.h")
@@ -308,16 +308,32 @@ static bool setupBMx() {
 
 static void updateBMx280() { 
   // get and return pressure, temperature, altitude, humidity
+  if (thisBmx == nullptr) {
+    return; // Prevent null pointer dereference
+  }
+  
   thisBmx->measure();
   uint32_t bmxWait = millis();
-  while(!thisBmx->hasValue() && millis() - bmxWait < SENSOR_TIMEOUT) delay(10);
+  
+  // Use vTaskDelay with pdMS_TO_TICKS for explicit FreeRTOS task yielding
+  while (!thisBmx->hasValue() && (millis() - bmxWait < SENSOR_TIMEOUT)) {
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  
   if (thisBmx->hasValue()) {
-    // PSI = pascals * 0.000145
+    // PSI = pascals * 0.000145f
     // ambient temperature (but affected by chip heating)
     BMx280[0] = thisBmx->getTemperature(); // celsius 
-    BMx280[1] = thisBmx->getPressure() * 0.01;  // pascals to mB/hPa
-    BMx280[2] = 44330.0 * (1.0 - pow(BMx280[1] / pressureMSL, 1.0 / 5.255)); // altitude in meters
-    if (isBME) BMx280[3] = thisBmx->getHumidity(); // % relative humidity
+    BMx280[1] = thisBmx->getPressure() * 0.01f;  // pascals to mB/hPa
+    
+    // Use float literals and powf to prevent implicit conversion to double precision
+    // Guard against division by zero or invalid pressureMSL
+    float safePressureMSL = (pressureMSL > 0.0f) ? (float)pressureMSL : STD_PRESSURE;
+    BMx280[2] = 44330.0f * (1.0f - powf(BMx280[1] / safePressureMSL, 1.0f / 5.255f)); // altitude in meters
+    
+    if (isBME) {
+      BMx280[3] = thisBmx->getHumidity(); // % relative humidity
+    }
   }
 }
 
@@ -360,7 +376,7 @@ static uint8_t MPUaddr;
 /********************************* MPU6050 ********************************/
 
 // MPU6050 definitions - not gyroscope
-#define SENS_2G (32768.0/2.0) // divider for 2G sensitivity reading
+#define SENS_2G (32768.0f/2.0f) // divider for 2G sensitivity reading
 #define ACCEL_BYTES 6 // 2 bytes per axis
 #define CONFIG 0x1A
 #define ACCEL_CONFIG 0x1C
@@ -392,23 +408,45 @@ static void updateMPU6050data() {
       // read 3 axis accelerometer & temperature
       int16_t raw[4]; // X, Y, Z, Temp
       float axes[4];
-      for (int i=0; i<4; i++) raw[i] = I2CDATA[i*2] << 8 | I2CDATA[(i*2)+1]; 
-      // each axis G force value, straight down is 1.0 if stationary
-      for (int i=0; i<3; i++) axes[i] = (float)raw[i] / SENS_2G;
+      
+      for (int i = 0; i < 4; i++) {
+        // Cast to int16_t before the shift operation. This prevents undefined behavior with 8-bit types.
+        raw[i] = ((int16_t)I2CDATA[i * 2] << 8) | I2CDATA[(i * 2) + 1]; 
+      }
+      
+      // each axis G force value, straight down is 1.0f if stationary
+      for (int i = 0; i < 3; i++) {
+        axes[i] = (float)raw[i] / (float)SENS_2G;
+      }
+      
       // determine gravity from all 3 axes (no linear velocity)
-      float gXYZ = sqrt(pow(axes[0],2)+pow(axes[1],2)+pow(axes[2],2));
+      // Use sqrtf and multiplication instead of pow() to avoid double precision and improve speed
+      float gXYZ = sqrtf(axes[0] * axes[0] + axes[1] * axes[1] + axes[2] * axes[2]);
       LOG_VRB("gXYZ should be close to 1, is: %0.2f", gXYZ);
-      // pitch in degrees - X axis
-      float ratio = axes[0] / gXYZ;
-      mpuData[0] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
-      // roll in degrees - Y axis 
-      ratio = axes[1] / gXYZ;
-      mpuData[1] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
-      // yaw in degrees - Z axis (inaccurate as gravity is constant)
-      ratio = axes[2] / gXYZ;
-      mpuData[2] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
+      
+      // Prevent division by zero in freefall or sensor fault conditions
+      if (gXYZ > 0.001f) {
+        // pitch in degrees - X axis
+        // Clamp ratio to [-1.0, 1.0] to prevent NaN from asinf/acosf due to float precision errors
+        float ratioX = fmaxf(-1.0f, fminf(1.0f, axes[0] / gXYZ));
+        mpuData[0] = (ratioX < 0.5f) ? (90.0f - fabsf(asinf(ratioX) * (float)RAD_TO_DEG)) : fabsf(acosf(ratioX) * (float)RAD_TO_DEG);
+        
+        // roll in degrees - Y axis 
+        float ratioY = fmaxf(-1.0f, fminf(1.0f, axes[1] / gXYZ));
+        mpuData[1] = (ratioY < 0.5f) ? (90.0f - fabsf(asinf(ratioY) * (float)RAD_TO_DEG)) : fabsf(acosf(ratioY) * (float)RAD_TO_DEG);
+        
+        // yaw in degrees - Z axis (inaccurate as gravity is constant)
+        float ratioZ = fmaxf(-1.0f, fminf(1.0f, axes[2] / gXYZ));
+        mpuData[2] = (ratioZ < 0.5f) ? (90.0f - fabsf(asinf(ratioZ) * (float)RAD_TO_DEG)) : fabsf(acosf(ratioZ) * (float)RAD_TO_DEG);
+      } else {
+        // Freefall or sensor fault: default to 0 to avoid NaN propagation
+        mpuData[0] = 0.0f;
+        mpuData[1] = 0.0f;
+        mpuData[2] = 0.0f;
+      }
+      
       // temperature in degrees celsius
-      mpuData[3] = ((float)raw[3] / 340.0) + 36.53; 
+      mpuData[3] = ((float)raw[3] / 340.0f) + 36.53f; 
     }
   }
 }
