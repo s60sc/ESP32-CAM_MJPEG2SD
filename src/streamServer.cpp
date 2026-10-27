@@ -26,8 +26,6 @@ bool streamSrt = false;
 static bool isStreaming[MAX_STREAMS] = {false};
 size_t streamBufferSize[MAX_STREAMS] = {0};
 byte* streamBuffer[MAX_STREAMS] = {NULL}; // buffer for stream frame
-static char variable[FILE_NAME_LEN]; 
-static char value[FILE_NAME_LEN];
 uint16_t sustainId = 0;
 uint8_t numStreams = 1;
 uint8_t vidStreams = 1;
@@ -100,6 +98,7 @@ static void showPlayback(httpd_req_t* req) {
           // when browser closes playback get send error
           LOG_VRB("Playback aborted due to error: %s", espErrMsg(res));
           stopPlaying();
+		  break; // Exit loop safely to prevent infinite loop on send error.
         }
       }
     }
@@ -220,6 +219,17 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
     
     mjpegLen += (uint32_t)jpgLen;
     
+    if (res != ESP_OK) {
+      // Get send error when browser closes stream or times out.
+      LOG_VRB("Streaming aborted due to error: %s", espErrMsg(res));
+      isStreaming[taskNum] = false;
+      // Release semaphores to prevent leak before loop exit.
+      if (dbgMotion && !taskNum) {
+        xSemaphoreGive(motionSemaphore);
+      }
+      xSemaphoreGive(frameSemaphore[taskNum]);
+      break; // Exit loop safely.
+    }
     // Reset buffer size to signal producer that buffer is free.
     streamBufferSize[taskNum] = 0;
     jpgLen = 0;
@@ -231,12 +241,6 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
     
     // Always release frame semaphore after processing or skipping.
     xSemaphoreGive(frameSemaphore[taskNum]);
-    
-    if (res != ESP_OK) {
-      // get send error when browser closes stream 
-      LOG_VRB("Streaming aborted due to error: %s", espErrMsg(res));
-      isStreaming[taskNum] = false;
-    }     
   }
   
   if (res == ESP_OK) {
@@ -264,11 +268,15 @@ static void audioStream(httpd_req_t* req, uint8_t taskNum) {
     updateWavHeader();
     while (isStreaming[taskNum]) {
       if (audioBytes) {
+        totalSamples += audioBytes / 2; // 16 bit samples. Calculate before clearing audioBytes.
         res = httpd_resp_send_chunk(req, (const char*)audioBuffer, audioBytes); 
         audioBytes = 0;
-      } else delay(20); // allow time for buffer to load
-      if (res != ESP_OK) isStreaming[taskNum] = false; // client connection closed
-      else totalSamples += audioBytes / 2; // 16 bit samples
+      } else {
+        delay(20); // Allow time for buffer to load.
+      }
+      if (res != ESP_OK) {
+        isStreaming[taskNum] = false; // Client connection closed.
+      }
     }
     audioBytes = 1; // stop loading of buffer
     if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
@@ -357,8 +365,25 @@ void startSustainTasks() {
     vidStreams = 1;
     streamVid = streamAud = streamSrt = false;
   }
-  for (int i = 0; i < vidStreams; i++)
-    if (streamBuffer[i] == NULL) streamBuffer[i] = (byte*)ps_malloc(maxFrameBuffSize); 
+  for (int i = 0; i < vidStreams; i++) {
+    if (streamBuffer[i] == NULL) {
+      streamBuffer[i] = (byte*)ps_malloc(maxFrameBuffSize);
+      if (streamBuffer[i] == NULL) {
+        LOG_ERR("Failed to allocate streamBuffer[%d], out of PSRAM", i);
+        // Cleanup previously allocated buffers to prevent memory leak.
+        for (int j = 0; j < i; j++) {
+          if (streamBuffer[j] != NULL) {
+            free(streamBuffer[j]);
+            streamBuffer[j] = NULL;
+          }
+        }
+        vidStreams = 1;
+        streamVid = streamAud = streamSrt = false;
+        numStreams = 1;
+        break;
+      }
+    }
+  }
 
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
@@ -377,6 +402,8 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
   if (checkAuth(req)) { 
     // handle long running request as separate task
     // obtain details from query string
+	char variable[FILE_NAME_LEN]; // Local scope to prevent concurrent request corruption.
+    char value[FILE_NAME_LEN];    // Local scope to prevent concurrent request corruption.
     if (extractQueryKeyVal(req, variable, value, sizeof(value)) == ESP_OK) {
       // playback, download, web streaming uses task 0
       // remote streaming eg video uses task 1, audio task 2, srt task 3
@@ -430,12 +457,12 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
         if (!sustainReq[taskNum].inUse) {
           // make copy of request data and pass request to task indexed by request
           uint8_t i = taskNum;
-          sustainReq[i].inUse = true;
           httpd_req_t* copy = NULL;
           if ((res = httpd_req_async_handler_begin(req, &copy)) != ESP_OK) {
             LOG_ERR("Failed to copy req for sustain task: %i", i);
             return res;
           }
+		  sustainReq[i].inUse = true; // Set only after successful handler begin to prevent resource leak.
           sustainReq[i].req = copy;
           strncpy(sustainReq[i].activity, variable, sizeof(sustainReq[i].activity) - 1); 
           // activate relevant task
