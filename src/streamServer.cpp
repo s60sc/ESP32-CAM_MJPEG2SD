@@ -223,6 +223,9 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       // Get send error when browser closes stream or times out.
       LOG_VRB("Streaming aborted due to error: %s", espErrMsg(res));
       isStreaming[taskNum] = false;
+	  // Reset buffer size to unblock producer before exit.
+	  // Prevents permanent deadlock where producer waits for buffer clear.
+	  streamBufferSize[taskNum] = 0;
       // Release semaphores to prevent leak before loop exit.
       if (dbgMotion && !taskNum) {
         xSemaphoreGive(motionSemaphore);
@@ -423,6 +426,8 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
               if (!strcmp(variable, "stream")) {
                 isStreaming[taskNum] = false;
                 if (!taskNum) doPlayback = false; // only for task 0
+				// Reset buffer size to immediately relieve backpressure on producer.
+				streamBufferSize[taskNum] = 0;
                 if (taskNum < vidStreams && frameSemaphore[taskNum] != NULL) xSemaphoreGive(frameSemaphore[taskNum]);
                 for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
                }
