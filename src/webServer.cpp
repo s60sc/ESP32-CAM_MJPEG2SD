@@ -22,6 +22,10 @@ bool heartBeatDone = false;
 
 static byte* chunk;
 
+// Authorization cache static variables
+static char expectedAuthCache[128] = {0};
+static bool authCacheValid = false;
+
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {   
   // use chunked encoding to send large content to browser
   size_t chunksize = 0;
@@ -92,17 +96,43 @@ static void displayLog(httpd_req_t *req) {
   } 
 }
 
-bool checkAuth(httpd_req_t* req) {
-  // check if authentication is required
+void updateAuthCache() {
+  // Pre-compute and cache the expected Authorization header value
   if (Auth_Name[0] && Auth_Pass[0]) {
-    // authentication required
     size_t credLen = strlen(Auth_Name) + strlen(Auth_Pass) + 2; // +2 for colon & terminator
     char credentials[credLen];
     snprintf(credentials, credLen, "%s:%s", Auth_Name, Auth_Pass);
     const char* encodedCreds = encode64(credentials);
     size_t expectedLen = (sizeof("Basic ") - 1) + strlen(encodedCreds) + 1;
-    char expectedAuth[expectedLen];
-    snprintf(expectedAuth, expectedLen, "Basic %s", encodedCreds);
+    
+    if (expectedLen < sizeof(expectedAuthCache)) {
+      snprintf(expectedAuthCache, sizeof(expectedAuthCache), "Basic %s", encodedCreds);
+      authCacheValid = true;
+    } else {
+      authCacheValid = false; // Credentials too long for the fixed cache
+    }
+  } else {
+    expectedAuthCache[0] = '\0';
+    authCacheValid = false;
+  }
+}
+
+bool checkAuth(httpd_req_t* req) {
+  // check if authentication is required
+  if (Auth_Name[0] && Auth_Pass[0]) {
+    // Lazy initialization of the cached credentials if not already valid
+    if (!authCacheValid) {
+      updateAuthCache();
+    }
+
+    // Fallback deny if cache couldn't be built (e.g., credentials exceeded cache size)
+    if (!authCacheValid) {
+      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
+      httpd_resp_set_status(req, "401 Unauthorised");
+      httpd_resp_sendstr(req, NULL);
+      return false;
+    }
+
     size_t authHdrLen = httpd_req_get_hdr_value_len(req, "Authorization");
     bool authenticated = false;
 
@@ -111,9 +141,12 @@ bool checkAuth(httpd_req_t* req) {
       size_t authLen = authHdrLen + 1;
       char auth[authLen];
       if (httpd_req_get_hdr_value_str(req, "Authorization", auth, authLen) == ESP_OK) {
-        if (strcmp(auth, expectedAuth) == 0) authenticated = true;
+        if (strcmp(auth, expectedAuthCache) == 0) {
+          authenticated = true;
+        }
       }
     }
+    
     if (!authenticated) {
       // not authenticated
       httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic");
