@@ -30,7 +30,7 @@ esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking) {
   // use chunked encoding to send large content to browser
   size_t chunksize = 0;
   esp_err_t res = ESP_OK;
-  const size_t sendBlockSize = 1024; // fit cleanly within 1 TCP MSS for lwIP flow control
+  const size_t sendBlockSize = 1440; // Aligned with default value of TCP_MSS (1440) - maximum safe capacity in the official arduino-esp32 core, for optimal lwIP flow control
   while ((chunksize = df.read(chunk, sendBlockSize))) {
   	res = httpd_resp_send_chunk(req, (char*)chunk, chunksize);
     if (res != ESP_OK) break;
