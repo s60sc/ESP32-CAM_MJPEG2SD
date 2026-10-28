@@ -627,7 +627,25 @@ static esp_err_t customOrNotFoundHandler(httpd_req_t *req, httpd_err_code_t err)
 
 bool startWebServer() {
   esp_err_t res = ESP_FAIL;
-  if (!chunk) chunk = psramFound() ? (byte*)ps_malloc(CHUNKSIZE) : (byte*)malloc(CHUNKSIZE);
+  // Allocate chunk buffer, preferring internal DRAM to reduce latency during sendChunks
+  if (!chunk) {
+    // Check available internal DRAM (leaving a 4KB safety margin for other critical internal allocations)
+    size_t freeInternalHeap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    
+    if (freeInternalHeap >= (CHUNKSIZE + 4096)) { // 4KB safety margin check for other critical internal allocations
+      chunk = (byte*)malloc(CHUNKSIZE); // Internal memory first, external fallback.
+    } else if (psramFound()) {
+      chunk = (byte*)ps_malloc(CHUNKSIZE);
+    } else {
+      chunk = (byte*)malloc(CHUNKSIZE); // Fallback if PSRAM is not available
+    }
+    
+    if (!chunk) {
+      LOG_ERR("Failed to allocate chunk buffer (%d bytes)", CHUNKSIZE);
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to allocate web server chunk buffer");
+      return false;
+    }
+  }
   if (httpServer) {
     httpd_stop(httpServer);
     httpServer = NULL;
