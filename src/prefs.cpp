@@ -359,11 +359,13 @@ void updateStatus(const char* variable, const char* _value, bool fromUser) {
     case murmur3_32("Auth_Name"):
       strncpy(Auth_Name, value, MAX_HOST_LEN - 1);
       Auth_Name[MAX_HOST_LEN - 1] = '\0';
+      updateAuthCache(); // Immediately update the cached credentials
       break;
     case murmur3_32("Auth_Pass"):
       if (value[0] != '*') {
         strncpy(Auth_Pass, value, MAX_PWD_LEN - 1);
         Auth_Pass[MAX_PWD_LEN - 1] = '\0';
+        updateAuthCache(); // Immediately update the cached credentials
       }
       break;
     case murmur3_32("AP_ip"):

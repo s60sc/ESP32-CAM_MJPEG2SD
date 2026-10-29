@@ -34,6 +34,7 @@ const char* storageType = xstr(STORAGE);
 /************************** Network (WiFi/Ethernet) **************************/
 
 #include <esp_task_wdt.h>
+#include <esp_wifi.h>
  
 /** Do not hard code anything below here unless you know what you are doing **/
 /** Use the web interface to configure wifi settings **/
@@ -133,7 +134,7 @@ const char* getEncType(int ssidIndex) {
     case (WIFI_AUTH_WPA_WPA2_PSK): return "WPA_WPA2_PSK";
     case (WIFI_AUTH_WPA2_ENTERPRISE): return "WPA2_ENTERPRISE";
    	case (WIFI_AUTH_WPA3_PSK): return "WPA3_PSK";
-	   case (WIFI_AUTH_WPA2_WPA3_PSK): return "WPA2_WPA3_PSK";
+	case (WIFI_AUTH_WPA2_WPA3_PSK): return "WPA2_WPA3_PSK";
     case (WIFI_AUTH_MAX): return "AUTH_MAX";
     default: return "Not listed";
   }
@@ -342,8 +343,24 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
   if (firstcall) {
     WiFi.mode(WIFI_AP_STA); // Enable concurrent Station and Access Point modes.
-    WiFi.setSleep(true); // Setup modem sleep to configure association latency(Options: true - for energy efficiency, false - for continuous power supply.
+	// Configure Access Point (AP) bandwidth to 20 MHz (HT20) for connection stability
+	esp_err_t err_ap = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20); // Options: WIFI_BW_HT20 - 72.2 Mbps, maximum stability; WIFI_BW_HT40 - 150 Mbps, higher throughput(NA due to hardware limitations).
+	if (err_ap == ESP_OK) {
+		LOG_VRB("AP bandwidth successfully changed to HT20\n");
+	} else {
+		LOG_WRN("AP bandwidth configuration error: 0x%X\n", err_ap);
+	}
+	// Configure Station (STA) bandwidth to 20 MHz (HT20) for connection stability
+	esp_err_t err_sta = esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20); // Options: WIFI_BW_HT20 - 72.2 Mbps, maximum stability; WIFI_BW_HT40 - 150 Mbps, higher throughput(NA due to hardware limitations).
+	if (err_sta == ESP_OK) {
+		LOG_VRB("STA bandwidth successfully changed to HT20\n");
+	} else {
+		LOG_WRN("STA bandwidth configuration error: 0x%X\n", err_sta);
+	}
+    WiFi.setSleep(true); // Setup modem sleep to configure association latency(Options: true/WIFI_PS_MIN_MODEM - for energy efficiency, false/WIFI_PS_NONE - for stable ping.
     WiFi.setTxPower(WIFI_POWER_15dBm); // Set the Wi-Fi transmit power(range vs energy efficiency). Options: WIFI_POWER_19_5dBm, WIFI_POWER_15dBm, WIFI_POWER_8_5dBm, WIFI_POWER_2dBm, etc ...(see the documentation)
+	WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN); // Options: WIFI_FAST_SCAN or WIFI_ALL_CHANNEL_SCAN; fast vs reliable - helps with hopping STA
+	WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL); // Options: WIFI_CONNECT_AP_BY_SIGNAL or WIFI_CONNECT_AP_BY_SECURITY
     WiFi.persistent(false); // Disable NVS flash writes for Wi-Fi credentials.
     WiFi.STA.setAutoReconnect(false); // Disable auto-reconnect to manage connection lifecycle manually.
     WiFi.AP.clear();
