@@ -343,6 +343,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
   if (firstcall) {
     WiFi.mode(WIFI_AP_STA); // Enable concurrent Station and Access Point modes.
+	vTaskDelay(1); // Yield to allow Wi-Fi driver task to process initialization.
 	// Configure Access Point (AP) bandwidth to 20 MHz (HT20) for connection stability
 	esp_err_t err_ap = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20); // Options: WIFI_BW_HT20 - 72.2 Mbps, maximum stability; WIFI_BW_HT40 - 150 Mbps, higher throughput(NA due to hardware limitations).
 	if (err_ap == ESP_OK) {
