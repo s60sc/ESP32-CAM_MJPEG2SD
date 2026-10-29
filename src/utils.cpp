@@ -571,10 +571,15 @@ int netRSSI() { return (netMode == 1) ? 0 : WiFi.STA.RSSI(); }
 bool netIsConnected() { return (netMode > 0) ? (ETH.linkUp() && ETH.localIP()) : (WiFi.STA.status() == WL_CONNECTED); }
 
 const char* formatIPstr(bool getAP) {
-  static char localIP[16] = "";
+  // Rotating buffer pool supports up to 4 concurrent calls without data corruption
+  static char localIP[4][16];
+  static uint8_t idx = 0;
+  char* buf = localIP[idx++ & 3];
+  
   IPAddress ipLocal = getAP ? WiFi.AP.localIP() : netLocalIP();
-  sprintf(localIP, "%u.%u.%u.%u", ipLocal[0], ipLocal[1], ipLocal[2], ipLocal[3]); 
-  return localIP;
+  // snprintf prevents buffer overflow even if IP data is malformed
+  snprintf(buf, sizeof(localIP[0]), "%u.%u.%u.%u", ipLocal[0], ipLocal[1], ipLocal[2], ipLocal[3]); 
+  return buf;
 }
 
 void resetWatchDog(int wdIndex, uint32_t wdTimeout) {
