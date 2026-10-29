@@ -373,6 +373,11 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   wl_status_t wlStat = WL_NO_SSID_AVAIL;
   // Attempt Station mode connection if network mode permits (netMode == 0).
   if (netMode == 0) {
+    // Create the event group if it does not exist, BEFORE registering the handler.
+    if (wifiEventGroup == NULL) {
+      wifiEventGroup = xEventGroupCreate();
+    }
+
     // Register the Wi-Fi event handler once to update the event group.
     if (!wifiEventHandlerRegistered) {
       WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
@@ -385,11 +390,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
       });
       wifiEventHandlerRegistered = true;
     }
-
-    // Create the event group if it does not exist, BEFORE starting the connection.
-    if (wifiEventGroup == NULL) {
-      wifiEventGroup = xEventGroupCreate();
-    }
+	
     if (wifiEventGroup != NULL) {
       // Clear bits before starting the connection attempt to prevent race conditions.
       xEventGroupClearBits(wifiEventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
