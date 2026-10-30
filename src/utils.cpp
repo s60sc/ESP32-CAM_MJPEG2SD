@@ -343,6 +343,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
   if (firstcall) {
     WiFi.mode(WIFI_AP_STA); // Enable concurrent Station and Access Point modes.
+	vTaskDelay(1); // Yield to allow Wi-Fi driver task to process initialization.
 	// Configure Access Point (AP) bandwidth to 20 MHz (HT20) for connection stability
 	esp_err_t err_ap = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20); // Options: WIFI_BW_HT20 - 72.2 Mbps, maximum stability; WIFI_BW_HT40 - 150 Mbps, higher throughput(NA due to hardware limitations).
 	if (err_ap == ESP_OK) {
@@ -373,6 +374,11 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   wl_status_t wlStat = WL_NO_SSID_AVAIL;
   // Attempt Station mode connection if network mode permits (netMode == 0).
   if (netMode == 0) {
+    // Create the event group if it does not exist, BEFORE registering the handler.
+    if (wifiEventGroup == NULL) {
+      wifiEventGroup = xEventGroupCreate();
+    }
+
     // Register the Wi-Fi event handler once to update the event group.
     if (!wifiEventHandlerRegistered) {
       WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
@@ -385,11 +391,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
       });
       wifiEventHandlerRegistered = true;
     }
-
-    // Create the event group if it does not exist, BEFORE starting the connection.
-    if (wifiEventGroup == NULL) {
-      wifiEventGroup = xEventGroupCreate();
-    }
+	
     if (wifiEventGroup != NULL) {
       // Clear bits before starting the connection attempt to prevent race conditions.
       xEventGroupClearBits(wifiEventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
@@ -569,10 +571,15 @@ int netRSSI() { return (netMode == 1) ? 0 : WiFi.STA.RSSI(); }
 bool netIsConnected() { return (netMode > 0) ? (ETH.linkUp() && ETH.localIP()) : (WiFi.STA.status() == WL_CONNECTED); }
 
 const char* formatIPstr(bool getAP) {
-  static char localIP[16] = "";
+  // Rotating buffer pool supports up to 4 concurrent calls without data corruption
+  static char localIP[4][16];
+  static uint8_t idx = 0;
+  char* buf = localIP[idx++ & 3];
+  
   IPAddress ipLocal = getAP ? WiFi.AP.localIP() : netLocalIP();
-  sprintf(localIP, "%u.%u.%u.%u", ipLocal[0], ipLocal[1], ipLocal[2], ipLocal[3]); 
-  return localIP;
+  // snprintf prevents buffer overflow even if IP data is malformed
+  snprintf(buf, sizeof(localIP[0]), "%u.%u.%u.%u", ipLocal[0], ipLocal[1], ipLocal[2], ipLocal[3]); 
+  return buf;
 }
 
 void resetWatchDog(int wdIndex, uint32_t wdTimeout) {
