@@ -162,7 +162,10 @@ static void onNetEvent(arduino_event_id_t event, arduino_event_info_t info) {
       }
       break;
     }
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP: LOG_INF("Wifi Station IP, use '%s://%s' to connect", useHttps ? "https" : "http", formatIPstr()); break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP: 
+      LOG_INF("Wifi Station IP, use '%s://%s' to connect", useHttps ? "https" : "http", formatIPstr()); 
+      if (pingHandle == NULL) startPing(); // Start ping monitor when IP is guaranteed
+      break;
     case ARDUINO_EVENT_WIFI_STA_LOST_IP: LOG_INF("Wifi Station lost IP"); break;
     case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED: break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED: LOG_INF("WiFi Station connection to %s, using hostname: %s", ST_SSID, hostName); break;
@@ -180,6 +183,7 @@ static void onNetEvent(arduino_event_id_t event, arduino_event_info_t info) {
     case ARDUINO_EVENT_ETH_GOT_IP: {
       LOG_INF("Ethernet IP, use '%s://%s' to connect", useHttps ? "https" : "http", formatIPstr()); 
       if (netMode == 2) WiFi.AP.enableNAPT(true);
+      if (pingHandle == NULL) startPing(); // Start ping monitor when IP is guaranteed
       break;
     }
     case ARDUINO_EVENT_ETH_DISCONNECTED: {
@@ -324,13 +328,23 @@ static bool startEth(bool firstcall) {
   // wait for link and DHCP or static assignment
   uint32_t startAttemptTime = millis();
   while (!ETH.linkUp() && millis() - startAttemptTime < 8000) delay(100);
-  if (!ETH.linkUp()) LOG_WRN("Ethernet link not up");
+  if (!ETH.linkUp()) {
+    LOG_WRN("Ethernet link not up");
+    return false; // Abort early to prevent resource leaks
+  }
+  
   startAttemptTime = millis();
   while (!ETH.localIP() && millis() - startAttemptTime < 8000) delay(100);
-  if (!ETH.localIP()) LOG_WRN("Ethernet no IP yet");
+  if (!ETH.localIP()) {
+    LOG_WRN("Ethernet no IP yet");
+    return false; // Abort early to prevent resource leaks
+  }
+  
   setupMdnsHost();
+  // startPing() is primarily handled by ARDUINO_EVENT_ETH_GOT_IP. 
+  // Kept here as a safe fallback if the event was missed.
   if (pingHandle == NULL) startPing();
-  return ETH.linkUp();
+  return true;
 }
 
 // Event group handles and bits for Wi-Fi connection status
@@ -512,9 +526,11 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   }
 #endif
 
-  // Ensure background ping task is active for connection monitoring.
-  if (pingHandle == NULL) {
-    startPing();
+  // Ensure background ping task is active ONLY if Station mode achieved a connected state with a valid IP.
+  if (wlStat == WL_CONNECTED && (uint32_t)WiFi.localIP() != 0) {
+    if (pingHandle == NULL) {
+      startPing();
+    }
   }
   
   // Return true only if Station mode achieved a connected state.
