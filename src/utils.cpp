@@ -35,6 +35,7 @@ const char* storageType = xstr(STORAGE);
 
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>
+#include <atomic>
  
 /** Do not hard code anything below here unless you know what you are doing **/
 /** Use the web interface to configure wifi settings **/
@@ -585,23 +586,46 @@ const char* formatIPstr(bool getAP) {
 void resetWatchDog(int wdIndex, uint32_t wdTimeout) {
   // customised watchdogs for particular tasks
   // ping task (0) used as watchdog in case of esp freeze
-  static bool watchDogStarted[4] = {false, false, false, false};
-  if (watchDogStarted[wdIndex]) esp_task_wdt_reset();
-  else {
-    // setup watchdog on first call
-    esp_task_wdt_deinit(); 
+  static std::atomic<bool> watchDogStarted[4] = {false, false, false, false};
+  
+  // Prevent array out-of-bounds access
+  if (wdIndex < 0 || wdIndex >= 4) {
+    LOG_ERR("Invalid watchdog index: %d", wdIndex);
+    return;
+  }
+
+  if (watchDogStarted[wdIndex].load(std::memory_order_relaxed)) {
+    esp_task_wdt_reset();
+  } else {
+    // setup watchdog on first call for this index
     esp_task_wdt_config_t twdt_config = {
       .timeout_ms = wdTimeout,
       .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
       .trigger_panic = true, // panic abort on watchdog alert (contains wdt_isr)
     };
-    esp_task_wdt_init(&twdt_config);
-    esp_task_wdt_add(NULL);
-    if (esp_task_wdt_status(NULL) == ESP_OK) {
-      watchDogStarted[wdIndex] = true;
-      esp_task_wdt_reset();
-      LOG_INF("WatchDog started for task: %s", pcTaskGetName(NULL));
-    } else LOG_ERR("WatchDog failed to start for task: %s ", pcTaskGetName(NULL));
+    
+    // Reconfigure if the default Watchdog is already initialized by the system
+    esp_err_t err = esp_task_wdt_reconfigure(&twdt_config);
+    if (err == ESP_ERR_NOT_FOUND) {
+      // TWDT is not initialized yet, initialize it
+      err = esp_task_wdt_init(&twdt_config);
+    }
+    
+    // ESP_ERR_INVALID_STATE from init means it was already initialized by another task or the system
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+      // Subscribe the current task to the TWDT
+      err = esp_task_wdt_add(NULL);
+      if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        // ESP_ERR_INVALID_STATE means the task is already subscribed, which is safe to accept
+        watchDogStarted[wdIndex].store(true, std::memory_order_relaxed);
+        esp_task_wdt_reset();
+        LOG_INF("WatchDog started for task: %s", pcTaskGetName(NULL));
+      } else {
+        LOG_ERR("WatchDog failed to add task: %s, error: 0x%X", pcTaskGetName(NULL), err);
+      }
+    } else {
+      LOG_ERR("WatchDog failed to init/reconfigure for task: %s, error: 0x%X", pcTaskGetName(NULL), err);
+    }
   }
 }
 
