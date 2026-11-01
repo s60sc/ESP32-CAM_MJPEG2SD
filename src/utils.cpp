@@ -742,28 +742,63 @@ void getExtIP() {
     if (remoteServerConnect(hclient, EXT_IP_HOST, HTTP_PORT, GETEXTIP)) {
       HTTPClient http;
       int httpCode = HTTP_CODE_NOT_FOUND;
+      
       if (http.begin(hclient, EXT_IP_HOST, HTTP_PORT, EXT_IP_PATH)) {
         httpCode = http.GET();
+        
         if (httpCode == HTTP_CODE_OK) {
           String payload = http.getString();
           char jsonVal[FILE_NAME_LEN] = "";
+          
+          // Process IP address
           if (getJsonValue(payload.c_str(), "ip", jsonVal)) {
-            if (strcmp(jsonVal, extIP)) {
+            if (strcmp(jsonVal, extIP) != 0) {
               // external IP changed
               strncpy(extIP, jsonVal, sizeof(extIP) - 1);
+              extIP[sizeof(extIP) - 1] = '\0'; // Guarantee null-termination
               updateStatus("extIP", extIP);
               updateStatus("save", "0");
               externalAlert("External IP changed", extIP);
-            } else LOG_INF("External IP: %s", extIP);
-          } else LOG_WRN("'ip' field not present");
+            } else {
+              LOG_INF("External IP: %s", extIP);
+            }
+          } else {
+            LOG_WRN("'ip' field not present");
+          }
           
-          if (getJsonValue(payload.c_str(), "latitude", jsonVal)) latLon[0] = atof(jsonVal);
-          else LOG_WRN("'latitude' field not present");
-          if (getJsonValue(payload.c_str(), "longitude", jsonVal)) latLon[1] = atof(jsonVal);
-          else LOG_WRN("'longitude' field not present");
-        } else LOG_WRN("External IP request failed, error: %s", http.errorToString(httpCode).c_str());    
+          // Process latitude
+          if (getJsonValue(payload.c_str(), "latitude", jsonVal)) {
+            char *endptr;
+            float lat = strtof(jsonVal, &endptr);
+            if (endptr != jsonVal && *endptr == '\0') {
+              latLon[0] = lat;
+            } else {
+              LOG_WRN("Latitude format is invalid: %s", jsonVal);
+            }
+          } else {
+            LOG_WRN("'latitude' field not present");
+          }
+          
+          // Process longitude
+          if (getJsonValue(payload.c_str(), "longitude", jsonVal)) {
+            char *endptr;
+            float lon = strtof(jsonVal, &endptr);
+            if (endptr != jsonVal && *endptr == '\0') {
+              latLon[1] = lon;
+            } else {
+              LOG_WRN("Longitude format is invalid: %s", jsonVal);
+            }
+          } else {
+            LOG_WRN("'longitude' field not present");
+          }
+        } else {
+          LOG_WRN("External IP request failed, error: %s", http.errorToString(httpCode).c_str());    
+        }
         
-        if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
+        if (httpCode != HTTP_CODE_OK) {
+          doGetExtIP = false;
+        }
+        
         http.end();
       }
       remoteServerClose(hclient);
