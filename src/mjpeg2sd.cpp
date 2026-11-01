@@ -298,7 +298,7 @@ static void saveFrame(camera_fb_t* fb) {
 static bool closeAvi() {
   // closes the recorded file
   uint32_t vidDuration = millis() - startTime;
-  uint32_t vidDurationSecs = lround(vidDuration / 1000.0);
+  uint32_t vidDurationSecs = lround(vidDuration / 1000.0f);
   logLine();
   LOG_VRB("Capture time %lu, min seconds: %u ", vidDurationSecs, minSeconds);
 
