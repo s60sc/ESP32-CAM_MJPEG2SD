@@ -492,7 +492,7 @@ static void statsTask(void *arg) {
       LOG_SEND("|------------------|------------|-----|------|--------|\n"); 
       // Match each task in start_array to those in the end_array
       for (int i = 0; i < statsArraySize; i++) {
-        float percentage_time = ((float)statsArray[i].ulRunTimeCounter * 100.0) / runCounter;
+        float percentage_time = ((float)statsArray[i].ulRunTimeCounter * 100.0f) / runCounter;
         UBaseType_t coreId = statsArray[i].xCoreID;
         LOG_SEND("| %-16s | %-10s | %3u | %4c | %5.1f%% |\n", 
           statsArray[i].pcTaskName, getTaskStateString(statsArray[i].eCurrentState), (int)statsArray[i].uxCurrentPriority, coreId == tskNO_AFFINITY ? '*' : '0' + (int)coreId, percentage_time);
