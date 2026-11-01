@@ -283,15 +283,17 @@ float readTemperature(bool isCelsius, bool onlyDS18) {
   // return latest read temperature value in celsius (true) or fahrenheit (false), unless error
   if (onlyDS18) return dsTemp;
   if (!haveDS18B20) dsTemp = readInternalTemp();
-  return (dsTemp > NULL_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
+  return (dsTemp > NULL_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8f) + 32.0f) : dsTemp;
 }
 
-float getNTCcelsius (uint16_t resistance, float oldTemp) {
+float getNTCcelsius(uint16_t resistance, float oldTemp) {
   // convert NTC thermistor resistance reading to celsius
-  double Temp = log(resistance);
-  Temp = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * Temp * Temp )) * Temp);
-  Temp = (Temp == 0) ? oldTemp : Temp - 273.15; // if 0 then didnt get a reading
-  return (float) Temp;
+  if (resistance == 0) {
+    return oldTemp; // if 0 then didnt get a reading
+  }
+  float temp = logf(static_cast<float>(resistance));
+  temp = 1.0f / (0.001129148f + (0.000234125f + (0.0000000876741f * temp * temp)) * temp);
+  return temp - 273.15f;
 }
 
 /************ battery monitoring ************/
