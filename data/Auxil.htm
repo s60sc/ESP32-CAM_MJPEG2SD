@@ -1144,48 +1144,121 @@
       }
 
       async function processStatus(dest, key, value, fromUser = true) {
-        // process change to status value
-        if (dest == ID) {
+      // process change to status value
+      switch (dest) {
+        case ID:
           // operation based on ID
-          if (key == "wifi") getConfig("0");
-          else if (key == "hostName") {
-            document.title = value;
-            if (fromUser) sendControl(key, value);
+          switch (key) {
+            case "wifi":
+              getConfig("0");
+              break;
+            case "hostName":
+              document.title = value;
+              if (fromUser) sendControl(key, value);
+              break;
+            case "clearLog":
+              clearLog();
+              break;
+            case "refreshLog":
+              getLog();
+              break;
+            case "logType":
+              logType = value;
+              sendControl(key, value);
+              return;
+            case "refreshVal":
+              refreshInterval = Number(value) * 1000;
+              break;
+            case "heartbeatRC":
+              heartbeatInterval = Number(value) * 1000;
+              break;
+            case "clockUTC":
+              appClock = value;
+              checkTime(value);
+              break;
+            case "peripherals":
+              getConfig("0123");
+              break;
+            case "RCconfig":
+              doLoadStatus = false;
+              getConfig("01234");
+              break;
+            case "SVconfig":
+              doLoadStatus = false;
+              getConfig("0123456");
+              break;
+            case "PGconfig":
+              doLoadStatus = false;
+              getConfig("012345");
+              break;
+            case "delete":
+            case "uploadMove":
+            case "upload":
+              sdFile(key, value);
+              break;
+            case "timezoneSel":
+              fromUser = setTz(value);
+              break;
+            case "RCactive":
+              Number(value) ? show($('#RCconfigBtn')) : hide($('#RCconfigBtn'));
+              break;
+            case "maxSteerAngle":
+              updateMaxSteerAngle(value);
+              break;
+            case "maxDutyCycle":
+              updateMaxDutyCycle(value);
+              break;
+            case "minDutyCycle":
+              minDutyCycle = value;
+              break;
+            case "servoCenter":
+              servoCenter = value;
+              break;
+            case "allowReverse":
+              allowReverse = Number(value) > 0;
+              updateMaxDutyCycle(maxDutyCycle, true);
+              break;
+            case "autoControl":
+              autoControl = Number(value) > 0;
+              break;
+            case "PGactive":
+              Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
+              break;
+            case "SVactive":
+              Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
+              break;
+            case "waitTime":
+              waitTime = value;
+              break;
+            case "AtakePhotos":
+              if (fromUser) wsAuxSend("G1", wsInd);
+              break;
+            case "BabortPhotos":
+              if (fromUser) wsAuxSend("G0", wsInd);
+              break;
+            case "AuxIP":
+              return; // ignored
+            case "save":
+              await sleep(600); // allow last input to debounce
+              break;
           }
-          else if (key == "clearLog") clearLog();
-          else if (key == "refreshLog") getLog();
-          else if (key == "logType") { logType = value; sendControl(key, value); return; }
-          else if (key == "refreshVal") refreshInterval = value * 1000;
-          else if (key == "heartbeatRC") heartbeatInterval = value * 1000;
-          else if (key == "clockUTC") { appClock = value; checkTime(value); }
-          else if (key == "peripherals") getConfig("0123");
-          else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
-          else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
-          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
-          else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
-          else if (key == 'timezoneSel') fromUser = setTz(value);
-          else if (key == "RCactive") Number(value) ? show($('#RCconfigBtn')) : hide($('#RCconfigBtn'));
-          else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
-          else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
-          else if (key == "minDutyCycle") minDutyCycle = value;
-          else if (key == "servoCenter") servoCenter = value;
-          else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle, true); }
-          else if (key == "autoControl") autoControl = value > 0 ? true : false;
-          else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
-          else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
-          else if (key == "waitTime") waitTime = value;
-          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend("G1", wsInd); }
-          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); }
-          else if (key == "AuxIP") return; // ignored
-          else if (key == 'save') await sleep(600); // allow last input to debounce
-          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value);
-        }
-        else if (dest == CLASS) {
+          
+          const targetElement = $('#' + key);
+          if (fromUser && targetElement && !targetElement.classList.contains("local")) {
+            debounceSendControl(key, value);
+          }
+          break;
+          
+        case CLASS:
           // operations based on class
-          if (key.substring(0, 9) == "quick-nav") navigation(value);
-          else if (key == "pin-menu") pinMenu();
-        }
+          if (key.startsWith("quick-nav")) {
+            navigation(value);
+          } else if (key === "pin-menu") {
+            pinMenu();
+          }
+          break;
       }
+    }
 
       /************** menu functions ****************/
 
