@@ -283,25 +283,27 @@ float readTemperature(bool isCelsius, bool onlyDS18) {
   // return latest read temperature value in celsius (true) or fahrenheit (false), unless error
   if (onlyDS18) return dsTemp;
   if (!haveDS18B20) dsTemp = readInternalTemp();
-  return (dsTemp > NULL_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8) + 32.0) : dsTemp;
+  return (dsTemp > NULL_TEMP) ? (isCelsius ? dsTemp : (dsTemp * 1.8f) + 32.0f) : dsTemp;
 }
 
-float getNTCcelsius (uint16_t resistance, float oldTemp) {
+float getNTCcelsius(uint16_t resistance, float oldTemp) {
   // convert NTC thermistor resistance reading to celsius
-  double Temp = log(resistance);
-  Temp = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * Temp * Temp )) * Temp);
-  Temp = (Temp == 0) ? oldTemp : Temp - 273.15; // if 0 then didnt get a reading
-  return (float) Temp;
+  if (resistance == 0) {
+    return oldTemp; // if 0 then didnt get a reading
+  }
+  float temp = logf(static_cast<float>(resistance));
+  temp = 1.0f / (0.001129148f + (0.000234125f + (0.0000000876741f * temp * temp)) * temp);
+  return temp - 273.15f;
 }
 
 /************ battery monitoring ************/
 
 // Read voltage from battery connected to ADC pin
 // input battery voltage may need to be reduced by voltage divider resistors to keep it below 3V3.
-static float currentVoltage = -1.0; // no monitoring
-TaskHandle_t battHandle = NULL;
+static float currentVoltage = -1.0f; // no monitoring
+TaskHandle_t battHandle = nullptr;
 
-float readVoltage()  {
+float readVoltage() {
   return currentVoltage;
 }
 
@@ -309,18 +311,18 @@ static void battTask(void* parameter) {
   if (voltInterval < 1) voltInterval = 1;
   while (true) {
     // convert analog reading to corrected voltage.  analogReadMilliVolts() not working
-    currentVoltage = (float)(smoothAnalog(voltPin)) * 3.3 * voltDivider / MAX_ADC;
+    currentVoltage = static_cast<float>(smoothAnalog(voltPin)) * 3.3f * static_cast<float>(voltDivider) / static_cast<float>(MAX_ADC);
 
     static bool sentExtAlert = false;
     if (currentVoltage < voltLow && !sentExtAlert) {
       sentExtAlert = true; // only sent once per esp32 session
-      char battMsg[20];
-      sprintf(battMsg, "Voltage is %0.2fV", currentVoltage);
+      char battMsg[24];
+      snprintf(battMsg, sizeof(battMsg), "Voltage is %0.2fV", currentVoltage);
       externalAlert("Low battery", battMsg);
     }
-    delay(voltInterval * 60 * 1000); // mins
+    delay(static_cast<uint32_t>(voltInterval) * 60UL * 1000UL); // mins
   }
-  vTaskDelete(NULL);
+  vTaskDelete(nullptr);
 }
 
 static void setupBatt() {
@@ -677,7 +679,7 @@ void ledBarClear() {
 
 void ledBrightness(uint8_t whichLed, float brightness) {
   // brightness is a float 0.0 <> 1.0, converted to one of 8 brightness levels or off
-  ledLevel[whichLed] |= (1 << (uint8_t)(8 * brightness)) - 1;
+  ledLevel[whichLed] |= (1 << (uint8_t)(8.0f * brightness)) - 1;
 }
 
 void ledBarUpdate() {

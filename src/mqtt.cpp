@@ -394,7 +394,7 @@ void sendMqttHasState(){
   formatElapsedTime(timeBuff, millis());
   mqttPublishPath("up_time", timeBuff);
   float aTemp = readTemperature(true);
-  if (aTemp > -127.0){    
+  if (aTemp > -127.0f){    
     sprintf(p, "%0.1f", aTemp);
     mqttPublishPath("atemp", p);
   }

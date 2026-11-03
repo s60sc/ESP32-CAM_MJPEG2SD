@@ -50,7 +50,7 @@ static float mRPM; // stepper RPM derived from tRPM and gearing
 static TaskHandle_t pgramHandle = NULL;
 static char pFolder[20];
 
-#define MAX_RPM 15.0 // max allowed stepper motor RPM
+#define MAX_RPM 15.0f // max allowed stepper motor RPM
 #define shutterTime 100 // time in ms to allow DSLR shutter to open and close
 
 static void prepPgram() {
@@ -127,7 +127,7 @@ static void pgramTask (void *pvParameter) {
     LOG_WRN("Number of photos needs to be non zero");
 #endif
   } else {
-    float revFraction = 1.0 / (float)numberOfPhotos; // ie angular fraction of one revolution
+    float revFraction = 1.0f / (float)numberOfPhotos; // ie angular fraction of one revolution
     photosDone = 0;
     prepPgram();
     LOG_INF("Start taking %u photos each %0.1f deg at %0.1f RPM", numberOfPhotos, revFraction * 360, tRPM);

@@ -41,11 +41,11 @@ int detectEndBand = 8; // inclusive
 int detectChangeThreshold = 15; // min difference in pixel comparison to indicate a change
 uint8_t colorDepth; // set by depthColor config
 bool mlUse = false; // whether to use ML for motion detection, requires INCLUDE_TINYML to be true
-float mlProbability = 0.8; // minimum probability (0.0 - 1.0) for positive classification
+float mlProbability = 0.8f; // minimum probability (0.0 - 1.0) for positive classification
 
 uint8_t lightLevel; // Current ambient light level 
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
-float motionVal = 8.0; // initial motion sensitivity setting
+float motionVal = 8.0f; // initial motion sensitivity setting
 uint8_t* motionJpeg = NULL;
 size_t motionJpegLen = 0;
 static uint8_t* currBuff = NULL;

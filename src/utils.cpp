@@ -35,6 +35,7 @@ const char* storageType = xstr(STORAGE);
 
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>
+#include <atomic>
  
 /** Do not hard code anything below here unless you know what you are doing **/
 /** Use the web interface to configure wifi settings **/
@@ -161,7 +162,10 @@ static void onNetEvent(arduino_event_id_t event, arduino_event_info_t info) {
       }
       break;
     }
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP: LOG_INF("Wifi Station IP, use '%s://%s' to connect", useHttps ? "https" : "http", formatIPstr()); break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP: 
+      LOG_INF("Wifi Station IP, use '%s://%s' to connect", useHttps ? "https" : "http", formatIPstr()); 
+      if (pingHandle == NULL) startPing(); // Start ping monitor when IP is guaranteed
+      break;
     case ARDUINO_EVENT_WIFI_STA_LOST_IP: LOG_INF("Wifi Station lost IP"); break;
     case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED: break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED: LOG_INF("WiFi Station connection to %s, using hostname: %s", ST_SSID, hostName); break;
@@ -179,6 +183,7 @@ static void onNetEvent(arduino_event_id_t event, arduino_event_info_t info) {
     case ARDUINO_EVENT_ETH_GOT_IP: {
       LOG_INF("Ethernet IP, use '%s://%s' to connect", useHttps ? "https" : "http", formatIPstr()); 
       if (netMode == 2) WiFi.AP.enableNAPT(true);
+      if (pingHandle == NULL) startPing(); // Start ping monitor when IP is guaranteed
       break;
     }
     case ARDUINO_EVENT_ETH_DISCONNECTED: {
@@ -323,13 +328,23 @@ static bool startEth(bool firstcall) {
   // wait for link and DHCP or static assignment
   uint32_t startAttemptTime = millis();
   while (!ETH.linkUp() && millis() - startAttemptTime < 8000) delay(100);
-  if (!ETH.linkUp()) LOG_WRN("Ethernet link not up");
+  if (!ETH.linkUp()) {
+    LOG_WRN("Ethernet link not up");
+    return false; // Abort early to prevent resource leaks
+  }
+  
   startAttemptTime = millis();
   while (!ETH.localIP() && millis() - startAttemptTime < 8000) delay(100);
-  if (!ETH.localIP()) LOG_WRN("Ethernet no IP yet");
+  if (!ETH.localIP()) {
+    LOG_WRN("Ethernet no IP yet");
+    return false; // Abort early to prevent resource leaks
+  }
+  
   setupMdnsHost();
+  // startPing() is primarily handled by ARDUINO_EVENT_ETH_GOT_IP. 
+  // Kept here as a safe fallback if the event was missed.
   if (pingHandle == NULL) startPing();
-  return ETH.linkUp();
+  return true;
 }
 
 // Event group handles and bits for Wi-Fi connection status
@@ -343,6 +358,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
   if (firstcall) {
     WiFi.mode(WIFI_AP_STA); // Enable concurrent Station and Access Point modes.
+	vTaskDelay(1); // Yield to allow Wi-Fi driver task to process initialization.
 	// Configure Access Point (AP) bandwidth to 20 MHz (HT20) for connection stability
 	esp_err_t err_ap = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20); // Options: WIFI_BW_HT20 - 72.2 Mbps, maximum stability; WIFI_BW_HT40 - 150 Mbps, higher throughput(NA due to hardware limitations).
 	if (err_ap == ESP_OK) {
@@ -373,6 +389,11 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   wl_status_t wlStat = WL_NO_SSID_AVAIL;
   // Attempt Station mode connection if network mode permits (netMode == 0).
   if (netMode == 0) {
+    // Create the event group if it does not exist, BEFORE registering the handler.
+    if (wifiEventGroup == NULL) {
+      wifiEventGroup = xEventGroupCreate();
+    }
+
     // Register the Wi-Fi event handler once to update the event group.
     if (!wifiEventHandlerRegistered) {
       WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
@@ -385,11 +406,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
       });
       wifiEventHandlerRegistered = true;
     }
-
-    // Create the event group if it does not exist, BEFORE starting the connection.
-    if (wifiEventGroup == NULL) {
-      wifiEventGroup = xEventGroupCreate();
-    }
+	
     if (wifiEventGroup != NULL) {
       // Clear bits before starting the connection attempt to prevent race conditions.
       xEventGroupClearBits(wifiEventGroup, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
@@ -509,9 +526,11 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   }
 #endif
 
-  // Ensure background ping task is active for connection monitoring.
-  if (pingHandle == NULL) {
-    startPing();
+  // Ensure background ping task is active ONLY if Station mode achieved a connected state with a valid IP.
+  if (wlStat == WL_CONNECTED && (uint32_t)WiFi.localIP() != 0) {
+    if (pingHandle == NULL) {
+      startPing();
+    }
   }
   
   // Return true only if Station mode achieved a connected state.
@@ -569,32 +588,60 @@ int netRSSI() { return (netMode == 1) ? 0 : WiFi.STA.RSSI(); }
 bool netIsConnected() { return (netMode > 0) ? (ETH.linkUp() && ETH.localIP()) : (WiFi.STA.status() == WL_CONNECTED); }
 
 const char* formatIPstr(bool getAP) {
-  static char localIP[16] = "";
+  // Rotating buffer pool supports up to 4 concurrent calls without data corruption
+  static char localIP[4][16];
+  static uint8_t idx = 0;
+  char* buf = localIP[idx++ & 3];
+  
   IPAddress ipLocal = getAP ? WiFi.AP.localIP() : netLocalIP();
-  sprintf(localIP, "%u.%u.%u.%u", ipLocal[0], ipLocal[1], ipLocal[2], ipLocal[3]); 
-  return localIP;
+  // snprintf prevents buffer overflow even if IP data is malformed
+  snprintf(buf, sizeof(localIP[0]), "%u.%u.%u.%u", ipLocal[0], ipLocal[1], ipLocal[2], ipLocal[3]); 
+  return buf;
 }
 
 void resetWatchDog(int wdIndex, uint32_t wdTimeout) {
   // customised watchdogs for particular tasks
   // ping task (0) used as watchdog in case of esp freeze
-  static bool watchDogStarted[4] = {false, false, false, false};
-  if (watchDogStarted[wdIndex]) esp_task_wdt_reset();
-  else {
-    // setup watchdog on first call
-    esp_task_wdt_deinit(); 
+  static std::atomic<bool> watchDogStarted[4] = {false, false, false, false};
+  
+  // Prevent array out-of-bounds access
+  if (wdIndex < 0 || wdIndex >= 4) {
+    LOG_ERR("Invalid watchdog index: %d", wdIndex);
+    return;
+  }
+
+  if (watchDogStarted[wdIndex].load(std::memory_order_relaxed)) {
+    esp_task_wdt_reset();
+  } else {
+    // setup watchdog on first call for this index
     esp_task_wdt_config_t twdt_config = {
       .timeout_ms = wdTimeout,
       .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
       .trigger_panic = true, // panic abort on watchdog alert (contains wdt_isr)
     };
-    esp_task_wdt_init(&twdt_config);
-    esp_task_wdt_add(NULL);
-    if (esp_task_wdt_status(NULL) == ESP_OK) {
-      watchDogStarted[wdIndex] = true;
-      esp_task_wdt_reset();
-      LOG_INF("WatchDog started for task: %s", pcTaskGetName(NULL));
-    } else LOG_ERR("WatchDog failed to start for task: %s ", pcTaskGetName(NULL));
+    
+    // Reconfigure if the default Watchdog is already initialized by the system
+    esp_err_t err = esp_task_wdt_reconfigure(&twdt_config);
+    if (err == ESP_ERR_NOT_FOUND) {
+      // TWDT is not initialized yet, initialize it
+      err = esp_task_wdt_init(&twdt_config);
+    }
+    
+    // ESP_ERR_INVALID_STATE from init means it was already initialized by another task or the system
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+      // Subscribe the current task to the TWDT
+      err = esp_task_wdt_add(NULL);
+      if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+        // ESP_ERR_INVALID_STATE means the task is already subscribed, which is safe to accept
+        watchDogStarted[wdIndex].store(true, std::memory_order_relaxed);
+        esp_task_wdt_reset();
+        LOG_INF("WatchDog started for task: %s", pcTaskGetName(NULL));
+      } else {
+        LOG_ERR("WatchDog failed to add task: %s, error: 0x%X", pcTaskGetName(NULL), err);
+      }
+    } else {
+      LOG_ERR("WatchDog failed to init/reconfigure for task: %s, error: 0x%X", pcTaskGetName(NULL), err);
+    }
   }
 }
 
@@ -695,28 +742,63 @@ void getExtIP() {
     if (remoteServerConnect(hclient, EXT_IP_HOST, HTTP_PORT, GETEXTIP)) {
       HTTPClient http;
       int httpCode = HTTP_CODE_NOT_FOUND;
+      
       if (http.begin(hclient, EXT_IP_HOST, HTTP_PORT, EXT_IP_PATH)) {
         httpCode = http.GET();
+        
         if (httpCode == HTTP_CODE_OK) {
           String payload = http.getString();
           char jsonVal[FILE_NAME_LEN] = "";
+          
+          // Process IP address
           if (getJsonValue(payload.c_str(), "ip", jsonVal)) {
-            if (strcmp(jsonVal, extIP)) {
+            if (strcmp(jsonVal, extIP) != 0) {
               // external IP changed
               strncpy(extIP, jsonVal, sizeof(extIP) - 1);
+              extIP[sizeof(extIP) - 1] = '\0'; // Guarantee null-termination
               updateStatus("extIP", extIP);
               updateStatus("save", "0");
               externalAlert("External IP changed", extIP);
-            } else LOG_INF("External IP: %s", extIP);
-          } else LOG_WRN("'ip' field not present");
+            } else {
+              LOG_INF("External IP: %s", extIP);
+            }
+          } else {
+            LOG_WRN("'ip' field not present");
+          }
           
-          if (getJsonValue(payload.c_str(), "latitude", jsonVal)) latLon[0] = atof(jsonVal);
-          else LOG_WRN("'latitude' field not present");
-          if (getJsonValue(payload.c_str(), "longitude", jsonVal)) latLon[1] = atof(jsonVal);
-          else LOG_WRN("'longitude' field not present");
-        } else LOG_WRN("External IP request failed, error: %s", http.errorToString(httpCode).c_str());    
+          // Process latitude
+          if (getJsonValue(payload.c_str(), "latitude", jsonVal)) {
+            char *endptr;
+            float lat = strtof(jsonVal, &endptr);
+            if (endptr != jsonVal && *endptr == '\0') {
+              latLon[0] = lat;
+            } else {
+              LOG_WRN("Latitude format is invalid: %s", jsonVal);
+            }
+          } else {
+            LOG_WRN("'latitude' field not present");
+          }
+          
+          // Process longitude
+          if (getJsonValue(payload.c_str(), "longitude", jsonVal)) {
+            char *endptr;
+            float lon = strtof(jsonVal, &endptr);
+            if (endptr != jsonVal && *endptr == '\0') {
+              latLon[1] = lon;
+            } else {
+              LOG_WRN("Longitude format is invalid: %s", jsonVal);
+            }
+          } else {
+            LOG_WRN("'longitude' field not present");
+          }
+        } else {
+          LOG_WRN("External IP request failed, error: %s", http.errorToString(httpCode).c_str());    
+        }
         
-        if (httpCode != HTTP_CODE_OK) doGetExtIP = false;
+        if (httpCode != HTTP_CODE_OK) {
+          doGetExtIP = false;
+        }
+        
         http.end();
       }
       remoteServerClose(hclient);

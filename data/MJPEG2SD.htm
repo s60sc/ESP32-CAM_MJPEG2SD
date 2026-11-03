@@ -1763,85 +1763,241 @@
       }
 
       async function processStatus(dest, key, value, fromUser = true) {
-        // process change to status value
-        if (dest == ID) {
-          // operation based on ID
-          if (RCsliders(key, value)) return;
-          if (key == "wifi") getConfig("0");
-          else if (key == "hostName") {
+      // process change to status value
+      if (dest === ID) {
+        // operation based on ID
+        if (RCsliders(key, value)) return;
+    
+        switch (key) {
+          case "wifi":
+            getConfig("0");
+            break;
+          case "hostName":
             document.title = value;
             if (fromUser) sendControl(key, value);
+            break;
+          case "clearLog":
+            clearLog();
+            break;
+          case "refreshLog":
+            getLog();
+            break;
+          case "logType":
+            logType = value;
+            sendControl(key, value);
+            return; // Early exit preserves original logic
+          case "refreshVal":
+            refreshInterval = value * 1000;
+            break;
+          case "heartbeatRC":
+            heartbeatInterval = value * 1000;
+            break;
+          case "clockUTC":
+            appClock = value;
+            checkTime(value);
+            break;
+          case "streaming":
+            getConfig("012345678");
+            break;
+          case "motion":
+            getConfig("01");
+            break;
+          case "other":
+            getConfig("012");
+            break;
+          case "peripherals":
+            getConfig("0123");
+            break;
+          case "sustainId":
+            if (Number(value) >= sustainId) stopAll("sustainId", false);
+            break;
+          case "RCconfig":
+            doLoadStatus = false;
+            getConfig("01234");
+            break;
+          case "SVconfig":
+            doLoadStatus = false;
+            getConfig("0123456");
+            break;
+          case "PGconfig":
+            doLoadStatus = false;
+            getConfig("012345");
+            break;
+          case "Audconfig":
+            doLoadStatus = false;
+            getConfig("01234567");
+            break;
+          case "Ethconfig":
+            doLoadStatus = false;
+            getConfig("0123456789");
+            break;
+          case "camModel":
+            customButtons(key, value);
+            break;
+          case "delete":
+          case "uploadMove":
+          case "upload":
+            sdFile(key, value);
+            break;
+          case "timezoneSel":
+            fromUser = setTz(value);
+            break;
+          case "framesize":
+            fromUser = setFrameSize(key, value, fromUser);
+            break;
+          case "get-still":
+            getStill();
+            break;
+          case "download": {
+            const downloadElement = $("#download");
+            if (downloadElement && downloadElement.value.includes('.')) {
+              doDownload();
+            }
+            break;
           }
-          else if (key == "clearLog") clearLog();
-          else if (key == "refreshLog") getLog();
-          else if (key == "logType") { logType = value; sendControl(key, value); return; }
-          else if (key == "refreshVal") refreshInterval = value * 1000;
-          else if (key == "heartbeatRC") heartbeatInterval = value * 1000;
-          else if (key == "clockUTC") { appClock = value; checkTime(value); }
-          else if (key == "streaming") getConfig("012345678");
-          else if (key == "motion") getConfig("01");
-          else if (key == "other") getConfig("012");
-          else if (key == "peripherals") getConfig("0123");
-          else if (key == "sustainId") { if (value >= sustainId) stopAll("sustainId", false); }
-          else if (key == "RCconfig") { doLoadStatus = false; getConfig("01234"); }
-          else if (key == "SVconfig") { doLoadStatus = false; getConfig("0123456"); }
-          else if (key == "PGconfig") { doLoadStatus = false; getConfig("012345"); }
-          else if (key == "Audconfig") { doLoadStatus = false; getConfig("01234567"); }
-          else if (key == "Ethconfig") { doLoadStatus = false; getConfig("0123456789"); }
-          else if (key == "camModel") customButtons(key, value);
-          else if (key == "delete" || key == "uploadMove" || key == "upload") sdFile(key, value);
-          else if (key == 'timezoneSel') fromUser = setTz(value);
-          else if (key == "framesize") fromUser = setFrameSize(key, value, fromUser);
-          else if (key == "get-still") getStill();
-          else if (key == "download" && $("#download").value.includes('.')) doDownload();
-          else if (key == "sfile") fromUser = selectFileOrFolder(value, fromUser);
-          else if (key == "devHub") {value == "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]')); }
-          else if (key == "AuxIP") wsAux(value);
-          else if (key == "aec") value ? hide($('#aec_value-group')) : showAec();
-          else if (key == "awb_gain") value ? show($('#wb_mode-group')) : hide($('#wb_mode-group'));
-          else if (key == "agc") setAgc(key, value);
-          else if (key == "forceRecord") value = recordAction(key);
-          else if (key == "showRecord") setRecIndicator(value);
-          else if (key == "forcePlayback") fromUser ? playbackAction(key) : deactivatePlaybackButton();
-          else if (key == "forceStream") streamAction(key);
-          else if (key == "micRem") { value = micOrSpkrState(key); value ? runMic(wsInd) : closeMic(wsInd); }
-          else if (key == "spkrRem") { value = micOrSpkrState(key); value ? runSpkr(wsInd) : closeSpkr(wsInd); }
-          else if (key == "RCactive") RCstatus(Number(value));
-          else if (key == "RClights") { value = RCbuttons(key, value); wsAuxSend("L" + value, wsInd); }
-          else if (key == "RCcontrols") showRCcontrols(RCbuttons(key, value));
-          else if (key == "maxSteerAngle") updateMaxSteerAngle(value);
-          else if (key == "maxDutyCycle") updateMaxDutyCycle(value);
-          else if (key == "minDutyCycle") minDutyCycle = value;
-          else if (key == "servoCenter") servoCenter = value;
-          else if (key == "allowReverse") { allowReverse = value > 0 ? true : false; updateMaxDutyCycle(maxDutyCycle, true); }
-          else if (key == "autoControl") autoControl = value > 0 ? true : false;
-          else if (key == "PGactive") Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
-          else if (key == "SVactive") Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
-          else if (key == "AudActive") Number(value) ? show($('#AudconfigBtn')) : hide($('#AudconfigBtn'));
-          else if (key == "netMode") Number(value) > 0 ? show($('#EthconfigBtn')) : hide($('#EthconfigBtn'));
-          else if (key == "waitTime") waitTime = value;
-          else if (key == "camTilt") { wsAuxSend("T" + value, wsInd); }
-          else if (key == "camPan") { wsAuxSend("P" + value, wsInd); }
-          else if (key == "AtakePhotos") { if (fromUser) wsAuxSend("G1", wsInd); return;}
-          else if (key == "BabortPhotos") { if (fromUser) wsAuxSend("G0", wsInd); return;}
-          else if (key == "lampPin") { value > 0 ? enableRangeSlider($('#lampLevel')) : disableRangeSlider($('#lampLevel')); }
-          else if (key == "servoPanPin") { value > 0 ? enableRangeSlider($('#camPan')) : disableRangeSlider($('#camPan')); }
-          else if (key == "servoTiltPin") { value > 0 ? enableRangeSlider($('#camTilt')) : disableRangeSlider($('#camTilt')); }
-          else if (key == "micSdPin") micState(value);
-          else if (key == "mampSdIo") spkrState(value);
-          else if (key == 'save') await sleep(600); // allow last input to debounce
-          if (fromUser && !$('#'+key).classList.contains("local")) debounceSendControl(key, value);
+          case "sfile":
+            fromUser = selectFileOrFolder(value, fromUser);
+            break;
+          case "devHub":
+            value === "1" ? show($('[name="DeviceHub"]')) : hide($('[name="DeviceHub"]'));
+            break;
+          case "AuxIP":
+            wsAux(value);
+            break;
+          case "aec":
+            value ? hide($('#aec_value-group')) : showAec();
+            break;
+          case "awb_gain":
+            value ? show($('#wb_mode-group')) : hide($('#wb_mode-group'));
+            break;
+          case "agc":
+            setAgc(key, value);
+            break;
+          case "forceRecord":
+            value = recordAction(key);
+            break;
+          case "showRecord":
+            setRecIndicator(value);
+            break;
+          case "forcePlayback":
+            fromUser ? playbackAction(key) : deactivatePlaybackButton();
+            break;
+          case "forceStream":
+            streamAction(key);
+            break;
+          case "micRem":
+            value = micOrSpkrState(key);
+            value ? runMic(wsInd) : closeMic(wsInd);
+            break;
+          case "spkrRem":
+            value = micOrSpkrState(key);
+            value ? runSpkr(wsInd) : closeSpkr(wsInd);
+            break;
+          case "RCactive":
+            RCstatus(Number(value));
+            break;
+          case "RClights":
+            value = RCbuttons(key, value);
+            wsAuxSend("L" + value, wsInd);
+            break;
+          case "RCcontrols":
+            showRCcontrols(RCbuttons(key, value));
+            break;
+          case "maxSteerAngle":
+            updateMaxSteerAngle(value);
+            break;
+          case "maxDutyCycle":
+            updateMaxDutyCycle(value);
+            break;
+          case "minDutyCycle":
+            minDutyCycle = value;
+            break;
+          case "servoCenter":
+            servoCenter = value;
+            break;
+          case "allowReverse":
+            allowReverse = Number(value) > 0;
+            updateMaxDutyCycle(maxDutyCycle, true);
+            break;
+          case "autoControl":
+            autoControl = Number(value) > 0;
+            break;
+          case "PGactive":
+            Number(value) ? show($('#PGconfigBtn')) : hide($('#PGconfigBtn'));
+            break;
+          case "SVactive":
+            Number(value) ? show($('#SVconfigBtn')) : hide($('#SVconfigBtn'));
+            break;
+          case "AudActive":
+            Number(value) ? show($('#AudconfigBtn')) : hide($('#AudconfigBtn'));
+            break;
+          case "netMode":
+            Number(value) > 0 ? show($('#EthconfigBtn')) : hide($('#EthconfigBtn'));
+            break;
+          case "waitTime":
+            waitTime = value;
+            break;
+          case "camTilt":
+            wsAuxSend("T" + value, wsInd);
+            break;
+          case "camPan":
+            wsAuxSend("P" + value, wsInd);
+            break;
+          case "AtakePhotos":
+            if (fromUser) wsAuxSend("G1", wsInd);
+            return; // Early exit preserves original logic
+          case "BabortPhotos":
+            if (fromUser) wsAuxSend("G0", wsInd);
+            return; // Early exit preserves original logic
+          case "lampPin":
+            Number(value) > 0 ? enableRangeSlider($('#lampLevel')) : disableRangeSlider($('#lampLevel'));
+            break;
+          case "servoPanPin":
+            Number(value) > 0 ? enableRangeSlider($('#camPan')) : disableRangeSlider($('#camPan'));
+            break;
+          case "servoTiltPin":
+            Number(value) > 0 ? enableRangeSlider($('#camTilt')) : disableRangeSlider($('#camTilt'));
+            break;
+          case "micSdPin":
+            micState(value);
+            break;
+          case "mampSdIo":
+            spkrState(value);
+            break;
+          case "save":
+            await sleep(600); // allow last input to debounce
+            break;
+          default:
+            // No action for unmatched keys
+            console.warn("processStatus: Unknown key received:", key);
+            break;
         }
-        else if (dest == CLASS) {
-          // operations based on class
-          if (key.substring(0, 9) == "quick-nav") navigation(value);
-          else if (key == "iconSize") {
-            if (value == "saveImage") saveImage();
-            else sizeView(value);
+    
+        const targetElement = $('#' + key);
+        if (fromUser && targetElement && !targetElement.classList.contains("local")) {
+          debounceSendControl(key, value);
+        }
+      } 
+      else if (dest === CLASS) {
+        // operations based on class
+        if (key.startsWith("quick-nav")) {
+          navigation(value);
+        } else {
+          switch (key) {
+            case "iconSize":
+              if (value === "saveImage") saveImage();
+              else sizeView(value);
+              break;
+            case "pin-menu":
+              pinMenu();
+              break;
+            default:
+              // No action for unmatched keys
+              break;
           }
-          else if (key == "pin-menu") pinMenu();
         }
       }
+    }
 
       /************** menu functions ****************/
 

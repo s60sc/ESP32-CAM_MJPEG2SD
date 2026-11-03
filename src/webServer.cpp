@@ -237,70 +237,83 @@ esp_err_t extractQueryKeyVal(httpd_req_t *req, char* variable, char* value, size
   return ESP_OK;
 }
 
+// MIME lookup table and helper function
+struct MimeEntry {
+    const char* ext;
+    const char* mime;
+};
+
+static const MimeEntry mimeTable[] = {
+    {".html", "text/html"},
+    {".htm",  "text/html"},
+    {".js",   "text/javascript"},
+    {".css",  "text/css"},
+    {".txt",  "text/plain"},
+    {".ico",  "image/x-icon"},
+    {".svg",  "image/svg+xml"},
+    {NULL,    NULL} // Sentinel
+};
+
+static const char* getMimeType(const char* filename) {
+    if (!filename) return "application/octet-stream";
+    const char* dot = strrchr(filename, '.');
+    if (dot) {
+        for (size_t i = 0; mimeTable[i].ext != NULL; i++) {
+            // Case-insensitive comparison for file extensions
+            if (strcasecmp(dot, mimeTable[i].ext) == 0) {
+                return mimeTable[i].mime;
+            }
+        }
+    }
+    return "application/octet-stream"; // Default fallback for unknown types
+}
+
 static esp_err_t webHandler(httpd_req_t* req) {
-  if (!checkAuth(req)) return ESP_OK;
-  // return required web page or component to browser using filename from query string
-  size_t queryLen = httpd_req_get_url_query_len(req) + 1;
-  if (queryLen > FILE_NAME_LEN) {
-    LOG_ERR("Query string too long");
-    httpd_resp_set_status(req, "400 Invalid query string");
-    httpd_resp_sendstr(req, NULL);
-    return ESP_FAIL;
-  }
-  httpd_req_get_url_query_str(req, variable, queryLen);
-  urlDecode(variable);
+    if (!checkAuth(req)) return ESP_OK;
+    
+    // Return required web page or component to browser using filename from query string
+    size_t queryLen = httpd_req_get_url_query_len(req) + 1;
+    if (queryLen > FILE_NAME_LEN) {
+        LOG_ERR("Query string too long");
+        httpd_resp_set_status(req, "400 Invalid query string");
+        httpd_resp_sendstr(req, NULL);
+        return ESP_FAIL;
+    }
+    
+    httpd_req_get_url_query_str(req, variable, queryLen);
+    urlDecode(variable);
 
-  // Strip query parameters for cache busting (e.g. common.js?v=41)
-  char* qmark = strchr(variable, '?');
-  if (qmark != NULL) *qmark = '\0';
-  char* ampersand = strchr(variable, '&');
-  if (ampersand != NULL) *ampersand = '\0';
+    // Strip query parameters for cache busting (e.g., common.js?v=41)
+    char* qmark = strchr(variable, '?');
+    if (qmark != NULL) *qmark = '\0';
+    char* ampersand = strchr(variable, '&');
+    if (ampersand != NULL) *ampersand = '\0';
 
-  if (isPathTraversal(variable)) {
-    LOG_WRN("Path traversal attempt detected in URL query: %s", variable);
-    httpd_resp_send_404(req);
-    return ESP_FAIL;
-  }
-  // check file extension to determine required processing before response sent to browser
-  size_t varLen = strlen(variable);
-  if (!strcmp(variable, "OTA.htm")) {
-    // request for built in OTA page, if index html defective
-    httpd_resp_set_type(req, "text/html"); 
-    return httpd_resp_sendstr(req, otaPage_html);
-  } else if (!strcmp(HTML_EXT, variable+(varLen-strlen(HTML_EXT)))) {
-    // any other html file
-    httpd_resp_set_type(req, "text/html");
-  } else if (!strcmp(JS_EXT, variable+(varLen-strlen(JS_EXT)))) {
-    // any js file
-    httpd_resp_set_type(req, "text/javascript");
-  } else if (!strcmp(CSS_EXT, variable+(varLen-strlen(CSS_EXT)))) {
-    // any css file
-    httpd_resp_set_type(req, "text/css");
-  } else if (!strcmp(TEXT_EXT, variable+(varLen-strlen(TEXT_EXT)))) {
-    // any text file
-    httpd_resp_set_type(req, "text/plain");
-  } else if (!strcmp(ICO_EXT, variable+(varLen-strlen(ICO_EXT)))) {
-    // any icon file
-    httpd_resp_set_type(req, "image/x-icon");
-  } else if (!strcmp(SVG_EXT, variable+(varLen-strlen(SVG_EXT)))) {
-    // any svg file
-    httpd_resp_set_type(req, "image/svg+xml");
-  } else LOG_WRN("Unknown file type %s", variable);  
+    // Special case for built-in OTA page, if index html is defective
+    if (!strcmp(variable, "OTA.htm")) {
+        httpd_resp_set_type(req, "text/html"); 
+        return httpd_resp_sendstr(req, otaPage_html);
+    }
 
-  if (isPathTraversal(variable)) {
-    LOG_WRN("Path traversal attempt detected before formatting: %s", variable);
-    httpd_resp_send_404(req);
-    return ESP_FAIL;
-  }
-  
-  int dlen = snprintf(inFileName, IN_FILE_NAME_LEN - 1, "%s/%s", DATA_DIR, variable);               
-  if (dlen >= IN_FILE_NAME_LEN) LOG_WRN("file name truncated");
-  if (isPathTraversal(inFileName)) {
-    LOG_WRN("Path traversal attempt detected in formatted path: %s", inFileName);
-    httpd_resp_send_404(req);
-    return ESP_FAIL;
-  }
-  return fileHandler(req);
+    // Construct full path first
+    int dlen = snprintf(inFileName, sizeof(inFileName), "%s/%s", DATA_DIR, variable);               
+    if (dlen < 0 || dlen >= sizeof(inFileName)) {
+        LOG_WRN("File name truncated or snprintf error");
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    // Single robust path traversal check AFTER path construction
+    if (isPathTraversal(inFileName)) {
+        LOG_WRN("Path traversal attempt detected in formatted path: %s", inFileName);
+        httpd_resp_send_404(req);
+        return ESP_FAIL;
+    }
+
+    // Set MIME type using optimized lookup table
+    httpd_resp_set_type(req, getMimeType(variable));
+
+    return fileHandler(req);
 }
 
 static esp_err_t controlHandler(httpd_req_t *req) {

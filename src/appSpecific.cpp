@@ -844,7 +844,7 @@ char* buildAppJsonString(bool filter) {
   p += sprintf(p, "\"llevel\":%u,", lightLevel);
   p += sprintf(p, "\"night\":%s,", nightTime ? "\"Yes\"" : "\"No\"");
   float aTemp = readTemperature(true);
-  if (aTemp > -127.0) p += sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
+  if (aTemp > -127.0f) p += sprintf(p, "\"atemp\":\"%0.1f\",", aTemp);
   else p += sprintf(p, "\"atemp\":\"n/a\",");
   float currentVoltage = readVoltage();
   if (currentVoltage < 0) p += sprintf(p, "\"battv\":\"n/a\",");
@@ -919,7 +919,7 @@ void applyFilters() {
 
 #if !INCLUDE_PERIPH
 float readVoltage() {
-  return -1.0;
+  return -1.0f;
 }
 
 float readTemperature(bool isCelsius, bool onlyDS18) {
