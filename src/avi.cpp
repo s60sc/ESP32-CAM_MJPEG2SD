@@ -124,7 +124,7 @@ void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL) {
   size_t aviSize = moviSize[isTL] + AVI_HEADER_LEN + ((CHUNK_HDR+IDX_ENTRY) * (frameCnt+(haveSoundFile?1:0))); // AVI content size 
   // update aviHeader with relevant stats
   memcpy(aviHeader+4, &aviSize, 4);
-  uint32_t usecs = (uint32_t)round(1000000.0f / FPS); // usecs_per_frame 
+  uint32_t usecs = (uint32_t)roundf(1000000.0f / FPS); // usecs_per_frame 
   memcpy(aviHeader+0x20, &usecs, 4); 
   memcpy(aviHeader+0x30, &frameCnt, 2);
   memcpy(aviHeader+0x8C, &frameCnt, 2);
