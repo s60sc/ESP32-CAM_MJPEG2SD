@@ -149,7 +149,7 @@ static int dutyCycle (int angle) {
   // calculate duty cycle for given angle
   angle = constrain(angle, servoMinAngle, servoMaxAngle);
   int pulseWidth = map(angle, servoMinAngle, servoMaxAngle, servoMinPulseWidth, servoMaxPulseWidth);
-  return pow(2, DUTY_BIT_DEPTH) * pulseWidth * PWM_FREQ / USECS;
+  return powf(2, DUTY_BIT_DEPTH) * pulseWidth * PWM_FREQ / USECS;
 }
 
 static int changeAngle(uint8_t servoPin, int newVal, int oldVal, bool useDelay = true) {
@@ -409,7 +409,7 @@ void setLamp(uint8_t lampVal) {
 #else
       // assume PWM LED, set lamp brightness using PWM (0 = off, 15 = max)
       uint8_t valueMax = 15;
-      uint32_t duty = (pow(2, DUTY_BIT_DEPTH) / valueMax) * min(lampVal, valueMax);
+      uint32_t duty = (powf(2, DUTY_BIT_DEPTH) / valueMax) * min(lampVal, valueMax);
       ledcWrite(lampPin, duty);
 #endif
     }
