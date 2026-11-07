@@ -253,7 +253,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       SVactive = (intVal != 0);
       break;
     case murmur3_32("voltUse"):
-      voltUse = (intVal != 0);t.
+      voltUse = (intVal != 0);
       break;
     case murmur3_32("pirPin"):
       pirPin = intVal;
