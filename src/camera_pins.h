@@ -336,13 +336,16 @@
 #define HREF_GPIO_NUM     4
 #define PCLK_GPIO_NUM     3
 
-#elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM) || defined(CAMERA_MODEL_ESP32_S3_CAM)
+#elif defined(CAMERA_MODEL_ESP32S3_EYE) || defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM) \
+  || defined(CAMERA_MODEL_ESP32_S3_CAM) || defined(CAMERA_MODEL_ESP32S3_CAM_V1_2) 
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
 #define CAM_BOARD "CAMERA_MODEL_ESP32S3_EYE"
 #elif defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
 #define CAM_BOARD "CAMERA_MODEL_FREENOVE_ESP32S3_CAM"
 #elif defined(CAMERA_MODEL_ESP32_S3_CAM)
 #define CAM_BOARD "CAMERA_MODEL_ESP32_S3_CAM" // AI_THINKER style board
+#elif defined(CAMERA_MODEL_ESP32S3_CAM_V1_2)
+#define CAM_BOARD "CAMERA_MODEL_ESP32S3_CAM_V1_2" // https://github.com/nulllaborg/esp32s3-cam
 #endif
 
 #define PWDN_GPIO_NUM -1
@@ -370,7 +373,8 @@
 #ifdef USE_WS2812
 #define LED_GPIO_NUM 48 // WS2812 rgb led
 #else
-#define LED_GPIO_NUM 2 // blue signal led    
+#define LED_GPIO_NUM 2 // blue signal led
+// CAMERA_MODEL_ESP32S3-CAM_V1.2 also has 2 lamp leds on pin 3
 #endif
 
 // Define SD Pins

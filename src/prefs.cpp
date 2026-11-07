@@ -56,8 +56,8 @@ static bool getNextKeyVal() {
 void showConfigVect() {
   for (const std::vector<std::string>& innerVector : configs) {
     // Print each element of the inner vector
-    for (const std::string& element : innerVector) printf("%s,", element.c_str());
-    printf("\n"); // Add a newline after each inner vector
+    for (const std::string& element : innerVector) esp_rom_printf("%s,", element.c_str());
+    esp_rom_printf("\n"); // Add a newline after each inner vector
   }
 }
 
@@ -738,7 +738,7 @@ void buildJsonString(uint8_t filter) {
       // session constants
       p += sprintf(p, "\"fw_version\":\"%s\",", APP_VER); 
       p += sprintf(p, "\"macAddressEfuse\":\"%012llX\",", ESP.getEfuseMac() ); 
-      p += sprintf(p, "\"macAddressWiFi\":\"%s\",", netMacAddress().c_str() ); 
+      p += sprintf(p, "\"macAddressWiFi\":\"%s\",", netMacAddress() ); 
       p += sprintf(p, "\"extIP\":\"%s\",", extIP); 
       p += sprintf(p, "\"httpPort\":\"%u\",", HTTP_PORT); 
       p += sprintf(p, "\"httpsPort\":\"%u\",", HTTPS_PORT);

@@ -1,6 +1,6 @@
 // Global generic declarations
 //
-// s60sc 2021, 2022
+// s60sc 2021, 2022, 2026
 
 #pragma once
 
@@ -54,6 +54,7 @@
 #include <esp_http_server.h>
 #include <esp_https_server.h>
 #include "esp_sntp.h"
+#include "driver/uart.h"
 
 // ADC
 #define ADC_ATTEN ADC_11db
@@ -104,6 +105,12 @@
 #define MAX_FAIL 5
 #define PANIC_DELAY 5 // seconds before restart after panic
 #define DAY_LENGTH (24 * 60 * 60) // in secs
+#define LOG_MAX_ARGS 8   // max arguments per log message
+#define LOG_STR_AREA 128 // store %s arguments for one message
+
+enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, BLOCKLIST, GETEXTMSL, GETEXTMAG, GETEXTNOCT, REMFAILCNT}; // REMFAILCNT always last
+enum class Brightness : uint8_t  { Off = 0, Low, Medium, High, Full, Count }; //  Perceived brightness 25/50/75/100%
+enum class LedType : uint8_t { Mono = 0, WS2812, RGB3Pin }; // Status LED type
 
 // global mandatory app specific functions, in appSpecific.cpp 
 bool appDataFiles();
@@ -122,6 +129,7 @@ void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
 bool checkAlarm();
+bool checkAppReady();
 bool checkAuth(httpd_req_t* req);
 void checkDataFiles();
 bool checkFreeStorage();
@@ -169,8 +177,9 @@ void listBuff(const uint8_t* b, size_t len);
 bool listDir(const char* fname, char* jsonBuff, size_t jsonBuffLen, const char* extension);
 void loadCerts();
 bool loadConfig();
+bool logFlush(uint32_t timeout_ms);
 void logLine();
-void logSetup();
+bool logSetup();
 void OTAprereq();
 bool parseJson(int rxSize);
 bool prepFreq(int maxFreq, int sampleInterval);
@@ -197,11 +206,13 @@ void resetCrashLoop();
 void reset_log();
 void resetWatchDog(int wdIndex, uint32_t wdTimeout = 1);
 bool retrieveConfigVal(const char* variable, char* value);
+void runStatusCheck();
 void runTaskStats(bool _onceOnly = false);
 void saveRamLog(const char* ramLogName);
 esp_err_t sendChunks(File df, httpd_req_t *req, bool endChunking = true);
 void sendSSE(const char* eventType, const char* eventData);
 void setFolderName(const char* fname, char* fileName, size_t fileNameSize);
+void setLamp(uint8_t lampVal);
 void setPeripheralResponse(const byte pinNum, const uint32_t responseData);
 void setupADC();
 void showHWM(const char* msg);
@@ -218,11 +229,13 @@ void syncToBrowser(uint32_t browserUTC);
 char* toCase(char *s, bool toLower = true);
 char* trim(char* str);
 void updateAuthCache();
+bool updateConfigVect(const char* variable, int value);
 bool updateConfigVect(const char* variable, const char* value);
 void updateStatus(const char* variable, const char* _value, bool fromUser = true);
 esp_err_t uploadHandler(httpd_req_t *req);
 void urlDecode(char* inVal);
 bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
+bool updateGNSS();
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 bool utilsStartup();
 esp_sleep_wakeup_cause_t wakeupResetReason();
@@ -231,7 +244,7 @@ bool wsAsyncSendJson(const char* dataType, const char* wsData);
 bool wsAsyncSendText(const char* wsData);
 // unified networking helpers (WiFi or Ethernet)
 bool startNetwork(bool firstcall = true);
-String netMacAddress();
+const char* netMacAddress();
 int netRSSI();
 bool netIsConnected();
 // mqtt.cpp
@@ -351,13 +364,12 @@ extern char* serverCerts[];
 // app status
 extern uint8_t alarmHour;
 extern char* jsonBuff; 
-extern bool dbgVerbose;
 extern bool sdLog;
 extern int logType;
 extern char messageLog[];
 extern uint16_t mlogEnd;
 extern bool timeSynchronized;
-extern bool monitorOpen; 
+extern bool monitorOpen;
 extern time_t currEpoch;
 extern bool RCactive;
 extern int wakePin;
@@ -373,8 +385,10 @@ extern bool formatIfMountFailed ; // Auto format the file system if mount failed
 extern const char* storageType;
 
 // I2C pins
-extern int I2Csda;
-extern int I2Cscl;
+extern int I2C0sda;
+extern int I2C0scl;
+extern int I2C1sda;
+extern int I2C1scl;
 
 #define HTTP_METHOD_STRING(method) \
   (method == HTTP_DELETE) ? "DELETE" : \
@@ -412,63 +426,131 @@ extern int I2Cscl;
   (method == HTTP_UNLINK) ? "UNLINK" : \
   "UNKNOWN"
 
-enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, BLOCKLIST, GETEXTMSL, GETEXTMAG, GETEXTNOCT, REMFAILCNT}; // REMFAILCNT always last
-
 /*********************** Log formatting ************************/
 
-#define MAX_OUT 200
-#define LOG_QUEUE_TIMEOUT_TICKS pdMS_TO_TICKS(50) // 50ms
-extern QueueHandle_t logFreePool;
-extern QueueHandle_t logQueue;
-void logIncrementDropCount();
+#include "esp_debug_helpers.h"
 
-//#define USE_LOG_COLORS  // uncomment to colorise log messages (eg if using idf.py, but not arduino)
-#ifdef USE_LOG_COLORS 
-// ANSI color codes
-#define LOG_COLOR_ERR  "\033[0;31m" // red
-#define LOG_COLOR_WRN  "\033[0;33m" // yellow
-#define LOG_COLOR_VRB  "\033[0;36m" // cyan
-#define LOG_COLOR_DBG  "\033[0;34m" // blue
-#define LOG_NO_COLOR   
-#else
-#define LOG_COLOR_ERR
-#define LOG_COLOR_WRN
-#define LOG_COLOR_VRB
-#define LOG_COLOR_DBG
-#define LOG_NO_COLOR
-#endif 
+// log levels
+enum logLevel_t : uint8_t {
+  LOG_LEVEL_RAW = 0,
+  LOG_LEVEL_COMMAND,
+  LOG_LEVEL_ERROR,
+  LOG_LEVEL_WARN,
+  LOG_LEVEL_ALERT,
+  LOG_LEVEL_INFO,
+  LOG_LEVEL_DEBUG,
+  LOG_LEVEL_VERBOSE
+};
 
-#define LOG_SEND(formatted_str, ...) do { \
-  char *_buf; \
-  if (xQueueReceive(logFreePool, &_buf, LOG_QUEUE_TIMEOUT_TICKS) == pdTRUE) { \
-    snprintf(_buf, MAX_OUT, formatted_str, ##__VA_ARGS__); \
-    if (xQueueSend(logQueue, &_buf, LOG_QUEUE_TIMEOUT_TICKS) != pdTRUE) { \
-      xQueueSend(logFreePool, &_buf, LOG_QUEUE_TIMEOUT_TICKS); \
-      logIncrementDropCount(); \
-    } \
-  } else logIncrementDropCount(); \
-} while(0)
+// queued data types
+enum logArgType_t : uint8_t {
+  LOG_ARG_INT,
+  LOG_ARG_UINT,
+  LOG_ARG_DOUBLE,
+  LOG_ARG_STR,      // v.str_off = offset into entry strs[]
+  LOG_ARG_PTR
+};
 
-#define LOG_INF(format, ...) \
-  LOG_SEND("[%s %s] " format "\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+struct logArg_t {
+  logArgType_t type;
+  uint8_t size;     // sizeof original integer type (for %x/%u of negatives)
+  union {
+    int64_t   i;
+    uint64_t  u;
+    double    d;
+    uintptr_t p;
+    uint16_t  str_off;
+  } v;
+};
 
-#define LOG_ALT(format, ...) \
-  LOG_SEND("[%s %s] " format "~\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+struct logEntry_t {
+  const char* fmt;   // static lifetime
+  const char* file;             // __FILE__, static lifetime (path stripped in the log task)
+  const char* func;             // __FUNCTION__, static lifetime
+  uint16_t line;                // __LINE__
+  const char* timestamp;
+  uint8_t level;
+  uint8_t nargs;
+  uint8_t raw = 0;    // 1 = line captured from esp_log: already fully decorated by IDF, 2 = verbatim (LOG_RAW. LOG_CMD) 
+  uint16_t str_used;
+  logArg_t args[LOG_MAX_ARGS];
+  char strs[LOG_STR_AREA + 1]; // last byte is always NUL (target of "empty" strings)
+};
 
-#define LOG_WRN(format, ...) \
-  LOG_SEND(LOG_COLOR_WRN "[%s WARN %s] " format LOG_NO_COLOR "~\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+extern bool dbgVerbose;
+extern volatile uint8_t g_logLevel;
 
-#define LOG_ERR(format, ...) \
-  LOG_SEND(LOG_COLOR_ERR "[%s ERROR @ %s:%u] " format LOG_NO_COLOR "~\n", esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__, ##__VA_ARGS__)
+void logCopyStr(logEntry_t* e, logArg_t &a, const char* s);
+logEntry_t* logAcquire(logLevel_t level, const char* timestamp, const char* file, int line, const char* func, const char* fmt);
+void logPost(logEntry_t* e);
+void logSetLevel(logLevel_t level);
+static inline void logFormatCheck(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static inline void logFormatCheck(const char *, ...) {}
 
-#define LOG_VRB(format, ...) \
-  if (dbgVerbose) LOG_SEND(LOG_COLOR_VRB "[%s VERBOSE %s] " format LOG_NO_COLOR "\n", esp_log_system_timestamp(), __FUNCTION__, ##__VA_ARGS__)
+template <class> struct logAlways_false : std::false_type {};
 
-#define LOG_DBG(format, ...) do { \
-  LOG_SEND(LOG_COLOR_DBG "[%s ### DEBUG @ %s:%u] " format LOG_NO_COLOR "\n", \
-    esp_log_system_timestamp(), pathToFileName(__FILE__), __LINE__, ##__VA_ARGS__); \
-  delay(FLUSH_DELAY); \
-} while(0)
+// Stores one argument with its type; no formatting happens here.
+template <typename T>
+inline void logPush(logEntry_t* e, T value) {
+  logArg_t &a = e->args[e->nargs++];
+  using D = std::remove_cv_t<T>;
+  a.size = 8;
+  if constexpr (std::is_floating_point_v<D>) {
+    a.type = LOG_ARG_DOUBLE;
+    a.v.d = (double)value;
+  } else if constexpr (std::is_same_v<D, const char *> || std::is_same_v<D, char *>) {
+    a.type = LOG_ARG_STR;
+    logCopyStr(e, a, value);
+  } else if constexpr (std::is_pointer_v<D>) {
+    a.type = LOG_ARG_PTR;
+    a.v.p = reinterpret_cast<uintptr_t>(value);
+  } else if constexpr (std::is_enum_v<D>) {
+    a.type = LOG_ARG_INT;
+    a.v.i = static_cast<int64_t>(value);
+  } else if constexpr (std::is_integral_v<D>) {
+    a.size = (uint8_t)sizeof(D);
+    if constexpr (std::is_signed_v<D>) { a.type = LOG_ARG_INT;  a.v.i = (int64_t)value; }
+    else                               { a.type = LOG_ARG_UINT; a.v.u = (uint64_t)value; }
+  } else {
+    static_assert(logAlways_false<D>::value, "LOG: unsupported argument type (use numbers, enums, pointers or C strings)");
+  }
+}
 
+template <typename... Args>
+static inline void logSubmit(logLevel_t level, const char* timestamp, const char* file, int line, const char* func, const char* fmt, Args... args) {
+  static_assert(sizeof...(Args) <= LOG_MAX_ARGS, "ERR: too many args, increase LOG_MAX_ARGS");
+  logEntry_t* e = logAcquire(level, timestamp, file, line, func, fmt);
+  if (!e) return; // pool empty or not initialised: drop, never block
+  if (!timestamp[0]) e->raw = 2;
+  (logPush(e, args), ...); // left-to-right
+  logPost(e);
+}
+
+//  macros
+#define LOG_SUBMIT(level, fmt, ...)                        \
+  do {                                                     \
+    if ((uint8_t)(level) <= g_logLevel) {                  \
+      if (false) { logFormatCheck((fmt), ##__VA_ARGS__); } \
+      if ((level == LOG_LEVEL_RAW) || (level == LOG_LEVEL_COMMAND)) logSubmit((level), "", NULL, 0, NULL, (fmt), ##__VA_ARGS__); \
+      else logSubmit((level), esp_log_system_timestamp(), __FILE__, __LINE__, __FUNCTION__, (fmt), ##__VA_ARGS__); \
+    }                                                      \
+  } while (0)
+
+#define LOG_RAW(fmt, ...) LOG_SUBMIT(LOG_LEVEL_RAW, fmt, ##__VA_ARGS__)
+#define LOG_ERR(fmt, ...) LOG_SUBMIT(LOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
+#define LOG_WRN(fmt, ...) LOG_SUBMIT(LOG_LEVEL_WARN, fmt, ##__VA_ARGS__)
+#define LOG_INF(fmt, ...) LOG_SUBMIT(LOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
+#define LOG_ALT(fmt, ...) LOG_SUBMIT(LOG_LEVEL_ALERT, fmt, ##__VA_ARGS__)
+#define LOG_DBG(fmt, ...) LOG_SUBMIT(LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+#define LOG_VRB(fmt, ...) LOG_SUBMIT(LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
+#define LOG_CMD(fmt, ...) LOG_SUBMIT(LOG_LEVEL_COMMAND, fmt, ##__VA_ARGS__)
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)
+
+// function call backtrace for decoding
+#define LOG_TRC(frames) \
+  do { \
+  Serial.setDebugOutput(true);  \
+  esp_backtrace_print(frames);  \
+  Serial.setDebugOutput(false); \
+  } while (0)
 

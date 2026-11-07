@@ -4,11 +4,11 @@
 // - servos, eg camera pan / tilt / steer
 // - DS18B20 temperature sensor
 // - battery voltage measurement
-// - lamp LED driver (PWM or WS2812 / SK6812)
 // - 3 pin joystick 
 // - MY9221 based LED Bar, eg 10 segment Grove LED Bar
 // - 5 wire 28BYJ-48 Unipolar Stepper Motor with ULN2003 Motor Driver
 // - 4 wire Bipolar Stepper Motor with MX1508 H-Bridge Motor Driver
+// - uBlox GNSS M10 global positioning system
 //
 // Peripherals can be hosted directly on the client ESP, or on
 // a separate Auxiliary ESP if the client ESP has limited free
@@ -19,21 +19,18 @@
 //
 // Pin numbers must be > 0.
 //
-// s60sc 2022 - 2025
+// s60sc 2022 - 2026
 //
 
 #include "appGlobals.h"
 
 #if INCLUDE_PERIPH
 #include "driver/ledc.h"
+#include "driver/uart.h"
 
 // peripherals used
 bool pirUse; // true to use PIR for motion detection
 bool ledBarUse; // true to use led bar
-uint8_t lampLevel; // brightness of on board lamp led 
-bool lampAuto = false; // if true in conjunction with pirUse and accelUse, switch on lamp when PIR or accelerometer activated at night
-bool lampNight; // if true, lamp comes on at night (not used)
-int lampType; // how lamp is used
 bool voltUse; // true to report on ADC pin eg for for battery
 bool stickUse; // true to use joystick
 bool buzzerUse; // true to use buzzer
@@ -46,7 +43,6 @@ bool RCactive = false;
 
 // sensors 
 int pirPin; // if pirUse is true
-int lampPin;
 int buzzerPin; // if buzzerUse is true
 
 // Camera servos 
@@ -105,7 +101,6 @@ uint8_t stepINpins[stepperPins];
 
 static void doStep();
 void setStickTimer(bool restartTimer, uint32_t interval);
-void setLamp(uint8_t lampVal);
 
 
 // individual pin sensor / controller functions
@@ -288,9 +283,7 @@ float readTemperature(bool isCelsius, bool onlyDS18) {
 
 float getNTCcelsius(uint16_t resistance, float oldTemp) {
   // convert NTC thermistor resistance reading to celsius
-  if (resistance == 0) {
-    return oldTemp; // if 0 then didnt get a reading
-  }
+  if (resistance == 0) return oldTemp; // if 0 then didnt get a reading
   float temp = logf(static_cast<float>(resistance));
   temp = 1.0f / (0.001129148f + (0.000234125f + (0.0000000876741f * temp * temp)) * temp);
   return temp - 273.15f;
@@ -335,97 +328,7 @@ static void setupBatt() {
   }
 }
 
-/********************* LED Lamp Driver **********************/
 
-#define RGB_BITS 24  // WS2812 / SK6812 has 24 bit color in RGB order
-static bool lampInit = false;
-#if defined(USE_WS2812)
-static rmt_data_t ledData[RGB_BITS];
-#endif
-
-static void setupLamp() {
-  // setup lamp LED according to board type
-  // assumes led wired as active high (ESP32 lamp led on pin 4 is active high, signal led on pin 33 is active low)
-  lampInit = false;
-#if defined(LED_GPIO_NUM)
-  if (lampPin <= 0) {
-    lampPin = LED_GPIO_NUM;
-    char lampPinStr[3];
-    sprintf(lampPinStr, "%d", lampPin);
-    updateStatus("lampPin", lampPinStr);
-  }
-#endif
-
-  if (lampPin) {
-    lampInit = true;
-#if defined(USE_WS2812)
-    // WS2812 RGB high intensity led
-    if (rmtInit(lampPin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) 
-      LOG_INF("Setup WS2812 Lamp Led on pin %d", lampPin);
-    else {
-      LOG_WRN("Failed to setup WS2812 on pin %u", lampPin);
-      lampInit = false;
-    }
-#else
-    // assume PWM LED
-    ledcAttach(lampPin, 5000, DUTY_BIT_DEPTH); // freq, resolution
-    setLamp(0);
-    LOG_INF("Setup PWM Lamp Led on pin %d", lampPin);
-#endif
-  }
-  if (lightsRCpin > 1) pinMode(lightsRCpin, OUTPUT);
-}
-
-void setLamp(uint8_t lampVal) {
-  // control lamp status
-  if (lampPin) {
-    if (!lampInit) setupLamp();
-    if (lampInit) {
-#if defined(USE_WS2812)
-      // WS2812 LED - set white color and apply lampVal (0 = off, 15 = max)
-      uint8_t RGB[3]; // each color is 8 bits
-      lampVal = lampVal == 15 ? 255 : lampVal * 16;
-      for (uint8_t i = 0; i < 3; i++) {
-        RGB[i] = lampVal;
-        // apply WS2812 bit encoding pulse timing per bit
-        for (uint8_t j = 0; j < 8; j++) { 
-          int bit = (i * 8) + j;
-          if ((RGB[i] << j) & 0x80) { // get left most bit first
-            // bit = 1
-            ledData[bit].level0 = 1;
-            ledData[bit].duration0 = 8;
-            ledData[bit].level1 = 0;
-            ledData[bit].duration1 = 4;
-          } else {
-            // bit = 0
-            ledData[bit].level0 = 1;
-            ledData[bit].duration0 = 4;
-            ledData[bit].level1 = 0;
-            ledData[bit].duration1 = 8;
-          }
-        }
-      }
-      rmtWrite(lampPin, ledData, RGB_BITS, RMT_WAIT_FOR_EVER);
-#else
-      // assume PWM LED, set lamp brightness using PWM (0 = off, 15 = max)
-      uint8_t valueMax = 15;
-      uint32_t duty = (powf(2, DUTY_BIT_DEPTH) / valueMax) * min(lampVal, valueMax);
-      ledcWrite(lampPin, duty);
-#endif
-    }
-  }
-}
-
-void twinkleLed(uint8_t ledPin, uint16_t interval, uint8_t blinks) {
-  // twinkle led, for given number of blinks, 
-  //  with given interval in ms between blinks
-  bool ledState = true;
-  for (int i=0; i<blinks*2; i++) {
-    digitalWrite(ledPin, ledState);
-    delay(interval);
-    ledState = !ledState;
-  }
-}
 
 void setLightsRC(bool lightsOn) {
   // on / off RC light 
@@ -722,19 +625,141 @@ static void prepLedBar() {
   } else ledBarUse = false;
 }
 
-/**********************************************/
+
+/****************************** GNSS **********************************/
+
+#if INCLUDE_GNSS
+
+int gnssRxdPin = -1;  // ESP32 RX <- GNSS module TX
+int gnssTxdPin = -1;  // ESP32 TX -> GNSS module RX
+
+static const float GEOFENCE_RADIUS_M = 10.0f;   //// change to be config item
+
+#if __has_include("../libraries/SparkFun_u-blox_GNSS_v4/src/SparkFun_u-blox_GNSS_v4.h")
+#include <SparkFun_u-blox_GNSS_v4.h>
+
+SFE_UBLOX_GNSS myGNSS;
+static const unsigned long GNSS_BAUD = 38400;
+static const unsigned long GNSS_NEW_BAUD = 115200;
+static bool gnssOk = false; 
+static float moveData[4] = {0};
+static const float GEOFENCE_HOME_ACCURACY_M = 5.0f;  // set RTH home if sufficiently accurate fix
+
+static bool setupGNSS() {
+  // GNSS prep using UART 0 for ESP32C3
+  // first try connecting at default baud rate
+  delay(100);
+  monitorOpen = false;
+  Serial.begin(GNSS_BAUD, SERIAL_8N1, gnssRxdPin, gnssTxdPin);  // New QUESCAN M10Q starts at 38400 baud
+  if (myGNSS.begin(Serial) == true) {
+    myGNSS.setSerialRate(GNSS_NEW_BAUD, COM_PORT_UART1, VAL_LAYER_FLASH);  // one off override M10Q default
+    myGNSS.softwareResetGNSSOnly();  // Restart the GNSS to apply the baud changes
+    delay(100);
+  }
+
+  // Connect to the GNSS module using UART at expected rate
+  Serial.begin(GNSS_NEW_BAUD, SERIAL_8N1, gnssRxdPin, gnssTxdPin);
+  for (int i = 0; i < 5; i++) {
+    delay(1000);
+    if (myGNSS.begin(Serial) == true) {
+      gnssOk = true;
+      break;
+    }
+  }
+
+  if (gnssOk) {
+    myGNSS.setNavigationFrequency(5);  // 5Hz - max for multi constellations
+    myGNSS.softwareResetGNSSOnly();
+    delay(100);
+
+    myGNSS.setUART1Output(COM_TYPE_UBX);  // only need UBX out, not NMEA chatter (GNSS module Uart port)
+    myGNSS.setLNAMode(SFE_UBLOX_LNA_MODE_LOWGAIN);
+    myGNSS.setDynamicModel((dynModel)DYN_MODEL_AIRBORNE1g);  // best nodel for low speed drone
+    // enable constellation types
+    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GPS_ENA);   // GPS
+    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GLO_ENA);   // Glonass
+    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GAL_ENA);   // Galileo
+    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_BDS_ENA);   // BeiDou
+    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_SBAS_ENA);  // Japan
+    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_QZSS_ENA);  // Japan
+
+    myGNSS.setAutoUBX("NAV", "PVT");  // library parses position in the background
+    LOG_INF("u-blox GNSS connected");
+
+    // Geofence is configured once there is a good fix - in updateGeofence()
+
+  } else {
+    // Not a halt like other sensors: GPS is required for geofencing,
+    // but not for a slow indoor/backyard flight
+    LOG_WRN("u-blox GNSS not detected on UART - check wiring/baud. Continue without geofence");
+    return false;
+  }
+  return true;
+}
+
+float* getGNSSdata() {
+  // other useful info such as:
+  //  getAltitudeMSL()
+  //  getPDOP()
+  //  getSIV()
+  return moveData;
+}
+
+bool updateGNSS() {
+  if (myGNSS.getGnssFixOk()) {  // wait for 3D fix
+    if (myGNSS.getNAVPVT()) {   // data available
+      //latLon is global array
+      latLon[1] = myGNSS.getLatitude();  // degrees * 1e-7
+      latLon[1] = myGNSS.getLongitude();
+      moveData[0] = myGNSS.getHeading(); 
+      moveData[1] = myGNSS.getGroundSpeed(); // in mm/s
+      moveData[3] = myGNSS.getHorizontalAccEst() / 1000; // in meters
+      if (moveData[3] < GEOFENCE_HOME_ACCURACY_M) return true;
+    }
+  }
+  return false; // no fix or inaccurate fix
+}
+
+// Captures "home" from the first sufficiently-accurate fix, arms the module's
+// own hardware geofence around it, then just reads back the breach state each
+// call afterward (the geofence math runs on the GNSS chip itself, not here).
+bool checkGeofence(bool isArmed) {
+  if (!gnssOk) return false;
+  if (!isArmed) {
+    // set RTH location
+    myGNSS.addGeofence(latLon[0], latLon[1], (uint32_t)GEOFENCE_RADIUS_M);
+    return true;
+  } else {
+    // check if inside geofence
+    geofenceState state;
+    // states: 0=unknown, 1=inside, 2=outside
+    if (myGNSS.getGeofenceState(state)) return (state.combState == 2);
+  }
+  return false;
+}
+
+#else
+#error "Need to install SparkFun_u-blox_GNSS_v4 library"
+#endif
+
+#endif  // INCLUDE_GNSS
+
+/**************************** GNSS end ******************************/
+
 
 void prepPeripherals() {
-  // initial setup of each peripheral on client or extender
+  // initial setup of each peripheral on client or auxiliary
   setupADC();
   setupBatt();
-  setupLamp();
   prepPIR();
   prepTemperature();
-  prepServos();  
+  prepServos();
   prepJoystick();
   prepStepper();
   prepLedBar();
+#if INCLUDE_GNSS
+  setupGNSS();
+#endif
   debugMemory("prepPeripherals");
 }
 

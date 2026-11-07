@@ -45,7 +45,7 @@ httpd_sustain_req_t sustainReq[MAX_STREAMS];
 static void showPlayback(httpd_req_t* req) {
   // output playback file to browser
   esp_err_t res = ESP_OK; 
-  stopPlaying();
+  stopPlaying("Already playing");
   forcePlayback = true;
   if (STORAGE.exists(inFileName)) {
     if (stopPlayback) LOG_WRN("Playback refused - capture in progress");
@@ -97,7 +97,7 @@ static void showPlayback(httpd_req_t* req) {
         else {
           // when browser closes playback get send error
           LOG_VRB("Playback aborted due to error: %s", espErrMsg(res));
-          stopPlaying();
+          stopPlaying("Browser closed");
 		  break; // Exit loop safely to prevent infinite loop on send error.
         }
       }

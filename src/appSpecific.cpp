@@ -109,7 +109,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       stopSustainTask(intVal);
       break;
     case murmur3_32("stopPlaying"):
-      stopPlaying();
+      stopPlaying("User requested stop");
       break;
     case murmur3_32("minf"):
       minSeconds = intVal;
@@ -145,19 +145,19 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       detectChangeThreshold = intVal;
       break;
     case murmur3_32("mlUse"):
-      mlUse = (intVal != 0); // Replace implicit boolean cast with explicit (intVal != 0) for safe conversion.
+      mlUse = (intVal != 0);
       break;
     case murmur3_32("mlProbability"):
       mlProbability = fltVal < 0.0f ? 0.0f : (fltVal > 1.0f ? 1.0f : fltVal); // Add 'f' suffix to prevent implicit double-to-float conversion.
       break;
     case murmur3_32("depthColor"): {
-      depthColor = (intVal != 0); // Replace implicit boolean cast with explicit (intVal != 0).
+      depthColor = (intVal != 0);
       colorDepth = depthColor ? RGB888_BYTES : GRAYSCALE_BYTES;
       break;
     }
     case murmur3_32("enableMotion"):
       // Turn on/off motion detection 
-      useMotion = (intVal != 0); // Replace implicit boolean cast with explicit (intVal != 0).
+      useMotion = (intVal != 0);
       LOG_INF("%s motion detection by camera", useMotion ? "Enabling" : "Disabling");
       break;
     case murmur3_32("timeLapseOn"):
@@ -177,13 +177,13 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       tlPlaybackFPS = intVal;
       break;
     case murmur3_32("streamVid"):
-      streamVid = (intVal != 0); // Replace implicit boolean cast.
+      streamVid = (intVal != 0);
       break;
     case murmur3_32("streamAud"):
-      streamAud = (intVal != 0); // Replace implicit boolean cast.
+      streamAud = (intVal != 0);
       break;
     case murmur3_32("streamSrt"):
-      streamSrt = (intVal != 0); // Replace implicit boolean cast.
+      streamSrt = (intVal != 0);
       break;
     case murmur3_32("lswitch"):
       nightSwitch = intVal;
@@ -201,58 +201,63 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       deleteFolderOrFile(value);
       break;
     case murmur3_32("record"):
-      doRecording = (intVal != 0); // Replace implicit boolean cast.
+      doRecording = (intVal != 0); 
       break;
     case murmur3_32("forceRecord"):
-      forceRecord = (intVal != 0); // Replace implicit boolean cast.
+      forceRecord = (intVal != 0);
       break;
     case murmur3_32("dbgMotion"):
       // only enable show motion if motion detect enabled
-      dbgMotion = (intVal != 0) && useMotion; // Replace implicit boolean cast and simplify logic.
+      dbgMotion = (intVal != 0) && useMotion;
       doRecording = !dbgMotion;
       break;
     case murmur3_32("devHub"):
-      devHub = (intVal != 0); // Replace implicit boolean cast.
+      devHub = (intVal != 0);
+      break;
+    case murmur3_32("lampPin"):
+      lampPin = intVal;
+      break;
+    case murmur3_32("lampMode"):
+      lampMode = intVal;
+      break;
+    case murmur3_32("lampLevel"):
+      lampLevel = intVal;
+      if (lampMode == 0) setLamp(lampLevel); // manual
+      break;
+    case murmur3_32("lampType"):
+      lampType = intVal;
+      lampAuto = lampNight = false;
+      if (lampMode == 1) lampAuto = true; // lamp activated by motion detector device
+      if (lampMode == 0) setLamp(lampLevel);
+      else setLamp(0);
+      break;
+    case murmur3_32("lampActiveHi"):
+      lampActiveHi = (intVal != 0);
       break;
 
   // peripherals
 #if INCLUDE_PERIPH
     case murmur3_32("pirUse"):
-      pirUse = (intVal != 0); // Replace implicit boolean cast.
-      break;
-    case murmur3_32("lampLevel"):
-      lampLevel = intVal;
-      if (!lampType) setLamp(lampLevel); // manual
-      break;
-    case murmur3_32("lampType"):
-      lampType = intVal;
-      lampAuto = lampNight = false;
-      if (lampType == 1) lampAuto = true; // lamp activated by motion detector device
-      if (!lampType) setLamp(lampLevel);
-      else setLamp(0);
+      pirUse = (intVal != 0);
       break;
     case murmur3_32("relayPin"):
       relayPin = intVal;
       break;
     case murmur3_32("relayMode"):
-      relayMode = (intVal != 0); // Replace implicit boolean cast.
+      relayMode = (intVal != 0);
       break;
     case murmur3_32("relaySwitch"):
-      // Ensure digitalWrite receives explicit HIGH/LOW to prevent undefined hardware behavior from arbitrary integers.
       digitalWrite(relayPin, intVal != 0 ? HIGH : LOW);
       break;
     case murmur3_32("SVactive"):
-      SVactive = (intVal != 0); // Replace implicit boolean cast.
+      SVactive = (intVal != 0);
       break;
     case murmur3_32("voltUse"):
-      voltUse = (intVal != 0); // Replace implicit boolean cast.
+      voltUse = (intVal != 0);t.
       break;
     case murmur3_32("pirPin"):
       pirPin = intVal;
-      break;
-    case murmur3_32("lampPin"):
-      lampPin = intVal;
-      break;
+      break;;
     case murmur3_32("servoPanPin"):
       servoPanPin = intVal;
       break;
@@ -293,7 +298,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       voltInterval = intVal;
       break;
     case murmur3_32("buzzerUse"):
-      buzzerUse = (intVal != 0); // Replace implicit boolean cast.
+      buzzerUse = (intVal != 0);
       break;
     case murmur3_32("buzzerPin"):
       buzzerPin = intVal;
@@ -307,14 +312,20 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #endif
 
 #if INCLUDE_I2C
-    case murmur3_32("I2Csda"):
-      I2Csda = intVal;
+    case murmur3_32("I2C0sda"):
+      I2C0sda = intVal;
       break;
-    case murmur3_32("I2Cscl"):
-      I2Cscl = intVal;
+    case murmur3_32("I2C0scl"):
+      I2C0scl = intVal;
+      break;
+    case murmur3_32("I2C1sda"):
+      I2C1sda = intVal;
+      break;
+    case murmur3_32("I2C1scl"):
+      I2C1scl = intVal;
       break;
     case murmur3_32("accelUse"):
-      accelUse = (intVal != 0); // Replace implicit boolean cast.
+      accelUse = (intVal != 0);
       break;
     case murmur3_32("accelDeg"):
       accelDeg = intVal;
@@ -323,12 +334,12 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 
 #if INCLUDE_AUDIO
     case murmur3_32("micRem"):
-      micRem = (intVal != 0); // Replace implicit boolean cast.
+      micRem = (intVal != 0);
       LOG_INF("Remote mic is %s", micRem ? "On" : "Off");
       if (micRem && !ampVol) LOG_WRN("Amp volume is off");
       break;
     case murmur3_32("spkrRem"):
-      spkrRem = (intVal != 0); // Replace implicit boolean cast.
+      spkrRem = (intVal != 0);
       LOG_INF("Remote speaker is %s", spkrRem ? "On" : "Off");
       if (spkrRem && !micGain) LOG_WRN("Mic gain is off");
       break;
@@ -363,7 +374,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 
 #if INCLUDE_TELEM
     case murmur3_32("teleUse"):
-      teleUse = (intVal != 0); // Replace implicit boolean cast.
+      teleUse = (intVal != 0);
       break;
 #endif
 
@@ -371,7 +382,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       srtInterval = intVal;
       break;
     case murmur3_32("wakeUse"):
-      wakeUse = (intVal != 0); // Replace implicit boolean cast.
+      wakeUse = (intVal != 0);
       break;
     case murmur3_32("wakePin"):
       wakePin = intVal;
@@ -402,21 +413,20 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 #ifndef AUXILIARY
     case murmur3_32("AuxIP"):
       strncpy(AuxIP, value, MAX_IP_LEN - 1);
-      AuxIP[MAX_IP_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      AuxIP[MAX_IP_LEN - 1] = '\0';
       break;
 #endif
 
 #if INCLUDE_PERIPH
     case murmur3_32("RCactive"): {
       // Added {} block to prevent "crosses initialization of 'bool aux'" compilation error.
-      RCactive = (intVal != 0); // Replace implicit boolean cast.
-      // Note: 'aux' logic preserved exactly as in original code.
+      RCactive = (intVal != 0);
       bool aux = false;
 #ifdef AUXILIARY
       aux = true;
 #endif
 #if INCLUDE_MCPWM
-      useBDC = (useUart && !aux) ? false : (intVal != 0); // Replace implicit boolean cast.
+      useBDC = (useUart && !aux) ? false : (intVal != 0);
 #endif
       break;
     }
@@ -436,10 +446,10 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       maxTurnSpeed = intVal;
       break;
     case murmur3_32("allowReverse"):
-      allowReverse = (intVal != 0); // Replace implicit boolean cast.
+      allowReverse = (intVal != 0);
       break;
     case murmur3_32("autoControl"):
-      autoControl = (intVal != 0); // Replace implicit boolean cast.
+      autoControl = (intVal != 0);
       break;
     case murmur3_32("waitTime"):
       waitTime = intVal;
@@ -448,7 +458,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       lightsRCpin = intVal;
       break;
     case murmur3_32("stickUse"):
-      stickUse = (intVal != 0); // Replace implicit boolean cast.
+      stickUse = (intVal != 0);
       break;
     case murmur3_32("stickXpin"):
       stickXpin = intVal;
@@ -475,7 +485,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       if (intVal >= 0) setStepperPin(static_cast<uint8_t>(intVal), 3);
       break;
     case murmur3_32("PGactive"):
-      PGactive = stepperUse = (intVal != 0); // Replace implicit boolean cast.
+      PGactive = stepperUse = (intVal != 0);
       if (PGactive) setLamp(0);
       break;
     case murmur3_32("numberOfPhotos"):
@@ -488,7 +498,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       tRPM = intVal;
       break;
     case murmur3_32("clockwise"):
-      clockWise = (intVal != 0); // Replace implicit boolean cast.
+      clockWise = (intVal != 0);
       break;
     case murmur3_32("timeForPhoto"):
       timeForPhoto = intVal;
@@ -503,34 +513,34 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       pinFocus = intVal;
       break;
     case murmur3_32("extCam"):
-      extCam = (intVal != 0); // Replace implicit boolean cast.
+      extCam = (intVal != 0);
       break;
 #endif
 
 #if INCLUDE_EXTHB
     // External Heartbeat
     case murmur3_32("external_heartbeat_active"):
-      external_heartbeat_active = (intVal != 0); // Replace implicit boolean cast.
+      external_heartbeat_active = (intVal != 0);
       break;
     case murmur3_32("external_heartbeat_domain"):
       snprintf(external_heartbeat_domain, MAX_HOST_LEN, "%s", value);
-      external_heartbeat_domain[MAX_HOST_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      external_heartbeat_domain[MAX_HOST_LEN - 1] = '\0';
       break;
     case murmur3_32("external_heartbeat_uri"):
       snprintf(external_heartbeat_uri, FILE_NAME_LEN, "%s", value);
-      external_heartbeat_uri[FILE_NAME_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      external_heartbeat_uri[FILE_NAME_LEN - 1] = '\0';
       break;
     case murmur3_32("external_heartbeat_port"):
       external_heartbeat_port = intVal;
       break;
     case murmur3_32("external_heartbeat_token"):
       snprintf(external_heartbeat_token, EXTHB_LEN, "%s", value);
-      external_heartbeat_token[EXTHB_LEN - 1] = '\0'; // Add explicit null-termination to guarantee buffer safety.
+      external_heartbeat_token[EXTHB_LEN - 1] = '\0';
       break;
 #endif
 
     case murmur3_32("useUart"):
-      useUart = (intVal != 0); // Replace implicit boolean cast.
+      useUart = (intVal != 0);
       break;
 #if INCLUDE_UART
     case murmur3_32("uartTxdPin"):
@@ -559,7 +569,6 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
         }
 
         if (s) {
-          // Replace C-style cast with static_cast for safer, more explicit type conversion.
           res = s->set_framesize(s, static_cast<framesize_t>(fsizePtr));
           if (res == ESP_OK) {
             // update default FPS for this frame size
@@ -600,7 +609,7 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       if (s) res = s->set_sharpness(s, intVal); else return false;
       break;
     case murmur3_32("gainceiling"):
-      if (s) res = s->set_gainceiling(s, static_cast<gainceiling_t>(intVal)); else return false; // Replace C-style cast with static_cast.
+      if (s) res = s->set_gainceiling(s, static_cast<gainceiling_t>(intVal)); else return false;
       break;
     case murmur3_32("colorbar"):
       if (s) res = s->set_colorbar(s, intVal); else return false;
@@ -684,6 +693,7 @@ static bool extractKeyVal(const char* wsMsg) {
 
 esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const char* value) {
   // update handling requiring response specific to mjpeg2sd
+#ifndef AUXILIARY
   if (!strcmp(variable, "sfile")) {
     // get folders / files on SD, save received filename if has required extension
     strncpy(inFileName, value, IN_FILE_NAME_LEN - 1);
@@ -727,6 +737,7 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
     if (formatSDcard()) doRestart("user requested format of SD card");
   } 
   else return ESP_FAIL;
+#endif
   return ESP_OK;
 }
 
@@ -809,7 +820,7 @@ void appSpecificWsHandler(const char* wsMsg) {
         case 'S': 
           // status request
           buildJsonString(wsLen); // required config number 
-          LOG_SEND("%s\n", jsonBuff);
+          LOG_RAW("%s\n", jsonBuff);
         break;
         case 'U': 
           // update or control request
@@ -992,8 +1003,10 @@ void currentStackUsage() {
 #if INCLUDE_UART
   checkStackUse(uartRxHandle, 13);
 #endif
+#ifndef AUXILIARY
   // 16: http webserver
   for (int i=0; i < numStreams; i++) checkStackUse(sustainHandle[i], 17 + i);
+#endif
 }
 
 static void stopRC() {
@@ -1100,13 +1113,19 @@ void doAppPing(bool timeSynced) {
 
 bool appSetup() {
 #ifndef AUXILIARY
-  startSustainTasks(); 
-#endif
-  if (!prepRecording()) {
-    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient memory, remove optional features");
-    LOG_WRN("%s", startupFailure);
+  LOG_INF("Selected board %s", CAM_BOARD);
+  if (saveFailure[0]) {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "%s", saveFailure);
+    memcpy(startupFailure, saveFailure, SF_LEN);
+    saveFailure[0] = 0;
     return false;
-  }
+  } 
+  if (!prepCam()) return false;
+  startSustainTasks(); 
+  if (!prepRecording()) return false;
+#else
+  LOG_INF("AUXILIARY mode without camera");
+#endif
 #if INCLUDE_SMTP
   prepSMTP(); 
 #endif
@@ -1144,8 +1163,11 @@ bool appSetup() {
  #if INCLUDE_RTSP
   prepRTSP();
  #endif
+#else
+ #if INCLUDE_DRONE
+  prepDrone();
+ #endif
 #endif
-  appSetupDone = true;
   return true;
 }
 
@@ -1340,10 +1362,12 @@ formatIfMountFailed~0~2~C~Format file system on failure
 pirUse~0~3~C~Use PIR for detection
 accelUse~0~3~C~Use I2C accelerometer for detection
 accelDeg~5~3~N~Min accelerometer degrees movement
-lampType~0~3~S:Manual:Auto~How lamp activated
+lampMode~0~3~S:Manual:Auto~How lamp activated
 SVactive~0~3~C~Enable servo use
 pirPin~~3~N~Pin used for PIR
 lampPin~~3~N~Pin used for Lamp
+lampType~0~3~S:Signal:WS2812:RGB~LED type
+lampActiveHi~0~3~C~Led active pulled Lo or Hi
 servoPanPin~~6~N~Pin used for Pan Servo
 servoTiltPin~~6~N~Pin used for Tilt Servo
 ds18b20Pin~~3~N~Pin used for DS18B20 temperature sensor
@@ -1366,7 +1390,7 @@ voltInterval~5~3~N~Voltage check interval (mins)
 voltPin~-1~3~N~ADC Pin used for battery voltage
 voltUse~0~3~C~Use Voltage check
 wakePin~-1~3~N~Pin used to wake app from sleep
-wakeLevel~1~3~N~Pin level (0,1) to wake app from sleep
+wakeLevel~1~3~C~Pin level (0,1) to wake app from sleep
 wakeUse~0~3~C~Deep sleep app during night
 mqtt_active~0~2~C~Mqtt enabled
 mqtt_broker~~2~T~Mqtt server ip to connect
@@ -1429,8 +1453,10 @@ BabortPhotos~Abort~5~A~Abort photogrammetry
 relayPin~-1~3~N~Pin to switch relay 
 relayMode~0~3~S:Manual:Night~How relay activated
 relaySwitch~0~3~C~Switch relay off / on
-I2Csda~-1~3~N~I2C SDA pin if unshared
-I2Cscl~-1~3~N~I2C SCL pin if unshared
+I2C0sda~-1~3~N~I2C0 SDA pin if unshared
+I2C0scl~-1~3~N~I2C0 SCL pin if unshared
+I2C1sda~-1~3~N~I2C1 SDA pin
+I2C1scl~-1~3~N~I2C1 SCL pin
 RTSP_Name~~8~T~RTSP Auth Username
 RTSP_Pass~~8~T~RTSP Auth Password
 rtsp00Video~0~8~C~Enable RTSP Video
@@ -1449,4 +1475,6 @@ ethRst~-1~9~N~Ethernet Reset pin
 ethSclk~-1~9~N~Ethernet SPI clock pin
 ethMiso~-1~9~N~Ethernet SPI MISO pin
 ethMosi~-1~9~N~Ethernet SPI MOSI pin
+gnssRxdPin~-1~3~N~UART RX - GNSS
+gnssTxdPin~-1~3~N~UART TX - GNSS
 )~";

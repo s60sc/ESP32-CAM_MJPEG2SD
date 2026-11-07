@@ -23,11 +23,11 @@
 
 #ifndef AUXILIARY
 #include "esp_camera.h"
-#endif
 #include "camera_pins.h"
+#endif
 
-#define APP_VER "10.9.9"
-#define CFG_VER 41 // to determine if newer data files need to be loaded
+#define APP_VER "10.10"
+#define CFG_VER 42 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false
 #define FLUSH_DELAY 0 // for debugging crashes
@@ -51,12 +51,12 @@
 #define MIN_PSRAM 2
 #endif
 
-#define HTTP_CLIENTS 2 // http(s), ws(s)
+#define HTTP_CLIENTS 3 // http(s), ws(s), sse
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
-#define MAX_CONFIGS 220 // must be > number of entries in configs.txt
+#define MAX_CONFIGS 230 // must be > number of entries in configs.txt
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
 #define TLS_HEAP (64 * 1024) // min free heap for TLS session
@@ -92,12 +92,8 @@
 #define DMA_BUFF_CNT 4
 #define MIC_GAIN_CENTER 3 // mid point
 
-// used by drone s/w
-#define DST_WIDTH 96  // width of image center extract 
-#define DST_HEIGHT 72 // height of image center extract 
-
 #ifdef CONFIG_IDF_TARGET_ESP32S3 
-#define SERVER_STACK_SIZE (1024 * 8)
+#define SERVER_STACK_SIZE (1024 * 7)
 #define DS18B20_STACK_SIZE (1024 * 2)
 #else
 #define SERVER_STACK_SIZE (1024 * 4)
@@ -106,18 +102,18 @@
 #define STICK_STACK_SIZE (1024 * 4)
 #define BATT_STACK_SIZE (1024 * 2)
 #define CAPTURE_STACK_SIZE (1024 * 4)
-#define EMAIL_STACK_SIZE (1024 * 6)
+#define EMAIL_STACK_SIZE (1024 * 5)
 #define FS_STACK_SIZE (1024 * 4)
 #define LOG_STACK_SIZE (1024 * 3)
 #define AUDIO_STACK_SIZE (1024 * 4)
 #define MICREM_STACK_SIZE (1024 * 2)
 #define MQTT_STACK_SIZE (1024 * 4)
-#define PING_STACK_SIZE (1024 * 4)
+#define PING_STACK_SIZE (1024 * 3)
 #define PLAYBACK_STACK_SIZE (1024 * 2)
 #define SERVO_STACK_SIZE (1024 * 1)
 #define SUSTAIN0_STACK_SIZE (1024 * 5)
 #define SUSTAINn_STACK_SIZE (1024 * 3)
-#define TGRAM_STACK_SIZE (1024 * 6)
+#define TGRAM_STACK_SIZE (1024 * 5)
 #define TELEM_STACK_SIZE (1024 * 4)
 #define HB_STACK_SIZE (1024 * 2)
 #define UART_STACK_SIZE (1024 * 2)
@@ -125,8 +121,9 @@
 #define SENSOR_STACK_SIZE (1024 * 2)
 #define GNSS_STACK_SIZE (1024 * 3)
 #define STATUS_STACK_SIZE (1024 * 4)
-#define CHECK_STACK_SIZE (1024 * 6)
+#define CHECK_STACK_SIZE (1024 * 5)
 #define DRONE_STACK_SIZE (1024 * 4)
+#define LED_STACK_SIZE (1024 * 2)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -154,6 +151,10 @@
 #define CHECK_PRI 1
 #define DRONE_PRI 7
 
+enum class DevStatus : uint8_t { READY, STARTING, FAILURE, Count };  // device status shown by LED
+enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
+enum stepperModel {BYJ_48, BIPOLAR_8mm};
+
 /******************** Function declarations *******************/
 
 struct mjpegStruct {
@@ -167,9 +168,6 @@ struct fnameStruct {
   uint32_t recDuration;
   uint16_t frameCnt;
 };
-
-enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
-enum stepperModel {BYJ_48, BIPOLAR_8mm};
 
 // global app specific functions
 
@@ -196,10 +194,10 @@ uint16_t getTofData(uint8_t whichI2C = 0);
 int getInputPeripheral(uint8_t cmd);
 mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
-
 bool haveWavFile(bool isTL = false);
 bool identifyBMx();
 bool identifyMPU(char* _mpuModel);
+bool initCam();
 void intercom();
 bool isNight(uint8_t nightSwitch);
 void laserLevel() ;
@@ -220,7 +218,8 @@ void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
 uint8_t setFPSlookup(uint8_t val);
 void setInputPeripheral(uint8_t cmd, uint32_t controlVal);
-void setLamp(uint8_t lampVal);
+void setLamp(DevStatus s, uint8_t lampVal);
+void setLamp(DevStatus s, Brightness b);
 void setLightsRC(bool lightsOn);
 bool setOutputPeripheral(uint8_t cmd, uint32_t rxValue);
 void setSteering(int steerVal);
@@ -233,14 +232,14 @@ void startSustainTasks();
 bool startTelemetry();
 void stepperDone();
 void stepperRun(float RPM, float revFraction, bool _clockwise, stepperModel thisStepper);
-void stopPlaying();
+void stopPlaying(const char* reason);
 void stopSustainTask(int taskId);
 void stopTelemetry(const char* fileName);
 void storeSensorData(bool fromStream);
 void takePhotos(bool startPhotos);
 void trackSteeering(int controlVal, bool steering);
-void updateBMx280();
-void updateMPU9250data();
+float* updateBMx280();
+float* updateMPU9250data();
 size_t updateWavHeader();
 bool waitForFrame();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
@@ -330,7 +329,7 @@ extern size_t audioBytes;
 extern char srtBuffer[];
 extern size_t srtBytes;
 extern size_t maxFrameBuffSize;
-extern uint8_t* centerExtract;
+extern char saveFailure[];
 
 // Auxiliary use
 extern bool useUart;
@@ -344,6 +343,8 @@ extern int accelDeg; // minimum accelerometer movement for motion detection
 extern bool lampAuto; // if true in conjunction with usePir, switch on lamp when PIR activated
 extern bool lampNight;
 extern int lampType;
+extern int lampMode;
+extern int lampActiveHi;
 extern bool voltUse; // true to report on ADC pin eg for for battery
 extern bool wakeUse;
 extern bool buzzerUse; // true to use active buzzer
@@ -477,6 +478,14 @@ extern TaskHandle_t uartRxHandle;
 extern TaskHandle_t audioHandle;
 extern SemaphoreHandle_t frameSemaphore[];
 extern SemaphoreHandle_t motionSemaphore;
+
+// drone
+extern int motorRL;
+extern int motorFL;
+extern int motorRR;
+extern int motorFR;
+extern int gnssTxdPin;
+extern int gnssRxdPin;
 
 /************************** structures ********************************/
 

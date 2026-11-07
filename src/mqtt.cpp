@@ -337,7 +337,7 @@ void sendHasEntities (const char *name, const char *displayName, const char *uni
       p += sprintf(p, "\"name\":\"%s\",", hostName);
       p += sprintf(p, "\"ids\":[\"%s-%s\"],", hostName, ESP.getChipModel());
       p += sprintf(p, "\"sw\":\"%s\",", APP_VER);
-      p += sprintf(p, "\"cns\":[[ \"mac\",\"%s\"]],", netMacAddress().c_str() );
+      p += sprintf(p, "\"cns\":[[ \"mac\",\"%s\"]],", netMacAddress());
       p += sprintf(p, "\"mdl\":\"%s-%i\",", ESP.getChipModel(), ESP.getChipRevision());
       p += sprintf(p, "\"cu\":\"http://%s/\",", formatIPstr());
       p += sprintf(p, "\"mf\":\"%s\"", "esp32cam");

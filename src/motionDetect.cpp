@@ -46,9 +46,8 @@ float mlProbability = 0.8f; // minimum probability (0.0 - 1.0) for positive clas
 uint8_t lightLevel; // Current ambient light level 
 uint8_t nightSwitch = 20; // initial white level % for night/day switching
 float motionVal = 8.0f; // initial motion sensitivity setting
-uint8_t* motionJpeg = NULL;
+uint8_t* motionJpeg = nullptr;
 size_t motionJpegLen = 0;
-static uint8_t* currBuff = NULL;
 
 #ifndef AUXILIARY
 
@@ -114,24 +113,24 @@ bool isNight(uint8_t nightSwitch) {
   return nightTime;
 }
 
-// Bilinear interpolation of four neighboring pixels using 16‑bit fixed‑point fractions
+// Bilinear interpolation of four neighboring pixels using 16 bit fixed point fractions
 static inline uint8_t interpolatePixel(
     uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint32_t xFrac8, uint32_t yFrac8)
 {
     constexpr uint32_t FRACTION_TO_8BIT_SHIFT = 8;
-    constexpr uint32_t ROUNDING_OFFSET = 0x8000; // midpoint rounding for 16‑bit fixed‑point
+    constexpr uint32_t ROUNDING_OFFSET = 0x8000; // midpoint rounding for 16-bit fixed-point
     constexpr int32_t MIN_COLOR_VALUE = 0;
     constexpr int32_t MAX_COLOR_VALUE = 255;
     constexpr uint32_t FIXED_POINT_SHIFT = 16;
 
-    // Convert 8‑bit samples to signed 32‑bit for arithmetic
+    // Convert 8-bit samples to signed 32-bit for arithmetic
     const int32_t val_a = a;
     const int32_t val_b = b;
     const int32_t val_c = c;
     const int32_t val_d = d;
 
-    // Convert fractional inputs to signed 32‑bit
+    // Convert fractional inputs to signed 32-bit
     const int32_t xFrac = static_cast<int32_t>(xFrac8);
     const int32_t yFrac = static_cast<int32_t>(yFrac8);
 
@@ -139,7 +138,7 @@ static inline uint8_t interpolatePixel(
     const int32_t diff_ab = val_b - val_a;
     const int32_t diff_cd = val_d - val_c;
 
-    // Horizontal interpolation of top and bottom rows in 8‑bit fixed‑point
+    // Horizontal interpolation of top and bottom rows in 8-bit fixed-point
     const int32_t top = (val_a << FRACTION_TO_8BIT_SHIFT) + diff_ab * xFrac;
     const int32_t bot = (val_c << FRACTION_TO_8BIT_SHIFT) + diff_cd * xFrac;
 
@@ -147,7 +146,7 @@ static inline uint8_t interpolatePixel(
     const int32_t diffY = bot - top;
     const int32_t res = (top << FRACTION_TO_8BIT_SHIFT) + (diffY * yFrac);
 
-    // Convert back to 8‑bit with rounding
+    // Convert back to 8-bit with rounding
     const int32_t final_val = (res + ROUNDING_OFFSET) >> FIXED_POINT_SHIFT;
 
     // Clamp to valid color range
@@ -156,18 +155,17 @@ static inline uint8_t interpolatePixel(
         (final_val < MIN_COLOR_VALUE ? MIN_COLOR_VALUE : final_val));
 }
 
-// Rescales an image using bilinear interpolation with fixed‑point stepping
+// Rescales an image using bilinear interpolation with fixed-point stepping
 static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int inputHeight,
     uint8_t* __restrict output, int outputWidth, int outputHeight,
     uint8_t colorDepth)
 {
-    // Minimum valid parameters and fixed‑point constants
+    // Minimum valid parameters and fixed-point constants
     constexpr int MIN_VALID_DIMENSION = 1;
     constexpr int MIN_VALID_COLOR_DEPTH = 1;
     constexpr uint32_t FIXED_POINT_SHIFT = 16;
     constexpr uint32_t FIXED_POINT_MASK = 0xFFFF;
     constexpr uint32_t FRACTION_TO_8BIT_SHIFT = 8;
-    constexpr uint32_t FRACTION_8BIT_MASK = 0xFF;
     constexpr uint8_t RGB_COLOR_DEPTH = 3;
     constexpr uint32_t ADJACENT_PIXEL_OFFSET = 1;
 
@@ -191,7 +189,7 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
         return;
     }
 
-    // Compute fixed‑point scaling increments for X/Y
+    // Compute fixed-point scaling increments for X/Y
     const uint32_t xStep =
         (static_cast<uint32_t>(inputWidth) << FIXED_POINT_SHIFT) /
         static_cast<uint32_t>(outputWidth);
@@ -209,7 +207,7 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
 
     const size_t colorDepthSz = colorDepth; // avoid repeated casts
 
-    // Single‑channel grayscale path
+    // Single-channel grayscale path
     if (colorDepth == MIN_VALID_COLOR_DEPTH) {
         uint32_t yPos = 0;
         for (int i = 0; i < outputHeight; ++i) {
@@ -245,7 +243,7 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
             yPos += yStep; // advance vertical position
         }
     }
-    // 3‑channel RGB path with optimized pointer increments
+    // 3-channel RGB path with optimized pointer increments
     else if (colorDepth == RGB_COLOR_DEPTH) {
         uint32_t yPos = 0;
 
@@ -281,7 +279,7 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
 
                 uint8_t* pOut = outRow + static_cast<size_t>(j) * RGB_COLOR_DEPTH;
 
-                // Per‑channel bilinear interpolation
+                // Per-channel bilinear interpolation
                 pOut[0] = interpolatePixel(pLL[0], pLH[0], pHL[0], pHH[0], xFrac8, yFrac8); // R
                 pOut[1] = interpolatePixel(pLL[1], pLH[1], pHL[1], pHH[1], xFrac8, yFrac8); // G
                 pOut[2] = interpolatePixel(pLL[2], pLH[2], pHL[2], pHH[2], xFrac8, yFrac8); // B
@@ -292,7 +290,7 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
             yPos += yStep;
         }
     }
-    // Generic multi‑channel path for arbitrary colorDepth
+    // Generic multi-channel path for arbitrary colorDepth
     else {
         uint32_t yPos = 0;
         for (int i = 0; i < outputHeight; ++i) {
@@ -314,12 +312,12 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
                 uint32_t xH = xL + ADJACENT_PIXEL_OFFSET;
                 xH = (xH > max_x) ? max_x : xH;
 
-                // Byte offsets for multi‑channel pixels
+                // Byte offsets for multi-channel pixels
                 const size_t xL_off = static_cast<size_t>(xL) * colorDepthSz;
                 const size_t xH_off = static_cast<size_t>(xH) * colorDepthSz;
                 const size_t j_off = static_cast<size_t>(j) * colorDepthSz;
 
-                // Four neighboring multi‑channel pixels
+                // Four neighboring multi-channel pixels
                 const uint8_t* pLL = rowL + xL_off;
                 const uint8_t* pLH = rowL + xH_off;
                 const uint8_t* pHL = rowH + xL_off;
@@ -347,6 +345,7 @@ static void rgbToGray(uint8_t* buffer, int width, int height) {
 }
 
 #if INCLUDE_TINYML
+static uint8_t* currBuff = nullptr;
 
 static int getImageData(size_t offset, size_t length, float *out_ptr) {
   // copy to features as grayscale or RGB
@@ -416,15 +415,9 @@ struct MotionAnalysisResult {
 
 // Analyzes a frame for motion and light by comparing current and previous pixel buffers.
 static bool checkedImageBytes(size_t width, size_t height, size_t bytesPerPixel, size_t& result) {
-    if (bytesPerPixel == 0 || (width != 0 && height > SIZE_MAX / width)) {
-        return false;
-    }
-
+    if (bytesPerPixel == 0 || (width != 0 && height > SIZE_MAX / width)) return false;
     const size_t pixels = width * height;
-    if (pixels > SIZE_MAX / bytesPerPixel) {
-        return false;
-    }
-
+    if (pixels > SIZE_MAX / bytesPerPixel) return false;
     result = pixels * bytesPerPixel;
     return true;
 }
@@ -673,13 +666,8 @@ static MotionAnalysisResult analyzeMotionFrame(
     res.changeCount = changeCount; // Store final change count in result
     
     // Fixed-point light level calculation
-    if (RESIZE_DIM_SQ > 0) {
-        // Apply multiplier and round to nearest integer via half-ULP addition before shifting
-        res.lightLevel =
-            (lux * lightMult + (1U << (FP_SHIFT - 1))) >> FP_SHIFT;
-    } else {
-        res.lightLevel = 0; // Fallback for zero-dimension images
-    }
+    // Apply multiplier and round to nearest integer via half-ULP addition before shifting, or Fallback for zero-dimension images
+    res.lightLevel = (RESIZE_DIM_SQ > 0) ? (lux * lightMult + (1U << (FP_SHIFT - 1))) >> FP_SHIFT : 0;
     
     if (dbgMotion && changeMap && motionJpeg != nullptr && !motionJpegLen) {
         uint32_t dTime = millis(); // Start timing for performance logging
@@ -711,9 +699,7 @@ static MotionAnalysisResult analyzeMotionFrame(
                     LOG_WRN("motionDetect: JPEG too large (%u bytes)", (unsigned)motionJpegLen);
                     motionJpegLen = 0;
                 }
-            } else {
-                motionJpegLen = 0;
-            }
+            } else motionJpegLen = 0;
             free(jpg_buf); // Release temporary buffer allocated by fmt2jpg
             jpg_buf = nullptr;
 #endif
@@ -735,17 +721,12 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     static size_t RESIZE_DIM = 96;  // dimensions of resized motion bitmap
     static bool isInitialized = false; // Guards one-time initialization
     if (!isInitialized) {
-        if (ESP.getPsramSize() < 3 * ONEMEG) {
-            RESIZE_DIM = 64; // otherwise insufficient PSRAM (issue #706)
-        }
+        if (ESP.getPsramSize() < 3 * ONEMEG) RESIZE_DIM = 64; // otherwise insufficient PSRAM (issue #706)
         isInitialized = true;
     }
     
     size_t RESIZE_DIM_SQ = RESIZE_DIM * RESIZE_DIM; // pixels in bitmap
-    
-    if (fsizePtr > FRAMESIZE_SXGA) {
-        return false; // Abort if frame size index is invalid
-    }
+    if (fsizePtr > FRAMESIZE_SXGA) return false; // Abort if frame size index is invalid
     
     uint32_t dTime = millis(); // Start timing for performance logging
     static uint32_t motionCnt = 0; // Consecutive frames with detected motion
@@ -779,18 +760,14 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         fsizePtrPrev = fsizePtr;
         scaling = frameData[fsizePtr].scaleFactor; 
         reducer = frameData[fsizePtr].sampleRate; 
-        
         downsize = (1 << scaling) * reducer; 
-        
         sampleWidth = frameData[fsizePtr].frameWidth / downsize; 
         sampleHeight = frameData[fsizePtr].frameHeight / downsize; 
         
 #if INCLUDE_NEW_JPG
         jpg2rgbClose(&jpegHandle); 
         jpgReduce(fb->width, fb->height, downsize, &sampleWidth, &sampleHeight); 
-        if (!jpg2rgbOpen(&jpegHandle, sampleWidth, sampleHeight)) {
-            return motionStatus; 
-        }
+        if (!jpg2rgbOpen(&jpegHandle, sampleWidth, sampleHeight)) return motionStatus; 
 #endif
     }
 
@@ -814,6 +791,13 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
             colorDepth == RGB888_BYTES ? "color" : "grayscale", 
             (unsigned)(sampleWidth * sampleHeight * colorDepth), 
             (unsigned long)(millis() - dTime)); 
+  
+#if INCLUDE_DRONE
+    // perform optical flow processing in camDrone.cpp
+    if (fsizePtr == 3 || fsizePtr == 17 || fsizePtr == 22) {
+      LOG_WRN("Frame type %s is invalid for drone analysis", frameData[fsizePtr].frameSizeStr);
+    } else opticalFlow(rgbBuf, sampleWidth, sampleHeight);
+#endif  
   
     // allocate buffer space on heap
     static uint8_t* currBuff = nullptr; 

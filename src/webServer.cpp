@@ -396,12 +396,20 @@ static esp_err_t sseHandler(httpd_req_t *req) {
   const char sseHeader[] = "HTTP/1.1 200 OK\r\n"
                           "Cache-Control: no-store\r\n"
                           "Connection: keep-alive\r\n"
+                          "Access-Control-Allow-Origin: *\r\n"
                           "Content-Type: text/event-stream\r\n\r\n";
   sseSocketHD = req->handle;
   sseSocketFD = httpd_req_to_sockfd(req);
   httpd_socket_send(sseSocketHD, sseSocketFD, sseHeader, strlen(sseHeader), 0); 
-  sendSSE("open", "opened");
   return ESP_OK;
+}
+
+static void onClose(httpd_handle_t hd, int fd) {
+  if (fd == sseSocketFD) {
+    sseSocketFD = -1;
+    sseSocketHD = NULL;
+  }
+  close(fd);
 }
 
 #define SSESEP "\r\n\r\n" // SSE event separator
@@ -414,10 +422,10 @@ void sendSSE(const char* eventType, const char* eventData) {
     int res = httpd_socket_send(sseSocketHD, sseSocketFD, eventMsg, msgLen, 0);
     res = httpd_socket_send(sseSocketHD, sseSocketFD, eventData, strlen(eventData), 0);
     res = httpd_socket_send(sseSocketHD, sseSocketFD, SSESEP, (sizeof(SSESEP) - 1), 0);
-    if (res == HTTPD_SOCK_ERR_TIMEOUT) LOG_WRN("Timeout/interrupted while using socket");
-    if (res == HTTPD_SOCK_ERR_FAIL) LOG_WRN("Unrecoverable error while using socket");
-    if (res == HTTPD_SOCK_ERR_INVALID) LOG_WRN("Invalid arguments %s, %s", eventType, eventData);
-  } else LOG_ERR("SSE not initiated");
+    if (res == HTTPD_SOCK_ERR_TIMEOUT) esp_rom_printf("SENDSSE: Timeout/interrupted while using socket\n");
+    if (res == HTTPD_SOCK_ERR_FAIL) esp_rom_printf("SENDSSE: Unrecoverable error while using socket\n");
+    if (res == HTTPD_SOCK_ERR_INVALID) esp_rom_printf("SENDSSE: Invalid arguments %s, %s\n", eventType, eventData);
+  }
 }
 
 static esp_err_t updateHandler(httpd_req_t *req) {
@@ -713,11 +721,12 @@ bool startWebServer() {
     config.httpd.server_port = HTTPS_PORT;
 	////config.backlog = 16;                 // Queue incoming connections during spikes
 	////config.open_timeout = 5;             // Close connections if no data is sent within 5s
-    config.max_resp_headers = 16;		 // maximum number of headers in an HTTP response
-    config.keep_alive_enable = true;     // Enable persistent connections
-	config.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
-	config.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
+    config.httpd.max_resp_headers = 16;		 // maximum number of headers in an HTTP response
+    config.httpd.keep_alive_enable = true;     // Enable persistent connections
+	config.httpd.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
+	config.httpd.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
     config.httpd.lru_purge_enable = true; // close least used socket 
+    config.httpd.close_fn = onClose;
     config.httpd.max_uri_handlers = MAX_HANDLERS;
     config.httpd.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     config.httpd.task_priority = HTTP_PRI;
@@ -733,13 +742,14 @@ bool startWebServer() {
     config.stack_size = SERVER_STACK_SIZE;
 #endif
     config.server_port = HTTP_PORT;
-	////config.backlog = 16;                 // Queue incoming connections during spikes
-	////config.open_timeout = 5;             // Close connections if no data is sent within 5s
-    config.max_resp_headers = 16;		 // maximum number of headers in an HTTP response
+	////config.backlog = 16;             // Queue incoming connections during spikes
+	////config.open_timeout = 5;         // Close connections if no data is sent within 5s
+    config.max_resp_headers = 16;		     // maximum number of headers in an HTTP response
     config.keep_alive_enable = true;     // Enable persistent connections
 	config.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
 	config.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
     config.lru_purge_enable = true;
+    config.close_fn = onClose;
     config.max_uri_handlers = MAX_HANDLERS;
     config.max_open_sockets = HTTP_CLIENTS + MAX_STREAMS;
     config.task_priority = HTTP_PRI;

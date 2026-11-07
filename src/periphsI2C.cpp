@@ -6,12 +6,13 @@
 // BM*280 temperature, pressure, altitude for BMP280, + humidity for BME280
 // MPU6050 6 axis accel & gyro
 // MPU9250 9 axis accel & gyro & mag
+// VL53L1X TOF distance sensor
 // DS3231 RTC
 // LCD 1602 display 2*16 
 //
 // To enable a device, set the appropriate USE_* define in appGlobals.h
 //
-// s60sc 2023, 2024, 2025
+// s60sc 2023, 2024, 2025, 2026
 // incorporates contributions from rjsachse
 
 #include "appGlobals.h"
@@ -19,15 +20,24 @@
 #if INCLUDE_I2C
 
 #define SENSOR_TIMEOUT 100 // max time in ms to wait for sensor response
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#define I2C0_CLOCK_HZ 400000
+#else
+#define I2C0_CLOCK_HZ 100000
+#endif
+#define I2C1_CLOCK_HZ 400000
 
 #include <Wire.h>
 
 // define which pins to use for I2C bus in call to initializeI2C()
 // if pins not correctly defined for board, spurious results will occur
-int I2Csda = -1;
-int I2Cscl = -1;
+int I2C0sda = -1;
+int I2C0scl = -1;
+int I2C1sda = -1;
+int I2C1scl = -1;
 static byte I2CDATA[10]; // store I2C data received or to be sent 
-static int I2Cdevices = -1;
+static int I2C0devices = -1;
+static int I2C1devices = -1;
 static bool isShared = false;
   
 // I2C device names, indexed by address
@@ -46,71 +56,72 @@ static bool prepI2Cdevices();
 
 /********************* Generic I2C Utilities ***********************/
 
-static bool sendTransmission(int clientAddr, bool scanning) {
+static bool doTransmission(int clientAddr, bool scanning, int whichI2C = 0, TwoWire *thisWire = &Wire) {
   // common function used to send request to I2C device and determine outcome
-  byte result = Wire.endTransmission(true);
+  byte result = thisWire->endTransmission(true);
     /*1: data too long to fit in transmit buffer
       2: received NACK on transmit of address
       3: received NACK on transmit of data
       4: other error, e.g. switched off 
       5: i2c busy 
       8: unknown pcf8591 status */
-      
-  if (!scanning && result > 0) LOG_WRN("Client %s at 0x%02X with connection error: %d", clientName[clientAddr], clientAddr, result);
+  if (!scanning && result > 0) LOG_WRN("Client %s on I2C%d at addr 0x%02X with connection error: %d", 
+      clientName[clientAddr], whichI2C, clientAddr, result);
   return result == 0;
 }
 
-static void scanI2C() {
+static void scanI2C(int whichI2C = 0, TwoWire *thisWire = &Wire) {
   // find details of any active I2C devices
-  LOG_INF("I2C device scanning");
+  LOG_INF("I2C%d device scanning", whichI2C);
   for (byte address = 1; address < 127; address++) {
-    Wire.beginTransmission(address);
+    thisWire->beginTransmission(address);
     // only report error if client device meant to be present
-    if (sendTransmission(address, true)) {
-      LOG_INF("I2C device %s present at address: 0x%02X", clientName[address], address);
-      I2Cdevices++;
+    if (doTransmission(address, true, whichI2C, thisWire)) {
+      LOG_INF("I2C device %s present on I2C%d at address: 0x%02X", clientName[address], whichI2C, address);
+      whichI2C ? I2C1devices++ : I2C0devices++;
       deviceStatus[address] = true;
     }
   }
-  LOG_INF("I2C devices found: %d", I2Cdevices);
+  LOG_INF("I2C%d devices found: %d", whichI2C, whichI2C ? I2C1devices : I2C0devices);
 }
 
-static bool getI2Cdata (uint8_t clientAddr, uint8_t controlByte, uint8_t numBytes) {
+static bool getI2Cdata(uint8_t clientAddr, uint8_t controlByte, uint8_t numBytes, int whichI2C = 0, TwoWire *thisWire = &Wire) {
   // send command to I2C client and receive response
   // clientAddr is the I2C address
   // controlByte is the control instruction
   // numBytes is number of bytes to request
-  Wire.beginTransmission(clientAddr); // select which client to use
-  Wire.write(controlByte); // send device command
-  if (sendTransmission(clientAddr, false)) {
+  thisWire->beginTransmission(clientAddr);  // select which client to use
+  thisWire->write(controlByte);             // send device command
+  if (doTransmission(clientAddr, true, whichI2C, thisWire)) {
     // get required number of bytes
-    Wire.requestFrom (clientAddr, numBytes);
-    Wire.readBytes(I2CDATA, numBytes);
-    return sendTransmission(clientAddr, false);
-  } 
-  return false; 
+    thisWire->requestFrom(clientAddr, numBytes);
+    thisWire->readBytes(I2CDATA, numBytes);
+    return doTransmission(clientAddr, false, whichI2C, thisWire);
+  }
+  return false;
 }
 
-static bool sendI2Cdata(int clientAddr, uint8_t controlByte, uint8_t numBytes) {
+static bool sendI2Cdata(int clientAddr, uint8_t controlByte, uint8_t numBytes, int whichI2C = 0, TwoWire *thisWire = &Wire) {
   // send data to I2C device
   // clientAddr is the I2C address
   // controlByte is the control instruction
   // numBytes is number of bytes to send
-  Wire.beginTransmission(clientAddr);
-  if (controlByte) Wire.write(controlByte);
-  for (int i=numBytes-1; i>=0; i--) Wire.write(I2CDATA[i]);
-  return sendTransmission(clientAddr, false);
+  thisWire->beginTransmission(clientAddr);
+  if (controlByte) thisWire->write(controlByte);
+  for (int i=numBytes-1; i>=0; i--) thisWire->write(I2CDATA[i]);
+  return doTransmission(clientAddr, false, whichI2C, thisWire);
 }
 
 bool shareI2C(int sdaShare, int sclShare) {
-  // apply given pins if bus to be shared 
+  // apply camera pin definitions if I2C0 to be shared with camera
   /* needs arduino-esp32 core v3.3.0 or higher */
-  if (I2Csda < 0) { 
+  if (I2C0sda < 0) { 
     // I2C bus shared with another peripheral, eg camera
-    I2Csda = sdaShare;
-    I2Cscl = sclShare;
+    I2C0sda = sdaShare;
+    I2C0scl = sclShare;
     isShared = true;
-    Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
+    Wire.begin(sdaShare, sclShare); // Join I2C bus as master
+    Wire.setClock(I2C0_CLOCK_HZ);
     LOG_INF("I2C bus shared with camera");
   }
   return isShared;
@@ -118,28 +129,45 @@ bool shareI2C(int sdaShare, int sclShare) {
 
 bool prepI2C() {
   // start I2C port if not shared then prep I2C peripherals
-  if (I2Csda == I2Cscl) {
-    LOG_ALT("I2C pins not defined: %d", I2Csda);
+  if (I2C0sda == I2C0scl) {
+    LOG_ALT("I2C0 pins not defined: %d, %d", I2C0sda, I2C0scl);
     return false;
-  } 
-  // start I2C
-  if (!isShared) {
-    Wire.begin(I2Csda, I2Cscl); // Join I2C bus as master
-    //Wire.setClock(400000); // default 100kHz, max 400kHz
   }
-  LOG_INF("%sI2C initialised at %ldkHz using pins SDA: %d, SCL: %d", isShared ? "Shared " : "", Wire.getClock() / 1000, I2Csda, I2Cscl);
+  // start I2C0
+  if (!isShared) {
+    Wire.begin(I2C0sda, I2C0scl);  // Join I2C bus as master
+    Wire.setClock(I2C0_CLOCK_HZ);  // default 100kHz, max 400kHz
+  }
+  LOG_INF("%sI2C0 initialised at %ldkHz using pins SDA: %d, SCL: %d", isShared ? "Shared " : "", 
+      Wire.getClock() / 1000, I2C0sda, I2C0scl);
+  I2C0devices = 0;
+  scanI2C(0, &Wire);
 
-  I2Cdevices = 0;
-  scanI2C();
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  // start I2C1 if required (pins defined)
+  if (I2C1sda != I2C1scl) {
+    // I2C1 pins defined
+    Wire1.begin(I2C1sda, I2C1scl);  // Join I2C bus as master
+    Wire1.setClock(I2C1_CLOCK_HZ);  // default 100kHz, max 400kHz
+    LOG_INF("I2C1 initialised at %ldkHz using pins SDA: %d, SCL: %d", Wire.getClock() / 1000, I2C1sda, I2C1scl);
+    I2C1devices = 0;
+    scanI2C(1, &Wire1);
+  }
+#endif
+
   return prepI2Cdevices();
 }
+
 
 /***************************************** OLED Display *************************************/
 
 #define SSD1306_BIaddr 0x3d // built in oled 
 #define SSD1306_Extaddr 0x3c // external oled (also address for OV5640
 #if USE_SSD1306
-#include "SSD1306Wire.h" // https://github.com/ThingPulse/esp8266-oled-ssd1306
+
+#if __has_include("../libraries/ESP8266_and_ESP32_OLED_driver_for_SSD1306_displays/src/SSD1306Wire.h")
+#include "SSD1306Wire.h"  // https://github.com/ThingPulse/esp8266-oled-ssd1306
+
 SSD1306Wire oledBI(SSD1306_BIaddr);
 SSD1306Wire oledExt(SSD1306_Extaddr);
 SSD1306Wire* thisOled;
@@ -205,8 +233,12 @@ void finalMsg(const char* finalTxt) {
     delay(2000); // keep tag displayed
   }
 }
+
+#else
+#error "Need to install ESP8266_and_ESP32_OLED_driver_for_SSD1306_displays library"
 #endif
 
+#endif // USE_SSD1306
 
 /*********************** PCF8591 ************************/
 
@@ -242,19 +274,18 @@ static bool BMx280ok = false;
 #if USE_BMx280
 #define IS_POLLABLE
 
+#define BME_ID 0x60
+#define BMP_ID 0x58
 #define STD_PRESSURE 1013.25f // reference pressure in mB/hPa at sea level
 #define DEGREE_SYMBOL "\xC2\xB0"
 
-#if __has_include("../libraries/BMx280MI/src/BMx280I2C.h")
-
-#include <BMx280I2C.h> // https://github.com/christandlg/BMx280MI 
-BMx280I2C bmxDef(BMx280_Def); 
-BMx280I2C bmxAlt(BMx280_Alt);
-BMx280I2C* thisBmx;
+#if __has_include("../libraries/SparkFun_BME280/src/SparkFunBME280.h")
+#include <SparkFunBME280.h>
 
 static float BMx280[4] = {0};
 static bool isBME = false;
 static float pressureMSL = STD_PRESSURE;
+BME280 bmp;
 
 #define EXT_MSL_HOST "api.open-meteo.com"
 #define EXT_MSL_PATH "/v1/forecast?latitude=%0.6f&longitude=%0.6f&current=pressure_msl"
@@ -285,56 +316,46 @@ static bool setupBMx() {
   // setup BMx280 if available
   if (!BMx280ok) {
     BMx280ok = true;
-    if (deviceStatus[BMx280_Def]) thisBmx = &bmxDef;
-    else if (deviceStatus[BMx280_Alt]) thisBmx = &bmxAlt;
+    int bmpAddr = 0;
+    if (deviceStatus[BMx280_Def]) bmpAddr = BMx280_Def;
+    else if (deviceStatus[BMx280_Alt]) bmpAddr = BMx280_Alt;
     else BMx280ok = false;
     if (BMx280ok) {
-      BMx280ok = thisBmx->begin();
+      bmp.setI2CAddress(bmpAddr);
+      BMx280ok = bmp.beginI2C(Wire);
       if (BMx280ok) {
-        isBME = thisBmx->isBME280();
-        thisBmx->resetToDefaults();
-        thisBmx->writeOversamplingPressure(BMx280MI::OSRS_P_x16);
-        thisBmx->writeOversamplingTemperature(BMx280MI::OSRS_T_x16);
-        if (isBME) thisBmx->writeOversamplingHumidity(BMx280MI::OSRS_H_x16);
-        thisBmx->measure();
+        uint8_t chipID = bmp.begin();  // frig to get chip id
+        if (chipID == BME_ID) isBME = true;
+        else if (chipID != BMP_ID) BMx280ok = false;
+        if (BMx280ok) {
+          // apply settings
+          bmp.setFilter(1);              // 0 to 4 is valid. Increase if more prop wash reduction needed
+          bmp.setStandbyTime(0);         // 0.5ms
+          bmp.setTempOverSample(1);      // 0 to 16 are valid. 0 disables temp sensing.
+          bmp.setPressureOverSample(4);  // 0 to 16 are valid. 0 disables pressure sensing.
+          if (isBME) bmp.setHumidityOverSample(1);
+          bmp.setMode(MODE_NORMAL);  //MODE_SLEEP, MODE_FORCED, MODE_NORMAL is valid.
+          pressureMSL = getSeaLevelPressure();
+          bmp.setReferencePressure(pressureMSL * 100.0);
+          LOG_INF("BM%c280 settings complete, local MSL pressure %0.1fhPa @ Lat %0.6f / Lon %0.6f",
+                        isBME ? 'E' : 'P', pressureMSL, latLon[0], latLon[1]);
+        } else LOG_WRN("Unknown BMx280 chip id 0x%02X", chipID);
       }
-      pressureMSL = getSeaLevelPressure();
-      LOG_INF("BMx280 setup complete, local MSL pressure %0.1fhPa @ Lat %0.6f / Lon %0.6f", pressureMSL, latLon[0], latLon[1]);
     }
-    if (!BMx280ok) LOG_WRN("BMx280 not available");
-  } 
+    if (!BMx280ok) LOG_WRN("BM%c280 not available - check wiring", isBME ? 'E' : 'P');
+  }
   return BMx280ok;
 }
 
-static void updateBMx280() { 
-  // get and return pressure, temperature, altitude, humidity
-  if (thisBmx == nullptr) {
-    return; // Prevent null pointer dereference
+float* updateBMx280() {
+  // get and store pressure, temperature, altitude, humidity
+  if (BMx280ok) {
+    BMx280[0] = bmp.readTempC();                     // celsius
+    BMx280[1] = bmp.readFloatPressure() / 100.0f;     // hPa / mb
+    BMx280[2] = bmp.readFloatAltitudeMeters();       // altitude in meters
+    if (isBME) BMx280[3] = bmp.readFloatHumidity();  // % relative humidity
   }
-  
-  thisBmx->measure();
-  uint32_t bmxWait = millis();
-  
-  // Use vTaskDelay with pdMS_TO_TICKS for explicit FreeRTOS task yielding
-  while (!thisBmx->hasValue() && (millis() - bmxWait < SENSOR_TIMEOUT)) {
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
-  
-  if (thisBmx->hasValue()) {
-    // PSI = pascals * 0.000145f
-    // ambient temperature (but affected by chip heating)
-    BMx280[0] = thisBmx->getTemperature(); // celsius 
-    BMx280[1] = thisBmx->getPressure() * 0.01f;  // pascals to mB/hPa
-    
-    // Use float literals and powf to prevent implicit conversion to double precision
-    // Guard against division by zero or invalid pressureMSL
-    float safePressureMSL = (pressureMSL > 0.0f) ? (float)pressureMSL : STD_PRESSURE;
-    BMx280[2] = 44330.0f * (1.0f - powf(BMx280[1] / safePressureMSL, 1.0f / 5.255f)); // altitude in meters
-    
-    if (isBME) {
-      BMx280[3] = thisBmx->getHumidity(); // % relative humidity
-    }
-  }
+  return BMx280;
 }
 
 float* getBMx280() {
@@ -346,10 +367,11 @@ bool identifyBMx() {
 }
 
 #else
-#error "Need to install BMx280MI library"
+#error "Need to install SparkFun_BME280 library"
 #endif // __has_include
 
 #endif // USE_BMx280
+
 
 /**************************** MPU6050 / MPU9250 ******************************/
 
@@ -368,15 +390,167 @@ static bool MPU6050ok = false;
 #define MPU6050_ID 0x68
 #define WHOAMI_REG 0x75
 
-static float mpuData[4] = {0};
+static float mpuData[11] = {0};
 static char mpuModel[10] = "Unknown";
 static bool haveMag = false;
 static uint8_t MPUaddr;
 
+/********************************* MPU9250 ********************************/
+
+/*
+MPU9250 on GY-91
+VIN: Voltage Supply Pin for > 3V3, if not used can be connected to pull high SDO/SAO or CSB
+3V3: 3.3v Regulator output / or 3V3 input
+GND: 0V Power Supply
+SCL: I2C Clock 
+SDA: I2C Data 
+SDO/SAO: I2C Address selection MPU9250, pull high for Alt addr
+NCS: n/a
+CSB: I2C Address selection BMP280, pull high for Alt addr
+*/
+
+#if __has_include("../libraries/MPU9250_WE/src/MPU9250_WE.h")
+#include <MPU9250_WE.h>
+#define USE_MPU9250
+
+MPU9250_WE mpuLo_0 = MPU9250_WE(&Wire, MPUxxxx_LOW);
+MPU9250_WE mpuHi_0 = MPU9250_WE(&Wire, MPUxxxx_HIGH);
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+MPU9250_WE mpuLo_1 = MPU9250_WE(&Wire1, MPUxxxx_LOW);
+MPU9250_WE mpuHi_1 = MPU9250_WE(&Wire1, MPUxxxx_HIGH);
+#endif
+MPU9250_WE *mpu;
+
+// accel axis orientation on GY-91:
+// - X : short side (pitch)
+// - Y : long side (roll)
+// - Z : up (yaw from true N)
+// Note internal AK8963 magnetometer is at address 0x0C
+#define LOCAL_MAG_DECLINATION 0.0f // can manually set instead of web update
+#define EXT_MAG_HOST "geomag.bgs.ac.uk"
+#define EXT_MAG_PATH "/web_service/GMModels/wmm/2025/?latitude=%0.6f&longitude=%0.6f&format=json"
+static float magDecl = LOCAL_MAG_DECLINATION;
+
+static float getMagneticDeclination() {
+  // Get Magnetic Declination for given location to magnetic compass correct for True North
+  NetworkClient hclient;
+  char jsonVal[FILE_NAME_LEN] = "";
+  float sign = 1.0f;
+  float angle = 0.0f;
+  if (remoteServerConnect(hclient, EXT_MAG_HOST, HTTP_PORT, GETEXTMAG)) {
+    HTTPClient http;
+    int httpCode = HTTP_CODE_NOT_FOUND;
+    char extMagPath[100];
+    sprintf(extMagPath, EXT_MAG_PATH, latLon[0], latLon[1]);
+    if (http.begin(hclient, EXT_MAG_HOST, HTTP_PORT, extMagPath)) {
+      httpCode = http.GET();
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        if (getJsonValue(payload.c_str(), "declination", jsonVal, "value")) {
+          angle = atof(jsonVal);
+          if (getJsonValue(payload.c_str(), "declination", jsonVal, "units")) {
+            if (strstr(jsonVal, "west")) sign = -1.0f;
+          }
+        } else LOG_WRN("'declination' field not present");
+      } else LOG_WRN("Magnetic declination request failed, error: %s", http.errorToString(httpCode).c_str());    
+      http.end();
+    }
+    remoteServerClose(hclient);
+  }
+  return jsonVal[0] ? sign * angle : LOCAL_MAG_DECLINATION; // in degrees
+}
+
+float* updateMPU9250data() {
+  // get data from MPU9250 and return as array
+  // only some functions obtained
+  if (MPU9250ok) {
+    xyzFloat a = mpu->getGValues(); // acc
+    if (a.x > 1.0) a.x = 1.0;
+    else if(a.x < -1.0) a.x = -1.0;
+    float angleX = (asin(a.x)) * RAD_TO_DEG; 
+    if (a.y > 1.0) a.y = 1.0;
+    else if (a.y < -1.0) a.y = -1.0;
+    float angleY = (asin(a.y)) * RAD_TO_DEG;
+    if (a.z > 1.0) a.z = 1.0;
+    else if(a.z < -1.0) a.z = -1.0;
+    float angleZ = (asin(a.z)) * RAD_TO_DEG;
+    
+    mpuData[0] = (atan2(-angleX, sqrt(abs((angleY*angleY + angleZ*angleZ))))*180.0)/PI; // acc Pitch angle
+    mpuData[1] = (atan2(angleY, angleZ)*180.0)/PI; // acc Roll angle
+    mpuData[3] = mpu->getTemperature();  // celsius
+    xyzFloat g = mpu->getGyrValues(); // gyro
+    mpuData[4] = g.x;
+    mpuData[5] = g.y;
+    mpuData[6] = g.z;
+    mpuData[7] = a.x;
+    mpuData[8] = a.y;
+    mpuData[9] = a.z; // acc vertical acceleration
+    mpuData[10] = mpu->getResultantG(a);
+#if !INCLUDE_DRONE
+    xyzFloat m = mpu->getMagValues();
+    // Assumes X = East, Y = North, Z = vertical and device level (not tilted)
+    const float degrees = atan2(m.x, m.y) * 180 / PI;
+    mpuData[2] = magDecl + fmod(fmod(degrees, 360.0f) + 360.0f, 360.0f); // compass north
+#endif
+#ifdef GY91_BACKWARD 
+      // horizontal angles reversed
+      mpuData[0] = -mpuData[0];
+      mpuData[1] = -mpuData[1];
+      mpuData[4] = -mpuData[4];
+      mpuData[5] = -mpuData[5];
+      mpuData[7] = -mpuData[7];
+      mpuData[8] = -mpuData[8];
+#endif
+  }
+  return mpuData;
+}
+
+static bool setupMPU9250(int whichI2c = 0) {
+  if (!MPU9250ok) {
+    if (whichI2c == 0) mpu = (MPUaddr) == MPUxxxx_HIGH ? &mpuHi_0 : &mpuLo_0; // default 12C0
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+    else mpu = (MPUaddr) == MPUxxxx_HIGH ? &mpuHi_1 : &mpuLo_1; // I2C1
+#endif
+    if (mpu->init()) {
+      // calibration - drone needs to be level and still
+      delay(1000);
+      mpu->autoOffsets();
+      mpu->enableGyrDLPF();
+      mpu->setGyrDLPF(MPU9250_DLPF_2);           // 92Hz filter bandwidth
+      mpu->setGyrRange(MPU9250_GYRO_RANGE_500);  // 500 deg/sec
+      mpu->enableAccDLPF(true);
+      mpu->setAccDLPF(MPU9250_DLPF_4);         // 20Hz filter bandwidth
+      mpu->setAccRange(MPU9250_ACC_RANGE_4G);  // low speed drone
+      mpu->setSampleRateDivider(4);            // 250Hz output rate
+#if !INCLUDE_DRONE
+      // prep magnetometer
+      magDecl = getMagneticDeclination();
+      if (mpu->initMagnetometer()) {
+        mpu->setMagOpMode(AK8963_CONT_MODE_8HZ);  // continuous at 8Hz
+
+        LOG_INF("MPU magnetometer calibrated, local magnetic declination %0.3f° @ Lat %0.6f / Lon %0.6f", magDecl, latLon[0], latLon[1]);
+      } else haveMag = false;
+#endif
+      MPU9250ok = true;
+      LOG_INF("%s calibrated and settings applied", mpuModel);
+    } else LOG_WRN("%s not available - check wiring", mpuModel);
+  } 
+  return MPU9250ok;
+}
+
+#else
+#error "Need to install MPU9250 library"
+#endif // __has_include
+
+#ifndef USE_MPU9250
+static bool setupMPU9250(int whichI2C) {return false;} // dummy
+#endif
+
 /********************************* MPU6050 ********************************/
 
+// For simple use as a motion sensor or tilt angle the MPU6050 accelerometer can be used without a library
 // MPU6050 definitions - not gyroscope
-#define SENS_2G (32768.0f/2.0f) // divider for 2G sensitivity reading
+#define SENS_2G (32768.0/2.0) // divider for 2G sensitivity reading
 #define ACCEL_BYTES 6 // 2 bytes per axis
 #define CONFIG 0x1A
 #define ACCEL_CONFIG 0x1C
@@ -408,158 +582,41 @@ static void updateMPU6050data() {
       // read 3 axis accelerometer & temperature
       int16_t raw[4]; // X, Y, Z, Temp
       float axes[4];
-      
-      for (int i = 0; i < 4; i++) {
-        // Cast to int16_t before the shift operation. This prevents undefined behavior with 8-bit types.
-        raw[i] = ((int16_t)I2CDATA[i * 2] << 8) | I2CDATA[(i * 2) + 1]; 
-      }
-      
-      // each axis G force value, straight down is 1.0f if stationary
-      for (int i = 0; i < 3; i++) {
-        axes[i] = (float)raw[i] / (float)SENS_2G;
-      }
-      
+      for (int i=0; i<4; i++) raw[i] = I2CDATA[i*2] << 8 | I2CDATA[(i*2)+1]; 
+      // each axis G force value, straight down is 1.0 if stationary
+      for (int i=0; i<3; i++) axes[i] = (float)raw[i] / SENS_2G;
       // determine gravity from all 3 axes (no linear velocity)
-      // Use sqrtf and multiplication instead of pow() to avoid double precision and improve speed
-      float gXYZ = sqrtf(axes[0] * axes[0] + axes[1] * axes[1] + axes[2] * axes[2]);
+      float gXYZ = sqrt(pow(axes[0],2)+pow(axes[1],2)+pow(axes[2],2));
       LOG_VRB("gXYZ should be close to 1, is: %0.2f", gXYZ);
-      
-      // Prevent division by zero in freefall or sensor fault conditions
-      if (gXYZ > 0.001f) {
-        // pitch in degrees - X axis
-        // Clamp ratio to [-1.0, 1.0] to prevent NaN from asinf/acosf due to float precision errors
-        float ratioX = fmaxf(-1.0f, fminf(1.0f, axes[0] / gXYZ));
-        mpuData[0] = (ratioX < 0.5f) ? (90.0f - fabsf(asinf(ratioX) * (float)RAD_TO_DEG)) : fabsf(acosf(ratioX) * (float)RAD_TO_DEG);
-        
-        // roll in degrees - Y axis 
-        float ratioY = fmaxf(-1.0f, fminf(1.0f, axes[1] / gXYZ));
-        mpuData[1] = (ratioY < 0.5f) ? (90.0f - fabsf(asinf(ratioY) * (float)RAD_TO_DEG)) : fabsf(acosf(ratioY) * (float)RAD_TO_DEG);
-        
-        // yaw in degrees - Z axis (inaccurate as gravity is constant)
-        float ratioZ = fmaxf(-1.0f, fminf(1.0f, axes[2] / gXYZ));
-        mpuData[2] = (ratioZ < 0.5f) ? (90.0f - fabsf(asinf(ratioZ) * (float)RAD_TO_DEG)) : fabsf(acosf(ratioZ) * (float)RAD_TO_DEG);
-      } else {
-        // Freefall or sensor fault: default to 0 to avoid NaN propagation
-        mpuData[0] = 0.0f;
-        mpuData[1] = 0.0f;
-        mpuData[2] = 0.0f;
-      }
-      
+      // pitch in degrees - X axis
+      float ratio = axes[0] / gXYZ;
+      mpuData[0] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
+      // roll in degrees - Y axis 
+      ratio = axes[1] / gXYZ;
+      mpuData[1] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
+      // yaw in degrees - Z axis (inaccurate as gravity is constant)
+      ratio = axes[2] / gXYZ;
+      mpuData[2] = (float)((ratio < 0.5) ? 90-fabsf(asin(ratio)*RAD_TO_DEG) : fabsf(acos(ratio)*RAD_TO_DEG));
       // temperature in degrees celsius
-      mpuData[3] = ((float)raw[3] / 340.0f) + 36.53f; 
+      mpuData[3] = ((float)raw[3] / 340.0) + 36.53; 
     }
   }
 }
-
-/********************************* MPU9250 ********************************/
-
-/*
-MPU9250 on GY-91
-VIN: Voltage Supply Pin for > 3V3, if not used can be connected to pull high SDO/SAO or CSB
-3V3: 3.3v Regulator output / or 3V3 input
-GND: 0V Power Supply
-SCL: I2C Clock 
-SDA: I2C Data 
-SDO/SAO: I2C Address selection MPU9250, pull high for Alt addr
-NCS: n/a
-CSB: I2C Address selection BMP280, pull high for Alt addr
-*/
-
-#if __has_include("../libraries/MPU9250/MPU9250.h")
-
-#include "MPU9250.h" // https://github.com/hideakitai/MPU9250
-// accel axis orientation on GY-91:
-// - X : short side (pitch)
-// - Y : long side (roll)
-// - Z : up (yaw from true N)
-// Note internal AK8963 magnetometer is at address 0x0C
-#define USE_MPU9250
-#define LOCAL_MAG_DECLINATION 0.0f  // see https://www.magnetic-declination.com/ to obtain local value manually
-
-static MPU9250 mpu9250;
-static float magDecl = LOCAL_MAG_DECLINATION;
-
-#define EXT_MAG_HOST "geomag.bgs.ac.uk"
-#define EXT_MAG_PATH "/web_service/GMModels/wmm/2025/?latitude=%0.6f&longitude=%0.6f&format=json"
-
-static float getMagneticDeclination() {
-  // Get Magnetic Declination for given location to magmetic compass correct for True North
-  NetworkClient hclient;
-  char jsonVal[FILE_NAME_LEN] = "";
-  float sign = 1.0f;
-  float angle = 0.0f;
-  if (remoteServerConnect(hclient, EXT_MAG_HOST, HTTP_PORT, GETEXTMAG)) {
-    HTTPClient http;
-    int httpCode = HTTP_CODE_NOT_FOUND;
-    char extMagPath[100];
-    sprintf(extMagPath, EXT_MAG_PATH, latLon[0], latLon[1]);
-    if (http.begin(hclient, EXT_MAG_HOST, HTTP_PORT, extMagPath)) {
-      httpCode = http.GET();
-      if (httpCode == HTTP_CODE_OK) {
-        String payload = http.getString();
-        if (getJsonValue(payload.c_str(), "declination", jsonVal, "value")) {
-          angle = atof(jsonVal);
-          if (getJsonValue(payload.c_str(), "declination", jsonVal, "units")) {
-            if (strstr(jsonVal, "west")) sign = -1.0f;
-          }
-        } else LOG_WRN("'declination' field not present");
-      } else LOG_WRN("Magnetic declination request failed, error: %s", http.errorToString(httpCode).c_str());    
-      http.end();
-    }
-    remoteServerClose(hclient);
-  }
-  return jsonVal[0] ? sign * angle : LOCAL_MAG_DECLINATION; // in degrees
-}
-
-static void updateMPU9250data() {
-  // get data from MPU9250 and return as array
-  // only some functions obtained
-  uint32_t mpuWait = millis();
-  while (!mpu9250.update() && millis() - mpuWait < SENSOR_TIMEOUT) delay(10);
-  if (mpu9250.update()) {
-    // read 3 axis accelerometer & temperature
-    // angle in degrees using airplane coordinate standard
-    mpuData[0] = mpu9250.getPitch(); // X
-    mpuData[1] = mpu9250.getRoll();  // Y
-    mpuData[2] = mpu9250.getYaw();   // Z
-    mpuData[3] = mpu9250.getTemperature(); // celsius
-  }
-}
-
-static bool setupMPU9250() {
-  if (!MPU9250ok) {
-    if (mpu9250.setup(MPUaddr)) {
-      magDecl = getMagneticDeclination();
-      mpu9250.setMagneticDeclination(magDecl);
-      mpu9250.selectFilter(QuatFilterSel::MADGWICK);
-      mpu9250.setFilterIterations(15);
-      LOG_INF("MPU calibrating gyro, leave still");
-      mpu9250.calibrateAccelGyro();
-      LOG_INF("MPU gyro calibrated");
-      LOG_INF("Move MPU in a figure of eight until done");
-      delay(2000);
-      mpu9250.calibrateMag();
-      LOG_INF("MPU magnetometer calibrated, local magnetic declination %0.3f° @ Lat %0.6f / Lon %0.6f", magDecl, latLon[0], latLon[1]);
-      MPU9250ok = true;
-    }
-  }
-  return MPU9250ok;
-}
-
-#else
-#error "Need to install MPU9250 library"
-#endif // __has_include
 
 /********************************* MPU common ********************************/
 
-static bool setupMPU() {
+static bool setupMPU(int whichI2C = 0) {
   // identify MPU model
   bool MPUok = true;
   if (deviceStatus[MPUxxxx_HIGH]) MPUaddr = MPUxxxx_HIGH;
   else if (deviceStatus[MPUxxxx_LOW]) MPUaddr = MPUxxxx_LOW;
   else MPUok = false;
   if (MPUok) {
-    if (getI2Cdata(MPUaddr, WHOAMI_REG, 1)) {
+    if (whichI2C == 0) MPUok = getI2Cdata(MPUaddr, WHOAMI_REG, 1);
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+    if (whichI2C == 0) MPUok = getI2Cdata(MPUaddr, WHOAMI_REG, 1, 1, &Wire1);
+#endif
+    if (MPUok) {
       // determine IMU model using whoami register
       byte iData = I2CDATA[0];
       if (iData == MPU6050_ID) strcpy(mpuModel, "MPU6050");
@@ -573,10 +630,10 @@ static bool setupMPU() {
         haveMag = true;
       }
     }
-    MPUok = haveMag ? setupMPU9250() : setupMPU6050();
+    MPUok = haveMag ? setupMPU9250(whichI2C) : setupMPU6050();
     if (MPUok) LOG_INF("%s available", mpuModel);
     else LOG_WRN("%s not available", mpuModel);
-  }
+  } else LOG_WRN("MPU not found on I2C%d - check wiring", whichI2C);
   return MPUok;
 }
 
@@ -591,14 +648,63 @@ bool identifyMPU(char* _mpuModel) {
 
 #endif // USE_MPU
 
+/********************************* VL53L1X TOF ************************************/
+
+#define TOF_ADDR 0x29
+
+#if USE_VL53L1X
+
+#if __has_include("../libraries/SparkFun_VL53L1X_4m_Laser_Distance_Sensor/src/SparkFun_VL53L1X.h")
+#include <SparkFun_VL53L1X.h>
+
+SFEVL53L1X tof[2];
+static bool tofOK[2] = {false, false};
+
+static bool setupTOF(uint8_t whichI2C = 0) {
+  if (deviceStatus[TOF_ADDR]) {
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+    if (whichI2C == 0) tofOK[0] = tof[0].begin(Wire);
+    else tofOK[1] = tof[1].begin(Wire1);
+#endif
+    tofOK[whichI2C] = !tofOK[whichI2C]; // as return of 0 is good
+    if (tofOK[whichI2C]) {
+      tof[whichI2C].setDistanceModeLong();
+      tof[whichI2C].setTimingBudgetInMs(33);        // ~33 ms per measurement
+      tof[whichI2C].setIntermeasurementPeriod(33);  // must be >= timing budget
+      tof[whichI2C].startRanging();                 // begin continuous ranging
+    }
+  }
+  if (!tofOK[whichI2C]) LOG_WRN("VL53L1X on I2C%d not found - check wiring", whichI2C);
+  return tofOK[whichI2C];
+}
+
+uint16_t getTofData(uint8_t whichI2C) {
+  static uint16_t rangeMm = 0;
+  if (tofOK[whichI2C]) {
+    if (tof[whichI2C].checkForDataReady()) {
+      rangeMm = tof[whichI2C].getDistance();
+      tof[whichI2C].clearInterrupt(); // required after each read to trigger the next measurement
+    }
+  } else rangeMm = 0; // flags as not available
+  return rangeMm; // previous reading used if new one not received
+}
+
+#else
+#error "Need to install SparkFun_VL53L1X_4m_Laser_Distance_Sensor library"
+#endif
+
+#endif  // USE_VL53L1X
+
+
 /********************************* DS3231 RTC ************************************/
 
 #define DS3231_RTC 0x68 // real time clock (address may conflict with MPU6050)
 #if USE_DS3231
 #include "driver/rtc_io.h"
+#if __has_include("../libraries/Rtc_by_Makuna/src/RtcDS3231.h")
 #include <RtcDS3231.h> // https://github.com/Makuna/Rtc/wiki
-RtcDS3231<TwoWire> Rtc(Wire);
 
+RtcDS3231<TwoWire> Rtc(Wire);
 static bool DS3231ok = false;
 static volatile bool RTCalarmFlag = false;
 
@@ -733,8 +839,12 @@ void RTCdatetime(char* datestring, int datestringLen) {
       dt.Day(), dt.Month(), dt.Year(), dt.Hour(), dt.Minute(), dt.Second());
   }
 }
+
+#else
+#error "Need to install Rtc_by_Makuna library"
 #endif
 
+#endif // USE_DS3231
 
 /**************************** LCD1602 ******************************/
 // I2C LCD display: 2 lines, 16 cols 
@@ -952,7 +1062,8 @@ void lcdWriteCustom(uint8_t charLoc) {
   if (charLoc > 7) LOG_WRN("custom char number %u out of range", charLoc);
   else lcdSend(charLoc, Rs);
 }
-#endif
+
+#endif // USE_LCD1602
 
 
 /************** Poll devices for data ***************/
@@ -960,14 +1071,19 @@ void lcdWriteCustom(uint8_t charLoc) {
 bool accelUse = false;
 int accelDeg = 2;
 
+static bool haveMovement = false;
+
+bool checkAccelMove() {
+  return haveMovement;
+}
+
+#if !INCLUDE_DRONE // drone uses its own loop in camDrone.cpp
 #ifdef IS_POLLABLE
 
 static TaskHandle_t sensorPollHandle = NULL;
 static int pollInterval = 1; // polling interval in secs
 
 #if USE_MPU && defined(ISCAM)
-
-static bool haveMovement = false;
 
 static void getAccelMove() {
   // determine if sufficient accelerometer movement has occurred
@@ -982,10 +1098,6 @@ static void getAccelMove() {
   if (currMove > accelDeg) haveMovement = true;
 }
 
-bool checkAccelMove() {
-  return haveMovement;
-}
-
 #endif // ISCAM
 
 static void sensorPollTask(void* p) {
@@ -993,7 +1105,9 @@ static void sensorPollTask(void* p) {
   while (true) {
     uint32_t startTime = millis();
 #if USE_MPU
+ #ifdef USE_MPU9250
     if (MPU9250ok) updateMPU9250data();
+ #endif
     if (MPU6050ok) updateMPU6050data();
   #ifdef ISCAM
     if (accelUse) getAccelMove();
@@ -1018,6 +1132,8 @@ static void startPollTask() {
 
 #endif  // IS_POLLABLE
 
+#endif // !INCLUDE_DRONE
+
 /**************************** Setup ******************************/
 
 bool checkI2Cdevice(const char* devName) {
@@ -1028,6 +1144,7 @@ bool checkI2Cdevice(const char* devName) {
   if (!strcmp(devName, "MPUxxxx")) return deviceStatus[MPUxxxx_HIGH] || deviceStatus[MPUxxxx_LOW]  ? true : false;
   if (!strcmp(devName, "DS3231")) return deviceStatus[DS3231_RTC];
   if (!strcmp(devName, "LCD1602")) return deviceStatus[LCD1602];
+  if (!strcmp(devName, "VL53L1X")) return deviceStatus[TOF_ADDR];
   LOG_WRN("Device name %s not recognised", devName);
   return false;
 }
@@ -1035,13 +1152,16 @@ bool checkI2Cdevice(const char* devName) {
 static bool prepI2Cdevices() {
   // setup available I2C devices 
   bool res = false;
-  if (I2Cdevices == 0) LOG_WRN("No I2C devices connected");
+  if (I2C0devices == 0) LOG_WRN("No I2C0 devices connected");
   else {
 #if USE_SSD1306
     setupOled();
 #endif
 #if USE_BMx280
     setupBMx();
+#endif
+#if USE_VL53L1X
+    setupTOF();
 #endif
 #if USE_MPU
     setupMPU();
@@ -1052,7 +1172,7 @@ static bool prepI2Cdevices() {
 #if USE_LCD1602
     setupLCD1602();
 #endif
-#ifdef IS_POLLABLE
+#if !INCLUDE_DRONE && defined(IS_POLLABLE)
     startPollTask();
 #endif
     res = true;

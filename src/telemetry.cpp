@@ -47,7 +47,7 @@ size_t srtBytes = 0;
 // user defined SRT content line per device used, must start with 2 spaces
 #define BMP_SRT "  %0.1fC  %0.1fmb  %0.1fm"
 #define BME_SRT "  %0.1fRH "
-#define MPU_SRT "  P:%0.1f° R:%0.1f° Y:%0.1f°"
+#define MPU_SRT "  P:%0.1f° R:%0.1f° H:%0.1f°"
 
 
 static bool isBME = false;

@@ -13,6 +13,21 @@
       - Click on the link “Connect to a web site that you can use to store your documents and pictures.”
       - Click “Next” and then “Choose a custom network location.”
       - Re-enter \\<ip_address>\webdav
+      
+              To fix WebDAV connection issues between your OS client and the ESP32, you will need to address specific client quirks or server-side limitations.
+              Here are the step-by-step diagnostic and debugging steps tailored to this specific code implementation:
+              
+              1. Fix the Windows "Basic Authentication over HTTP" Restriction
+              
+              By default, the Windows WebClient engine blocks unencrypted Basic Authentication over plain HTTP connections (which your ESP32 uses unless it's explicitly bundled with TLS). It will look like a generic connection or network error.
+              • The Registry Fix:
+              	1. Press Win + R, type regedit, and hit Enter.
+              	2. Navigate to: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WebClient\Parameters.
+              	3. Look for the BasicAuthLevel DWORD value. If it isn't there, right-click -> New > DWORD (32-bit) Value and name it BasicAuthLevel.
+              	4. Double-click it and change the value data to 2 (This allows Basic Auth for both HTTP and HTTPS).
+              	5. Open a command prompt as an administrator and restart the service:cmd
+              net stop webclient
+              net start webclient
 
     Android:
     - Solid Explorer, enter <ip_address> for Remote host name, webdav for Path

@@ -109,14 +109,12 @@ static bool hfsStoreFile(File &fh) {
     hclient.write((uint8_t*)fsChunk, chunksize);
     totalSent += chunksize;
     if (calcProgress(totalSent, fh.size(), 5, percentLoaded)) {
-      char pcntStr[10];
-      sprintf(pcntStr, "#P%u", percentLoaded);
-      sendSSE("cmd", pcntStr); 
+      LOG_CMD("#P%u", percentLoaded);
       LOG_INF("Uploaded %u%%", percentLoaded); 
     }
   }
   percentLoaded = 100;
-  sendSSE("cmd", "#P0");
+  LOG_CMD("#P0");
   hclient.println(END_BOUNDARY);
   return true;
 }
@@ -263,16 +261,14 @@ static bool ftpStoreFile(File &fh) {
         return false;
       }
       if (calcProgress(writeBytes, fileSize, 5, percentLoaded)) {
-        char pcntStr[10];
-        sprintf(pcntStr, "#P%u", percentLoaded);
-        sendSSE("cmd", pcntStr); 
+        LOG_CMD("#P%u", percentLoaded);
         LOG_INF("Uploaded %u%%", percentLoaded);
       }
     }
   } while (readLen > 0);
   dclient.stop();
   percentLoaded = 100;
-  sendSSE("cmd", "#P0");
+  LOG_CMD("#P0");
   bool res = sendFtpCommand("", "", "226");
   if (res) {
     LOG_ALT("Uploaded %s in %lu sec", fmtSize(writeBytes), (millis() - uploadStart) / 1000);
