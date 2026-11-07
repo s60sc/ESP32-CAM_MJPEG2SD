@@ -174,20 +174,24 @@
         }
         
         // handle Server Sent Events
+        let eventSource = null;
+        let retryMs = 1000;
+        
         function startEventSource() {
           if (doInitSSE) {
             // Create a new EventSource instance, pointing to the server's endpoint
-            console.log("sse "+webServer+'/sse');
+            showLog("sse "+webServer+'/sse');
             const eventSource = new EventSource(webServer+'/sse');
 
-            // Listen for the 'open' event when the connection is established
-            eventSource.addEventListener('open', function(event) {
-              console.log('SSE connection opened.');
-            });
+            // report that connection established
+            eventSource.onopen = () => {
+              showLog('SSE connection opened.');
+              retryMs = 1000;
+            };
 
             // Listen for unspecified events from the server (no 'event' string)
             eventSource.addEventListener('message', (event) => {
-              console.log("No event specified: " + event.data);
+              showLog("No event specified: " + event.data);
             });
 
             eventSource.addEventListener('log', (event) => {
@@ -202,7 +206,14 @@
             
             // unhandled events
             eventSource.onerror = (err) => {
-              console.error("SSE error:", err);
+              // 0 = CONNECTING (browser is auto-retrying), 1 = OPEN, 2 = CLOSED (fatal, won't retry)
+              console.error("SSE error:", err, ", readyState:", eventSource.readyState);
+              if (eventSource.readyState === EventSource.CLOSED) {
+                eventSource.close();
+                retryMs = 1000;
+                setTimeout(startEventSource, retryMs);
+                retryMs = Math.min(retryMs * 2, 10000);   // backoff up to 10 s
+              }
             }
           }
         }
