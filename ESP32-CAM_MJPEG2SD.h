@@ -31,6 +31,7 @@
 // User's ESP32S3 cam board
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
 #define CAMERA_MODEL_ESP32_S3_CAM
+//#define CAMERA_MODEL_ESP32S3_CAM_V1_2
 //#define CAMERA_MODEL_FREENOVE_ESP32S3_CAM
 //#define CAMERA_MODEL_XIAO_ESP32S3
 //#define CAMERA_MODEL_NEW_ESPS3_RE1_0
@@ -44,12 +45,22 @@
 //#define CAMERA_MODEL_DFRobot_ESP32_S3_AI_CAM
 //#define AUXILIARY
 
+#elif defined(CONFIG_IDF_TARGET_ESP32S2)
+#define AUXILIARY
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+#define AUXILIARY
+#else 
+#error "ESP type not implemented"
 #endif
 
 /***************************************************************
   Optional features NOT included by default to reduce heap use 
   To include a particular feature, change false to true
 ***************************************************************/
+#define INCLUDE_DRONE false   // camDrone.cpp (when app installed on a drone)
+#if INCLUDE_DRONE
+#define GY91_BACKWARD  // comment out if GY-91 mounted with X axis forward
+#endif
 #define INCLUDE_FTP_HFS false // ftp.cpp (file upload)
 #define INCLUDE_TGRAM false   // telegram.cpp (Telegram app interface)
 #define INCLUDE_AUDIO false   // audio.cpp (microphones & speakers)
@@ -67,16 +78,18 @@
 #define INCLUDE_MCPWM false   // mcpwm.cpp (BDC motor control). Needs INCLUDE_PERIPH true
 #define INCLUDE_RTSP false    // rtsp.cpp (RTSP Streaming). Requires additional library: ESP32-RTSPServer
 #define INCLUDE_DS18B20 false // if true, requires INCLUDE_PERIPH and additional libraries: OneWire and DallasTemperature
+#define INCLUDE_GNSS false    // if true, requires INCLUDE_PERIPH and additional library: SparkFun_u-blox_GNSS_v4.h
 #define INCLUDE_AF false      // for auto focused equipped OV5640. Requires additional library: OV5640_Auto_Focus_for_ESP32_Camera
 #define INCLUDE_NEW_JPG false // true to use esp_new_jpg library, which must be installed first. Faster but uses more memory
 #define INCLUDE_I2C false     // periphsI2C.cpp (support for I2C peripherals)
 
 // if INCLUDE_I2C true, set each I2C device used to true and instal additional library if required
 #define USE_SSD1306 false  // Needs esp8266-oled-ssd1306 library
-#define USE_BMx280 false   // NMP280, BME280. Needs BMx280MI library
-#define USE_MPU false      // MPU6050, MPU9250, MPU9255. MPU9250 needs hideakitai MPU9250 library
+#define USE_BMx280 false   // BMP280, BME280. Needs SparkFun_BME280 library
+#define USE_MPU false      // MPU6050, MPU9250. MPU9250 needs MPU9250_WE library
 #define USE_DS3231 false   // Needs Makuna Rtc library
-#define USE_LCD1602 false  // none
+#define USE_LCD1602 false  // None
+#define USE_VL53L1X false  // Needs SparkFun_VL53L1X_4m_Laser_Distance_Sensor library
 
 // To include Edge Impulse arduino library for additional motion detect filtering
 // Use Edge Impulse Studio to create model:

@@ -8,21 +8,15 @@
 #include "ESP32-CAM_MJPEG2SD.h"
 
 void setup() {
-  if (utilsStartup()) {
-#ifndef AUXILIARY
-    LOG_INF("Selected board %s", CAM_BOARD);
-    prepCam();
-#else
-    LOG_INF("AUXILIARY mode without camera");
-#endif
-  }
-
+  bool res = utilsStartup();
+  if (res) initCam();
   // connect network (WiFi or Ethernet per config) and start web server
-  if (startNetwork()) {
+  if (res && startNetwork()) {
     // start rest of services
     appSetup(); 
     checkMemory();
   }
+  checkAppReady();
 }
 
 void loop() {
