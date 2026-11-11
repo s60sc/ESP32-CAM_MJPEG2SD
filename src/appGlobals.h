@@ -26,7 +26,7 @@
 #include "camera_pins.h"
 #endif
 
-#define APP_VER "10.10"
+#define APP_VER "10.10.1"
 #define CFG_VER 42 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false

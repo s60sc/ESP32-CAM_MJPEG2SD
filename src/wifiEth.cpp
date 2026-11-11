@@ -506,8 +506,8 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
     if (pingHandle == NULL) startPing();
   }
   
-  // Return true only if Station mode achieved a connected state.
-  return wlStat == WL_CONNECTED;
+  // Return true only if Station mode achieved a connected state or AP available
+  return (wlStat == WL_CONNECTED || APstarted);
 }
 
 static void timeSyncCallback(struct timeval *tv) {
