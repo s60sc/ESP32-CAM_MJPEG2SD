@@ -17,8 +17,6 @@ OV5640 ov5640AF = OV5640();
 #endif
 #endif // INCLUDE_AF
 
-#define FB_CNT 4 // number of frame buffers
-
 // user parameters set from web
 bool useMotion = true; // whether to use camera for motion detection (with motionDetect.cpp)
 bool forceRecord = false; // Recording enabled by rec button or dashcam
@@ -92,6 +90,119 @@ int dashCamOn = 0; // whether to use / duration of dashcam style continuous reco
 #ifndef AUXILIARY
 framesize_t maxFS = FRAMESIZE_SVGA; // default
 
+struct CapturedFrameRef {
+  camera_fb_t* frame = nullptr;
+  uint8_t references = 0;
+};
+
+DRAM_ATTR static StreamFrame streamFrame[MAX_STREAMS] = {};
+DRAM_ATTR static CapturedFrameRef capturedFrameRefs[CAMERA_FB_COUNT];
+DRAM_ATTR static bool streamFrameActive[MAX_STREAMS] = {};
+DRAM_ATTR static portMUX_TYPE capturedFrameMux = portMUX_INITIALIZER_UNLOCKED;
+
+static CapturedFrameRef* findCapturedFrameRef(camera_fb_t* frame) {
+  for (auto& frameRef : capturedFrameRefs) {
+    if (frameRef.frame == frame) return &frameRef;
+  }
+  return nullptr;
+}
+
+static camera_fb_t* releaseCapturedFrameRefLocked(camera_fb_t* frame) {
+  CapturedFrameRef* frameRef = findCapturedFrameRef(frame);
+  if (frameRef == nullptr || frameRef->references == 0) return nullptr;
+  if (--frameRef->references == 0) {
+    frameRef->frame = nullptr;
+    return frame;
+  }
+  return nullptr;
+}
+
+bool retainCapturedFrame(camera_fb_t* frame) {
+  if (frame == nullptr) return false;
+
+  bool retained = false;
+  portENTER_CRITICAL(&capturedFrameMux);
+  for (auto& frameRef : capturedFrameRefs) {
+    if (frameRef.frame == nullptr) {
+      frameRef.frame = frame;
+      frameRef.references = 1;
+      retained = true;
+      break;
+    }
+  }
+  portEXIT_CRITICAL(&capturedFrameMux);
+  return retained;
+}
+
+void publishStreamFrame(uint8_t taskNum, camera_fb_t* frame) {
+  if (taskNum >= vidStreams || taskNum >= MAX_STREAMS || frameSemaphore[taskNum] == nullptr) return;
+
+  bool published = false;
+  portENTER_CRITICAL(&capturedFrameMux);
+  if (streamFrameActive[taskNum] && streamFrame[taskNum].owner == nullptr) {
+    CapturedFrameRef* frameRef = findCapturedFrameRef(frame);
+    if (frameRef != nullptr && frameRef->references > 0) {
+      ++frameRef->references;
+      streamFrame[taskNum] = {frame, frame->buf, frame->len};
+      published = true;
+    }
+  }
+  portEXIT_CRITICAL(&capturedFrameMux);
+
+  if (published) xSemaphoreGive(frameSemaphore[taskNum]);
+}
+
+StreamFrame getStreamFrame(uint8_t taskNum) {
+  if (taskNum >= MAX_STREAMS) return {};
+
+  StreamFrame frame = {};
+  // Keep the slot occupied until release so a slow consumer cannot queue more frames.
+  portENTER_CRITICAL(&capturedFrameMux);
+  frame = streamFrame[taskNum];
+  portEXIT_CRITICAL(&capturedFrameMux);
+  return frame;
+}
+
+void releaseStreamFrame(uint8_t taskNum, StreamFrame frame) {
+  if (taskNum >= MAX_STREAMS || frame.owner == nullptr) return;
+
+  camera_fb_t* frameToReturn = nullptr;
+  portENTER_CRITICAL(&capturedFrameMux);
+  if (streamFrame[taskNum].owner == frame.owner) {
+    streamFrame[taskNum] = {};
+    frameToReturn = releaseCapturedFrameRefLocked(frame.owner);
+  }
+  portEXIT_CRITICAL(&capturedFrameMux);
+
+  if (frameToReturn != nullptr) esp_camera_fb_return(frameToReturn);
+}
+
+void setStreamFrameActive(uint8_t taskNum, bool active) {
+  if (taskNum >= MAX_STREAMS) return;
+
+  camera_fb_t* frameToReturn = nullptr;
+  portENTER_CRITICAL(&capturedFrameMux);
+  streamFrameActive[taskNum] = active;
+  if (streamFrame[taskNum].owner != nullptr) {
+    camera_fb_t* frame = streamFrame[taskNum].owner;
+    streamFrame[taskNum] = {};
+    frameToReturn = releaseCapturedFrameRefLocked(frame);
+  }
+  portEXIT_CRITICAL(&capturedFrameMux);
+
+  if (frameToReturn != nullptr) esp_camera_fb_return(frameToReturn);
+}
+
+void releaseCapturedFrame(camera_fb_t* frame) {
+  if (frame == nullptr) return;
+
+  camera_fb_t* frameToReturn = nullptr;
+  portENTER_CRITICAL(&capturedFrameMux);
+  frameToReturn = releaseCapturedFrameRefLocked(frame);
+  portEXIT_CRITICAL(&capturedFrameMux);
+
+  if (frameToReturn != nullptr) esp_camera_fb_return(frameToReturn);
+}
 
 /**************** capture AVI  ************************/
 
@@ -451,17 +562,20 @@ static bool processFrame() {
     esp_camera_fb_return(fb);
     return false;
   }
+
+  static uint32_t lastFrameRefWarning = 0;
+  const bool frameRetained = retainCapturedFrame(fb);
+  if (!frameRetained && millis() - lastFrameRefWarning >= 5000) {
+    lastFrameRefWarning = millis();
+    LOG_WRN("No shared-frame reference available; skipping live stream publication");
+  }
   
   timeLapse(fb);
 
   for (int i = 0; i < vidStreams; i++) {
-    if (streamBuffer[i] != NULL && streamBufferSize[i] == 0) { // Reordered null check first to prevent potential dereference.
-      memcpy(streamBuffer[i], fb->buf, fb->len);
-      streamBufferSize[i] = fb->len;
-      
-      // Added semaphore return check with configurable rate limiting to detect and log stalled stream 
-      // consumers without causing excessive log messages or flash wear.
-      if (xSemaphoreGive(frameSemaphore[i]) != pdPASS) {
+    if (i == 0 && dbgMotion) {
+      // The motion debug stream uses motionJpeg rather than the camera JPEG.
+      if (frameSemaphore[i] != NULL && xSemaphoreGive(frameSemaphore[i]) != pdPASS) {
         uint32_t currentTime = millis();
         if ((currentTime - lastStallLogTime >= STALL_LOG_INTERVAL_MS) || (lastStalledStream != i)) {
           lastStallLogTime = currentTime;
@@ -469,7 +583,7 @@ static bool processFrame() {
           LOG_VRB("Stream %d consumer stalled (semaphore full)", i);
         }
       }
-    }
+    } else if (frameRetained) publishStreamFrame(i, fb);
   }
   
   if (doKeepFrame) {
@@ -577,7 +691,8 @@ static bool processFrame() {
 #endif
   }
 
-  esp_camera_fb_return(fb);
+  if (frameRetained) releaseCapturedFrame(fb);
+  else esp_camera_fb_return(fb);
   if (!isCapturing && prevCapture) {
     // finish recording (normal or forced)
     closeAvi();
@@ -1072,7 +1187,7 @@ bool initCam() {
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.frame_size = maxFS;
   config.jpeg_quality = 12;
-  config.fb_count = FB_CNT;
+  config.fb_count = CAMERA_FB_COUNT;
   config.sccb_i2c_port = 0;// using I2C 0. to be sure what port we are using.
 
 #if defined(CAMERA_MODEL_ESP_EYE)

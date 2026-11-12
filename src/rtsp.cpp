@@ -27,7 +27,7 @@ bool rtspAudio = false;
 bool rtspSubtitles = false;
 
 #if INCLUDE_RTSP
-#if __has_include("../libraries/ESP32-RTSPServer/src/ESP32-RTSPServer.h")
+//#if __has_include("../libraries/ESP32-RTSPServer/src/ESP32-RTSPServer.h")
 #include <ESP32-RTSPServer.h> 
 RTSPServer rtspServer;
 
@@ -75,21 +75,23 @@ RTSPServer::TransportType determineTransportType() {
   }
 }
 
-#ifdef ISCAM
+#if defined(ISCAM) && !defined(AUXILIARY)
 
 static void sendRTSPVideo(void* p) {
   // Send jpeg frames via RTSP at current frame rate
   uint8_t taskNum = 1;
-  streamBufferSize[taskNum] = 0;
+  setStreamFrameActive(taskNum, true);
   while (true) {
     if (frameSemaphore[taskNum] != NULL) {
       if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdTRUE) {
-        if (streamBufferSize[taskNum] && rtspServer.readyToSendFrame()) {
-          // use frame stored by processFrame()
-          rtspServer.sendRTSPFrame(streamBuffer[taskNum], streamBufferSize[taskNum], quality, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight);
+        StreamFrame frame = getStreamFrame(taskNum);
+        if (frame.owner != nullptr) {
+          if (frame.data != nullptr && frame.size && rtspServer.readyToSendFrame()) {
+            rtspServer.sendRTSPFrame(frame.data, frame.size, quality, frameData[fsizePtr].frameWidth, frameData[fsizePtr].frameHeight);
+          }
+          releaseStreamFrame(taskNum, frame);
         }
       }
-      streamBufferSize[taskNum] = 0; 
     } else delay(100);
   }
   vTaskDelete(NULL);
@@ -117,7 +119,7 @@ static void startRTSPSubtitles(void* arg) {
   vTaskDelete(NULL); // not reached
 }
 
-#endif // ISCAM
+#endif // camera-only RTSP tasks
 
 static void sendRTSPAudio(void* p) {
 #if INCLUDE_AUDIO
@@ -173,7 +175,7 @@ void prepRTSP() {
         rtspServer.rtspPort, useAuth ? " (credentials not shown for security reasons)" : "");
 
       // start RTSP tasks, need bigger stack for video
-#ifdef ISCAM
+#if defined(ISCAM) && !defined(AUXILIARY)
       if (rtspVideo) xTaskCreateWithCaps(sendRTSPVideo, "sendRTSPVideo", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[1], STACK_MEM); 
       if (rtspAudio) xTaskCreateWithCaps(sendRTSPAudio, "sendRTSPAudio", 1024 * 5, NULL, SUSTAIN_PRI, &sustainHandle[2], STACK_MEM);
       if (rtspSubtitles) xTaskCreateWithCaps(startRTSPSubtitles, "startRTSPSubtitles", 1024 * 1, NULL, SUSTAIN_PRI, &sustainHandle[3], STACK_MEM);
@@ -185,8 +187,8 @@ void prepRTSP() {
   } else LOG_WRN("RTSP server not started, no transport selected");
 }
 
-#else
-#error "Need to install ESP32-RTSPServer library"
-#endif // has_include
+//#else
+//#error "Need to install ESP32-RTSPServer library"
+//#endif // has_include
 
 #endif // INCLUDE_RTSP

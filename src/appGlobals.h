@@ -26,7 +26,7 @@
 #include "camera_pins.h"
 #endif
 
-#define APP_VER "10.10.1"
+#define APP_VER "10.10"
 #define CFG_VER 42 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false
@@ -53,6 +53,7 @@
 
 #define HTTP_CLIENTS 3 // http(s), ws(s), sse
 #define MAX_STREAMS 4 // (web stream, playback, download), NVR, audio, subtitle
+#define CAMERA_FB_COUNT 4 // keep enough camera buffers for capture plus active stream consumers
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
@@ -320,8 +321,19 @@ extern uint8_t iSDbuffer[];
 extern uint8_t aviHeader[];
 extern const uint8_t dcBuf[]; // 00dc
 extern const uint8_t wbBuf[]; // 01wb
-extern byte* streamBuffer[]; // buffer for stream frame
-extern size_t streamBufferSize[];
+#ifndef AUXILIARY
+struct StreamFrame {
+  camera_fb_t* owner;
+  uint8_t* data;
+  size_t size;
+};
+bool retainCapturedFrame(camera_fb_t* frame);
+void publishStreamFrame(uint8_t taskNum, camera_fb_t* frame);
+StreamFrame getStreamFrame(uint8_t taskNum);
+void releaseStreamFrame(uint8_t taskNum, StreamFrame frame);
+void setStreamFrameActive(uint8_t taskNum, bool active);
+void releaseCapturedFrame(camera_fb_t* frame);
+#endif
 extern uint8_t* motionJpeg;
 extern size_t motionJpegLen;
 extern uint8_t* audioBuffer;
