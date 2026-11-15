@@ -24,8 +24,6 @@ bool streamVid = false;
 bool streamAud = false;
 bool streamSrt = false;
 static bool isStreaming[MAX_STREAMS] = {false};
-size_t streamBufferSize[MAX_STREAMS] = {0};
-byte* streamBuffer[MAX_STREAMS] = {NULL}; // buffer for stream frame
 uint16_t sustainId = 0;
 uint8_t numStreams = 1;
 uint8_t vidStreams = 1;
@@ -122,7 +120,7 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
   uint32_t mjpegLen = 0;
   
   isStreaming[taskNum] = true;
-  streamBufferSize[taskNum] = 0;
+  setStreamFrameActive(taskNum, true);
   if (!taskNum) {
     motionJpegLen = 0;
   }
@@ -147,8 +145,6 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
   while (isStreaming[taskNum]) {
     // stream from camera at current frame rate
     if (xSemaphoreTake(frameSemaphore[taskNum], pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
-      // failed to take semaphore, allow retry
-      streamBufferSize[taskNum] = 0;
       consecutiveTimeouts++;
 
       // Check if client socket is still connected
@@ -172,37 +168,38 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
     }
     
     consecutiveTimeouts = 0;
+    StreamFrame frame = {};
+    const bool motionDebugStream = dbgMotion && !taskNum;
     
-    if (dbgMotion && !taskNum) {
+    if (motionDebugStream) {
+      frame = getStreamFrame(taskNum);
+      if (frame.owner != nullptr) releaseStreamFrame(taskNum, frame);
       // motion tracking stream on task 0 only, wait for new move mapping image
       if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
-        // Release frame semaphore to prevent deadlock before continuing.
+        // Keep the frame notification pending until the motion JPEG is ready.
         xSemaphoreGive(frameSemaphore[taskNum]);
-		    vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(1));
         continue;
       }
       
       // use image created by checkMotion()
       jpgLen = motionJpegLen;
       if (!jpgLen) {
-        // Release semaphores to prevent deadlock before continuing.
         xSemaphoreGive(motionSemaphore);
         xSemaphoreGive(frameSemaphore[taskNum]);
-		    vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(1));
         continue;
       }
       jpgBuf = motionJpeg;
     } else {
-      // live stream 
-      if (!streamBufferSize[taskNum]) {
-        // Release frame semaphore to prevent deadlock before continuing.
-        xSemaphoreGive(frameSemaphore[taskNum]);
-		    vTaskDelay(pdMS_TO_TICKS(1));
+      frame = getStreamFrame(taskNum);
+      if (frame.owner == nullptr) continue;
+      if (frame.data == nullptr || !frame.size) {
+        releaseStreamFrame(taskNum, frame);
         continue;
       }
-      jpgLen = streamBufferSize[taskNum];
-      // use frame stored by processFrame()
-      jpgBuf = streamBuffer[taskNum];
+      jpgLen = frame.size;
+      jpgBuf = frame.data;
     }
     
     if (res == ESP_OK) {
@@ -223,29 +220,19 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       // Get send error when browser closes stream or times out.
       LOG_VRB("Streaming aborted due to error: %s", espErrMsg(res));
       isStreaming[taskNum] = false;
-	  // Reset buffer size to unblock producer before exit.
-	  // Prevents permanent deadlock where producer waits for buffer clear.
-	  streamBufferSize[taskNum] = 0;
-      // Release semaphores to prevent leak before loop exit.
-      if (dbgMotion && !taskNum) {
+      if (motionDebugStream) {
         xSemaphoreGive(motionSemaphore);
-      }
-      xSemaphoreGive(frameSemaphore[taskNum]);
+      } else releaseStreamFrame(taskNum, frame);
       break; // Exit loop safely.
     }
-    // Reset buffer size to signal producer that buffer is free.
-    streamBufferSize[taskNum] = 0;
-    jpgLen = 0;
-    
-    if (dbgMotion && !taskNum) {
+    if (motionDebugStream) {
       motionJpegLen = 0;
       xSemaphoreGive(motionSemaphore);
-    }
-    
-    // Always release frame semaphore after processing or skipping.
-    xSemaphoreGive(frameSemaphore[taskNum]);
+    } else releaseStreamFrame(taskNum, frame);
+    jpgLen = 0;
   }
   
+  setStreamFrameActive(taskNum, false);
   if (res == ESP_OK) {
     httpd_resp_sendstr_chunk(req, NULL);
   }
@@ -363,31 +350,6 @@ void startSustainTasks() {
     LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
     numStreams = MAX_STREAMS;
   }
-  if (maxFrameBuffSize * (vidStreams + 1) > ESP.getFreePsram()) {
-    LOG_WRN("Insufficient PSRAM for NVR streams");
-    vidStreams = 1;
-    streamVid = streamAud = streamSrt = false;
-  }
-  for (int i = 0; i < vidStreams; i++) {
-    if (streamBuffer[i] == NULL) {
-      streamBuffer[i] = (byte*)ps_malloc(maxFrameBuffSize);
-      if (streamBuffer[i] == NULL) {
-        LOG_ERR("Failed to allocate streamBuffer[%d], out of PSRAM", i);
-        // Cleanup previously allocated buffers to prevent memory leak.
-        for (int j = 0; j < i; j++) {
-          if (streamBuffer[j] != NULL) {
-            free(streamBuffer[j]);
-            streamBuffer[j] = NULL;
-          }
-        }
-        vidStreams = 1;
-        streamVid = streamAud = streamSrt = false;
-        numStreams = 1;
-        break;
-      }
-    }
-  }
-
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
     if ((i == 1 && rtspVideo) || (i == 2 && rtspAudio) || (i == 3 && rtspSubtitles)) continue; // RTSP tasks created in rtsp.cpp
@@ -426,8 +388,6 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
               if (!strcmp(variable, "stream")) {
                 isStreaming[taskNum] = false;
                 if (!taskNum) doPlayback = false; // only for task 0
-				// Reset buffer size to immediately relieve backpressure on producer.
-				streamBufferSize[taskNum] = 0;
                 if (taskNum < vidStreams && frameSemaphore[taskNum] != NULL) xSemaphoreGive(frameSemaphore[taskNum]);
                 for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
                }
