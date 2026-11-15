@@ -27,7 +27,7 @@ bool rtspAudio = false;
 bool rtspSubtitles = false;
 
 #if INCLUDE_RTSP
-//#if __has_include("../libraries/ESP32-RTSPServer/src/ESP32-RTSPServer.h")
+#if __has_include("../libraries/ESP32-RTSPServer/src/ESP32-RTSPServer.h")
 #include <ESP32-RTSPServer.h> 
 RTSPServer rtspServer;
 
@@ -187,8 +187,8 @@ void prepRTSP() {
   } else LOG_WRN("RTSP server not started, no transport selected");
 }
 
-//#else
-//#error "Need to install ESP32-RTSPServer library"
-//#endif // has_include
+#else
+#error "Need to install ESP32-RTSPServer library"
+#endif // has_include
 
 #endif // INCLUDE_RTSP

@@ -18,6 +18,7 @@ static char alertCaption[100];
 static bool alertReady = false;
 static bool depthColor = true;
 static bool devHub = false;
+
 char AuxIP[MAX_IP_LEN];
 bool useUart = false; 
 int quality; // Variable to hold quality for RTSP frame
@@ -419,14 +420,9 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
 
 #if INCLUDE_PERIPH
     case murmur3_32("RCactive"): {
-      // Added {} block to prevent "crosses initialization of 'bool aux'" compilation error.
       RCactive = (intVal != 0);
-      bool aux = false;
-#ifdef AUXILIARY
-      aux = true;
-#endif
 #if INCLUDE_MCPWM
-      useBDC = (useUart && !aux) ? false : (intVal != 0);
+      useBDC = (useUart) ? false : (intVal != 0);
 #endif
       break;
     }
@@ -538,11 +534,10 @@ bool updateAppStatus(const char* variable, const char* value, bool fromUser) {
       external_heartbeat_token[EXTHB_LEN - 1] = '\0';
       break;
 #endif
-
+#if INCLUDE_UART
     case murmur3_32("useUart"):
       useUart = (intVal != 0);
       break;
-#if INCLUDE_UART
     case murmur3_32("uartTxdPin"):
       uartTxdPin = intVal;
       break;
@@ -737,12 +732,18 @@ esp_err_t appSpecificWebHandler(httpd_req_t *req, const char* variable, const ch
     if (formatSDcard()) doRestart("user requested format of SD card");
   } 
   else return ESP_FAIL;
+#else
+  return ESP_FAIL;
 #endif
   return ESP_OK;
 }
 
 static bool setPeripheral(char cmd, int controlVal, bool fromUart) {
   bool res = true;
+#if INCLUDE_PERIPH
+  // send to auxiliary if connected in case peripheral is remote
+  if (!fromUart) auxSend(cmd, controlVal, false);
+#endif
   switch (cmd) {
 #if INCLUDE_MCPWM
     case 'M': 
@@ -769,6 +770,10 @@ static bool setPeripheral(char cmd, int controlVal, bool fromUart) {
       // camera tilt servo
       setCamTilt(controlVal);
     break;
+    case 'I':
+      // PIR input
+      pirVal = (bool)controlVal;
+    break;
 #endif
 #if INCLUDE_PGRAM
     case 'G':
@@ -790,56 +795,51 @@ static bool setPeripheral(char cmd, int controlVal, bool fromUart) {
   return res;
 }
 
+static int getPeripheral(const char cmd) {
+  int controlVal = 0;
+#if INCLUDE_PERIPH
+  if (cmd == 'I') controlVal = (int)getPIRval();
+#endif
+  return controlVal;
+}
+
 void appSpecificWsHandler(const char* wsMsg) {
-  // message from web socket
+  // browser message from web socket 
   int wsLen = strlen(wsMsg) - 1;
   char cmd = (char)wsMsg[0];
   int controlVal = atoi(wsMsg + 1); // skip first char
-  bool aux = false;
-#ifdef AUXILIARY
-  aux = true;
-#endif
-  if (useUart && !aux) {
-#if INCLUDE_UART 
-    // send command over uart to auxiliary
-    if (!writeUart(cmd, (uint32_t)controlVal)) LOG_WRN("Failed to send data to Auxiliary over UART");
-#endif
-  } else {
-    if (!setPeripheral(cmd, controlVal, false)) {
-      switch (cmd) {
-        case 'X':
+  switch (cmd) {
+    case 'X':
 #if INCLUDE_AUDIO
-          // stop remote mic stream
-          stopAudio = true;
+      // stop remote mic stream
+      stopAudio = true;
 #endif
-        break;
-        case 'C': 
-          // control request
-          if (extractKeyVal(wsMsg + 1)) updateStatus(variable, value);
-        break;
-        case 'S': 
-          // status request
-          buildJsonString(wsLen); // required config number 
-          LOG_RAW("%s\n", jsonBuff);
-        break;
-        case 'U': 
-          // update or control request
-          memcpy(jsonBuff, wsMsg + 1, wsLen); // remove 'U'
-          parseJson(wsLen);
-        break;
-        case 'H': 
-          // browser keepalive heartbeat
-          heartBeatDone = true;
-        break;
-        case 'K': 
-          // kill websocket connection
-          killSocket();
-        break;
-        default:
-          LOG_WRN("unknown command %s", wsMsg);
-        break;
-      }
-    }
+    break;
+    case 'C': 
+      // control request
+      if (extractKeyVal(wsMsg + 1)) updateStatus(variable, value);
+    break;
+    case 'S': 
+      // status request
+      buildJsonString(wsLen); // required config number 
+      LOG_RAW("%s\n", jsonBuff);
+    break;
+    case 'U': 
+      // update or control request
+      memcpy(jsonBuff, wsMsg + 1, wsLen); // remove 'U'
+      parseJson(wsLen);
+    break;
+    case 'H': 
+      // browser keepalive heartbeat
+      heartBeatDone = true;
+    break;
+    case 'K': 
+      // kill websocket connection
+      killSocket();
+    break;
+    default:
+      if (!setPeripheral(cmd, controlVal, false)) LOG_WRN("unknown command %s", wsMsg);
+    break;
   }
 }
 
@@ -938,29 +938,19 @@ float readTemperature(bool isCelsius, bool onlyDS18) {
 }
 #endif
 
-void setInputPeripheral(uint8_t cmd, uint32_t controlVal) {
-  // set data on client for data received from auxiliary input peripheral
-  // not used
-  //if ((char)cmd == 'I') memcpy(&pirVal, &controlVal, sizeof(pirVal));  // set PIR status
-}
-
-int getInputPeripheral(uint8_t cmd) {
-  // auxiliary get data from input peripheral, for return to client
-  // not used
-  int inputVal = -1;
-  if ((char)cmd == 'I') {
-     // get PIR status
-    bool pirVal = getPIRval();
-    memcpy(&inputVal, &pirVal, sizeof(pirVal)); 
+void auxReceive(const uint8_t* payload, uint8_t length) {
+  // Receive payload from other device via UART
+  int controlVal = 0;
+  if (length == 1) {
+    // payload[0] identifies peripheral to read
+    controlVal = getPeripheral((char)payload[0]);
+    // return read value to client
+    clientRespond((char)payload[0], controlVal);
+  } else {
+    // payload[0] identifies peripheral to write
+    memcpy(&controlVal, payload + 1, sizeof(controlVal));
+    setPeripheral((char)payload[0], controlVal, true);
   }
-  return inputVal;
-}
-
-bool setOutputPeripheral(uint8_t cmd, uint32_t rxValue) {
-  // auxiliary sends data to output peripheral
-  int controlValue;
-  memcpy(&controlValue, &rxValue, sizeof(controlValue));
-  return setPeripheral((char)cmd, controlValue, true);
 }
 
 bool appDataFiles() {
@@ -1020,28 +1010,11 @@ static void stopRC() {
 #endif
 }
 
-#if INCLUDE_PERIPH
-static void heartBeatTask (void *pvParameter) {
-  // check on aux that ws and / or uart connection available
-  while (true) {
-    delay((heartbeatRC + 1) * 1000); // 1 sec more than browser heartbeat rate
-    if (!heartBeatDone) stopRC(); // stop RC as no heartbeat received
-    heartBeatDone = false;
-  }
-}
- 
-void startHeartbeat() {
-  // start heartbeat to check websocket and / or uart connectivity for RC control
-  if (RCactive || useUart) {
-    if (heartBeatHandle == NULL) xTaskCreateWithCaps(&heartBeatTask, "heartBeatTask", HB_STACK_SIZE, NULL, HB_PRI, &heartBeatHandle, STACK_MEM);
-  }
-}
-#endif
-
 #define EXT_NOCT_HOST "api.sunrise-sunset.org"
 #define EXT_NOCT_PATH "/json?lat=%0.6f&lng=%0.6f&formatted=0"
 
 void getNocturnal() {
+#ifndef AUXILIARY
   // Get length of current location night time in secs
   if (doGetExtIP) {  // needed for lat lon
     NetworkClientSecure hclient;
@@ -1064,6 +1037,7 @@ void getNocturnal() {
     }
   }
   if (deepSleepTimer) LOG_INF("Night time duration: %lu secs at Lat: %0.6f, Lon: %0.6f", deepSleepTimer, latLon[0], latLon[1]);
+#endif
 }
 
 void doAppPing(bool timeSynced) {
@@ -1073,7 +1047,9 @@ void doAppPing(bool timeSynced) {
   }
   if (checkAlarm()) {
     remoteServerReset();
+#ifndef AUXILIARY
     getExtIP();
+#endif
 #if INCLUDE_SMTP
     if (smtpUse) {
       emailCount = 0;
@@ -1140,6 +1116,7 @@ bool appSetup() {
  #if INCLUDE_MCPWM 
   prepMotors();
  #endif
+  stopRC();
 #endif
 #if INCLUDE_AUDIO
   prepAudio(); 
@@ -1152,9 +1129,6 @@ bool appSetup() {
  #if INCLUDE_TELEM
   prepTelemetry();
  #endif
-#endif
-#if INCLUDE_PERIPH
-  startHeartbeat();
 #endif
 #if INCLUDE_GPS
   prepGPS();

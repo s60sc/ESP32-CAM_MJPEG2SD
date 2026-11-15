@@ -125,6 +125,8 @@ char* buildAppJsonString(bool filter);
 bool updateAppStatus(const char* variable, const char* value, bool fromUser = true);
 
 // global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp etc
+void auxReceive(const uint8_t* payload, uint8_t length);
+void auxSend(const char cmd, int controlVal = 0, bool cmdOnly = true);
 void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
@@ -136,6 +138,7 @@ bool checkFreeStorage();
 bool checkI2Cdevice(const char* devName);
 void checkMemory(const char* source = "");
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx);
+void clientRespond(const char cmd, int controlVal);
 void debugMemory(const char* caller);
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
 void deleteFolderOrFile(const char* deleteThis);
@@ -144,6 +147,7 @@ void devSetup();
 void doAppPing(bool timeSynced);
 void doRestart(const char* restartStr);
 esp_err_t downloadFile(File& df, httpd_req_t* req);
+void dumpAllocs(const char* caller = "", uint32_t minSize = 4096);
 void emailAlert(const char* _subject, const char* _message);
 const char* encode64(const char* inp);
 const uint8_t* encode64chunk(const uint8_t* inp, int rem);
@@ -228,6 +232,8 @@ void stopPing();
 void syncToBrowser(uint32_t browserUTC);
 char* toCase(char *s, bool toLower = true);
 char* trim(char* str);
+void uartRxPayload(const uint8_t *payload, uint8_t length);
+bool uartTxPayload(const uint8_t *payload, uint8_t length);
 void updateAuthCache();
 bool updateConfigVect(const char* variable, int value);
 bool updateConfigVect(const char* variable, const char* value);
@@ -242,6 +248,7 @@ esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSendBinary(uint8_t* data, size_t len);
 bool wsAsyncSendJson(const char* dataType, const char* wsData);
 bool wsAsyncSendText(const char* wsData);
+
 // unified networking helpers (WiFi or Ethernet)
 bool startNetwork(bool firstcall = true);
 const char* netMacAddress();

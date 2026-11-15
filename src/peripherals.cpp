@@ -57,6 +57,8 @@ int ds18b20Pin; // if INCLUDE_DS18B20 true
 int voltPin; 
 
 // additional peripheral configuration
+bool pirVal = false;
+
 // configure for specific servo model, eg for SG90
 int servoMinAngle; // degrees
 int servoMaxAngle;
@@ -107,7 +109,13 @@ void setStickTimer(bool restartTimer, uint32_t interval);
 
 bool getPIRval() {
   // get PIR or radar sensor status 
-  return digitalRead(pirPin); 
+  if (pirUse) {
+    if (pirPin) {
+      pirVal = digitalRead(pirPin);
+      auxSend('I', pirVal, false); // send update to client
+    } else auxSend('I'); // request update from aux
+  }
+  return pirVal;
 }
 
 void buzzerAlert(bool buzzerOn) {
@@ -328,19 +336,23 @@ static void setupBatt() {
   }
 }
 
-
-
 void setLightsRC(bool lightsOn) {
-  // on / off RC light 
-  if (lightsRCpin > 0) digitalWrite(lightsRCpin, lightsOn);
+  // on / off RC light
+  if (lightsRCpin) {
+    pinMode(lightsRCpin, OUTPUT); 
+    digitalWrite(lightsRCpin, lightsOn);
+  }
+  else auxSend('L', (int)lightsOn, false); // send request update to aux
 }
 
 static void prepPIR() {
   if (pirUse) {
     if (pirPin) pinMode(pirPin, INPUT_PULLDOWN); // pulled high for active
     else {
-      pirUse = false;
-      LOG_WRN("No PIR pin defined");
+      if (!useUart) {
+        pirUse = false;
+        LOG_WRN("No PIR pin defined");
+      }
     }
   }
   if (relayPin) pinMode(relayPin, OUTPUT);
@@ -744,8 +756,36 @@ bool checkGeofence(bool isArmed) {
 
 #endif  // INCLUDE_GNSS
 
-/**************************** GNSS end ******************************/
+/************************ remote peripherals ************************/
 
+static void uartSend(const char cmd, int controlVal, bool cmdOnly) {
+#if INCLUDE_UART
+  if (useUart) {
+    // send peripheral command over uart
+    uint8_t payload[5];
+    memcpy(payload, &cmd, 1);
+    memcpy(payload + 1, &controlVal, 4);
+    uint8_t payloadLen = cmdOnly ? 1 : 5;
+    if (!uartTxPayload(payload, payloadLen)) LOG_WRN("Failed to send cmd %c over UART", cmd);
+  }
+#endif
+}
+
+void auxSend(const char cmd, int controlVal, bool cmdOnly) {
+  // client send peripheral request to aux
+#ifndef AUXILIARY
+  uartSend(cmd, controlVal, cmdOnly);
+#endif
+}
+
+void clientRespond(const char cmd, int controlVal) {
+  // aux send peripheral response to client
+#ifdef AUXILIARY
+  uartSend(cmd, controlVal, false);
+#endif
+}
+
+/************************* initialise *************************/
 
 void prepPeripherals() {
   // initial setup of each peripheral on client or auxiliary

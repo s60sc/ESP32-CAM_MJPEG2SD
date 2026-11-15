@@ -23,10 +23,10 @@
 
 #ifndef AUXILIARY
 #include "esp_camera.h"
-#include "camera_pins.h"
 #endif
+#include "camera_pins.h"
 
-#define APP_VER "10.10"
+#define APP_VER "10.10.2"
 #define CFG_VER 42 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false
@@ -56,7 +56,11 @@
 #define CAMERA_FB_COUNT 4 // keep enough camera buffers for capture plus active stream consumers
 #define FILE_NAME_LEN 64
 #define IN_FILE_NAME_LEN (FILE_NAME_LEN * 2)
+#ifdef AUXILIARY
+#define JSON_BUFF_LEN (8 * 1024)
+#else
 #define JSON_BUFF_LEN (32 * 1024) // set big enough to hold all file names in a folder
+#endif
 #define MAX_CONFIGS 230 // must be > number of entries in configs.txt
 #define MIN_RAM 8 // min object size stored in ram instead of PSRAM default is 4096
 #define MAX_RAM 4096 // max object size stored in ram instead of PSRAM default is 4096
@@ -192,7 +196,6 @@ float* getBMx280();
 float* getGNSSdata();
 float* getMPUdata();
 uint16_t getTofData(uint8_t whichI2C = 0);
-int getInputPeripheral(uint8_t cmd);
 mjpegStruct getNextFrame(bool firstCall = false);
 bool getPIRval();
 bool haveWavFile(bool isTL = false);
@@ -218,11 +221,9 @@ void setCamPan(int panVal);
 void setCamTilt(int tiltVal);
 uint8_t setFPS(uint8_t val);
 uint8_t setFPSlookup(uint8_t val);
-void setInputPeripheral(uint8_t cmd, uint32_t controlVal);
 void setLamp(DevStatus s, uint8_t lampVal);
 void setLamp(DevStatus s, Brightness b);
 void setLightsRC(bool lightsOn);
-bool setOutputPeripheral(uint8_t cmd, uint32_t rxValue);
 void setSteering(int steerVal);
 void setStepperPin(uint8_t pinNum, uint8_t pinPos);
 void setStickTimer(bool restartTimer, uint32_t interval = 0);
@@ -244,7 +245,6 @@ float* updateMPU9250data();
 size_t updateWavHeader();
 bool waitForFrame();
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL = false);
-bool writeUart(uint8_t cmd, uint32_t outputData);
 size_t writeWavFile(byte* clientBuf, size_t buffSize);
 
 #ifndef AUXILIARY
@@ -371,6 +371,7 @@ extern int lampPin; // if useLamp is true
 extern int lightsPin;
 extern bool teleUse;
 extern int srtInterval;
+extern bool pirVal;
 
 // Pan / Tilt Servos 
 extern int servoPanPin; 

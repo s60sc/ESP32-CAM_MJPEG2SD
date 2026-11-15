@@ -294,7 +294,7 @@ void startMqttClient(void){
 #if (INCLUDE_HASIO)
 void sendHasEntities (const char *name, const char *displayName, const char *units = "",
                       const char *icon = "", const char *category = "", const char *topic = "",
-                      const char *payload_on = "",const char *payload_off = ""){
+                      const char *payload_on = "",const char* payload_off = ""){
   char* p = jsonBuff;
   *p++ = '{';
   p += sprintf(p, "\"name\":\"%s\",", displayName);
