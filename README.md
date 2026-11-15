@@ -29,10 +29,9 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.10:
-* Improved logging
-* Improved LED driver
-* Resilience improvements by [JBarnaky](https://github.com/JBarnaky)
+Changes for version 10.10.2:
+* Improved logging, LED driver, UART
+* Resilience and streaming improvements by [JBarnaky](https://github.com/JBarnaky)
 
 ## Purpose
 

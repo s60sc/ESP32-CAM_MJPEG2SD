@@ -9,7 +9,9 @@
 
 void setup() {
   bool res = utilsStartup();
+#ifndef AUXILIARY
   if (res) initCam();
+#endif
   // connect network (WiFi or Ethernet per config) and start web server
   if (res && startNetwork()) {
     // start rest of services
