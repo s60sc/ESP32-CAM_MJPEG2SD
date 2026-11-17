@@ -16,6 +16,8 @@ OV5640 ov5640AF = OV5640();
 #error "Need to install OV5640_Auto_Focus_for_ESP32_Camera library"
 #endif
 #endif // INCLUDE_AF
+// Comment out to enable verbose hotpath logging for debugging; in production mode, it creates implicit latency per frame.
+#define DISABLE_HOT_PATH_LOGS
 
 // user parameters set from web
 bool useMotion = true; // whether to use camera for motion detection (with motionDetect.cpp)
@@ -363,7 +365,9 @@ static void saveFrame(camera_fb_t* fb) {
   }
   wTime = millis() - wTime;
   wTimeTot += wTime;
+#ifndef DISABLE_HOT_PATH_LOGS
   LOG_VRB("SD storage time %lu ms", wTime);
+#endif
   // whats left or small frame
   memcpy(iSDbuffer + highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
@@ -373,8 +377,10 @@ static void saveFrame(camera_fb_t* fb) {
   frameCnt++;
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
+#ifndef DISABLE_HOT_PATH_LOGS
   LOG_VRB("Frame processing time %lu ms", fTime);
   LOG_VRB("============================");
+#endif
 }
 
 static bool closeAvi() {
@@ -443,17 +449,17 @@ static bool closeAvi() {
       LOG_ALT("Recorded %s", aviFileName);
       LOG_INF("AVI duration: %lu secs", vidDurationSecs);
       LOG_INF("Number of frames: %u", frameCnt);
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(10));
       LOG_INF("Required FPS: %u", FPS);
       LOG_INF("Actual FPS: %0.1f", actualFPS);
       LOG_INF("File size: %s", fmtSize(vidSize));
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(10));
       if (frameCnt) {
         LOG_INF("Average frame length: %lu bytes", vidSize / frameCnt);
         LOG_INF("Average frame monitoring time: %lu ms", dTimeTot / frameCnt);
         LOG_INF("Average frame buffering time: %lu ms", fTimeTot / frameCnt);
         LOG_INF("Average frame storage time: %lu ms", wTimeTot / frameCnt);
-        delay(20);
+        vTaskDelay(pdMS_TO_TICKS(20));
       }
       LOG_INF("Average SD write speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("File open / completion times: %lu ms / %lu ms", oTime, cTime);
@@ -488,7 +494,7 @@ static bool closeAvi() {
     STORAGE.remove(AVITEMP);
     LOG_INF("Insufficient capture duration: %lu secs", vidDurationSecs);
   }
-  delay(50);
+  vTaskDelay(pdMS_TO_TICKS(50));
   LOG_CMD("#ER"); // notify browser of recording end
   return (vidDurationSecs >= minSeconds) ? true : false;
 }
@@ -758,11 +764,13 @@ static void readSD() {
   readLen = 0;
   if (!stopPlayback) {
     readLen = playbackFile.read(iSDbuffer + RAMSIZE + CHUNK_HDR, RAMSIZE);
+#ifndef DISABLE_HOT_PATH_LOGS
     LOG_VRB("SD read time %lu ms", millis() - rTime);
+#endif
   }
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready
-  delay(10);
+  vTaskDelay(pdMS_TO_TICKS(1)); // The semaphore (xSemaphoreGive) already manages synchronization. The big delay wastes CPU cycles.
 }
 
 
@@ -805,7 +813,9 @@ mjpegStruct getNextFrame(bool firstCall) {
     period = pdMS_TO_TICKS(recFPSinterval);
     lastWake = xTaskGetTickCount();
   }
+#ifndef DISABLE_HOT_PATH_LOGS
   LOG_VRB("http send time %lu ms", millis() - hTime);
+#endif
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
   if (!stopPlayback) {
@@ -817,12 +827,16 @@ mjpegStruct getNextFrame(bool firstCall) {
       memcpy(iSDbuffer, iSDbuffer + RAMSIZE, CHUNK_HDR);
       xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
       buffLen = readLen;
+  #ifndef DISABLE_HOT_PATH_LOGS
       LOG_VRB("SD wait time %lu ms", millis() - mTime);
+  #endif
       wTimeTot += millis() - mTime;
       mTime = millis();
       // overlap buffer by CHUNK_HDR to prevent jpeg marker being split between buffers
       memcpy(iSDbuffer + CHUNK_HDR, iSDbuffer + RAMSIZE + CHUNK_HDR, buffLen); // load new cluster from double buffer
+  #ifndef DISABLE_HOT_PATH_LOGS
       LOG_VRB("memcpy took %lu ms for %u bytes", millis() - mTime, buffLen);
+  #endif
       fTimeTot += millis() - mTime;
       remainingBuff = true;
       if (buffOffset > RAMSIZE) buffOffset = 4; // special case, marker overlaps end of buffer
@@ -853,7 +867,9 @@ mjpegStruct getNextFrame(bool firstCall) {
         mTime = millis();
         // wait for adjusted frame rate interval to continue
         vTaskDelayUntil(&lastWake, period);
+    #ifndef DISABLE_HOT_PATH_LOGS
         LOG_VRB("frame timer wait %lu ms", millis() - mTime);
+    #endif
         tTimeTot += millis() - mTime;
         frameCnt++;
         showProgress();
@@ -878,7 +894,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     LOG_INF("Recorded FPS %u, duration %lu secs", recFPS, recDuration);
     LOG_INF("Playback FPS %0.1f, duration %lu secs", (float)frameCnt / playDuration, playDuration);
     LOG_INF("Number of frames: %u", frameCnt);
-    delay(10);
+    vTaskDelay(pdMS_TO_TICKS(10));
     if (frameCnt) {
       LOG_INF("Average SD read speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("Average frame SD read time: %lu ms", wTimeTot / frameCnt);
@@ -886,7 +902,7 @@ mjpegStruct getNextFrame(bool firstCall) {
       LOG_INF("Average frame delay time: %lu ms", tTimeTot / frameCnt);
       LOG_INF("Average http send time: %lu ms", hTimeTot / frameCnt);
       LOG_INF("Busy: %lu%%", min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(10));
     }
     checkMemory();
     LOG_INF("*************************************\n");
@@ -894,7 +910,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     mjpegData.buffLen = mjpegData.buffOffset = 0; // signal end of jpeg
   }
   hTime = millis();
-  delay(1);
+  vTaskDelay(pdMS_TO_TICKS(1));
   return mjpegData;
 }
 
@@ -904,12 +920,12 @@ void stopPlaying(const char* reason) {
     stopPlayback = true;
     // wait till stopped cleanly, but prevent infinite loop
     uint32_t timeOut = millis();
-    while (doPlayback && millis() - timeOut < MAX_FRAME_WAIT) delay(10);
+    while (doPlayback && millis() - timeOut < MAX_FRAME_WAIT) vTaskDelay(pdMS_TO_TICKS(10));
     if (doPlayback) {
       // not yet closed, so force close
       doPlayback = false; // stop webserver playback
       xSemaphoreGive(readSemaphore);
-      delay(200);
+      vTaskDelay(pdMS_TO_TICKS(200));
     }
     logLine();
     LOG_INF("Playback stopped: %s", reason);
@@ -990,7 +1006,7 @@ bool waitForFrame() {
   // wait for kept frame to be available
   uint32_t startTime = millis();
   doKeepFrame = true;
-  while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) delay(100);
+  while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) vTaskDelay(pdMS_TO_TICKS(100));
   if (!doKeepFrame && alertBufferSize) return true;
   LOG_WRN("Unable to fetch image");
   return false;
@@ -1044,7 +1060,7 @@ void OTAprereq() {
   stopPing();
   endTasks();
   esp_camera_deinit();
-  delay(100);
+  vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 #ifdef CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
@@ -1059,7 +1075,7 @@ static bool camPower() {
     if (axp.begin() == 0) {
       axp.enableCameraPower(axp.eOV2640);
       return true;
-    } else delay(1000);
+    } else vTaskDelay(pdMS_TO_TICKS(1000));
   }
   LOG_ERR("Failed to power up camera");
   return false;
@@ -1079,7 +1095,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
   esp_err_t res = ESP_OK;
   // Deinitialize the existing LEDC configuration
   ledc_stop(LEDC_LOW_SPEED_MODE, config.ledc_channel, 0);
-  delay(5);
+  vTaskDelay(pdMS_TO_TICKS(5));
   // Configure the LEDC timer
   ledc_timer_config_t ledc_timer = {
     .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -1108,7 +1124,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
     LOG_ERR("Failed to configure channel %s", espErrMsg(res));
     return res;
   }
-  delay(200); // base on datasheet, it needs < 300 ms for configuration to settle in. we just put 200ms. it doesnt hurt.
+  vTaskDelay(pdMS_TO_TICKS(200)); // base on datasheet, it needs < 300 ms for configuration to settle in. we just put 200ms. it doesnt hurt.
   return res;
 }
 
