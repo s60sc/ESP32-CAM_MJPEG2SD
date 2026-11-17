@@ -28,6 +28,8 @@
 
 #define INACTIVE_COLOR 96 // color for inactive motion pixel
 #define JPEG_QUAL 80 // % quality for generated motion detect jpeg
+// Comment out to enable verbose hotpath logging for debugging; in production mode, it creates implicit latency per frame.
+#define DISABLE_HOT_PATH_LOGS
   
 // motion recording parameters
 bool dbgMotion = false;
@@ -706,9 +708,11 @@ static MotionAnalysisResult analyzeMotionFrame(
         if (motionJpegLen > 0) {
             xSemaphoreGive(motionSemaphore); // Signal consumer thread that new debug frame is ready
         }
+#ifndef DISABLE_HOT_PATH_LOGS
         LOG_VRB("Created changeMap JPEG %d bytes in %lums", 
                 (int)motionJpegLen, 
                 (unsigned long)(millis() - dTime)); // Log encoding duration
+#endif
     }
     
     return res; // Return populated analysis result
@@ -786,12 +790,12 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         rgbToGray(rgbBuf, sampleWidth, sampleHeight); 
     }
 #endif
-
+#ifndef DISABLE_HOT_PATH_LOGS
     LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", 
             colorDepth == RGB888_BYTES ? "color" : "grayscale", 
             (unsigned)(sampleWidth * sampleHeight * colorDepth), 
             (unsigned long)(millis() - dTime)); 
-  
+#endif
 #if INCLUDE_DRONE
     // perform optical flow processing in camDrone.cpp
     if (fsizePtr == 3 || fsizePtr == 17 || fsizePtr == 22) {
@@ -886,11 +890,12 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     }
 
     dTime = millis(); 
-    rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM, colorDepth); 
+    rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM, colorDepth);
+#ifndef DISABLE_HOT_PATH_LOGS
     LOG_VRB("Bitmap rescale to %u bytes in %lums", 
             (unsigned)currBuffSize, 
-            (unsigned long)(millis() - dTime)); 
-  
+            (unsigned long)(millis() - dTime));
+#endif
     if (!previousFrameValid || depthChanged) {
         memcpy(prevBuff, currBuff, currBuffSize);
         previousFrameValid = true;
@@ -910,13 +915,13 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     nightTime = isNight(nightSwitch); 
     
     std::swap(currBuff, prevBuff); // save image for next comparison
-    
+#ifndef DISABLE_HOT_PATH_LOGS
     LOG_VRB("Detected %u changes, threshold %u, light level %u, in %lums", 
             (unsigned)analysis.changeCount, 
             (unsigned)analysis.moveThreshold, 
             (unsigned)lightLevel, 
-            (unsigned long)(millis() - dTime)); 
-            
+            (unsigned long)(millis() - dTime));
+#endif
     if (lightLevelOnly) {
         return false; // no motion checking, only calc of light level
     }
@@ -925,11 +930,15 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         // normal motion detection
         dTime = millis(); 
         if (!nightTime && analysis.changeCount > analysis.moveThreshold) {
+#ifndef DISABLE_HOT_PATH_LOGS
             LOG_VRB("### Change detected");
+#endif
             motionCnt++; // number of consecutive changes
             // need minimum sequence of changes to signal valid movement
             if (!motionStatus && motionCnt >= detectMotionFrames) {
+#ifndef DISABLE_HOT_PATH_LOGS
                 LOG_VRB("***** Motion - START");
+#endif
                 motionStatus = true; // motion started
 #if INCLUDE_TINYML
                 // pass image to TinyML for classification
@@ -958,7 +967,9 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
   
         if (motionStatus && !motionCnt) {
             // insufficient change or motion not classified
+#ifndef DISABLE_HOT_PATH_LOGS
             LOG_VRB("***** Motion - STOP");
+#endif
             motionStatus = false; // motion stopped
 #if INCLUDE_MQTT
             if (mqtt_active) {
@@ -970,16 +981,18 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         } 
         
         if (motionStatus) {
-            LOG_VRB("*** Motion - ongoing %lu frames", (unsigned long)motionCnt); 
+#ifndef DISABLE_HOT_PATH_LOGS
+            LOG_VRB("*** Motion - ongoing %lu frames", (unsigned long)motionCnt);
+#endif
         }
     }
   
     if (dbgVerbose) {
         checkMemory(); 
     }
-    
+#ifndef DISABLE_HOT_PATH_LOGS
     LOG_VRB("============================"); 
-    
+#endif
     // motionStatus indicates whether motion previously ongoing or not
     return nightTime ? false : motionStatus; 
 }
