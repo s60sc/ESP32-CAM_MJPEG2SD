@@ -339,10 +339,34 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
 
 static void rgbToGray(uint8_t* buffer, int width, int height) {
   // convert rgb buffer to grayscale in place
-  for (int i = 0; i < width * height; ++i) {
-    int index = i * 3;
+  if (width <= 0 || height <= 0 || buffer == nullptr) {
+    return;
+  }
+
+  // Luminance coefficients for RGB. 
+  // They sum to 256, which allows division by 256 using a fast right shift (>> 8).
+  static constexpr uint8_t LUMINANCE_COEFF_R = 77;
+  static constexpr uint8_t LUMINANCE_COEFF_G = 150;
+  static constexpr uint8_t LUMINANCE_COEFF_B = 29;
+
+  size_t total_pixels = (size_t)width * (size_t)height;
+  size_t i = 0;
+
+  // Process 4 pixels at a time
+  for (; i + 3 < total_pixels; i += 4) {
+    size_t index = i * 3;
     // Calculate grayscale value using luminance formula
-    buffer[i] = (uint8_t)(((77 * buffer[index]) + (150 * buffer[index + 1]) + (29 * buffer[index + 2])) >> 8);
+    buffer[i]     = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index])     + (LUMINANCE_COEFF_G * buffer[index + 1]) + (LUMINANCE_COEFF_B * buffer[index + 2])) >> 8);
+    buffer[i + 1] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index + 3]) + (LUMINANCE_COEFF_G * buffer[index + 4]) + (LUMINANCE_COEFF_B * buffer[index + 5])) >> 8);
+    buffer[i + 2] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index + 6]) + (LUMINANCE_COEFF_G * buffer[index + 7]) + (LUMINANCE_COEFF_B * buffer[index + 8])) >> 8);
+    buffer[i + 3] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index + 9]) + (LUMINANCE_COEFF_G * buffer[index + 10]) + (LUMINANCE_COEFF_B * buffer[index + 11])) >> 8);
+  }
+
+  // Process remaining pixels
+  for (; i < total_pixels; ++i) {
+    size_t index = i * 3;
+    // Calculate grayscale value using luminance formula
+    buffer[i] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index]) + (LUMINANCE_COEFF_G * buffer[index + 1]) + (LUMINANCE_COEFF_B * buffer[index + 2])) >> 8);
   }
 }
 
