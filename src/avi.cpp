@@ -34,8 +34,8 @@ footer:
 */
 
 #include "appGlobals.h"
-
-#ifndef AUXILIARY
+// Set to 1 to omit trailing idx1 index (The code skips the final index write to the SD card. A shorter write time reduces the chance of file corruption if the power stops suddenly.)
+#define AVI_OMIT_INDEX 0
 
 // avi header data
 const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
@@ -50,7 +50,7 @@ uint8_t aviHeader[AVI_HEADER_LEN] = { // AVI header template
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4C, 0x49, 0x53, 0x54, 0x6C, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4C, 0x49, 0x53, 0x54, 0x6c, 0x00, 0x00, 0x00,
   0x73, 0x74, 0x72, 0x6C, 0x73, 0x74, 0x72, 0x68, 0x30, 0x00, 0x00, 0x00, 0x76, 0x69, 0x64, 0x73,
   0x4D, 0x4A, 0x50, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00,
@@ -114,24 +114,45 @@ bool haveSoundFile = false;
 
 void prepAviIndex(bool isTL) {
   // prep buffer to store index data, gets appended to end of file
-  if (idxBuf[isTL] == NULL) idxBuf[isTL] = (uint8_t*)ps_malloc((maxFrames+2)*IDX_ENTRY); // include space for header & audio index 
+#if !AVI_OMIT_INDEX
+  if (idxBuf[isTL] == NULL) {
+    idxBuf[isTL] = (uint8_t*)ps_malloc((maxFrames+2)*IDX_ENTRY); // include space for header & audio index 
+    // Critical Memory Safety: prevent system crash if PSRAM allocation fails
+    if (idxBuf[isTL] == NULL) {
+      LOG_ERR("PSRAM allocation failed for AVI index");
+      doRestart("PSRAM allocation failed for AVI index");
+    }
+  }
   memcpy(idxBuf[isTL], idx1Buf, 4); // index header
   idxPtr[isTL] = CHUNK_HDR;  // leave 4 bytes for index size
+#else
+  idxPtr[isTL] = 0; // Index omitted, pointer unused
+#endif
   moviSize[isTL] = indexLen[isTL] = 0;
   idxOffset[isTL] = 4; // 4 byte offset
 }
 
 void buildAviHdr(uint8_t FPS, uint8_t frameType, uint16_t frameCnt, bool isTL) {
   // update AVI header template with file specific details
+#if AVI_OMIT_INDEX
+  size_t aviSize = moviSize[isTL] + AVI_HEADER_LEN + ((haveSoundFile ? 1 : 0) * CHUNK_HDR);
+  uint32_t dataSize = moviSize[isTL] + ((frameCnt + (haveSoundFile ? 1 : 0)) * CHUNK_HDR);
+#else
   size_t aviSize = moviSize[isTL] + AVI_HEADER_LEN + ((CHUNK_HDR+IDX_ENTRY) * (frameCnt+(haveSoundFile?1:0))); // AVI content size 
+  uint32_t dataSize = moviSize[isTL] + ((frameCnt+(haveSoundFile?1:0)) * CHUNK_HDR) + 4; 
+#endif
+
   // update aviHeader with relevant stats
   memcpy(aviHeader+4, &aviSize, 4);
-  uint32_t usecs = (uint32_t)roundf(1000000.0f / FPS); // usecs_per_frame 
+  
+  // Calculate usecs per frame using integer arithmetic to avoid floating-point overhead.
+  // Adds FPS/2 to achieve rounding to the nearest integer. Guards against FPS == 0.
+  uint32_t usecs = (FPS == 0) ? 0 : (1000000U + (FPS / 2U)) / FPS; 
   memcpy(aviHeader+0x20, &usecs, 4); 
+  
   memcpy(aviHeader+0x30, &frameCnt, 2);
   memcpy(aviHeader+0x8C, &frameCnt, 2);
   memcpy(aviHeader+0x84, &FPS, 1);
-  uint32_t dataSize = moviSize[isTL] + ((frameCnt+(haveSoundFile?1:0)) * CHUNK_HDR) + 4; 
   memcpy(aviHeader+0x12E, &dataSize, 4); // data size 
 
   // apply video framesize to avi header
@@ -166,6 +187,12 @@ void buildAviIdx(size_t dataSize, bool isVid, bool isTL) {
   // build AVI video index into buffer - 16 bytes per frame
   // called from saveFrame() for each frame
   moviSize[isTL] += dataSize;
+#if !AVI_OMIT_INDEX
+  // Critical Memory Safety: null-pointer check to prevent crash if allocation failed
+  if (idxBuf[isTL] == NULL) {
+    LOG_ERR("AVI index buffer is NULL, skipping index build");
+    return;
+  }
   if (idxPtr[isTL] + IDX_ENTRY > (maxFrames+2)*IDX_ENTRY) doRestart("Need to reboot if max frames changed");
   if (isVid) memcpy(idxBuf[isTL]+idxPtr[isTL], dcBuf, 4);
   else memcpy(idxBuf[isTL]+idxPtr[isTL], wbBuf, 4);
@@ -174,11 +201,18 @@ void buildAviIdx(size_t dataSize, bool isVid, bool isTL) {
   memcpy(idxBuf[isTL]+idxPtr[isTL]+12, &dataSize, 4); 
   idxOffset[isTL] += dataSize + CHUNK_HDR;
   idxPtr[isTL] += IDX_ENTRY; 
+#endif
 }
 
 size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL) {
   // write completed index to avi file
   // called repeatedly from closeAvi() until return 0
+#if AVI_OMIT_INDEX
+  (void)clientBuf;
+  (void)buffSize;
+  (void)isTL;
+  return 0;
+#else
   if (idxPtr[isTL] < indexLen[isTL]) {
     if (indexLen[isTL]-idxPtr[isTL] > buffSize) {
       memcpy(clientBuf, idxBuf[isTL]+idxPtr[isTL], buffSize);
@@ -193,14 +227,21 @@ size_t writeAviIndex(byte* clientBuf, size_t buffSize, bool isTL) {
     }
   }
   return idxPtr[isTL] = 0;
+#endif
 }
   
 void finalizeAviIndex(uint16_t frameCnt, bool isTL) {
   // update index with size
+#if !AVI_OMIT_INDEX
   uint32_t sizeOfIndex = (frameCnt+(haveSoundFile?1:0))*IDX_ENTRY;
   memcpy(idxBuf[isTL]+4, &sizeOfIndex, 4); // size of index 
   indexLen[isTL] = sizeOfIndex + CHUNK_HDR;
   idxPtr[isTL] = 0; // pointer to index buffer
+#else
+  (void)frameCnt;
+  (void)isTL;
+  indexLen[isTL] = 0;
+#endif
 }
 
 bool haveWavFile(bool isTL) {
@@ -213,12 +254,23 @@ bool haveWavFile(bool isTL) {
   // open it and get its size
   wavFile = STORAGE.open(WAVTEMP, FILE_READ);
   if (wavFile) {
-    // add sound file index
-    audSize = wavFile.size() - WAV_HDR_LEN;
-    buildAviIdx(audSize, false); 
-    // add sound file header    
-    wavFile.seek(WAV_HDR_LEN, SeekSet); // skip over header
-    haveSoundFile = true;
+    size_t fileSize = wavFile.size();
+    // Integer Underflow Prevention: ensure file is larger than header before subtraction
+    if (fileSize > WAV_HDR_LEN) {
+      // add sound file index
+      audSize = fileSize - WAV_HDR_LEN;
+#if !AVI_OMIT_INDEX
+      buildAviIdx(audSize, false, isTL); // Defect fix: added missing isTL argument
+#endif
+      // add sound file header    
+      wavFile.seek(WAV_HDR_LEN, SeekSet); // skip over header
+      haveSoundFile = true;
+    } else {
+      // File is too small to contain valid audio data, clean up
+      LOG_WRN("WAV file too small, discarding");
+      wavFile.close();
+      STORAGE.remove(WAVTEMP);
+    }
   } 
 #endif
   return haveSoundFile;
@@ -228,6 +280,13 @@ size_t writeWavFile(byte* clientBuf, size_t buffSize) {
   // read in wav file and write to avi file
   // called repeatedly from closeAvi() until return 0
   static size_t offsetWav = CHUNK_HDR;
+  
+  // Buffer Overflow Prevention: ensure buffSize is large enough for the chunk header
+  if (buffSize < CHUNK_HDR) {
+    LOG_ERR("Buffer too small for WAV chunk header");
+    return 0; 
+  }
+
   if (offsetWav) {
     // add sound file header
     memcpy(clientBuf, wbBuf, 4);
@@ -242,6 +301,3 @@ size_t writeWavFile(byte* clientBuf, size_t buffSize) {
   offsetWav = CHUNK_HDR;
   return 0;
 }
-
-#endif // AUXILIARY
-
