@@ -39,8 +39,9 @@ struct httpd_sustain_req_t {
   bool inUse = false; 
 };
 httpd_sustain_req_t sustainReq[MAX_STREAMS];
+
 // Event-driven wait semaphores to replace fixed delay polling loops
-static SemaphoreHandle_t audioReadySemaphore = NULL;
+SemaphoreHandle_t audioReadySemaphore = NULL;
 static SemaphoreHandle_t streamStopSemaphore[MAX_STREAMS] = {NULL};
 static SemaphoreHandle_t taskFreeSemaphore[MAX_STREAMS] = {NULL};
 
@@ -182,7 +183,8 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
         // Keep the frame notification pending until the motion JPEG is ready.
         xSemaphoreGive(frameSemaphore[taskNum]);
-        vTaskDelay(pdMS_TO_TICKS(1)); // Safe minimal yield to prevent tight loop, not an arbitrary delay
+        // Safe minimal yield to prevent tight loop, not an arbitrary delay
+        vTaskDelay(pdMS_TO_TICKS(1));
         continue;
       }
       
@@ -191,7 +193,8 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       if (!jpgLen) {
         xSemaphoreGive(motionSemaphore);
         xSemaphoreGive(frameSemaphore[taskNum]);
-        vTaskDelay(pdMS_TO_TICKS(1)); // Safe minimal yield to prevent tight loop, not an arbitrary delay
+        // Safe minimal yield to prevent tight loop
+        vTaskDelay(pdMS_TO_TICKS(1));
         continue;
       }
       jpgBuf = motionJpeg;
@@ -341,6 +344,7 @@ static void srtStream(httpd_req_t* req, uint8_t taskNum) {
 void stopSustainTask(int taskId) {
   isStreaming[taskId] = false;
   if (taskId < vidStreams && frameSemaphore[taskId] != NULL) xSemaphoreGive(frameSemaphore[taskId]);
+  
   // Wake up any task waiting on stream stop or task free
   if (taskId < MAX_STREAMS) {
     if (streamStopSemaphore[taskId] != NULL) xSemaphoreGive(streamStopSemaphore[taskId]);
@@ -373,8 +377,8 @@ static void sustainTask(void* p) {
     else if (i == 3) srtStream(sustainReq[i].req, i);
     // cleanup as request now complete on return
     if (httpd_req_async_handler_complete(sustainReq[i].req) != ESP_OK) LOG_ERR("Failed to free req for sustain task: %i", i);
-    sustainReq[i].inUse = false;
-	// Notify any waiting handler that the task is now free
+    sustainReq[i].inUse = false; 
+    // Notify any waiting handler that the task is now free
     if (taskFreeSemaphore[i] != NULL) xSemaphoreGive(taskFreeSemaphore[i]);
   }
   vTaskDelete(NULL);
@@ -389,7 +393,7 @@ void startSustainTasks() {
     LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
     numStreams = MAX_STREAMS;
   }
-	  
+  
   // Initialize event-driven wait semaphores
   for (int i = 0; i < MAX_STREAMS; i++) {
     if (streamStopSemaphore[i] == NULL) streamStopSemaphore[i] = xSemaphoreCreateBinary();
