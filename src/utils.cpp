@@ -411,37 +411,83 @@ float readInternalTemp() {
 
 /****************** base 64 ******************/
 
-#define BASE64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+// Optimal Base64 Lookup Table
+// - constexpr: Evaluated at compile-time, placed in .rodata (Flash), no RAM usage.
+// - uint8_t: Matches the destination buffer type exactly, preventing implicit conversions.
+// - [64]: Exact size for 6-bit indices (0-63). No wasted null-terminator byte.
+constexpr uint8_t BASE64_LUT[64] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+    'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
+};
 
-const uint8_t* encode64chunk(const uint8_t* inp, int rem) {
-  // receive 3 byte input buffer and return 4 byte base64 buffer
-  rem = 3 - rem; // last chunk may be less than 3 bytes 
-  uint32_t buff = 0; // hold 3 bytes as shifted 24 bits
-  static uint8_t b64[4];
-  // shift input into buffer
-  for (int i = 0; i < 3 - rem; i++) buff |= inp[i] << (8*(2-i)); 
-  // shift 6 bit output from buffer and encode
-  for (int i = 0; i < 4 - rem; i++) b64[i] = BASE64[buff >> (6*(3-i)) & 0x3F]; 
-  // filler for last chunk if less than 3 bytes
-  for (int i = 0; i < rem; i++) b64[3-i] = '='; 
+const uint8_t* encode64chunk(const uint8_t* inp, size_t valid_bytes) {
+  // Receive up to 3 bytes of input and return a 4-byte base64 buffer.
+  // valid_bytes must be 1, 2, or 3.
+  const size_t missing_bytes = 3 - valid_bytes;
+  thread_local static uint8_t b64[4]; // Thread-local to prevent race conditions
+  uint32_t buff = 0; // Hold up to 3 bytes as shifted 24 bits
+
+  // Unrolled shift input into buffer for maximum performance
+  if (valid_bytes > 0) {
+    buff |= ((uint32_t)inp[0]) << 16;
+  }
+  if (valid_bytes > 1) {
+    buff |= ((uint32_t)inp[1]) << 8;
+  }
+  if (valid_bytes > 2) {
+    buff |= ((uint32_t)inp[2]);
+  }
+
+  // Unrolled 6-bit output extraction and encoding
+  b64[0] = BASE64_LUT[(buff >> 18) & 0x3F];
+  b64[1] = BASE64_LUT[(buff >> 12) & 0x3F];
+  b64[2] = BASE64_LUT[(buff >> 6) & 0x3F];
+  b64[3] = BASE64_LUT[buff & 0x3F];
+
+  // Filler for last chunk if less than 3 valid bytes
+  if (missing_bytes > 0) {
+    b64[3] = '=';
+  }
+  if (missing_bytes > 1) {
+    b64[2] = '=';
+  }
+
   return b64;
 }
 
 const char* encode64(const char* inp) {
-  // helper to base64 encode strings up to 90 chars long
-  static char encoded[121]; // space for 4/3 expansion + terminator
-  encoded[0] = 0;
-  int len = strlen(inp);
+  // Helper to base64 encode strings up to 90 chars long.
+  thread_local static char encoded[121]; // Thread-safe space for 4/3 expansion + terminator
+  encoded[0] = '\0';
+  
+  if (inp == nullptr) {
+    return encoded;
+  }
+
+  size_t len = strlen(inp);
   if (len > 90) {
-    LOG_WRN("Input string too long: %u chars", len);
+    LOG_WRN("Input string too long: %zu chars", len);
     len = 90;
   }
-  int outLen = 0;
-  for (int i = 0; i < len; i += 3) {
-    memcpy(encoded + outLen, encode64chunk((uint8_t*)inp + i, min(len - i, 3)), 4);
+
+  size_t outLen = 0;
+  for (size_t i = 0; i < len; i += 3) {
+    // Calculate valid bytes for this chunk (1, 2, or 3)
+    size_t valid_bytes = (len - i < 3) ? (len - i) : 3;
+    
+    // Copy 4 bytes from the chunk result
+    const uint8_t* chunk = encode64chunk((const uint8_t*)inp + i, valid_bytes);
+    encoded[outLen]     = (char)chunk[0];
+    encoded[outLen + 1] = (char)chunk[1];
+    encoded[outLen + 2] = (char)chunk[2];
+    encoded[outLen + 3] = (char)chunk[3];
+    
     outLen += 4;
   }
-  encoded[outLen] = 0;  
+  
+  encoded[outLen] = '\0';  
   return encoded;
 }
 
