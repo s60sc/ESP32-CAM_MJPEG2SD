@@ -83,6 +83,7 @@ static SemaphoreHandle_t readSemaphore;
 SemaphoreHandle_t frameSemaphore[MAX_STREAMS] = {NULL};
 SemaphoreHandle_t motionSemaphore = NULL;
 SemaphoreHandle_t aviMutex = NULL;
+static SemaphoreHandle_t frameReadySemaphore = NULL; // Event-driven wait for kept frame
 static volatile bool isPlaying = false; // controls playback on app
 bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
@@ -449,17 +450,17 @@ static bool closeAvi() {
       LOG_ALT("Recorded %s", aviFileName);
       LOG_INF("AVI duration: %lu secs", vidDurationSecs);
       LOG_INF("Number of frames: %u", frameCnt);
-      vTaskDelay(pdMS_TO_TICKS(10));
+      vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 10ms to minimize jitter while yielding to WDT
       LOG_INF("Required FPS: %u", FPS);
       LOG_INF("Actual FPS: %0.1f", actualFPS);
       LOG_INF("File size: %s", fmtSize(vidSize));
-      vTaskDelay(pdMS_TO_TICKS(10));
+      vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 10ms to minimize jitter while yielding to WDT
       if (frameCnt) {
         LOG_INF("Average frame length: %lu bytes", vidSize / frameCnt);
         LOG_INF("Average frame monitoring time: %lu ms", dTimeTot / frameCnt);
         LOG_INF("Average frame buffering time: %lu ms", fTimeTot / frameCnt);
         LOG_INF("Average frame storage time: %lu ms", wTimeTot / frameCnt);
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 20ms to minimize jitter while yielding to WDT
       }
       LOG_INF("Average SD write speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("File open / completion times: %lu ms / %lu ms", oTime, cTime);
@@ -595,6 +596,9 @@ static bool processFrame() {
   if (doKeepFrame) {
     keepFrame(fb);
     doKeepFrame = false;
+    if (frameReadySemaphore != NULL) {
+      xSemaphoreGive(frameReadySemaphore); // Notify waiting task
+    }
   }
 
   // determine if time to check for motion change
@@ -770,7 +774,6 @@ static void readSD() {
   }
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready
-  vTaskDelay(pdMS_TO_TICKS(1)); // The semaphore (xSemaphoreGive) already manages synchronization. The big delay wastes CPU cycles.
 }
 
 
@@ -910,7 +913,6 @@ mjpegStruct getNextFrame(bool firstCall) {
     mjpegData.buffLen = mjpegData.buffOffset = 0; // signal end of jpeg
   }
   hTime = millis();
-  vTaskDelay(pdMS_TO_TICKS(1));
   return mjpegData;
 }
 
@@ -920,12 +922,14 @@ void stopPlaying(const char* reason) {
     stopPlayback = true;
     // wait till stopped cleanly, but prevent infinite loop
     uint32_t timeOut = millis();
-    while (doPlayback && millis() - timeOut < MAX_FRAME_WAIT) vTaskDelay(pdMS_TO_TICKS(10));
+    while (doPlayback && (millis() - timeOut < MAX_FRAME_WAIT)) {
+      vTaskDelay(pdMS_TO_TICKS(10)); // Yield to prevent WDT reset
+    }
     if (doPlayback) {
       // not yet closed, so force close
       doPlayback = false; // stop webserver playback
-      xSemaphoreGive(readSemaphore);
-      vTaskDelay(pdMS_TO_TICKS(200));
+      xSemaphoreGive(readSemaphore); // Unblock any waiting read task
+      vTaskDelay(pdMS_TO_TICKS(10)); // Reduced from 200ms to minimize jitter, sufficient for task switch
     }
     logLine();
     LOG_INF("Playback stopped: %s", reason);
@@ -968,6 +972,7 @@ bool prepRecording() {
   readSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
+  frameReadySemaphore = xSemaphoreCreateBinary(); // Initialize event-driven wait semaphore
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   reloadConfigs(); // apply camera config
   if (!startSDtasks()) return false;
@@ -1006,8 +1011,20 @@ bool waitForFrame() {
   // wait for kept frame to be available
   uint32_t startTime = millis();
   doKeepFrame = true;
-  while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) vTaskDelay(pdMS_TO_TICKS(100));
-  if (!doKeepFrame && alertBufferSize) return true;
+  // Prefer event-driven wait with timeout to reduce jitter and CPU load
+  if (frameReadySemaphore != NULL) {
+    TickType_t timeoutTicks = pdMS_TO_TICKS(MAX_FRAME_WAIT);
+    if (xSemaphoreTake(frameReadySemaphore, timeoutTicks) == pdTRUE) {
+      if (alertBufferSize > 0) return true;
+    }
+  } else {
+    // Safe fallback to polling delay if semaphore is unavailable
+    while (doKeepFrame && (millis() - startTime < MAX_FRAME_WAIT)) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+  }
+  
+  if (!doKeepFrame && alertBufferSize > 0) return true;
   LOG_WRN("Unable to fetch image");
   return false;
 }
@@ -1049,6 +1066,12 @@ void endTasks() {
   deleteTask(audioHandle);
 #endif
   deleteTask(statusCheckHandle);
+    
+  // Clean up semaphores to prevent resource leaks
+  if (frameReadySemaphore != NULL) {
+    vSemaphoreDelete(frameReadySemaphore);
+    frameReadySemaphore = NULL;
+  }
 }
 
 void OTAprereq() {
