@@ -16,8 +16,6 @@ OV5640 ov5640AF = OV5640();
 #error "Need to install OV5640_Auto_Focus_for_ESP32_Camera library"
 #endif
 #endif // INCLUDE_AF
-// Comment out to enable verbose hotpath logging for debugging; in production mode, it creates implicit latency per frame.
-#define DISABLE_HOT_PATH_LOGS
 
 // user parameters set from web
 bool useMotion = true; // whether to use camera for motion detection (with motionDetect.cpp)
@@ -366,9 +364,7 @@ static void saveFrame(camera_fb_t* fb) {
   }
   wTime = millis() - wTime;
   wTimeTot += wTime;
-#ifndef DISABLE_HOT_PATH_LOGS
   LOG_VRB("SD storage time %lu ms", wTime);
-#endif
   // whats left or small frame
   memcpy(iSDbuffer + highPoint, fb->buf + jpegSize - jpegRemain, jpegRemain);
   highPoint += jpegRemain;
@@ -378,10 +374,8 @@ static void saveFrame(camera_fb_t* fb) {
   frameCnt++;
   fTime = millis() - fTime - wTime;
   fTimeTot += fTime;
-#ifndef DISABLE_HOT_PATH_LOGS
   LOG_VRB("Frame processing time %lu ms", fTime);
   LOG_VRB("============================");
-#endif
 }
 
 static bool closeAvi() {
@@ -768,9 +762,7 @@ static void readSD() {
   readLen = 0;
   if (!stopPlayback) {
     readLen = playbackFile.read(iSDbuffer + RAMSIZE + CHUNK_HDR, RAMSIZE);
-#ifndef DISABLE_HOT_PATH_LOGS
     LOG_VRB("SD read time %lu ms", millis() - rTime);
-#endif
   }
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready
@@ -816,9 +808,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     period = pdMS_TO_TICKS(recFPSinterval);
     lastWake = xTaskGetTickCount();
   }
-#ifndef DISABLE_HOT_PATH_LOGS
   LOG_VRB("http send time %lu ms", millis() - hTime);
-#endif
   hTimeTot += millis() - hTime;
   uint32_t mTime = millis();
   if (!stopPlayback) {
@@ -830,16 +820,12 @@ mjpegStruct getNextFrame(bool firstCall) {
       memcpy(iSDbuffer, iSDbuffer + RAMSIZE, CHUNK_HDR);
       xSemaphoreTake(readSemaphore, portMAX_DELAY); // wait for read from SD card completed
       buffLen = readLen;
-  #ifndef DISABLE_HOT_PATH_LOGS
       LOG_VRB("SD wait time %lu ms", millis() - mTime);
-  #endif
       wTimeTot += millis() - mTime;
       mTime = millis();
       // overlap buffer by CHUNK_HDR to prevent jpeg marker being split between buffers
       memcpy(iSDbuffer + CHUNK_HDR, iSDbuffer + RAMSIZE + CHUNK_HDR, buffLen); // load new cluster from double buffer
-  #ifndef DISABLE_HOT_PATH_LOGS
       LOG_VRB("memcpy took %lu ms for %u bytes", millis() - mTime, buffLen);
-  #endif
       fTimeTot += millis() - mTime;
       remainingBuff = true;
       if (buffOffset > RAMSIZE) buffOffset = 4; // special case, marker overlaps end of buffer
@@ -870,9 +856,7 @@ mjpegStruct getNextFrame(bool firstCall) {
         mTime = millis();
         // wait for adjusted frame rate interval to continue
         vTaskDelayUntil(&lastWake, period);
-    #ifndef DISABLE_HOT_PATH_LOGS
         LOG_VRB("frame timer wait %lu ms", millis() - mTime);
-    #endif
         tTimeTot += millis() - mTime;
         frameCnt++;
         showProgress();
