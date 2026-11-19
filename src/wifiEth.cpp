@@ -333,7 +333,6 @@ static bool wifiEventHandlerRegistered = false;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-// Initializes and manages Wi-Fi (STA/AP), returning true if STA connects successfully.
 // Initializes and manages Wi-Fi (STA/AP), returning true if STA connects successfully or AP starts.
 static bool startWifi(bool firstcall = true) { // firstcall: true on initial invocation to apply one-time HW config.
   // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
@@ -558,6 +557,10 @@ static bool waitForNetworkConnection(uint32_t timeoutMs) {
 
 bool startNetwork(bool firstcall) {
   // start WiFi, Ethernet, Eth+AP by config
+#if defined(AUXILIARY) && INCLUDE_DRONE
+// wifi off to maximise cpu and memory for drone control
+  bool res = true;
+#else
   bool res = false;
   if (firstcall) Network.onEvent(onNetEvent);
   
@@ -632,6 +635,8 @@ bool startNetwork(bool firstcall) {
   if (webServerReady) {
     runStatusCheck();
     res = true;
+	sntp_set_time_sync_notification_cb(timeSyncCallback);
+    configTzTime(timezone, ntpServer);
   } else {
     snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to complete network setup");
     LOG_WRN("%s", startupFailure);
@@ -655,8 +660,9 @@ bool startNetwork(bool firstcall) {
   
   if (res) {
     getExtIP();
+	LOG_INF("MAC Addr: %s", netMacAddress());
   }
-  
+#endif // AUXILIARY
   return res;
 }
 
