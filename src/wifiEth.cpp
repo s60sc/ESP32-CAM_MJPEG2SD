@@ -334,11 +334,12 @@ static bool wifiEventHandlerRegistered = false;
 #define WIFI_FAIL_BIT      BIT1
 
 // Initializes and manages Wi-Fi (STA/AP), returning true if STA connects successfully.
+// Initializes and manages Wi-Fi (STA/AP), returning true if STA connects successfully or AP starts.
 static bool startWifi(bool firstcall = true) { // firstcall: true on initial invocation to apply one-time HW config.
   // Apply one-time Wi-Fi hardware configuration and suppress default behaviors.
   if (firstcall) {
     WiFi.mode(WIFI_AP_STA); // Enable concurrent Station and Access Point modes.
-    vTaskDelay(1); // Yield to allow Wi-Fi driver task to process initialization.
+    vTaskDelay(pdMS_TO_TICKS(1)); // Yield to allow Wi-Fi driver task to process initialization.
     // Configure Access Point (AP) bandwidth to 20 MHz (HT20) for connection stability
     esp_err_t err_ap = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20); // Options: WIFI_BW_HT20 - 72.2 Mbps, maximum stability; WIFI_BW_HT40 - 150 Mbps, higher throughput(NA due to hardware limitations).
     if (err_ap == ESP_OK) {
@@ -362,7 +363,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
     WiFi.AP.clear();
     WiFi.AP.end(); // Terminate residual AP state from previous runs.
     WiFi.STA.setHostname(hostName); // Assign custom hostname for DHCP/DNS resolution.
-    vTaskDelay(1); // Yield to allow Wi-Fi driver task to process initialization.
+    vTaskDelay(pdMS_TO_TICKS(1)); // Yield to allow Wi-Fi driver task to process initialization.
   }
 
   bool localAllowAP = allowAP;
@@ -483,13 +484,28 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
     }
   }
 
+  bool apStarted = false;
   // Fallback to AP mode if STA connection failed or AP is explicitly allowed.
   if (localAllowAP ||
     wlStat == WL_NO_SSID_AVAIL ||
     wlStat == WL_CONNECT_FAILED ||
     wlStat == WL_DISCONNECTED ||
     wlStat == WL_IDLE_STATUS) {
+    
     setWifiAP(); // Configure and start Access Point for provisioning or fallback access.
+    
+    // Fix Silent Initialization Failure: Verify AP actually started and has an IP.
+    // This prevents waiting indefinitely for an IP that will never arrive if WiFi.softAP() fails.
+    if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+      if (WiFi.softAPIP() != IPAddress(0, 0, 0, 0)) {
+        apStarted = true;
+        APstarted = true; // Ensure global state reflects success
+      } else {
+        LOG_WRN("WiFi AP start failed: No IP assigned");
+      }
+    } else {
+      LOG_WRN("WiFi AP start failed: Mode not set to AP");
+    }
   }
   
   // Start mDNS only on the ESP32-S3 and only if the Station obtained a valid IP address.
@@ -507,7 +523,7 @@ static bool startWifi(bool firstcall = true) { // firstcall: true on initial inv
   }
   
   // Return true only if Station mode achieved a connected state or AP available
-  return (wlStat == WL_CONNECTED || APstarted);
+  return (wlStat == WL_CONNECTED || apStarted);
 }
 
 static void timeSyncCallback(struct timeval *tv) {
@@ -516,15 +532,41 @@ static void timeSyncCallback(struct timeval *tv) {
   timeSynchronized = true;
 }
 
+// Helper to wait for network interface to become ready (synchronous barrier)
+static bool waitForNetworkConnection(uint32_t timeoutMs) {
+  uint32_t startWait = millis();
+  while (millis() - startWait < timeoutMs) {
+    // Check Ethernet first if it was attempted
+    if (netMode > 0 && ETH.linkUp() && ETH.localIP() != IPAddress(0, 0, 0, 0)) {
+      return true;
+    }
+    // Check WiFi STA
+    if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
+      return true;
+    }
+    // Check WiFi AP (Network is ready as soon as AP is started and has an IP)
+    if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+      if (WiFi.softAPIP() != IPAddress(0, 0, 0, 0)) {
+        return true;
+      }
+    }
+    // Yield to FreeRTOS scheduler, prevent watchdog trigger
+    vTaskDelay(pdMS_TO_TICKS(100)); 
+  }
+  return false;
+}
+
 bool startNetwork(bool firstcall) {
   // start WiFi, Ethernet, Eth+AP by config
-#if defined(AUXILIARY) && INCLUDE_DRONE
-// wifi off to maximise cpu and memory for drone control
-  bool res = true;
-#else
   bool res = false;
   if (firstcall) Network.onEvent(onNetEvent);
-  predefEthPins();
+  
+  // Anti-pattern fix: Only configure Ethernet pins if Ethernet is actually requested
+  if (netMode > 0) {
+    predefEthPins();
+  }
+
+  bool networkReady = false;
   if (netMode > 0) {
     // Ethernet or Eth+AP
     if (startEth(firstcall)) {
@@ -534,38 +576,87 @@ bool startNetwork(bool firstcall) {
 #ifdef APP_BT_ENABLED
         if (btStarted()) btStop();
 #endif
-        res = true;
+        networkReady = true;
       }
     } else {
       LOG_WRN("Ethernet start failed, falling back to WiFi");
-      ETH.end();
-      WiFi.AP.enableNAPT(false);
+      // Anti-pattern fix: Safe fallback mutation. Only end ETH if it was partially started.
+      // Note: ETH.end() is generally safe to call, but we reset netMode to prevent further Eth logic.
+      ETH.end(); 
       netMode = 0;
+      
+      // Anti-pattern fix: Only disable NAPT if WiFi AP mode is currently active
+      if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+        WiFi.AP.enableNAPT(false);
+      }
     }
   }
+  
   // Wifi only / Eth fail / Eth + AP
   if (netMode == 2) {
     WiFi.AP.enableNAPT(true);
     allowAP = true;
   }
+  
   // connect wifi STA, or AP if router details not available
-  if (!res) res = startWifi(firstcall);
-  if (res) {  
-    sntp_set_time_sync_notification_cb(timeSyncCallback);
-    configTzTime(timezone, ntpServer);
+  if (!networkReady) {
+    // Capture return value: startWifi returns true if STA connects OR AP starts successfully
+    networkReady = startWifi(firstcall);
+    if (!networkReady) {
+      LOG_WRN("WiFi initialization failed (STA disconnected and AP failed to start)");
+    }
   }
-  if (res) runStatusCheck();
-  else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to complete network setup");
-  if (res) {
-    res = startWebServer();
+  
+  // Anti-pattern fix: Enforce synchronous network readiness before starting dependent services
+  if (networkReady) {
+    const uint32_t networkTimeoutMs = 15000; // 15 seconds to acquire IP
+    networkReady = waitForNetworkConnection(networkTimeoutMs);
+    if (!networkReady) {
+      LOG_WRN("Network connection timeout");
+    }
+  }
+
+  // Web server start is a critical step for overall success
+  bool webServerReady = false;
+  bool isAPMode = (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA);
+  
+  // Always enable the web server when in WiFi Access Point mode
+  if (networkReady || isAPMode) {
+    webServerReady = startWebServer();
+  }
+  
 #ifdef DEV_ONLY
-    devCheck();
+  devCheck();
 #endif
-    while(!dataFilesChecked) delay (1000);
-    getExtIP();
-    LOG_INF("MAC Addr: %s", netMacAddress());
+  
+  if (webServerReady) {
+    runStatusCheck();
+    res = true;
+  } else {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to complete network setup");
+    LOG_WRN("%s", startupFailure);
+    res = false; // Preserve original behavior: failure here fails the whole function
   }
-#endif // AUXILIARY
+  
+  if (res) {
+    // Prevent infinite loop and watchdog reset by adding a bounded timeout
+    const uint32_t maxWaitMs = 30000; // 30 seconds maximum wait time
+    uint32_t startWait = millis();
+    while (!dataFilesChecked) {
+      if (millis() - startWait > maxWaitMs) {
+        LOG_WRN("Timeout waiting for dataFilesChecked");
+        res = false;
+        break;
+      }
+      // Yield to FreeRTOS scheduler
+      vTaskDelay(pdMS_TO_TICKS(1000)); 
+    }
+  }
+  
+  if (res) {
+    getExtIP();
+  }
+  
   return res;
 }
 
