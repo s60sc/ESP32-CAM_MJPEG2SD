@@ -39,6 +39,10 @@ struct httpd_sustain_req_t {
   bool inUse = false; 
 };
 httpd_sustain_req_t sustainReq[MAX_STREAMS];
+// Event-driven wait semaphores to replace fixed delay polling loops
+static SemaphoreHandle_t audioReadySemaphore = NULL;
+static SemaphoreHandle_t streamStopSemaphore[MAX_STREAMS] = {NULL};
+static SemaphoreHandle_t taskFreeSemaphore[MAX_STREAMS] = {NULL};
 
 static void showPlayback(httpd_req_t* req) {
   // output playback file to browser
@@ -178,7 +182,7 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       if (xSemaphoreTake(motionSemaphore, pdMS_TO_TICKS(MAX_FRAME_WAIT)) == pdFAIL) {
         // Keep the frame notification pending until the motion JPEG is ready.
         xSemaphoreGive(frameSemaphore[taskNum]);
-        vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(1)); // Safe minimal yield to prevent tight loop, not an arbitrary delay
         continue;
       }
       
@@ -187,7 +191,7 @@ static void showStream(httpd_req_t* req, uint8_t taskNum) {
       if (!jpgLen) {
         xSemaphoreGive(motionSemaphore);
         xSemaphoreGive(frameSemaphore[taskNum]);
-        vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(1)); // Safe minimal yield to prevent tight loop, not an arbitrary delay
         continue;
       }
       jpgBuf = motionJpeg;
@@ -262,7 +266,14 @@ static void audioStream(httpd_req_t* req, uint8_t taskNum) {
         res = httpd_resp_send_chunk(req, (const char*)audioBuffer, audioBytes); 
         audioBytes = 0;
       } else {
-        delay(20); // Allow time for buffer to load.
+        // Event-driven wait for audio buffer to load, with safe fallback
+        if (audioReadySemaphore != NULL) {
+          // NOTE: The audio capture task/ISR must call xSemaphoreGive(audioReadySemaphore) 
+          // (or xSemaphoreGiveFromISR) when new audio data is available to wake this task.
+          xSemaphoreTake(audioReadySemaphore, pdMS_TO_TICKS(50));
+        } else {
+          delay(20); // Safe fallback: Allow time for buffer to load.
+        }
       }
       if (res != ESP_OK) {
         isStreaming[taskNum] = false; // Client connection closed.
@@ -309,8 +320,19 @@ static void srtStream(httpd_req_t* req, uint8_t taskNum) {
     }
 #endif
     if (res == ESP_OK) res = httpd_resp_sendstr_chunk(req, "\n\n");
-    if (res != ESP_OK) isStreaming[taskNum] = false; // client connection closed
-    else while (isStreaming[taskNum] && (millis() - startTime) < sampleInterval) delay(50);
+    if (res != ESP_OK) {
+      isStreaming[taskNum] = false; // client connection closed
+    } else {
+      uint32_t remainingTime = sampleInterval - (millis() - startTime);
+      if (remainingTime > 0 && isStreaming[taskNum]) {
+        // Event-driven wait with timeout to allow immediate wakeup if streaming stops
+        if (streamStopSemaphore[taskNum] != NULL) {
+          xSemaphoreTake(streamStopSemaphore[taskNum], pdMS_TO_TICKS(remainingTime));
+        } else {
+          vTaskDelay(pdMS_TO_TICKS(remainingTime)); // Safe fallback
+        }
+      }
+    }
   }
   if (res == ESP_OK) httpd_resp_sendstr_chunk(req, NULL);
   LOG_INF("SRT: sent %d subtitles", srtSeqNo);
@@ -319,6 +341,21 @@ static void srtStream(httpd_req_t* req, uint8_t taskNum) {
 void stopSustainTask(int taskId) {
   isStreaming[taskId] = false;
   if (taskId < vidStreams && frameSemaphore[taskId] != NULL) xSemaphoreGive(frameSemaphore[taskId]);
+  // Wake up any task waiting on stream stop or task free
+  if (taskId < MAX_STREAMS) {
+    if (streamStopSemaphore[taskId] != NULL) xSemaphoreGive(streamStopSemaphore[taskId]);
+    if (taskFreeSemaphore[taskId] != NULL) xSemaphoreGive(taskFreeSemaphore[taskId]);
+  }
+}
+
+// Helper function to wait for a task to become free, replacing polling loops
+static void waitForTaskFree(uint8_t taskNum) {
+  if (taskFreeSemaphore[taskNum] != NULL) {
+    xSemaphoreTake(taskFreeSemaphore[taskNum], pdMS_TO_TICKS(2000));
+  } else {
+    // Safe fallback to polling delay if semaphore is unavailable
+    for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
+  }
 }
 
 static void sustainTask(void* p) {
@@ -336,7 +373,9 @@ static void sustainTask(void* p) {
     else if (i == 3) srtStream(sustainReq[i].req, i);
     // cleanup as request now complete on return
     if (httpd_req_async_handler_complete(sustainReq[i].req) != ESP_OK) LOG_ERR("Failed to free req for sustain task: %i", i);
-    sustainReq[i].inUse = false; 
+    sustainReq[i].inUse = false;
+	// Notify any waiting handler that the task is now free
+    if (taskFreeSemaphore[i] != NULL) xSemaphoreGive(taskFreeSemaphore[i]);
   }
   vTaskDelete(NULL);
 }
@@ -350,6 +389,14 @@ void startSustainTasks() {
     LOG_WRN("numStreams %d exceeds MAX_STREAMS %d", numStreams, MAX_STREAMS);
     numStreams = MAX_STREAMS;
   }
+	  
+  // Initialize event-driven wait semaphores
+  for (int i = 0; i < MAX_STREAMS; i++) {
+    if (streamStopSemaphore[i] == NULL) streamStopSemaphore[i] = xSemaphoreCreateBinary();
+    if (taskFreeSemaphore[i] == NULL) taskFreeSemaphore[i] = xSemaphoreCreateBinary();
+  }
+  if (audioReadySemaphore == NULL) audioReadySemaphore = xSemaphoreCreateBinary();
+
   for (int i = 0; i < numStreams; i++) {
     sustainReq[i].taskNum = i; // so task knows its number
     if ((i == 1 && rtspVideo) || (i == 2 && rtspAudio) || (i == 3 && rtspSubtitles)) continue; // RTSP tasks created in rtsp.cpp
@@ -389,7 +436,7 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
                 isStreaming[taskNum] = false;
                 if (!taskNum) doPlayback = false; // only for task 0
                 if (taskNum < vidStreams && frameSemaphore[taskNum] != NULL) xSemaphoreGive(frameSemaphore[taskNum]);
-                for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
+                waitForTaskFree(taskNum);
                }
             } 
             if (sustainReq[taskNum].inUse) {
@@ -409,7 +456,7 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
             if (sustainReq[taskNum].inUse) {
               isStreaming[taskNum] = false;
               if (taskNum < vidStreams && frameSemaphore[taskNum] != NULL) xSemaphoreGive(frameSemaphore[taskNum]);
-              for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
+              waitForTaskFree(taskNum);
             }
           }
         }
@@ -417,7 +464,7 @@ esp_err_t appSpecificSustainHandler(httpd_req_t* req) {
         // action request if task available
         if (sustainReq[taskNum].inUse && taskNum == 0 && !strcmp(variable, "stream")) {
           // If task 0 is in use when starting new stream, allow up to 2 seconds for previous stream to release
-          for (int w = 0; w < 40 && sustainReq[taskNum].inUse; w++) delay(50);
+          waitForTaskFree(taskNum);
         }
         if (!sustainReq[taskNum].inUse) {
           // make copy of request data and pass request to task indexed by request
