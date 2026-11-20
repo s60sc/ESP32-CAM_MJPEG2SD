@@ -122,49 +122,71 @@ static void listFolder(const char* rootDir) {
 bool startStorage() {
   // start required storage device (SD card or flash file system)
   bool res = false;
+  
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
-  if ((fs::SDMMCFS*)&STORAGE == &SD_MMC) {
+  // Correction: Use void* cast to prevent strict aliasing undefined behavior
+  if ((void*)&STORAGE == (void*)&SD_MMC) {
     thisFS = SDMMC;
+    // Yield to scheduler to prevent Task Watchdog timeout before slow operation
+    vTaskDelay(pdMS_TO_TICKS(1));
     res = prepSD_MMC();
-    if (res) listFolder(DATA_DIR);
-    else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
+    if (res) {
+      listFolder(DATA_DIR);
+    } else {
+      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
+    }
     debugMemory("startStorage");
     return res; 
   }
 #endif
+
   // One of SPIFFS, LittleFS, FatFS
   if (thisFS == TBD) {
 #ifdef _SPIFFS_H_
-    if ((fs::SPIFFSFS*)&STORAGE == &SPIFFS) {
+    if ((void*)&STORAGE == (void*)&SPIFFS) {
       thisFS = SPIFFSS;
+      // Yield to scheduler to prevent Task Watchdog timeout before slow operation
+      vTaskDelay(pdMS_TO_TICKS(1));
       res = SPIFFS.begin(formatIfMountFailed);
     }
 #endif
 #ifdef _LITTLEFS_H_
-    if ((fs::LittleFSFS*)&STORAGE == &LittleFS) {
+    if ((void*)&STORAGE == (void*)&LittleFS) {
       thisFS = LITTLEFS;
+      // Yield to scheduler to prevent Task Watchdog timeout before slow operation
+      vTaskDelay(pdMS_TO_TICKS(1));
       res = LittleFS.begin(formatIfMountFailed);
       // create data folder if not present
-      if (res) LittleFS.mkdir(DATA_DIR);
+      if (res) {
+        LittleFS.mkdir(DATA_DIR);
+      }
     }
 #endif
 #ifdef _FATFS_H_
-    if ((fs::FATFS*)&STORAGE == &FFat) {
+    if ((void*)&STORAGE == (void*)&FFat) {
       thisFS = FATFSS;
+      // Yield to scheduler to prevent Task Watchdog timeout before slow operation
+      vTaskDelay(pdMS_TO_TICKS(1));
       res = FFat.begin(formatIfMountFailed);
       // create data folder if not present
-      if (res && !FFat.exists(DATA_DIR)) FFat.mkdir(DATA_DIR);
+      if (res && !FFat.exists(DATA_DIR)) {
+        FFat.mkdir(DATA_DIR);
+      }
     }
 #endif
   }
+
   if (res) {
     // list details of files on file system
-    const char* rootDir = thisFS == LITTLEFS ? DATA_DIR : "/";
+    const char* rootDir = (thisFS == LITTLEFS) ? DATA_DIR : "/";
     listFolder(rootDir);
   } else {
-    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsTypes[thisFS]);  
+    // Correction: Prevent array out-of-bounds access if thisFS is still TBD
+    const char* fsName = (thisFS != TBD) ? fsTypes[thisFS] : "Unknown";
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsName);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
+  
   debugMemory("startStorage");
   return res;
 }
