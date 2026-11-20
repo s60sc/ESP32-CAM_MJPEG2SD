@@ -76,6 +76,15 @@ const size_t sampleBytes = DMA_BUFF_LEN * sampleWidth;
 int16_t* sampleBuffer = NULL;
 static uint8_t* wsBuffer = NULL;
 static size_t wsBufferLen = 0;
+
+// Shared semaphore to signal audioStream (in streamServer.cpp) that audio data is ready.
+// IMPORTANT: Ensure this is declared as 'extern SemaphoreHandle_t audioReadySemaphore;' in appGlobals.h
+// and the 'static' declaration in streamServer.cpp is removed to avoid multiple definition errors.
+extern SemaphoreHandle_t audioReadySemaphore;
+
+// Event-driven wait semaphore to replace fixed delay polling for browser mic input
+static SemaphoreHandle_t wsAudioReadySemaphore = NULL;
+
 uint8_t* audioBuffer = NULL; // mic input streamed to NVR or RTSP
 size_t audioBytes = 0; 
 
@@ -216,7 +225,22 @@ static size_t micInput() {
     memcpy(sampleBuffer, wsBuffer, copyLen);
     wsBufferLen = 0;
     applyMicGain(copyLen);
-  } else if (micRem) delay(20);
+  } else if (micRem) {
+    // Event-driven wait for browser mic data, replacing fixed delay
+    if (wsAudioReadySemaphore != NULL) {
+      xSemaphoreTake(wsAudioReadySemaphore, pdMS_TO_TICKS(20));
+    } else {
+      delay(20); // Safe fallback
+    }
+    // Re-evaluate after wait
+    bytesRead = wsBufferLen;
+    if (bytesRead) {
+      size_t copyLen = bytesRead > MAX_PAYLOAD_LEN ? MAX_PAYLOAD_LEN : bytesRead;
+      memcpy(sampleBuffer, wsBuffer, copyLen);
+      wsBufferLen = 0;
+      applyMicGain(copyLen);
+    }
+  }
   return bytesRead;
 }
 
@@ -227,6 +251,11 @@ void browserMicInput(uint8_t* wsMsg, size_t wsMsgLen) {
     // copy browser mic input into sampleBuffer for amp
     memcpy(wsBuffer, wsMsg, wsMsgLen);
     wsBufferLen = wsMsgLen;
+    // Wake up the audio task waiting for browser mic data
+    if (wsAudioReadySemaphore != NULL) {
+      // Note: If this function is ever called from an ISR, use xSemaphoreGiveFromISR instead
+      xSemaphoreGive(wsAudioReadySemaphore);
+    }
   }
 }
 
@@ -387,7 +416,10 @@ static void camActions() {
   // apply esp mic input to required outputs
   while (true) {
     size_t bytesRead = 0;
-    if (micRecording || !audioBytes || spkrRem) bytesRead = espMicInput(); // load sampleBuffer
+    if (micRecording || !audioBytes || spkrRem) {
+      bytesRead = espMicInput(); // load sampleBuffer
+    }
+    
     if (bytesRead) {
       if (micRecording) {
         // record mic input to SD
@@ -398,10 +430,18 @@ static void camActions() {
         // fill audioBuffer to send to NVR
         memcpy(audioBuffer, sampleBuffer, bytesRead);
         audioBytes = bytesRead;
+        // Signal audioStream (in streamServer.cpp) that data is ready
+        if (audioReadySemaphore != NULL) {
+          xSemaphoreGive(audioReadySemaphore);
+        }
       }
       // intercom esp mic to browser speaker
       if (spkrRem) wsAsyncSendBinary((uint8_t*)sampleBuffer, bytesRead);
-    } else delay(20);
+    } else {
+      // Minimal yield to prevent WDT reset and CPU starvation if I2S returns 0
+      // Preferred over arbitrary delay(20) to reduce jitter
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
   }
 }
 
@@ -495,6 +535,13 @@ void prepAudio() {
   // Audio task only needed for esp microphone
   if (!micUse) return;
 #endif
+
+  // Initialize event-driven wait semaphores
+  if (wsAudioReadySemaphore == NULL) {
+    wsAudioReadySemaphore = xSemaphoreCreateBinary();
+  }
+  // Note: audioReadySemaphore is defined globally above to share with streamServer.cpp
+  
   if (audioHandle == NULL) xTaskCreateWithCaps(audioTask, "audioTask", AUDIO_STACK_SIZE, NULL, AUDIO_PRI, &audioHandle, STACK_MEM);
 #ifdef ISCAM
   xTaskNotifyGive(audioHandle);

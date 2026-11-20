@@ -394,6 +394,7 @@ extern int mampSdIo;
 extern volatile bool stopAudio;
 extern volatile audioAction THIS_ACTION;
 extern uint32_t SAMPLE_RATE; // audio sample rate
+extern SemaphoreHandle_t audioReadySemaphore;
 
 // configure for specific servo model, eg for SG90
 extern int servoDelay;

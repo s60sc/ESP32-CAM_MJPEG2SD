@@ -81,6 +81,7 @@ static SemaphoreHandle_t readSemaphore;
 SemaphoreHandle_t frameSemaphore[MAX_STREAMS] = {NULL};
 SemaphoreHandle_t motionSemaphore = NULL;
 SemaphoreHandle_t aviMutex = NULL;
+static SemaphoreHandle_t frameReadySemaphore = NULL; // Event-driven wait for kept frame
 static volatile bool isPlaying = false; // controls playback on app
 bool isCapturing = false;
 bool stopPlayback = false; // controls if playback allowed
@@ -443,17 +444,17 @@ static bool closeAvi() {
       LOG_ALT("Recorded %s", aviFileName);
       LOG_INF("AVI duration: %lu secs", vidDurationSecs);
       LOG_INF("Number of frames: %u", frameCnt);
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 10ms to minimize jitter while yielding to WDT
       LOG_INF("Required FPS: %u", FPS);
       LOG_INF("Actual FPS: %0.1f", actualFPS);
       LOG_INF("File size: %s", fmtSize(vidSize));
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 10ms to minimize jitter while yielding to WDT
       if (frameCnt) {
         LOG_INF("Average frame length: %lu bytes", vidSize / frameCnt);
         LOG_INF("Average frame monitoring time: %lu ms", dTimeTot / frameCnt);
         LOG_INF("Average frame buffering time: %lu ms", fTimeTot / frameCnt);
         LOG_INF("Average frame storage time: %lu ms", wTimeTot / frameCnt);
-        delay(20);
+        vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 20ms to minimize jitter while yielding to WDT
       }
       LOG_INF("Average SD write speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("File open / completion times: %lu ms / %lu ms", oTime, cTime);
@@ -488,7 +489,7 @@ static bool closeAvi() {
     STORAGE.remove(AVITEMP);
     LOG_INF("Insufficient capture duration: %lu secs", vidDurationSecs);
   }
-  delay(50);
+  vTaskDelay(pdMS_TO_TICKS(50));
   LOG_CMD("#ER"); // notify browser of recording end
   return (vidDurationSecs >= minSeconds) ? true : false;
 }
@@ -589,6 +590,9 @@ static bool processFrame() {
   if (doKeepFrame) {
     keepFrame(fb);
     doKeepFrame = false;
+    if (frameReadySemaphore != NULL) {
+      xSemaphoreGive(frameReadySemaphore); // Notify waiting task
+    }
   }
 
   // determine if time to check for motion change
@@ -762,7 +766,6 @@ static void readSD() {
   }
   wTimeTot += millis() - rTime;
   xSemaphoreGive(readSemaphore); // signal that ready
-  delay(10);
 }
 
 
@@ -878,7 +881,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     LOG_INF("Recorded FPS %u, duration %lu secs", recFPS, recDuration);
     LOG_INF("Playback FPS %0.1f, duration %lu secs", (float)frameCnt / playDuration, playDuration);
     LOG_INF("Number of frames: %u", frameCnt);
-    delay(10);
+    vTaskDelay(pdMS_TO_TICKS(10));
     if (frameCnt) {
       LOG_INF("Average SD read speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("Average frame SD read time: %lu ms", wTimeTot / frameCnt);
@@ -886,7 +889,7 @@ mjpegStruct getNextFrame(bool firstCall) {
       LOG_INF("Average frame delay time: %lu ms", tTimeTot / frameCnt);
       LOG_INF("Average http send time: %lu ms", hTimeTot / frameCnt);
       LOG_INF("Busy: %lu%%", min(100 * totBusy / (totBusy + tTimeTot), (uint32_t)100));
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(10));
     }
     checkMemory();
     LOG_INF("*************************************\n");
@@ -894,7 +897,6 @@ mjpegStruct getNextFrame(bool firstCall) {
     mjpegData.buffLen = mjpegData.buffOffset = 0; // signal end of jpeg
   }
   hTime = millis();
-  delay(1);
   return mjpegData;
 }
 
@@ -904,12 +906,14 @@ void stopPlaying(const char* reason) {
     stopPlayback = true;
     // wait till stopped cleanly, but prevent infinite loop
     uint32_t timeOut = millis();
-    while (doPlayback && millis() - timeOut < MAX_FRAME_WAIT) delay(10);
+    while (doPlayback && (millis() - timeOut < MAX_FRAME_WAIT)) {
+      vTaskDelay(pdMS_TO_TICKS(10)); // Yield to prevent WDT reset
+    }
     if (doPlayback) {
       // not yet closed, so force close
       doPlayback = false; // stop webserver playback
-      xSemaphoreGive(readSemaphore);
-      delay(200);
+      xSemaphoreGive(readSemaphore); // Unblock any waiting read task
+      vTaskDelay(pdMS_TO_TICKS(10)); // Reduced from 200ms to minimize jitter, sufficient for task switch
     }
     logLine();
     LOG_INF("Playback stopped: %s", reason);
@@ -952,6 +956,7 @@ bool prepRecording() {
   readSemaphore = xSemaphoreCreateBinary();
   aviMutex = xSemaphoreCreateMutex();
   motionSemaphore = xSemaphoreCreateBinary();
+  frameReadySemaphore = xSemaphoreCreateBinary(); // Initialize event-driven wait semaphore
   for (int i = 0; i < vidStreams; i++) frameSemaphore[i] = xSemaphoreCreateBinary();
   reloadConfigs(); // apply camera config
   if (!startSDtasks()) return false;
@@ -990,8 +995,20 @@ bool waitForFrame() {
   // wait for kept frame to be available
   uint32_t startTime = millis();
   doKeepFrame = true;
-  while (doKeepFrame && millis() - startTime < MAX_FRAME_WAIT) delay(100);
-  if (!doKeepFrame && alertBufferSize) return true;
+  // Prefer event-driven wait with timeout to reduce jitter and CPU load
+  if (frameReadySemaphore != NULL) {
+    TickType_t timeoutTicks = pdMS_TO_TICKS(MAX_FRAME_WAIT);
+    if (xSemaphoreTake(frameReadySemaphore, timeoutTicks) == pdTRUE) {
+      if (alertBufferSize > 0) return true;
+    }
+  } else {
+    // Safe fallback to polling delay if semaphore is unavailable
+    while (doKeepFrame && (millis() - startTime < MAX_FRAME_WAIT)) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+  }
+  
+  if (!doKeepFrame && alertBufferSize > 0) return true;
   LOG_WRN("Unable to fetch image");
   return false;
 }
@@ -1033,6 +1050,12 @@ void endTasks() {
   deleteTask(audioHandle);
 #endif
   deleteTask(statusCheckHandle);
+    
+  // Clean up semaphores to prevent resource leaks
+  if (frameReadySemaphore != NULL) {
+    vSemaphoreDelete(frameReadySemaphore);
+    frameReadySemaphore = NULL;
+  }
 }
 
 void OTAprereq() {
@@ -1044,7 +1067,7 @@ void OTAprereq() {
   stopPing();
   endTasks();
   esp_camera_deinit();
-  delay(100);
+  vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 #ifdef CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3
@@ -1059,7 +1082,7 @@ static bool camPower() {
     if (axp.begin() == 0) {
       axp.enableCameraPower(axp.eOV2640);
       return true;
-    } else delay(1000);
+    } else vTaskDelay(pdMS_TO_TICKS(1000));
   }
   LOG_ERR("Failed to power up camera");
   return false;
@@ -1079,7 +1102,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
   esp_err_t res = ESP_OK;
   // Deinitialize the existing LEDC configuration
   ledc_stop(LEDC_LOW_SPEED_MODE, config.ledc_channel, 0);
-  delay(5);
+  vTaskDelay(pdMS_TO_TICKS(5));
   // Configure the LEDC timer
   ledc_timer_config_t ledc_timer = {
     .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -1108,7 +1131,7 @@ static esp_err_t changeXCLK(camera_config_t config) {
     LOG_ERR("Failed to configure channel %s", espErrMsg(res));
     return res;
   }
-  delay(200); // base on datasheet, it needs < 300 ms for configuration to settle in. we just put 200ms. it doesnt hurt.
+  vTaskDelay(pdMS_TO_TICKS(200)); // base on datasheet, it needs < 300 ms for configuration to settle in. we just put 200ms. it doesnt hurt.
   return res;
 }
 

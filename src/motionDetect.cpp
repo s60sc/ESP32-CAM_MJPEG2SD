@@ -337,10 +337,34 @@ static void rescaleImage(const uint8_t* __restrict input, int inputWidth, int in
 
 static void rgbToGray(uint8_t* buffer, int width, int height) {
   // convert rgb buffer to grayscale in place
-  for (int i = 0; i < width * height; ++i) {
-    int index = i * 3;
+  if (width <= 0 || height <= 0 || buffer == nullptr) {
+    return;
+  }
+
+  // Luminance coefficients for RGB. 
+  // They sum to 256, which allows division by 256 using a fast right shift (>> 8).
+  static constexpr uint8_t LUMINANCE_COEFF_R = 77;
+  static constexpr uint8_t LUMINANCE_COEFF_G = 150;
+  static constexpr uint8_t LUMINANCE_COEFF_B = 29;
+
+  size_t total_pixels = (size_t)width * (size_t)height;
+  size_t i = 0;
+
+  // Process 4 pixels at a time
+  for (; i + 3 < total_pixels; i += 4) {
+    size_t index = i * 3;
     // Calculate grayscale value using luminance formula
-    buffer[i] = (uint8_t)(((77 * buffer[index]) + (150 * buffer[index + 1]) + (29 * buffer[index + 2])) >> 8);
+    buffer[i]     = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index])     + (LUMINANCE_COEFF_G * buffer[index + 1]) + (LUMINANCE_COEFF_B * buffer[index + 2])) >> 8);
+    buffer[i + 1] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index + 3]) + (LUMINANCE_COEFF_G * buffer[index + 4]) + (LUMINANCE_COEFF_B * buffer[index + 5])) >> 8);
+    buffer[i + 2] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index + 6]) + (LUMINANCE_COEFF_G * buffer[index + 7]) + (LUMINANCE_COEFF_B * buffer[index + 8])) >> 8);
+    buffer[i + 3] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index + 9]) + (LUMINANCE_COEFF_G * buffer[index + 10]) + (LUMINANCE_COEFF_B * buffer[index + 11])) >> 8);
+  }
+
+  // Process remaining pixels
+  for (; i < total_pixels; ++i) {
+    size_t index = i * 3;
+    // Calculate grayscale value using luminance formula
+    buffer[i] = (uint8_t)(((LUMINANCE_COEFF_R * buffer[index]) + (LUMINANCE_COEFF_G * buffer[index + 1]) + (LUMINANCE_COEFF_B * buffer[index + 2])) >> 8);
   }
 }
 
@@ -786,12 +810,10 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         rgbToGray(rgbBuf, sampleWidth, sampleHeight); 
     }
 #endif
-
     LOG_VRB("JPEG to rescaled %s bitmap conversion %u bytes in %lums", 
             colorDepth == RGB888_BYTES ? "color" : "grayscale", 
             (unsigned)(sampleWidth * sampleHeight * colorDepth), 
             (unsigned long)(millis() - dTime)); 
-  
 #if INCLUDE_DRONE
     // perform optical flow processing in camDrone.cpp
     if (fsizePtr == 3 || fsizePtr == 17 || fsizePtr == 22) {
@@ -886,11 +908,10 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     }
 
     dTime = millis(); 
-    rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM, colorDepth); 
+    rescaleImage(rgbBuf, sampleWidth, sampleHeight, currBuff, RESIZE_DIM, RESIZE_DIM, colorDepth);
     LOG_VRB("Bitmap rescale to %u bytes in %lums", 
             (unsigned)currBuffSize, 
-            (unsigned long)(millis() - dTime)); 
-  
+            (unsigned long)(millis() - dTime));
     if (!previousFrameValid || depthChanged) {
         memcpy(prevBuff, currBuff, currBuffSize);
         previousFrameValid = true;
@@ -910,13 +931,11 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
     nightTime = isNight(nightSwitch); 
     
     std::swap(currBuff, prevBuff); // save image for next comparison
-    
     LOG_VRB("Detected %u changes, threshold %u, light level %u, in %lums", 
             (unsigned)analysis.changeCount, 
             (unsigned)analysis.moveThreshold, 
             (unsigned)lightLevel, 
-            (unsigned long)(millis() - dTime)); 
-            
+            (unsigned long)(millis() - dTime));
     if (lightLevelOnly) {
         return false; // no motion checking, only calc of light level
     }
@@ -970,16 +989,14 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
         } 
         
         if (motionStatus) {
-            LOG_VRB("*** Motion - ongoing %lu frames", (unsigned long)motionCnt); 
+            LOG_VRB("*** Motion - ongoing %lu frames", (unsigned long)motionCnt);
         }
     }
   
     if (dbgVerbose) {
         checkMemory(); 
     }
-    
     LOG_VRB("============================"); 
-    
     // motionStatus indicates whether motion previously ongoing or not
     return nightTime ? false : motionStatus; 
 }
