@@ -15,8 +15,8 @@ The application supports:
 * Transfer recordings using FTP, HTTPS, [WebDAV](#webdav), or download from browser
 * [MQTT](#mqtt) control with Home Assistant integration.
 * [External Heartbeat](#external-heartbeat) support.
-* Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led
-* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU9250, SSD1306, LCD1602, etc.
+* Support for peripherals: SG90 servos, MX1508 H-bridge, 28BYJ-48 stepper, HW-504 joystick, BMP280, MPU9250, MY9221 / WS2812 / SK6812 Led, uBlox GNSS M10
+* Support for [I2C devices](#i2c-devices): BMP280, BME280, MPU6050, MPU6500, MPU9250, SSD1306, LCD1602, VL53L1X
 * Interface for [Machine Learning](#machine-learning) support.
 * [Camera Hub](#camera-hub) feature to access other ESP32-CAM_MJPEG2SD devices.
 * [Photogrammetry](#photogrammetry) feature to capture photos for 3D imaging.
@@ -29,9 +29,10 @@ The ESP32 cannot support all of the features as it will run out of heap space. F
 ***This is a complex app and some users are raising issues when the app reports a warning, but this is the app notifying the user that there is an problem with their setup, which only the user can fix. Be aware that some clone boards have different specs to the original, eg PSRAM size. Please only raise issues for actual bugs (ERR messages, unhandled library error or crash). Thanks.  
 To suggest an improvement or enhancement use Discussions.*** 
 
-Changes for version 10.10.2:
+Changes for version 10.10.3:
 * Improved logging, LED driver, UART
 * Resilience and streaming improvements by [JBarnaky](https://github.com/JBarnaky)
+* Compatible with arduino-esp core v4.0.0
 
 ## Purpose
 
@@ -86,7 +87,7 @@ using [Boards Manager](https://github.com/s60sc/ESP32-CAM_MJPEG2SD/issues/61#iss
 * **If you get warning: `Crash loop detected, check log`, it is usually an inadequate power supply.**
 
 
-On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router to be selected and router password entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available.
+On first installation, the application will start in wifi AP mode - connect to SSID: **ESP-CAM_MJPEG_...**, to allow router to be selected and router password entered via the web page on `192.168.4.1`. The configuration data file (except passwords) is automatically created, and the application web pages automatically downloaded from GitHub to the SD card **/data** folder when an internet connection is available. If ESP32 fails to download due to insufficient memory instal the files manually.
 
 Subsequent updates to the application, or to the **/data** folder files, can be made using the **OTA Upload** tab. The **/data** folder can also be reloaded from GitHub using the **Reload /data** button on the **Edit Config** tab, or by using a WebDAV client.
 
