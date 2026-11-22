@@ -11,7 +11,7 @@
 #endif
 
 #if __has_include("../devUtilities.cpp")
-#define DEV_ONLY
+////#define DEV_ONLY
 #endif
 #ifdef DEV_ONLY
 // to compile with -Wall -Werror=all -Wextra
@@ -107,6 +107,8 @@
 #define DAY_LENGTH (24 * 60 * 60) // in secs
 #define LOG_MAX_ARGS 8   // max arguments per log message
 #define LOG_STR_AREA 128 // store %s arguments for one message
+#define HB_PING 0xF0
+#define HB_PONG 0xF1
 
 enum RemoteFail {SETASSIST, GETEXTIP, TGRAMCONN, FSFTP, EMAILCONN, EXTERNALHB, BLOCKLIST, GETEXTMSL, GETEXTMAG, GETEXTNOCT, REMFAILCNT}; // REMFAILCNT always last
 enum class Brightness : uint8_t  { Off = 0, Low, Medium, High, Full, Count }; //  Perceived brightness 25/50/75/100%
@@ -125,8 +127,9 @@ char* buildAppJsonString(bool filter);
 bool updateAppStatus(const char* variable, const char* value, bool fromUser = true);
 
 // global general utility functions in utils.cpp / utilsFS.cpp / peripherals.cpp etc
-void auxReceive(const uint8_t* payload, uint8_t length);
-void auxSend(const char cmd, int controlVal = 0, bool cmdOnly = true);
+void auxProcess(const uint8_t* payload, uint8_t length);
+void auxPeriphSend(const char cmd, int controlVal = 0, bool cmdOnly = true);
+void auxResponse(const uint8_t* payload, uint8_t length);
 void buildJsonString(uint8_t filter);
 bool calcProgress(int progressVal, int totalVal, int percentReport, uint8_t &pcProgress);
 bool changeExtension(char* fileName, const char* newExt);
@@ -138,7 +141,6 @@ bool checkFreeStorage();
 bool checkI2Cdevice(const char* devName);
 void checkMemory(const char* source = "");
 uint32_t checkStackUse(TaskHandle_t thisTask, int taskIdx);
-void clientRespond(const char cmd, int controlVal);
 void debugMemory(const char* caller);
 void dateFormat(char* inBuff, size_t inBuffLen, bool isFolder);
 void deleteFolderOrFile(const char* deleteThis);
@@ -150,7 +152,7 @@ esp_err_t downloadFile(File& df, httpd_req_t* req);
 void dumpAllocs(const char* caller = "", uint32_t minSize = 4096);
 void emailAlert(const char* _subject, const char* _message);
 const char* encode64(const char* inp);
-const uint8_t* encode64chunk(const uint8_t* inp, int rem);
+const uint8_t* encode64chunk(const uint8_t* inp, size_t rem);
 const char* espErrMsg(esp_err_t errCode);
 void externalAlert(const char* subject, const char* message);
 bool externalPeripheral(byte pinNum, uint32_t outputData = 0);
@@ -232,7 +234,6 @@ void stopPing();
 void syncToBrowser(uint32_t browserUTC);
 char* toCase(char *s, bool toLower = true);
 char* trim(char* str);
-void uartRxPayload(const uint8_t *payload, uint8_t length);
 bool uartTxPayload(const uint8_t *payload, uint8_t length);
 void updateAuthCache();
 bool updateConfigVect(const char* variable, int value);
@@ -244,7 +245,6 @@ bool urlEncode(const char* inVal, char* encoded, size_t maxSize);
 bool updateGNSS();
 uint32_t usePeripheral(const byte pinNum, const uint32_t receivedData);
 bool utilsStartup();
-esp_sleep_wakeup_cause_t wakeupResetReason();
 void wsAsyncSendBinary(uint8_t* data, size_t len);
 bool wsAsyncSendJson(const char* dataType, const char* wsData);
 bool wsAsyncSendText(const char* wsData);
@@ -485,12 +485,10 @@ struct logEntry_t {
 };
 
 extern bool dbgVerbose;
-extern volatile uint8_t g_logLevel;
 
 void logCopyStr(logEntry_t* e, logArg_t &a, const char* s);
 logEntry_t* logAcquire(logLevel_t level, const char* timestamp, const char* file, int line, const char* func, const char* fmt);
 void logPost(logEntry_t* e);
-void logSetLevel(logLevel_t level);
 static inline void logFormatCheck(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static inline void logFormatCheck(const char *, ...) {}
 
@@ -534,13 +532,11 @@ static inline void logSubmit(logLevel_t level, const char* timestamp, const char
 }
 
 //  macros
-#define LOG_SUBMIT(level, fmt, ...)                        \
-  do {                                                     \
-    if ((uint8_t)(level) <= g_logLevel) {                  \
-      if (false) { logFormatCheck((fmt), ##__VA_ARGS__); } \
-      if ((level == LOG_LEVEL_RAW) || (level == LOG_LEVEL_COMMAND)) logSubmit((level), "", NULL, 0, NULL, (fmt), ##__VA_ARGS__); \
-      else logSubmit((level), esp_log_system_timestamp(), __FILE__, __LINE__, __FUNCTION__, (fmt), ##__VA_ARGS__); \
-    }                                                      \
+#define LOG_SUBMIT(level, fmt, ...)  \
+  do {  \
+    if (false) { logFormatCheck((fmt), ##__VA_ARGS__); }  \
+    if ((level == LOG_LEVEL_RAW) || (level == LOG_LEVEL_COMMAND)) logSubmit((level), "", NULL, 0, NULL, (fmt), ##__VA_ARGS__);  \
+    else logSubmit((level), esp_log_system_timestamp(), __FILE__, __LINE__, __FUNCTION__, (fmt), ##__VA_ARGS__);  \
   } while (0)
 
 #define LOG_RAW(fmt, ...) LOG_SUBMIT(LOG_LEVEL_RAW, fmt, ##__VA_ARGS__)
@@ -549,7 +545,7 @@ static inline void logSubmit(logLevel_t level, const char* timestamp, const char
 #define LOG_INF(fmt, ...) LOG_SUBMIT(LOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
 #define LOG_ALT(fmt, ...) LOG_SUBMIT(LOG_LEVEL_ALERT, fmt, ##__VA_ARGS__)
 #define LOG_DBG(fmt, ...) LOG_SUBMIT(LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
-#define LOG_VRB(fmt, ...) LOG_SUBMIT(LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
+#define LOG_VRB(fmt, ...) do {if (dbgVerbose) LOG_SUBMIT(LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__);} while(0)
 #define LOG_CMD(fmt, ...) LOG_SUBMIT(LOG_LEVEL_COMMAND, fmt, ##__VA_ARGS__)
 #define LOG_PRT(buff, bufflen) log_print_buf((const uint8_t*)buff, bufflen)
 

@@ -85,6 +85,7 @@ void loadCerts() {
 /*****************************************************************/
 
 TaskHandle_t checkDataHandle = NULL;
+static bool abandonDL = false;
 
 static bool wgetFile(const char* filePath) {
   // download required data file from github repository and store
@@ -123,6 +124,10 @@ static bool wgetFile(const char* filePath) {
         } else {
           LOG_WRN("HTTP Get failed with code: %d", httpCode);
           STORAGE.remove(filePath);
+#ifdef CONFIG_IDF_TARGET_ESP32
+          // ESP32 devices may no longer have enough memory for HTTPS connection on this app due to increasing size of arduino-esp32 core memory footprint
+          if (httpCode == 301) abandonDL = true;
+#endif
         }
       }
     } else LOG_WRN("Open failed: %s", filePath);
@@ -138,7 +143,10 @@ static void checkDataFilesTask(void* parameter) {
   wgetFile(INDEX_PAGE_PATH);
   delay(100);
   appDataFiles(); 
-  doRestart("Restart after web file download");
+  if (abandonDL) {
+    snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Insufficient memory to download /data folder files, OTA files from local folder");
+    LOG_WRN("%s", startupFailure);
+  } else doRestart("Restart after web file download");
   vTaskDelete(NULL);
 }
 
@@ -155,22 +163,25 @@ static bool checkFilePresent(const char* filePath) {
 
 void checkDataFiles() {
   // check if required files have been downloaded
-  bool res = true;
-  if (strlen(GITHUB_PATH)) { 
-     res = checkFilePresent(COMMON_JS_PATH);
-    if (res) res = checkFilePresent(INDEX_PAGE_PATH);
-    if (!res) {
-      if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_DISCONNECTED) LOG_WRN("Need to connect to AP to setup router");
-      else if (WiFi.status() != WL_CONNECTED) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "No internet connection to download files");
-      else if (checkDataHandle == NULL) {
-        // separate transient download task due to TLS memory usage 
-        LOG_INF("Download web files then restart");
-        xTaskCreate(&checkDataFilesTask, "checkDataFilesTask", CHECK_STACK_SIZE, NULL, CHECK_PRI, &checkDataHandle);
-      }
-      if (startupFailure[0]) LOG_WRN("%s", startupFailure);
-    } // else no download needed if GITHUB_PATH not defined
+  if (abandonDL) dataFilesChecked = true;
+  else {
+    bool res = true;
+    if (strlen(GITHUB_PATH)) { 
+      res = checkFilePresent(COMMON_JS_PATH);
+      if (res) res = checkFilePresent(INDEX_PAGE_PATH);
+      if (!res) {
+        if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_DISCONNECTED) LOG_WRN("Need to connect to AP to setup router");
+        else if (WiFi.status() != WL_CONNECTED) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "No internet connection to download files");
+        else if (checkDataHandle == NULL) {
+          // separate transient download task due to TLS memory usage 
+          LOG_INF("Download web files then restart");
+          xTaskCreate(&checkDataFilesTask, "checkDataFilesTask", CHECK_STACK_SIZE, NULL, CHECK_PRI, &checkDataHandle);
+        }
+        if (startupFailure[0]) LOG_WRN("%s", startupFailure);
+      } // else no download needed if GITHUB_PATH not defined
+    }
+    if (res) dataFilesChecked = true;
   }
-  if (res) dataFilesChecked = true;
 }
 
 const char* setupPage_html = R"~(

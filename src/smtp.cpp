@@ -12,6 +12,7 @@
 
 #include "appGlobals.h"
 
+#ifndef AUXILIARY
 #if INCLUDE_SMTP
 
 // SMTP connection params, setup via web page
@@ -184,4 +185,6 @@ void prepSMTP() {
   } 
 }
 
-#endif
+#endif // INCLUDE_SMTP
+
+#endif //AUXILIARY

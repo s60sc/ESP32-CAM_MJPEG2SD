@@ -5,7 +5,7 @@
 // PCF8591 ADC
 // BM*280 temperature, pressure, altitude for BMP280, + humidity for BME280
 // MPU6050 6 axis accel & gyro
-// MPU9250 9 axis accel & gyro & mag
+// MPU9250 (MPU6500 + AK8963) 9 axis accel & gyro & mag
 // VL53L1X TOF distance sensor
 // DS3231 RTC
 // LCD 1602 display 2*16 

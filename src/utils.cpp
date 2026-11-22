@@ -874,6 +874,7 @@ bool utilsStartup() {
     if (ESP.getPsramSize() < MIN_PSRAM * ONEMEG) 
       snprintf(startupFailure, SF_LEN, STARTUP_FAIL "App needs at least %dMB PSRAM", MIN_PSRAM);
   } else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Need PSRAM to be enabled");
+  if (startupFailure[0]) LOG_WRN("%s", startupFailure);
 #endif
 
   prepInternalTemp();

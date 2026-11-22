@@ -122,19 +122,15 @@ static void listFolder(const char* rootDir) {
 bool startStorage() {
   // start required storage device (SD card or flash file system)
   bool res = false;
-  
+
 #if (!CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2)
-  // Correction: Use void* cast to prevent strict aliasing undefined behavior
   if ((void*)&STORAGE == (void*)&SD_MMC) {
-    thisFS = SDMMC;
+  	thisFS = SDMMC;
     // Yield to scheduler to prevent Task Watchdog timeout before slow operation
     vTaskDelay(pdMS_TO_TICKS(1));
     res = prepSD_MMC();
-    if (res) {
-      listFolder(DATA_DIR);
-    } else {
-      snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
-    }
+    if (res) listFolder(DATA_DIR);
+    else snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Check SD card inserted");
     debugMemory("startStorage");
     return res; 
   }
@@ -157,9 +153,7 @@ bool startStorage() {
       vTaskDelay(pdMS_TO_TICKS(1));
       res = LittleFS.begin(formatIfMountFailed);
       // create data folder if not present
-      if (res) {
-        LittleFS.mkdir(DATA_DIR);
-      }
+      if (res) LittleFS.mkdir(DATA_DIR);
     }
 #endif
 #ifdef _FATFS_H_
@@ -169,9 +163,7 @@ bool startStorage() {
       vTaskDelay(pdMS_TO_TICKS(1));
       res = FFat.begin(formatIfMountFailed);
       // create data folder if not present
-      if (res && !FFat.exists(DATA_DIR)) {
-        FFat.mkdir(DATA_DIR);
-      }
+      if (res && !FFat.exists(DATA_DIR)) FFat.mkdir(DATA_DIR);
     }
 #endif
   }
@@ -181,12 +173,11 @@ bool startStorage() {
     const char* rootDir = (thisFS == LITTLEFS) ? DATA_DIR : "/";
     listFolder(rootDir);
   } else {
-    // Correction: Prevent array out-of-bounds access if thisFS is still TBD
     const char* fsName = (thisFS != TBD) ? fsTypes[thisFS] : "Unknown";
     snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Failed to mount %s", fsName);  
     dataFilesChecked = true; // disable setupAssist as no file system
   }
-  
+
   debugMemory("startStorage");
   return res;
 }

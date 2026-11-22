@@ -6,7 +6,7 @@
 // - Subtitle streaming: app_ip/sustain?srt=1
 // - Stills: app_ip/control?still=1
 //
-// s60sc 2022 - 2024
+// s60sc 2022 - 2026
 
 #include "appGlobals.h"
 #include <charconv> // Add for std::from_chars to enable safe, locale-independent integer parsing.
@@ -742,7 +742,7 @@ static bool setPeripheral(char cmd, int controlVal, bool fromUart) {
   bool res = true;
 #if INCLUDE_PERIPH
   // send to auxiliary if connected in case peripheral is remote
-  if (!fromUart) auxSend(cmd, controlVal, false);
+  if (!fromUart) auxPeriphSend(cmd, controlVal, false);
 #endif
   switch (cmd) {
 #if INCLUDE_MCPWM
@@ -806,7 +806,7 @@ static int getPeripheral(const char cmd) {
 void appSpecificWsHandler(const char* wsMsg) {
   // browser message from web socket 
   int wsLen = strlen(wsMsg) - 1;
-  char cmd = (char)wsMsg[0];
+  char cmd = (char)wsMsg[0]; // C, D, F, G, H, I, K, L, M, P, S, T, U, X 
   int controlVal = atoi(wsMsg + 1); // skip first char
   switch (cmd) {
     case 'X':
@@ -904,7 +904,36 @@ char* buildAppJsonString(bool filter) {
   return p;
 }
 
+#if INCLUDE_DRONE
+void appControllerCommand(const AppControllerPacket &p) {
+  // app specific command handler for DS4 inputs
+#ifdef ESPNOW_SENDER
+  sendCommandEspNow(p);
+#else
+  // forward DS4 command over uart to drone controller
+  if (useUart) {
+    if (!uartTxPayload((uint8_t*)&p, sizeof(p))) LOG_WRN("Failed to send button %c over UART", p.button);
+  }
+  showControllerCommand(p);
+#endif
+}
+
+#ifdef ESPNOW_RECEIVER
+void espNowLinkLost() {
+  // Called when no packet (including heartbeat) arrived for HEARTBEAT_TIMEOUT.
+  LOG_WRN("ESP-NOW link down");
+  releaseDS4inputs();
+}
+
+void espNowLinkRestored() {
+  LOG_INF("ESP-NOW link up");
+}
+
+#endif // ESPNOW_RECEIVER
+#endif // INCLUDE_DRONE
+
 /******************************************************************/
+
 
 void externalAlert(const char* subject, const char* message) {
   // alert any configured external servers
@@ -938,19 +967,26 @@ float readTemperature(bool isCelsius, bool onlyDS18) {
 }
 #endif
 
-void auxReceive(const uint8_t* payload, uint8_t length) {
-  // Receive payload from other device via UART
+void auxProcess(const uint8_t* payload, uint8_t length) {
+  // auxiliary processes payload received from client over uart
   int controlVal = 0;
-  if (length == 1) {
-    // payload[0] identifies peripheral to read
-    controlVal = getPeripheral((char)payload[0]);
-    // return read value to client
-    clientRespond((char)payload[0], controlVal);
+  if (payload[0] == 'F') {
+#if INCLUDE_DRONE
+    // DS4 or web drone command from camera device
+    AppControllerPacket p;
+    memcpy(&p, payload, length);
+    //// process DS4 / web drone command - tbd
+    showControllerCommand(p);
+#endif
   } else {
     // payload[0] identifies peripheral to write
     memcpy(&controlVal, payload + 1, sizeof(controlVal));
     setPeripheral((char)payload[0], controlVal, true);
   }
+}
+
+void auxResponse(const uint8_t* payload, uint8_t length) {
+  // client processes payload returned by auxiliary over uart
 }
 
 bool appDataFiles() {
@@ -1133,17 +1169,24 @@ bool appSetup() {
 #if INCLUDE_GPS
   prepGPS();
 #endif
+#if INCLUDE_DRONE
+ #ifndef ESPNOW_RECEIVER
+  prepUSB();
+ #endif
+#endif
 #ifndef AUXILIARY
  #if INCLUDE_RTSP
   prepRTSP();
  #endif
 #else
  #if INCLUDE_DRONE
-  prepDrone();
+////  prepDrone();
  #endif
 #endif
   return true;
 }
+
+#ifndef AUXILIARY
 
 /************** telegram app specific **************/
 
@@ -1155,7 +1198,7 @@ void tgramAlert(const char* subject, const char* message) {
   if (pos1 != NULL && pos2 != NULL && pos2 > pos1) {
     size_t len = pos2 - pos1;
     snprintf(alertCaption, sizeof(alertCaption), "%.*s from %s", (int)len, pos1, hostName);
-    if (alertBufferSize) alertReady = true; // return image
+    alertReady = true; // return image
   } else LOG_WRN("Unable to send motion alert");
 }
 
@@ -1225,9 +1268,11 @@ void appSpecificTelegramTask(void* p) {
       } else delay(5000); // avoid thrashing
     }
   }
-#endif
+#endif // INCLUDE_TGRAM
   vTaskDelete(NULL);
 }
+
+#endif // AUXILIARY
 
 /************** default app configuration **************/
 const char* appConfig = R"~(

@@ -3,6 +3,8 @@
 
 #include "appGlobals.h"
 
+#ifndef AUXILIARY
+
 #if (INCLUDE_HASIO && !INCLUDE_MQTT)
 #error "Need INCLUDE_MQTT true"
 #endif
@@ -385,7 +387,7 @@ void sendMqttHasDiscovery(){
   else mqttPublishPath("record", "off");
   mqttPublishPath("motion", "off"); 
 }
-void sendMqttHasState(){  
+void sendMqttHasState(){
   char* p = jsonBuff;
   char timeBuff[20];
   time_t currEpoch = getEpoch();
@@ -411,3 +413,4 @@ void sendMqttHasState(){
 }
 #endif // INCLUDE_HASIO
 #endif // INCLUDE_MQTT
+#endif // AUXILIARY

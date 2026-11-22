@@ -1,6 +1,6 @@
 // Provides web server for user control of app
 // 
-// s60sc 2022 - 2026      
+// s60sc 2022 - 2026
 
 #include "appGlobals.h"
 
@@ -719,12 +719,12 @@ bool startWebServer() {
   
     //config.user_cb = https_server_user_callback;
     config.httpd.server_port = HTTPS_PORT;
-	////config.backlog = 16;                 // Queue incoming connections during spikes
-	////config.open_timeout = 5;             // Close connections if no data is sent within 5s
+////config.backlog = 16;                 // Queue incoming connections during spikes
+////config.open_timeout = 5;             // Close connections if no data is sent within 5s
     config.httpd.max_resp_headers = 16;		 // maximum number of headers in an HTTP response
     config.httpd.keep_alive_enable = true;     // Enable persistent connections
-	config.httpd.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
-	config.httpd.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
+    config.httpd.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
+    config.httpd.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
     config.httpd.lru_purge_enable = true; // close least used socket 
     config.httpd.close_fn = onClose;
     config.httpd.max_uri_handlers = MAX_HANDLERS;
@@ -742,12 +742,12 @@ bool startWebServer() {
     config.stack_size = SERVER_STACK_SIZE;
 #endif
     config.server_port = HTTP_PORT;
-	////config.backlog = 16;             // Queue incoming connections during spikes
-	////config.open_timeout = 5;         // Close connections if no data is sent within 5s
+////config.backlog = 16;             // Queue incoming connections during spikes
+////config.open_timeout = 5;         // Close connections if no data is sent within 5s
     config.max_resp_headers = 16;		     // maximum number of headers in an HTTP response
     config.keep_alive_enable = true;     // Enable persistent connections
-	config.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
-	config.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
+    config.keep_alive_idle = 10;         // Seconds before sending Keep-Alive probes
+    config.keep_alive_interval = 5;      // Seconds between Keep-Alive probes
     config.lru_purge_enable = true;
     config.close_fn = onClose;
     config.max_uri_handlers = MAX_HANDLERS;

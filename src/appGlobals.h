@@ -9,7 +9,6 @@
 #define APPGLOBALS_H
 
 #include "globals.h"
-
 #include "ESP32-CAM_MJPEG2SD.h"
 
 // User's ESP32C3 board (auxiliary only)
@@ -26,7 +25,18 @@
 #endif
 #include "camera_pins.h"
 
-#define APP_VER "10.10.2"
+#if INCLUDE_DRONE
+ #define INCLUDE_DS4 true
+ #ifdef ESPNOW_RECEIVER
+  #define INCLUDE_USBHOST false
+ # else
+  #ifndef AUXILIARY
+    #define INCLUDE_USBHOST true
+  #endif
+ #endif // ESPNOW_RECEIVER
+#endif // INCLUDE_DRONE
+
+#define APP_VER "10.10.3"
 #define CFG_VER 42 // to determine if newer data files need to be loaded
 
 #define DEBUG_MEM false // leave as false
@@ -39,7 +49,6 @@
 #if defined(AUXILIARY)
 #define APP_NAME "ESP-CAM_AUX" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/Auxil" HTML_EXT
-#define USE_UARTTASK
 #elif defined(SIDE_ALARM)
 #define APP_NAME "ESP-CAM_SIDE" // max 15 chars
 #define INDEX_PAGE_PATH DATA_DIR "/SideAl" HTML_EXT
@@ -129,6 +138,7 @@
 #define CHECK_STACK_SIZE (1024 * 5)
 #define DRONE_STACK_SIZE (1024 * 4)
 #define LED_STACK_SIZE (1024 * 2)
+#define ESPNOW_STACK_SIZE (1024 * 2)
 
 // task priorities
 #define CAPTURE_PRI 6
@@ -155,6 +165,7 @@
 #define STATUS_PRI 1
 #define CHECK_PRI 1
 #define DRONE_PRI 7
+#define ESPNOW_PRI 4
 
 enum class DevStatus : uint8_t { READY, STARTING, FAILURE, Count };  // device status shown by LED
 enum audioAction {NO_ACTION, UPDATE_CONFIG, RECORD_ACTION, PLAY_ACTION, PASS_ACTION, WAV_ACTION, STOP_ACTION};
@@ -253,8 +264,27 @@ void keepFrame(camera_fb_t* fb);
 #endif
 
 #if INCLUDE_DRONE
-bool prepDrone();
+
+// DS4 controller data used for UART and ESP_NOW
+struct AppControllerPacket {
+  uint8_t command;   // 'F' indicates command for drone
+  uint8_t button;    // button pressed identifier
+  uint8_t state;     // 1 = pressed / active, 0 = released / inactive
+  uint8_t trigger;   // trigger 0..255
+  int8_t stickX;     // stick X, -128..0..127
+  int8_t stickY;     // stick Y -128..0..127
+};
+using AppDataPacket = AppControllerPacket;
+
+void appControllerCommand(const AppControllerPacket &p);
+void espNowLinkLost();
+void espNowLinkRestored();
 void opticalFlow(const uint8_t* currBuff, size_t inWidth, size_t inHeight);
+bool prepDrone();
+bool prepUSB();
+void releaseDS4inputs();
+void sendCommandEspNow(const AppDataPacket &p);
+void showControllerCommand(const AppControllerPacket &p);
 #endif
 
 /******************** Global app declarations *******************/
@@ -543,4 +573,4 @@ const frameStruct frameData[] = {
   {"5MP", 2592, 1944, 4, 4, 1}     // PY260 only
 };
 
-#endif
+#endif // APPGLOBALS_H

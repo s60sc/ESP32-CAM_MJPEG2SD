@@ -18,7 +18,6 @@
 #define MAX_OUT_FULL 192
 #define LOG_POOL_SIZE 8  // messages that can be in flight
 
-volatile uint8_t g_logLevel = LOG_LEVEL_DEBUG;
 static logEntry_t s_pool[LOG_POOL_SIZE];       // .bss, not stack
 static QueueHandle_t s_free_q = NULL;
 static QueueHandle_t s_filled_q = NULL;
@@ -247,19 +246,22 @@ static void showBacktrace() {
   }
 }
 
-static esp_sleep_wakeup_cause_t printWakeupReason() {
-  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-  switch(wakeup_reason) {
-    case ESP_SLEEP_WAKEUP_EXT0 : LOG_INF("Wakeup by external signal using RTC_IO"); break;
-    case ESP_SLEEP_WAKEUP_EXT1 : LOG_INF("Wakeup by external signal using RTC_CNTL"); break;
-    case ESP_SLEEP_WAKEUP_TIMER : LOG_INF("Wakeup by internal timer"); break;
-    case ESP_SLEEP_WAKEUP_TOUCHPAD : LOG_INF("Wakeup by touchpad"); break;
-    case ESP_SLEEP_WAKEUP_ULP : LOG_INF("Wakeup by ULP program"); break;
-    case ESP_SLEEP_WAKEUP_GPIO: LOG_INF("Wakeup by GPIO"); break;    
-    case ESP_SLEEP_WAKEUP_UART: LOG_INF("Wakeup by UART"); break; 
-    default : LOG_INF("Wakeup by reset"); break;
-  }
-  return wakeup_reason;
+static void printWakeupReason() {
+  uint32_t causes = 0;
+#if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(4, 0, 0)
+  esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  if (cause != ESP_SLEEP_WAKEUP_UNDEFINED) causes = (1UL << cause);
+#else
+  causes = esp_sleep_get_wakeup_causes();
+#endif
+  if (causes == 0) LOG_INF("Wakeup by reset");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_EXT0))     LOG_INF("Wakeup by external signal using RTC_IO");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_EXT1))     LOG_INF("Wakeup by external signal using RTC_CNTL");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_TIMER))    LOG_INF("Wakeup by internal timer");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_TOUCHPAD)) LOG_INF("Wakeup by touchpad");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_ULP))      LOG_INF("Wakeup by ULP program");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_GPIO))     LOG_INF("Wakeup by GPIO");
+  if (causes & (1UL << ESP_SLEEP_WAKEUP_UART))     LOG_INF("Wakeup by UART");
 }
 
 static esp_reset_reason_t printResetReason() {
@@ -287,10 +289,9 @@ static esp_reset_reason_t printResetReason() {
   return bootReason;
 }
 
-esp_sleep_wakeup_cause_t wakeupResetReason() {
+static void wakeupResetReason() {
   printResetReason();
-  esp_sleep_wakeup_cause_t wakeupReason = printWakeupReason();
-  return wakeupReason;
+  printWakeupReason();
 }
 
 static void boardInfo() {
@@ -756,8 +757,6 @@ void logReleaseEspLog() {
   s_prev_vprintf = NULL;
 }
 
-void logSetLevel(logLevel_t level) { g_logLevel = (uint8_t)level; }
-
 bool logSetup() {
   // prep logging environment
   if (crashLoop == MAGIC_NUM) snprintf(startupFailure, SF_LEN, STARTUP_FAIL "Crash loop detected, check log %s", (brownoutStatus == 'B' || brownoutStatus == 'R') ? "(brownout)" : " ");
@@ -769,7 +768,6 @@ bool logSetup() {
     esp_rom_printf("\n\n");
     if (DEBUG_MEM) esp_rom_printf("init > Free: heap %lu\n", ESP.getFreeHeap()); 
     (DBG_ON) ? esp_log_level_set("*", DBG_LVL) : esp_log_level_set("*", ESP_LOG_ERROR); // show ESP_LOG_ERROR messages during init
-    logSetLevel(LOG_LEVEL_DEBUG);
     logCaptureEspLog(); // redirect esp_log output to app log
 
     QueueHandle_t fq = xQueueCreate(LOG_POOL_SIZE, sizeof(logEntry_t *));

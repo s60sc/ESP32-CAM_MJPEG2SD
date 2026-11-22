@@ -110,10 +110,7 @@ void setStickTimer(bool restartTimer, uint32_t interval);
 bool getPIRval() {
   // get PIR or radar sensor status 
   if (pirUse) {
-    if (pirPin) {
-      pirVal = digitalRead(pirPin);
-      auxSend('I', pirVal, false); // send update to client
-    } else auxSend('I'); // request update from aux
+    if (pirPin) pirVal = digitalRead(pirPin);
   }
   return pirVal;
 }
@@ -342,7 +339,6 @@ void setLightsRC(bool lightsOn) {
     pinMode(lightsRCpin, OUTPUT); 
     digitalWrite(lightsRCpin, lightsOn);
   }
-  else auxSend('L', (int)lightsOn, false); // send request update to aux
 }
 
 static void prepPIR() {
@@ -508,7 +504,7 @@ static void prepStepper() {
 static void nextPhase(bool changeDir = false) {
   // identify next phase
   if (changeDir) clockwise = !clockwise; // amend next phase to account for change in direction
-  if (clockwise) stepPhase = (stepPhase == 0) ? stepPhase = stepPhases - 1 : stepPhase - 1;
+  if (clockwise) stepPhase = (stepPhase == 0) ? stepPhases - 1 : stepPhase - 1;
   else if (++stepPhase >= stepPhases) stepPhase = 0;
 }
 
@@ -640,10 +636,10 @@ static void prepLedBar() {
 
 /****************************** GNSS **********************************/
 
-#if INCLUDE_GNSS
-
 int gnssRxdPin = -1;  // ESP32 RX <- GNSS module TX
 int gnssTxdPin = -1;  // ESP32 TX -> GNSS module RX
+
+#if INCLUDE_GNSS
 
 static const float GEOFENCE_RADIUS_M = 10.0f;   //// change to be config item
 
@@ -659,54 +655,54 @@ static const float GEOFENCE_HOME_ACCURACY_M = 5.0f;  // set RTH home if sufficie
 
 static bool setupGNSS() {
   // GNSS prep using UART 0 for ESP32C3
-  // first try connecting at default baud rate
-  delay(100);
-  monitorOpen = false;
-  Serial.begin(GNSS_BAUD, SERIAL_8N1, gnssRxdPin, gnssTxdPin);  // New QUESCAN M10Q starts at 38400 baud
-  if (myGNSS.begin(Serial) == true) {
-    myGNSS.setSerialRate(GNSS_NEW_BAUD, COM_PORT_UART1, VAL_LAYER_FLASH);  // one off override M10Q default
-    myGNSS.softwareResetGNSSOnly();  // Restart the GNSS to apply the baud changes
+  if (gnssRxdPin >= 0 && gnssTxdPin >= 0) {
+    // first try connecting at default baud rate
     delay(100);
-  }
-
-  // Connect to the GNSS module using UART at expected rate
-  Serial.begin(GNSS_NEW_BAUD, SERIAL_8N1, gnssRxdPin, gnssTxdPin);
-  for (int i = 0; i < 5; i++) {
-    delay(1000);
+    monitorOpen = false;
+    Serial.begin(GNSS_BAUD, SERIAL_8N1, gnssRxdPin, gnssTxdPin);  // New QUESCAN M10Q starts at 38400 baud
     if (myGNSS.begin(Serial) == true) {
-      gnssOk = true;
-      break;
+      myGNSS.setSerialRate(GNSS_NEW_BAUD, COM_PORT_UART1, VAL_LAYER_FLASH);  // one off override M10Q default
+      myGNSS.softwareResetGNSSOnly();  // Restart the GNSS to apply the baud changes
+      delay(100);
     }
-  }
+    // Connect to the GNSS module using UART at expected rate
+    Serial.begin(GNSS_NEW_BAUD, SERIAL_8N1, gnssRxdPin, gnssTxdPin);
+    for (int i = 0; i < 5; i++) {
+      delay(1000);
+      if (myGNSS.begin(Serial) == true) {
+        gnssOk = true;
+        break;
+      }
+    }
+    if (gnssOk) {
+      myGNSS.setNavigationFrequency(5);  // 5Hz - max for multi constellations
+      myGNSS.softwareResetGNSSOnly();
+      delay(100);
 
-  if (gnssOk) {
-    myGNSS.setNavigationFrequency(5);  // 5Hz - max for multi constellations
-    myGNSS.softwareResetGNSSOnly();
-    delay(100);
+      myGNSS.setUART1Output(COM_TYPE_UBX);  // only need UBX out, not NMEA chatter (GNSS module Uart port)
+      myGNSS.setLNAMode(SFE_UBLOX_LNA_MODE_LOWGAIN);
+      myGNSS.setDynamicModel((dynModel)DYN_MODEL_AIRBORNE1g);  // best nodel for low speed drone
+      // enable constellation types
+      myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GPS_ENA);   // GPS
+      myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GLO_ENA);   // Glonass
+      myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GAL_ENA);   // Galileo
+      myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_BDS_ENA);   // BeiDou
+      myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_SBAS_ENA);  // Japan
+      myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_QZSS_ENA);  // Japan
 
-    myGNSS.setUART1Output(COM_TYPE_UBX);  // only need UBX out, not NMEA chatter (GNSS module Uart port)
-    myGNSS.setLNAMode(SFE_UBLOX_LNA_MODE_LOWGAIN);
-    myGNSS.setDynamicModel((dynModel)DYN_MODEL_AIRBORNE1g);  // best nodel for low speed drone
-    // enable constellation types
-    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GPS_ENA);   // GPS
-    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GLO_ENA);   // Glonass
-    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_GAL_ENA);   // Galileo
-    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_BDS_ENA);   // BeiDou
-    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_SBAS_ENA);  // Japan
-    myGNSS.enableGNSS(true, (sfe_ublox_gnss_ids_e)UBLOX_CFG_SIGNAL_QZSS_ENA);  // Japan
+      myGNSS.setAutoUBX("NAV", "PVT");  // library parses position in the background
+      LOG_INF("u-blox GNSS connected");
 
-    myGNSS.setAutoUBX("NAV", "PVT");  // library parses position in the background
-    LOG_INF("u-blox GNSS connected");
+      // Geofence is configured once there is a good fix - in updateGeofence()
 
-    // Geofence is configured once there is a good fix - in updateGeofence()
-
-  } else {
-    // Not a halt like other sensors: GPS is required for geofencing,
-    // but not for a slow indoor/backyard flight
-    LOG_WRN("u-blox GNSS not detected on UART - check wiring/baud. Continue without geofence");
-    return false;
-  }
-  return true;
+    } else {
+      // Not a halt like other sensors: GPS is required for geofencing,
+      // but not for a slow indoor/backyard flight
+      monitorOpen = true;
+      LOG_WRN("u-blox GNSS not detected on UART - check wiring/baud. Continue without geofence");
+    }
+  } else LOG_WRN("GNSS UART pins not defined");
+  return gnssOk;
 }
 
 float* getGNSSdata() {
@@ -718,6 +714,7 @@ float* getGNSSdata() {
 }
 
 bool updateGNSS() {
+  if (!gnssOk) return false;
   if (myGNSS.getGnssFixOk()) {  // wait for 3D fix
     if (myGNSS.getNAVPVT()) {   // data available
       //latLon is global array
@@ -754,6 +751,8 @@ bool checkGeofence(bool isArmed) {
 #error "Need to install SparkFun_u-blox_GNSS_v4 library"
 #endif
 
+#else
+static void setupGNSS() {} // dummy
 #endif  // INCLUDE_GNSS
 
 /************************ remote peripherals ************************/
@@ -771,14 +770,14 @@ static void uartSend(const char cmd, int controlVal, bool cmdOnly) {
 #endif
 }
 
-void auxSend(const char cmd, int controlVal, bool cmdOnly) {
+void auxPeriphSend(const char cmd, int controlVal, bool cmdOnly) {
   // client send peripheral request to aux
 #ifndef AUXILIARY
   uartSend(cmd, controlVal, cmdOnly);
 #endif
 }
 
-void clientRespond(const char cmd, int controlVal) {
+void auxPeriphResponse(const char cmd, int controlVal) {
   // aux send peripheral response to client
 #ifdef AUXILIARY
   uartSend(cmd, controlVal, false);
@@ -797,9 +796,7 @@ void prepPeripherals() {
   prepJoystick();
   prepStepper();
   prepLedBar();
-#if INCLUDE_GNSS
   setupGNSS();
-#endif
   debugMemory("prepPeripherals");
 }
 

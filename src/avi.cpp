@@ -37,6 +37,8 @@ footer:
 // Set to 1 to omit trailing idx1 index (The code skips the final index write to the SD card. A shorter write time reduces the chance of file corruption if the power stops suddenly.)
 #define AVI_OMIT_INDEX 0
 
+#ifndef AUXILIARY
+
 // avi header data
 const uint8_t dcBuf[4] = {0x30, 0x30, 0x64, 0x63};   // 00dc
 const uint8_t wbBuf[4] = {0x30, 0x31, 0x77, 0x62};   // 01wb
@@ -301,3 +303,5 @@ size_t writeWavFile(byte* clientBuf, size_t buffSize) {
   offsetWav = CHUNK_HDR;
   return 0;
 }
+
+#endif // AUXILIARY

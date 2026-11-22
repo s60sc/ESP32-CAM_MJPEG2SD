@@ -3,7 +3,7 @@
   matches file writes to the SD card sector size.
   AVI files stored on the SD card can also be selected and streamed to a browser.
 
-  s60sc 2020, 2022, 2024, 2025
+  s60sc 2020 - 2026
 */
 
 #include "appGlobals.h"
@@ -444,17 +444,17 @@ static bool closeAvi() {
       LOG_ALT("Recorded %s", aviFileName);
       LOG_INF("AVI duration: %lu secs", vidDurationSecs);
       LOG_INF("Number of frames: %u", frameCnt);
-      vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 10ms to minimize jitter while yielding to WDT
+      vTaskDelay(pdMS_TO_TICKS(10)); // allow lower priority logging task to catch up
       LOG_INF("Required FPS: %u", FPS);
       LOG_INF("Actual FPS: %0.1f", actualFPS);
       LOG_INF("File size: %s", fmtSize(vidSize));
-      vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 10ms to minimize jitter while yielding to WDT
+      vTaskDelay(pdMS_TO_TICKS(10));
       if (frameCnt) {
         LOG_INF("Average frame length: %lu bytes", vidSize / frameCnt);
         LOG_INF("Average frame monitoring time: %lu ms", dTimeTot / frameCnt);
         LOG_INF("Average frame buffering time: %lu ms", fTimeTot / frameCnt);
         LOG_INF("Average frame storage time: %lu ms", wTimeTot / frameCnt);
-        vTaskDelay(pdMS_TO_TICKS(1)); // Reduced from 20ms to minimize jitter while yielding to WDT
+        vTaskDelay(pdMS_TO_TICKS(10));
       }
       LOG_INF("Average SD write speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("File open / completion times: %lu ms / %lu ms", oTime, cTime);
@@ -599,7 +599,6 @@ static bool processFrame() {
   uint8_t reasonMask = 0; // bitmask to capture multiple trigger sources.
   bool prevMotion = haveMotion;
   
-#if !INCLUDE_DRONE
   // determine if time to check for motion change
   bool shouldMonitor = doRecording ? isCapturing : !dbgMotion;
   
@@ -622,7 +621,6 @@ static bool processFrame() {
 #endif
     haveMotion = (reasonMask != 0); // Simplified boolean assignment using explicit non-zero comparison.
   }
-#endif
 
   // process motion status
   if (haveMotion && !prevMotion) {
@@ -664,7 +662,7 @@ static bool processFrame() {
     
 #if INCLUDE_MQTT
     if (mqtt_active) {
-      snprintf(jsonBuff, sizeof(jsonBuff), "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
+      snprintf(jsonBuff, JSON_BUFF_LEN, "{\"RECORD\":\"ON\", \"TIME\":\"%s\"}", esp_log_system_timestamp());
       mqttPublish(jsonBuff);
       mqttPublishPath("record", "on");
     }
@@ -881,7 +879,7 @@ mjpegStruct getNextFrame(bool firstCall) {
     LOG_INF("Recorded FPS %u, duration %lu secs", recFPS, recDuration);
     LOG_INF("Playback FPS %0.1f, duration %lu secs", (float)frameCnt / playDuration, playDuration);
     LOG_INF("Number of frames: %u", frameCnt);
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(10)); // allow time for lower priority logging task to catch up
     if (frameCnt) {
       LOG_INF("Average SD read speed: %lu kB/s", ((vidSize / wTimeTot) * 1000) / 1024);
       LOG_INF("Average frame SD read time: %lu ms", wTimeTot / frameCnt);
@@ -1244,9 +1242,9 @@ bool initCam() {
 
 bool prepCam() {
 #if INCLUDE_DRONE
-  //in drone mode, continuous dashcam rcording is enabled
+  // in drone mode, continuous dashcam rcording is enabled
   // set dashcam recording option on
-  timeLapseOn = false;
+  timeLapseOn = useMotion = false;
   if (!dashCamOn) dashCamOn = 2; // apply default 2 minute recordings if not specified
   colorDepth = GRAYSCALE_BYTES;
 #endif

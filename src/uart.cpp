@@ -9,7 +9,7 @@
 //
 // - call initUart() during setup
 // - to send over uart:
-//   - call uartTxPayload() with pointer to payload array (eg see sendAux() in peripherals.cpp)
+//   - call uartTxPayload() with pointer to payload array 
 //     - queues payload to uartTxTask() (1-slot queue, newest unsent payload wins)
 //     - uartTxTask() calls writeFrame()
 //       - writeFrame() calls serializePacket() to build the frame
@@ -22,7 +22,7 @@
 //     - heartbeat frames are handled in place and never published
 //     - any other valid payload (with its length) is published to rx_msg_queue
 //       (1-slot queue, overwrite: the consumer always sees the newest payload)
-//   - payloadConsumerTask() blocks on rx_msg_queue and calls auxReceive()
+//   - payloadConsumerTask() blocks on rx_msg_queue and calls app specific function 
 //
 // Heartbeat (runs inside uartRxTask, no extra task):
 // - client sends ping [HB_PING][seq] every HB_INTERVAL_MS
@@ -55,8 +55,6 @@
 #define UART_BAUD_RATE 921600
 
 // Heartbeat
-#define HB_PING 0xF0
-#define HB_PONG 0xF1
 #define HB_INTERVAL_MS 1000
 #define HB_TIMEOUT_MS 3000   // should be at least 2-3 x HB_INTERVAL_MS
 
@@ -218,16 +216,14 @@ static void uartTxTask(void *pvParameters) {
 // Called from uartRxTask() only, so the heartbeat state needs no locking.
 // Client: sends a ping every HB_INTERVAL_MS.
 // Both roles: update link status and log transitions.
-static void heartbeatTick(void) {
+static void heartbeatTick() {
   uint32_t now = millis();
 
-#ifndef AUXILIARY
   if (now - hbSentMs >= HB_INTERVAL_MS) {
     hbSentMs = now;
     uint8_t ping[2] = { HB_PING, ++hbSeq };
     writeFrame(ping, sizeof(ping));
   }
-#endif
 
   bool up = (now - lastRxMs) < HB_TIMEOUT_MS;
   if (up != linkUp) {
@@ -246,8 +242,8 @@ bool uartLinkUp(void) {
 // RX
 // --------------------------------------------------------------------
 
-// Reads everything currently buffered in the driver and runs it through the parser.
-// Draining by buffered length (not event.size) keeps us in sync even if the driver
+// Reads everything currently buffered in the driver and run it through the parser.
+// Draining by buffered length (not event.size) keeps in sync even if the driver
 // dropped earlier UART_DATA events. Returns the number of bytes consumed.
 static size_t drainRxBuffer(rx_msg_t *msg) {
   static uint8_t rx_chunk[BUF_SIZE];  // static: keeps it off the task stack
@@ -265,16 +261,12 @@ static size_t drainRxBuffer(rx_msg_t *msg) {
       if (parserFeed(rx_chunk[i], msg)) {
         lastRxMs = millis();  // any valid frame is proof of life
         if (msg->length == 2 && msg->data[0] == HB_PING) {
-#ifdef AUXILIARY
           // echo the sequence number back
           uint8_t pong[2] = { HB_PONG, msg->data[1] };
           writeFrame(pong, sizeof(pong));
-#endif
         } else if (msg->length == 2 && msg->data[0] == HB_PONG) {
-#ifndef AUXILIARY
           // pong for the latest ping gives the round trip time
           if (msg->data[1] == hbSeq) hbRttMs = lastRxMs - hbSentMs;
-#endif
         } else {
           LOG_VRB("Valid packet received! Length: %u", (unsigned)msg->length);
           xQueueOverwrite(rx_msg_queue, msg);  // latest wins; consumer gets data + length
@@ -291,10 +283,9 @@ static void uartRxTask(void *pvParameters) {
   memset(&msg, 0, sizeof(msg));
   parserReset();
 
-  // start with link down, client's first ping goes out immediately
+  // start with link down, first ping goes out immediately
   lastRxMs = millis() - HB_TIMEOUT_MS;
   hbSentMs = millis() - HB_INTERVAL_MS;
-
   while (1) {
     if (xQueueReceive(uart_event_queue, (void *)&event, pdMS_TO_TICKS(RX_IDLE_TIMEOUT_MS)) == pdTRUE) {
       switch (event.type) {
@@ -327,7 +318,9 @@ static void uartRxTask(void *pvParameters) {
         parserReset();
       }
     }
-    heartbeatTick();  // outside the if/else so it also runs during continuous traffic
+#ifdef AUXILIARY
+  heartbeatTick();  // also runs during traffic
+#endif
   }
 }
 
@@ -336,10 +329,18 @@ static void uartRxTask(void *pvParameters) {
 // ====================================================================
 
 static void payloadConsumerTask(void *pvParameters) {
-  // calls void auxReceive() which is defined in appSpecific.cpp
+  // call app specific handlers to process request and provide response
   rx_msg_t local;
   while (1) {
-    if (xQueueReceive(rx_msg_queue, &local, portMAX_DELAY) == pdTRUE) auxReceive(local.data, local.length);
+    if (xQueueReceive(rx_msg_queue, &local, portMAX_DELAY) == pdTRUE) {
+#ifdef AUXILIARY
+    // auxiliary device processes request and responds if required
+      auxProcess(local.data, local.length);
+#else
+      // client device processes any response from auxiliary
+      auxResponse(local.data, local.length);
+#endif
+    }
   }
 }
 
@@ -371,7 +372,6 @@ void prepUart(void) {
       esp_err_t res = uart_driver_install(uartId, BUF_SIZE, 0, 20, &uart_event_queue, 0);
       if (res == ESP_OK) res = uart_param_config(uartId, &uart_config);
       if (res == ESP_OK) res = uart_set_pin(uartId, uartTxdPin, uartRxdPin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-
       // Create all queues and the mutex before any task that uses them starts
       tx_packet_queue = xQueueCreate(1, sizeof(tx_payload_t));
       CHECK_ALLOC(tx_packet_queue);
@@ -380,15 +380,14 @@ void prepUart(void) {
       uartTxMutex = xSemaphoreCreateMutex();
       CHECK_ALLOC(uartTxMutex);
 
-      // Stack sizes are in bytes on ESP-IDF. Check uxTaskGetStackHighWaterMark()
-      // under real load before trimming these. uartRx also runs the heartbeat
-      // and writeFrame(), so it needs a little more than a pure receive task.
+      // Stack sizes are in bytes on ESP-IDF. 
+      // uartRx runs the heartbeat and writeFrame(), so needs a more than a pure receive task
       BaseType_t ok;
-      ok = xTaskCreate(uartRxTask,          "uartRx",      2560, NULL, 12, NULL);
+      ok = xTaskCreate(uartRxTask, "uartRx", 2560, NULL, 5, NULL);
       ESP_ERROR_CHECK(ok == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
-      ok = xTaskCreate(uartTxTask,          "uartTx",      2048, NULL, 5,  NULL);
+      ok = xTaskCreate(uartTxTask, "uartTx", 2048, NULL, 5,  NULL);
       ESP_ERROR_CHECK(ok == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
-      ok = xTaskCreate(payloadConsumerTask, "msgConsumer", 2048, NULL, 8,  NULL);
+      ok = xTaskCreate(payloadConsumerTask, "msgConsumer", 2048, NULL, 5,  NULL);
       ESP_ERROR_CHECK(ok == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
     } else LOG_WRN("At least one uart pin not defined");
   }

@@ -962,7 +962,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
                 dTime = millis(); 
 #if INCLUDE_MQTT
                 if (mqtt_active && motionCnt) {
-                    snprintf(jsonBuff, sizeof(jsonBuff), "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}", esp_log_system_timestamp()); 
+                    snprintf(jsonBuff, JSON_BUFF_LEN, "{\"MOTION\":\"ON\",\"TIME\":\"%s\"}", esp_log_system_timestamp()); 
                     mqttPublish(jsonBuff); 
                     mqttPublishPath("motion", "on"); 
 #if INCLUDE_HASIO
@@ -981,7 +981,7 @@ bool checkMotion(camera_fb_t* fb, bool motionStatus, bool lightLevelOnly) {
             motionStatus = false; // motion stopped
 #if INCLUDE_MQTT
             if (mqtt_active) {
-                snprintf(jsonBuff, sizeof(jsonBuff), "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
+                snprintf(jsonBuff, JSON_BUFF_LEN, "{\"MOTION\":\"OFF\",\"TIME\":\"%s\"}", esp_log_system_timestamp());
                 mqttPublish(jsonBuff);
                 mqttPublishPath("motion", "off");
             }
